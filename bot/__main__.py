@@ -73,6 +73,14 @@ def cmd_launches(args, cfg):
     from . import news
     from .launch_watch import report, watch
 
+    if args.action == "train":
+        from .meme_model import train
+        print(train(args.db, horizon=args.horizon, cost=args.cost))
+        return
+    if args.action == "alert":
+        from .meme_model import alert
+        alert(args.db, args.notify, args.hours, force=args.force)
+        return
     if args.action == "watch":
         watch(args.db, args.hours, last=args.last)
     elif args.action == "news":
@@ -152,8 +160,12 @@ def main(argv=None):
     rt.add_argument("--picks", type=int, default=0, help="show the coins held in the last N months")
 
     la = sub.add_parser("launches", help="paper-test buying brand-new meme coins (Solana)")
-    la.add_argument("action", choices=["watch", "news", "report"],
-                    help="watch: collect new coins; news: match coins to headlines (run alongside watch); report: results so far")
+    la.add_argument("action", choices=["watch", "news", "report", "train", "alert"],
+                    help="watch: collect new coins; news: match coins to headlines (run alongside watch); report: results so far; "
+                         "train: teach + test the jackpot model; alert: BUY/SELL alerts from the model (run alongside watch)")
+    la.add_argument("--horizon", default="15m", choices=["5m", "15m", "1h"], help="train: how long each pick is held")
+    la.add_argument("--notify", metavar="TARGET", help="alert: ntfy:TOPIC, discord:WEBHOOK_URL or telegram:TOKEN:CHAT")
+    la.add_argument("--force", action="store_true", help="alert: run even if the model failed its test (practice only)")
     la.add_argument("--hours", type=float, default=2, help="how long to look for new coins (checks continue 24h after)")
     la.add_argument("--db", default="data/launches.db")
     la.add_argument("--last", default="24h", choices=["5m", "15m", "1h", "6h", "24h"], help="latest price check to wait for")

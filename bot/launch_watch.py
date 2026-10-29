@@ -8,6 +8,7 @@ No money is involved; nothing is bought. Prices come from public APIs and can la
 """
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 import time
@@ -25,6 +26,7 @@ create table if not exists coins (token text primary key, pool text, name text, 
     created_at real, seen_at real, fdv_seen real, buys_seen int, sells_seen int);
 create table if not exists checks (token text, label text, due real, done_at real, price real, fdv real,
     liquidity real, missing int default 0, primary key (token, label));
+create table if not exists snapshots (token text primary key, gecko text, dex0 text);
 """
 
 
@@ -74,6 +76,8 @@ def discover(db: sqlite3.Connection, pages: int = 2, last: str = "24h") -> int:
             db.execute("insert into coins values (?,?,?,?,?,?,?,?,?)",
                        (token, a["address"], a.get("name"), rel["dex"]["data"]["id"], _ts(a["pool_created_at"]), now,
                         float(a.get("fdv_usd") or 0), tx.get("buys", 0), tx.get("sells", 0)))
+            # Everything the feeds said about the coin when we first saw it: clues for the prediction model.
+            db.execute("insert or ignore into snapshots (token, gecko) values (?, ?)", (token, json.dumps(a)))
             db.executemany("insert into checks (token, label, due) values (?,?,?)",
                            [(token, label, now + delay) for label, delay in CHECKS.items() if delay <= CHECKS[last]])
             new += 1
@@ -112,6 +116,8 @@ def run_checks(db: sqlite3.Connection, max_calls: int = 20) -> int:
                     db.execute("update checks set done_at=?, missing=2 where token=? and label=?", (now, token, label))
                 elif pairs:
                     p = _best_pair(pairs)
+                    if label == "0m":
+                        db.execute("update snapshots set dex0=? where token=?", (json.dumps(p), token))
                     db.execute("update checks set done_at=?, price=?, fdv=?, liquidity=? where token=? and label=?",
                                (now, float(p.get("priceUsd") or 0), p.get("fdv"), (p.get("liquidity") or {}).get("usd"), token, label))
                 else:

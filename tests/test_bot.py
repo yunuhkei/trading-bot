@@ -344,3 +344,19 @@ def test_signals_alert_only_when_the_signal_changes(tmp_path, monkeypatch):
     flipped = sg.check(cfg, ["TEST"], state, topic="t")[0]
     assert flipped["stance"] == "OUT" and flipped["changed"]
     assert sent == [("SELL TEST at $120.00", False)]
+
+
+def test_meme_alerts_stay_off_when_the_model_has_not_passed(tmp_path, capsys):
+    import pickle
+    from bot.meme_model import alert
+    path = tmp_path / "m.pkl"
+    with open(path, "wb") as fh:
+        pickle.dump({"model": None, "meta": {"passed": False}}, fh)
+    import bot.meme_model as mm
+    old = mm.MODEL_PATH
+    try:
+        mm.load.__defaults__ = (str(path),)
+        alert(str(tmp_path / "l.db"), target=None, hours=0.01)
+    finally:
+        mm.load.__defaults__ = (old,)
+    assert "Alerts are OFF" in capsys.readouterr().out
