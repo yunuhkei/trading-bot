@@ -274,3 +274,73 @@ def test_rotation_costs_reduce_returns():
     free = backtest_rotation(_universe(), top_n=2, lookback=7, fee_pct=0, slippage_pct=0)
     paid = backtest_rotation(_universe(), top_n=2, lookback=7, fee_pct=0.01, slippage_pct=0)
     assert paid.equity.iloc[-1] < free.equity.iloc[-1]
+
+
+def test_launch_report_counts_vanished_coins_as_total_loss(tmp_path):
+    from bot.launch_watch import connect, outcomes
+    path = str(tmp_path / "l.db"); db = connect(path)
+    for tok, later, missing in (("A", 2.0, 0), ("B", 0.5, 0), ("C", None, 1)):
+        db.execute("insert into coins values (?,?,?,?,?,?,?,?,?)", (tok, "p", tok, "pump-fun", 0, 60, 1000, 1, 0))
+        db.execute("insert into checks values (?,?,?,?,?,?,?,?)", (tok, "0m", 60, 61, 1.0, 1000, 0, 0))
+        db.execute("insert into checks values (?,?,?,?,?,?,?,?)", (tok, "1h", 3660, 3661, later, None, None, missing))
+    db.commit()
+    df = outcomes(path, round_trip_cost=0.0).set_index("token")
+    assert df.loc["A", "ret"] == pytest.approx(1.0)
+    assert df.loc["B", "ret"] == pytest.approx(-0.5)
+    assert df.loc["C", "ret"] == -1.0
+
+
+def test_news_topics_need_names_not_everyday_words():
+    from bot.news import coin_matches, news_topics
+    rows = [("google_news_top", "Fans cheer as Lorenzo Musetti stuns Alcaraz"),
+            ("google_news_sports", "Why Musetti and Alcaraz played the match of the year"),
+            ("google_news_top", "Investors follow the money into the House race"),
+            ("google_trends_us", "gsv vs atl")]
+    topics = news_topics(rows)
+    assert {"musetti", "alcaraz"} <= set(topics)
+    assert "money" not in topics and "house" not in topics  # everyday words, mentioned once
+    assert coin_matches("Musetti", "MUSETTI", topics) == "musetti"
+    assert coin_matches("Lorenzo Musetti", "LM", topics) in {"musetti", "lorenzomusetti"}
+    assert coin_matches("Musetti Moon Rocket Pump", "MMRP", topics) == "musetti"  # moon/pump are filler
+    assert coin_matches("Tennis Legends Rocket Club", "TLRC", topics) is None
+    assert coin_matches("Golden State", "GSVATL", topics) is None
+
+
+def test_news_match_ignores_headlines_published_after_the_coin(tmp_path):
+    from bot.launch_watch import connect
+    from bot.news import SCHEMA, match_coins
+    db = connect(str(tmp_path / "l.db")); db.executescript(SCHEMA)
+    db.execute("insert into coins values ('T','p','GOAT / SOL','pump-fun',0,1000,0,0,0)")
+    db.execute("insert into coin_names values ('T','Goat','GOAT')")
+    db.execute("insert into news values ('late','google_trends_us','goat',2000,2000)")
+    assert match_coins(db) == []
+    db.execute("insert into news values ('early','google_trends_us','goat',900,900)")
+    assert len(match_coins(db)) == 1
+
+
+def test_launch_report_counts_pulled_liquidity_as_total_loss(tmp_path):
+    from bot.launch_watch import connect, outcomes
+    path = str(tmp_path / "l.db"); db = connect(path)
+    db.execute("insert into coins values ('R','p','RUG','pumpswap',0,60,1000,1,0)")
+    db.execute("insert into checks values ('R','0m',60,61,1.0,1000,26000,0)")
+    db.execute("insert into checks values ('R','15m',960,961,23000.0,1e9,70,0)")  # price 'up' 23,000x, $70 left in the pool
+    db.commit()
+    assert outcomes(path, round_trip_cost=0.0).ret.iloc[0] == -1.0
+
+
+def test_signals_alert_only_when_the_signal_changes(tmp_path, monkeypatch):
+    import bot.signals as sg
+    up = frame(np.linspace(100, 200, 260))
+    down = frame(list(np.linspace(100, 200, 230)) + list(np.linspace(200, 120, 30)))
+    sent = []
+    monkeypatch.setattr(sg, "notify", lambda topic, title, msg, buy: sent.append((title, buy)))
+    cfg = Config(strategy="trend", strategy_params={"period": 200, "band": 0.02}, timeframe="1h")
+    state = str(tmp_path / "s.json")
+    monkeypatch.setattr(sg, "fetch_candles", lambda m, tf: up)
+    first = sg.check(cfg, ["TEST"], state, topic="t")
+    assert first[0]["stance"] == "IN" and not first[0]["changed"] and sent == []  # first look: no alert
+    assert sg.check(cfg, ["TEST"], state, topic="t")[0]["changed"] is False
+    monkeypatch.setattr(sg, "fetch_candles", lambda m, tf: down)
+    flipped = sg.check(cfg, ["TEST"], state, topic="t")[0]
+    assert flipped["stance"] == "OUT" and flipped["changed"]
+    assert sent == [("SELL TEST at $120.00", False)]

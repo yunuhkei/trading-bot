@@ -6,3 +6,5 @@ config.yaml
 trades.csv
 *.log
 results*.csv
+data/launches.db*
+signals_state*.json

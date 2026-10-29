@@ -69,6 +69,32 @@ def cmd_rotation(args, cfg):
             print(f"  {day:%Y-%m-%d}: {', '.join(picks) or 'cash'}")
 
 
+def cmd_launches(args, cfg):
+    from . import news
+    from .launch_watch import report, watch
+
+    if args.action == "watch":
+        watch(args.db, args.hours, last=args.last)
+    elif args.action == "news":
+        news.run(args.db, args.hours)
+    print(report(args.db, args.cost))
+    print()
+    print(news.report(args.db, args.cost))
+
+
+def cmd_signals(args, cfg):
+    from .signals import notify, run
+
+    if args.test_alert:
+        if not args.notify:
+            sys.exit("--test-alert needs --notify YOUR-TOPIC")
+        ok = notify(args.notify, "Test alert from your trading bot", "If you can read this, phone alerts work.", buy=True)
+        print("Test alert sent. Check your phone." if ok else "The test alert was NOT delivered (see the warning above).")
+        return
+    markets = [m.strip() for m in args.markets.split(",") if m.strip()]
+    run(cfg, markets, args.notify, args.every, args.state)
+
+
 def cmd_markets(args, cfg):
     import ccxt
 
@@ -125,6 +151,23 @@ def main(argv=None):
     rt.add_argument("--start"); rt.add_argument("--end")
     rt.add_argument("--picks", type=int, default=0, help="show the coins held in the last N months")
 
+    la = sub.add_parser("launches", help="paper-test buying brand-new meme coins (Solana)")
+    la.add_argument("action", choices=["watch", "news", "report"],
+                    help="watch: collect new coins; news: match coins to headlines (run alongside watch); report: results so far")
+    la.add_argument("--hours", type=float, default=2, help="how long to look for new coins (checks continue 24h after)")
+    la.add_argument("--db", default="data/launches.db")
+    la.add_argument("--last", default="24h", choices=["5m", "15m", "1h", "6h", "24h"], help="latest price check to wait for")
+    la.add_argument("--cost", type=float, default=0.04, help="round-trip fees + slippage, e.g. 0.04 = 4%%")
+
+    sg = sub.add_parser("signals", help="BUY/SELL signals for a watchlist, with optional phone alerts (never trades)")
+    sg.add_argument("--markets", default="BTC-USD,ETH-USD,SOL-USD,SPY,QQQ,GLD",
+                    help="comma-separated: crypto as BTC-USD (Coinbase), stocks/funds as SPY (Yahoo)")
+    sg.add_argument("--notify", metavar="TARGET",
+                    help="where to send alerts: ntfy:TOPIC, discord:WEBHOOK_URL or telegram:BOT_TOKEN:CHAT_ID")
+    sg.add_argument("--every", type=float, metavar="MINUTES", help="keep checking every N minutes (default: check once)")
+    sg.add_argument("--state", default="signals_state.json", help="remembers the last signal so only changes alert")
+    sg.add_argument("--test-alert", action="store_true", help="send one test notification and exit")
+
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")
     m.add_argument("--search", default="BTC")
 
@@ -147,6 +190,10 @@ def main(argv=None):
         cmd_optimize(args, cfg)
     elif args.cmd == "rotation":
         cmd_rotation(args, cfg)
+    elif args.cmd == "launches":
+        cmd_launches(args, cfg)
+    elif args.cmd == "signals":
+        cmd_signals(args, cfg)
     elif args.cmd == "markets":
         cmd_markets(args, cfg)
     else:

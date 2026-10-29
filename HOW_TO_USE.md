@@ -104,6 +104,52 @@ If you get **"No module named …"**, run `pip install -r requirements.txt` agai
 
 ---
 
+## Buy/sell alerts on your phone
+
+The bot can work as a **signal bot**: it never trades. It tells you **🟢 BUY** or **🔴 SELL**, and you place the trade yourself
+in Coinbase, Fomo or any other app.
+
+**See the signals right now**
+```bash
+# 200-day trend filter on a watchlist (crypto like BTC-USD from Coinbase, stocks/funds like SPY from Yahoo)
+python -m bot -c config.trend.yaml signals --markets BTC-USD,ETH-USD,SOL-USD,SPY,QQQ,NVDA
+
+# Day-trading signals (RSI dip buying, 15-minute candles)
+python -m bot -c config.daytrade.yaml signals --markets BTC-USD,ETH-USD,NVDA
+```
+Each row shows **IN** (buy / keep holding) or **OUT** (sell / stay in cash), when it last changed, and
+how far the price must move to flip it.
+
+**Get phone notifications. The easiest way is the free ntfy app.**
+1. Install **ntfy** from the App Store or Google Play. No account is needed.
+2. Tap **+** and subscribe to a topic with a long, random name only you know, e.g. `tbot-7f3k9q2xw1`.
+   (Anyone who guesses the name can read it, so don't use your name.)
+3. Test it:
+   ```bash
+   python -m bot signals --notify ntfy:tbot-7f3k9q2xw1 --test-alert
+   ```
+4. Keep it checking every 30 minutes, and get an alert whenever a signal changes:
+   ```bash
+   python -m bot -c config.trend.yaml signals --markets BTC-USD,ETH-USD,SOL-USD,SPY --notify ntfy:tbot-7f3k9q2xw1 --every 30
+   ```
+Other options: `--notify discord:WEBHOOK_URL` (a channel in your own Discord server: Server Settings → Integrations →
+Webhooks → copy URL) or `--notify telegram:BOT_TOKEN:CHAT_ID` (a bot made with @BotFather).
+
+**Let GitHub run it for you every hour, for free (no computer needed)**
+Once the project is in your GitHub repository:
+1. Repository → **Settings → Secrets and variables → Actions → New repository secret**:
+   name `ALERT_TARGET`, value `ntfy:tbot-7f3k9q2xw1` (your own topic).
+2. Optional, under the **Variables** tab: `MARKETS` (e.g. `BTC-USD,ETH-USD,SPY`) and `CONFIG` (e.g. `config.daytrade.yaml`).
+3. Go to the **Actions** tab → enable workflows → **signals → Run workflow** to test it.
+It then checks every hour (`.github/workflows/signals.yml`) and only alerts when something changes.
+
+**Meme-coin research tools** (paper only, Solana):
+```bash
+python -m bot launches watch --hours 2 --last 1h   # record new coins and their prices for the next hour
+python -m bot launches news --hours 2              # in a second terminal: flag coins named after the news
+python -m bot launches report                      # results, incl. news-matched vs everything else
+```
+
 ## Running it 24/7
 
 Paper trading only works while the terminal stays open. To keep it running around the clock,
