@@ -1,0 +1,8 @@
+__pycache__/
+.pytest_cache/
+state*.json
+.env
+config.yaml
+trades.csv
+*.log
+results*.csv

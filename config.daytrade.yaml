@@ -1,0 +1,28 @@
+# The best day-trading rule found across 20 markets (see README "Day trading" section):
+# buy when the 14-candle RSI drops below 20, sell when it recovers above 50, buy-only,
+# everything closed by the end of the day. It succeeded in only ~30% of tests and made
+# very little. At Coinbase SPOT fees (~0.6%) it lost money every time; only consider it
+# with very low fees (crypto futures, or stocks at a no-commission broker). Paper trade first.
+exchange: coinbase
+symbol: BTC/USD
+market_type: spot
+timeframe: 15m
+strategy: rsi_revert
+strategy_params:
+  period: 14
+  low: 20
+  high: 50
+allow_short: false
+day_trade: true           # close everything by the last candle of each day
+starting_cash: 10000
+fee_pct: 0.0005           # futures-level fee; set 0.006 to see what Coinbase spot fees do to it
+slippage_pct: 0.0002
+risk:
+  position_pct: 0.95
+  stop_loss_pct: 0.0
+  take_profit_pct: 0.0
+  max_drawdown_pct: 0.0
+mode: paper
+poll_seconds: 60
+state_file: state.json
+trade_log: trades.csv

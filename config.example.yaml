@@ -1,0 +1,32 @@
+# --- Market -------------------------------------------------------------
+exchange: coinbase        # any ccxt exchange id: coinbase, kraken, binanceus, ...
+symbol: BTC/USD           # find symbols with:  python -m bot -c config.yaml markets --search BTC
+market_type: spot         # spot = long only. future / swap = derivatives, required for live shorting
+timeframe: 4h             # slower timeframes = fewer trades = less lost to fees
+
+# --- Strategy -----------------------------------------------------------
+strategy: breakout        # breakout | sma_cross | rsi_revert
+strategy_params:
+  entry: 20               # breakout: enter on a new 20-bar high (long) / low (short)
+  exit: 10                # breakout: exit on a 10-bar low (long) / high (short)
+  trend: 200              # breakout: only long above / short below the 200-bar EMA (0 = off)
+allow_short: false        # true needs market_type future/swap for live trading
+short_carry_pct_per_day: 0.0003   # backtest-only estimate of funding/borrow cost on shorts
+
+# --- Costs (check your real fee tier!) -----------------------------------
+starting_cash: 10000      # paper trading only
+fee_pct: 0.006            # per side. Coinbase spot taker fees are high at low volume
+slippage_pct: 0.0005
+
+# --- Risk ---------------------------------------------------------------
+risk:
+  position_pct: 0.95      # of equity per position, 1x notional (no leverage)
+  stop_loss_pct: 0.05     # exit when price moves 5% against you
+  take_profit_pct: 0.0    # 0 = off; let winners run
+  max_drawdown_pct: 0.25  # halts the bot; delete the state file to reset
+
+# --- Runtime ------------------------------------------------------------
+mode: paper               # must be "live" (plus env confirmation) for real orders
+poll_seconds: 60
+state_file: state.json
+trade_log: trades.csv
