@@ -213,3 +213,31 @@ def run(cfg: Config, markets: list[str], topic: str | None, every_minutes: float
         if not every_minutes:
             return
         time.sleep(every_minutes * 60)
+
+
+def read_watchlist(path: str) -> list[str]:
+    """Markets from a text file: one per line, anything after # ignored."""
+    from pathlib import Path as _P
+    return [l.split("#", 1)[0].strip() for l in _P(path).read_text().splitlines() if l.split("#", 1)[0].strip()]
+
+
+def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_override: str | None = None):
+    """Check every list in alerts.yaml (each with its own strategy and watchlist) and alert on changes."""
+    import re
+    import yaml
+
+    settings = yaml.safe_load(Path(settings_path).read_text())
+    target = notify_override or settings.get("notify")
+    every = float(settings.get("every_minutes", 60))
+    while True:
+        print(time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()), flush=True)
+        for lst in settings["lists"]:
+            cfg = Config.load(lst["config"])
+            slug = re.sub(r"[^a-z0-9]+", "_", lst["name"].lower()).strip("_")
+            rows = check(cfg, read_watchlist(lst["watchlist"]), f"signals_state_{slug}.json", target, lst.get("stake"))
+            print(f"\n== {lst['name']} ==")
+            print(table(rows), flush=True)
+        if once:
+            return
+        print(f"\nNext check in {every:.0f} minutes. Leave this window open; close it to stop.\n", flush=True)
+        time.sleep(every * 60)

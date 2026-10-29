@@ -3,6 +3,19 @@
 A small, safety-first spot crypto trading bot built on [ccxt](https://github.com/ccxt/ccxt) (100+ exchanges).
 It runs one strategy on one symbol, long or long/short, and acts once per closed candle.
 
+## Quick start: your two alert strategies
+
+The bot never trades. It watches two lists and sends **BUY / SELL alerts** to your phone; you place the trades yourself
+(Coinbase, Fomo, a stock broker):
+
+| List | Strategy (best in testing) | File |
+|---|---|---|
+| Bitcoin, Ethereum, Solana, S&P 500, Nasdaq | 200-day trend filter (`config.trend.yaml`) | `watchlist.main.txt` |
+| 19 Coinbase meme coins + any Fomo coin you add (`sol:<address>`) | 20-day breakout, $30 per coin (`config.memes.yaml`) | `watchlist.memes.txt` |
+
+Start it: double-click **START_ALERTS.bat** (Windows) or **start_alerts.command** (Mac), or run `python -m bot alerts`.
+Settings (alert channel, how often, $ per meme coin) live in **alerts.yaml**. Test your phone with `python -m bot alerts --test-alert`.
+
 **New to this?** Start with [HOW_TO_USE.md](HOW_TO_USE.md) to run it on your phone or computer,
 then [GUIDE.md](GUIDE.md) for going from backtest to real trading on Coinbase.
 

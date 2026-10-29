@@ -109,11 +109,24 @@ def cmd_signals(args, cfg):
         print("Test alert sent. Check your phone." if ok else "The test alert was NOT delivered (see the warning above).")
         return
     if args.watchlist:
-        lines = Path(args.watchlist).read_text().splitlines()
-        markets = [l.split("#", 1)[0].strip() for l in lines if l.split("#", 1)[0].strip()]
+        from .signals import read_watchlist
+        markets = read_watchlist(args.watchlist)
     else:
         markets = [m.strip() for m in args.markets.split(",") if m.strip()]
     run(cfg, markets, args.notify, args.every, args.state, args.stake)
+
+
+def cmd_alerts(args, cfg):
+    import yaml
+
+    from .signals import notify, run_alerts
+
+    if args.test_alert:
+        target = args.notify or yaml.safe_load(Path(args.settings).read_text()).get("notify")
+        ok = notify(target, "Test alert from your trading bot", "If you can read this, phone alerts work.", buy=True)
+        print("Test alert sent. Check your phone." if ok else "The test alert was NOT delivered (see the warning above).")
+        return
+    run_alerts(args.settings, once=args.once, notify_override=args.notify)
 
 
 def cmd_markets(args, cfg):
@@ -185,6 +198,12 @@ def main(argv=None):
     la.add_argument("--last", default="24h", choices=["5m", "15m", "1h", "6h", "24h"], help="latest price check to wait for")
     la.add_argument("--cost", type=float, default=0.04, help="round-trip fees + slippage, e.g. 0.04 = 4%%")
 
+    al = sub.add_parser("alerts", help="run your saved alert lists from alerts.yaml (trend filter + meme breakout)")
+    al.add_argument("--settings", default="alerts.yaml")
+    al.add_argument("--once", action="store_true", help="check once and exit (used by the hourly GitHub runner)")
+    al.add_argument("--notify", metavar="TARGET", help="override where alerts go (default: notify in alerts.yaml)")
+    al.add_argument("--test-alert", action="store_true", help="send one test notification and exit")
+
     sg = sub.add_parser("signals", help="BUY/SELL signals for a watchlist, with optional phone alerts (never trades)")
     sg.add_argument("--markets", default="BTC-USD,ETH-USD,SOL-USD,SPY,QQQ,GLD",
                     help="comma-separated: crypto as BTC-USD (Coinbase), blockchain coins as sol:<address> (e.g. from Fomo), "
@@ -221,6 +240,8 @@ def main(argv=None):
         cmd_rotation(args, cfg)
     elif args.cmd == "launches":
         cmd_launches(args, cfg)
+    elif args.cmd == "alerts":
+        cmd_alerts(args, cfg)
     elif args.cmd == "signals":
         cmd_signals(args, cfg)
     elif args.cmd == "markets":

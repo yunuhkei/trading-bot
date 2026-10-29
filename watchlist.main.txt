@@ -1,0 +1,7 @@
+# Watched with config.trend.yaml (200-day trend filter). One per line; # starts a comment.
+# Coinbase crypto: NAME-USD. Stocks and funds: their ticker (needs a stock broker app to trade).
+BTC-USD
+ETH-USD
+SOL-USD
+SPY      # S&P 500 fund
+QQQ      # Nasdaq-100 fund

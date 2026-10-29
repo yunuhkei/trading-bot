@@ -1,5 +1,5 @@
-# Checks buy/sell signals every hour on GitHub's computers (free for personal accounts) and sends
-# alerts to your phone when a signal changes. Setup: see HOW_TO_USE.md, "Buy/sell alerts on your phone".
+# Checks your alert lists (alerts.yaml: 200-day trend filter + meme-coin breakout) every hour on GitHub's
+# computers, free for personal accounts, and sends alerts when a signal changes. Setup: HOW_TO_USE.md / the guide.
 name: signals
 on:
   schedule:
@@ -17,21 +17,15 @@ jobs:
       # Remember the last signals between runs, so you only get alerted when one changes.
       - uses: actions/cache/restore@v4
         with:
-          path: signals_state.json
+          path: signals_state_*.json
           key: signals-state-${{ github.run_id }}
           restore-keys: signals-state-
       - name: Check signals
         env:
-          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
-          MARKETS: ${{ vars.MARKETS || 'BTC-USD,ETH-USD,SOL-USD,SPY,QQQ' }}
-          CONFIG: ${{ vars.CONFIG || 'config.trend.yaml' }}
-          WATCHLIST: ${{ vars.WATCHLIST }}   # e.g. watchlist.memes.txt (used instead of MARKETS when set)
-          STAKE: ${{ vars.STAKE }}           # e.g. 30 -> alerts say "BUY $30 of ..."
-        run: |
-          if [ -n "$WATCHLIST" ]; then WHAT="--watchlist $WATCHLIST"; else WHAT="--markets $MARKETS"; fi
-          python -m bot -c "$CONFIG" signals $WHAT ${STAKE:+--stake "$STAKE"} ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}   # optional: overrides `notify` in alerts.yaml
+        run: python -m bot alerts --once ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
       - uses: actions/cache/save@v4
         if: always()
         with:
-          path: signals_state.json
+          path: signals_state_*.json
           key: signals-state-${{ github.run_id }}

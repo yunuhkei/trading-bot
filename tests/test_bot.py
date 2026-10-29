@@ -411,3 +411,19 @@ def test_onchain_market_names_are_recognised():
     assert is_onchain("base:0xabc") and is_onchain("bsc:0xabc")
     assert not is_onchain("BTC-USD") and not is_onchain("SPY") and is_crypto("BTC-USD")
     assert display_name("sol:DezXAZ8z7Pnrn").startswith("sol:DezXAZ")
+
+
+def test_alerts_runs_every_saved_list_with_its_own_strategy(tmp_path, monkeypatch):
+    import bot.signals as sg
+    (tmp_path / "w1.txt").write_text("AAA  # comment\n# skip\n")
+    (tmp_path / "w2.txt").write_text("BBB\n")
+    (tmp_path / "t.yaml").write_text("timeframe: 1d\nstrategy: trend\nstrategy_params: {period: 50, band: 0.0}\n")
+    (tmp_path / "m.yaml").write_text("timeframe: 1d\nstrategy: breakout\nstrategy_params: {entry: 20, exit: 10, trend: 0}\n")
+    (tmp_path / "alerts.yaml").write_text(
+        f"notify: ntfy:x\nlists:\n  - {{name: Main, config: {tmp_path}/t.yaml, watchlist: {tmp_path}/w1.txt}}\n"
+        f"  - {{name: Memes, config: {tmp_path}/m.yaml, watchlist: {tmp_path}/w2.txt, stake: 30}}\n")
+    seen = []
+    monkeypatch.setattr(sg, "check", lambda cfg, markets, state, topic, stake: seen.append((cfg.strategy, markets, stake)) or [])
+    monkeypatch.chdir(tmp_path)
+    sg.run_alerts(str(tmp_path / "alerts.yaml"), once=True)
+    assert seen == [("trend", ["AAA"], None), ("breakout", ["BBB"], 30)]
