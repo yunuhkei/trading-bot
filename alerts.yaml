@@ -9,6 +9,10 @@ lists:
     config: config.trend.yaml        # best overall strategy in testing
     watchlist: watchlist.main.txt
 
+  - name: Stocks (200-day trend filter)
+    config: config.trend.yaml        # same rule as Main, on the 10 best individual stocks from the S&P 500 scan
+    watchlist: watchlist.stocks.txt
+
   - name: Meme coins (20-day breakout)
     config: config.memes.yaml        # best meme-coin strategy in testing
     watchlist: watchlist.memes.txt   # add Fomo coins here as sol:<contract address>

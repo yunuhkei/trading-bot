@@ -1,0 +1,16 @@
+# Individual stocks watched with the 200-day trend filter (config.trend.yaml).
+# Picked Oct 2026 by scanning all S&P 500 stocks: these 10 were the best of the 32 where the trend filter made money
+# AND gave better reward-for-risk than holding, in BOTH 2017-2021 and 2022-2026.
+# Caution: picking stocks this way was only weakly reliable in testing (22% of practice-period picks kept working,
+# vs 17% of the rest), and holding usually made more money; the filter mainly gave smaller drops.
+# Trade them with a stock app (Robinhood, Fidelity, Schwab...), not Coinbase or Fomo.
+MPC    # Marathon Petroleum
+TKO    # TKO Group Holdings
+GE     # GE Aerospace
+VLO    # Valero Energy
+DELL   # Dell Technologies
+WELL   # Welltower
+NVDA   # Nvidia
+TPR    # Tapestry
+C      # Citigroup
+JCI    # Johnson Controls

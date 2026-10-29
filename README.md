@@ -11,6 +11,7 @@ The bot never trades. It watches two lists and sends **BUY / SELL alerts** to yo
 | List | Strategy (best in testing) | File |
 |---|---|---|
 | Bitcoin, Ethereum, Solana, S&P 500, Nasdaq | 200-day trend filter (`config.trend.yaml`) | `watchlist.main.txt` |
+| 10 individual stocks from an S&P 500 scan (Nvidia, GE, Marathon Petroleum, ...) | 200-day trend filter | `watchlist.stocks.txt` |
 | 19 Coinbase meme coins + any Fomo coin you add (`sol:<address>`) | 20-day breakout, $30 per coin (`config.memes.yaml`) | `watchlist.memes.txt` |
 
 Start it: double-click **START_ALERTS.bat** (Windows) or **start_alerts.command** (Mac), or run `python -m bot alerts`.
@@ -102,6 +103,14 @@ day's VWAP), `bollinger` (band mean reversion), `eod_momentum` (ride the day's d
 gains over the last `lookback` days, re-picked on the 1st of each month. `--filter self` skips falling coins;
 `--filter btc` holds cash while Bitcoin is below its 200-day average. Coin data: `data/daily/` (Coinbase, 40 coins).
 Note: it only includes coins still listed on Coinbase today, which flatters results (delisted coins that went to zero are missing).
+
+## S&P 500 scan (Oct 2026)
+
+The 200-day trend filter was tested on each of 469 S&P 500 stocks (practice 2017-09 to 2021-12, exam 2022-2026; stocks
+only count from the date they joined the index). It made money with better reward-for-risk than holding in both periods
+for 32 stocks; the best 10 are in `watchlist.stocks.txt`. Picking by the practice period was only weakly predictive
+(22% of picks kept working vs 17% of the rest), following the filter across the whole index made about half of what
+holding did (+40% vs +84% in 2022-2026), and fair momentum stock-picking didn't reliably beat holding SPY either.
 
 ## Short selling
 
