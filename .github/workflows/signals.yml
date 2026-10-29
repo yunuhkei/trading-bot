@@ -5,6 +5,11 @@ on:
   schedule:
     - cron: "7 * * * *"      # every hour at :07
   workflow_dispatch:         # lets you run it by hand from the Actions tab
+    inputs:
+      test_alert:
+        description: "Only send a test alert to your phone"
+        type: boolean
+        default: false
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -20,7 +25,13 @@ jobs:
           path: signals_state_*.json
           key: signals-state-${{ github.run_id }}
           restore-keys: signals-state-
+      - name: Send a test alert
+        if: ${{ inputs.test_alert }}
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+        run: python -m bot alerts --test-alert ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
       - name: Check signals
+        if: ${{ !inputs.test_alert }}
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}   # optional: overrides `notify` in alerts.yaml
         run: python -m bot alerts --once ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
