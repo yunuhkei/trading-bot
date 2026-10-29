@@ -81,13 +81,21 @@ def cmd_launches(args, cfg):
         from .meme_model import alert
         alert(args.db, args.notify, args.hours, force=args.force)
         return
+    if args.action == "survivors":
+        from .survivors import report as survivors_report, run as survivors_run
+        survivors_run(args.db, args.hours)
+        print(survivors_report(args.db))
+        return
     if args.action == "watch":
         watch(args.db, args.hours, last=args.last)
     elif args.action == "news":
         news.run(args.db, args.hours)
+    from .survivors import report as survivors_report
     print(report(args.db, args.cost))
     print()
     print(news.report(args.db, args.cost))
+    print()
+    print(survivors_report(args.db))
 
 
 def cmd_signals(args, cfg):
@@ -160,9 +168,10 @@ def main(argv=None):
     rt.add_argument("--picks", type=int, default=0, help="show the coins held in the last N months")
 
     la = sub.add_parser("launches", help="paper-test buying brand-new meme coins (Solana)")
-    la.add_argument("action", choices=["watch", "news", "report", "train", "alert"],
+    la.add_argument("action", choices=["watch", "news", "report", "train", "alert", "survivors"],
                     help="watch: collect new coins; news: match coins to headlines (run alongside watch); report: results so far; "
-                         "train: teach + test the jackpot model; alert: BUY/SELL alerts from the model (run alongside watch)")
+                         "train: teach + test the jackpot model; alert: BUY/SELL alerts from the model (run alongside watch); "
+                         "survivors: paper-buy coins still alive 1-24h after launch and check them 1h/2h later")
     la.add_argument("--horizon", default="15m", choices=["5m", "15m", "1h"], help="train: how long each pick is held")
     la.add_argument("--notify", metavar="TARGET", help="alert: ntfy:TOPIC, discord:WEBHOOK_URL or telegram:TOKEN:CHAT")
     la.add_argument("--force", action="store_true", help="alert: run even if the model failed its test (practice only)")

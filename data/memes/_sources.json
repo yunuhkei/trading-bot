@@ -1,0 +1,195 @@
+{
+ "DOGE": {
+  "source": "coinbase",
+  "rows": 1974,
+  "from": "2021-06-03"
+ },
+ "SHIB": {
+  "source": "coinbase",
+  "rows": 1876,
+  "from": "2021-09-09"
+ },
+ "PEPE": {
+  "source": "coinbase",
+  "rows": 715,
+  "from": "2024-11-13"
+ },
+ "BONK": {
+  "source": "coinbase",
+  "rows": 1050,
+  "from": "2023-12-14"
+ },
+ "WIF": {
+  "source": "coinbase",
+  "rows": 715,
+  "from": "2024-11-13"
+ },
+ "FLOKI": {
+  "source": "coinbase",
+  "rows": 707,
+  "from": "2024-11-21"
+ },
+ "POPCAT": {
+  "source": "coinbase",
+  "rows": 623,
+  "from": "2025-02-13"
+ },
+ "MOG": {
+  "source": "coinbase",
+  "rows": 693,
+  "from": "2024-12-05"
+ },
+ "PENGU": {
+  "source": "coinbase",
+  "rows": 623,
+  "from": "2025-02-13"
+ },
+ "TRUMP": {
+  "source": "coinbase",
+  "rows": 646,
+  "from": "2025-01-21"
+ },
+ "FARTCOIN": {
+  "source": "coinbase",
+  "rows": 504,
+  "from": "2025-06-12"
+ },
+ "PNUT": {
+  "source": "coinbase",
+  "rows": 653,
+  "from": "2025-01-14"
+ },
+ "MOODENG": {
+  "source": "coinbase",
+  "rows": 694,
+  "from": "2024-12-04"
+ },
+ "GIGA": {
+  "source": "coinbase",
+  "rows": 687,
+  "from": "2024-12-11"
+ },
+ "SPX": {
+  "source": "coinbase",
+  "rows": 415,
+  "from": "2025-09-09"
+ },
+ "TURBO": {
+  "source": "coinbase",
+  "rows": 687,
+  "from": "2024-12-11"
+ },
+ "TOSHI": {
+  "source": "coinbase",
+  "rows": 644,
+  "from": "2025-01-23"
+ },
+ "DEGEN": {
+  "source": "coinbase",
+  "rows": 744,
+  "from": "2024-10-15"
+ },
+ "PUMP": {
+  "source": "coinbase",
+  "rows": 471,
+  "from": "2025-07-15"
+ },
+ "BOME": {
+  "source": "dex:solana:raydium",
+  "pool": "DSUvc5qf5LJHHV5e2tD184ixotSnCnwj7i4jJa4Xsrmt",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 13384238.26
+ },
+ "MEW": {
+  "source": "dex:solana:raydium",
+  "pool": "879F697iuDJGMevRkRcnW21fcXiAeLJK1ffsw2ATebce",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 8946091.37
+ },
+ "BRETT": {
+  "source": "dex:base:uniswap",
+  "pool": "0xBA3F945812a83471d709BCe9C3CA699A19FB46f7",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 1112747.01
+ },
+ "NEIRO": {
+  "source": "dex:ethereum:uniswap",
+  "pool": "0xC555D55279023E732CcD32D812114cAF5838fD46",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 3019726.81
+ },
+ "MYRO": {
+  "source": "dex:solana:pumpswap",
+  "pool": "CV2m2hK9wfugve2dySNLSWQuyM9R2tRwXeUTuUWzh8Dr",
+  "rows": 129,
+  "from": "2026-06-22",
+  "liquidity_now": 108133.28
+ },
+ "SLERF": {
+  "source": "dex:solana:raydium",
+  "pool": "AgFnRLUScRD2E4nWQxW73hdbSN7eKEUb2jHX7tx9YTYc",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 17102622.11
+ },
+ "PONKE": {
+  "source": "dex:solana:raydium",
+  "pool": "5uTwG3y3F5cx4YkodgTjWEHDrX5HDKZ5bZZ72x8eQ6zE",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 1316453.75
+ },
+ "HIPPO": {
+  "source": "dex:solana:pumpswap",
+  "pool": "9cCqT7cnJErsDrpLnR7waJcm1XPwbEwtmJjyYkopbFsb",
+  "rows": 143,
+  "from": "2026-05-26",
+  "liquidity_now": 10233.74
+ },
+ "AI16Z": {
+  "source": "dex:solana:raydium",
+  "pool": "7qAVrzrbULwg1B13YseqA95Uapf8EVp9jQE5uipqFMoP",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 45044.48
+ },
+ "MELANIA": {
+  "source": "dex:solana:meteora",
+  "pool": "9DiruRpjnAnzhn6ts5HGLouHtJrT1JGsPbXNYCrFz2ad",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 10978394.28
+ },
+ "CHILLGUY": {
+  "source": "dex:solana:raydium",
+  "pool": "93tjgwff5Ac5ThyMi8C4WejVVQq4tuMeMuYW1LEYZ7bu",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 1252148.93
+ },
+ "FWOG": {
+  "source": "dex:solana:raydium",
+  "pool": "AB1eu2L1Jr3nfEft85AuD2zGksUbam1Kr8MR3uM2sjwt",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 1424695.95
+ },
+ "MICHI": {
+  "source": "dex:solana:pumpswap",
+  "pool": "22FSz9QP7dS1PvrJKuHr16ymghZP92xPu3Bj7uuzu2bG",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 141405.01
+ },
+ "SAMO": {
+  "source": "dex:solana:orca",
+  "pool": "Epvp7qMYAF21VVjacdB3VfKn6nnXQSF4rGYu8sD6Bkow",
+  "rows": 182,
+  "from": "2026-04-30",
+  "liquidity_now": 90311.17
+ }
+}

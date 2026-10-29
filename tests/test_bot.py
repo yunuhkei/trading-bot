@@ -360,3 +360,20 @@ def test_meme_alerts_stay_off_when_the_model_has_not_passed(tmp_path, capsys):
     finally:
         mm.load.__defaults__ = (old,)
     assert "Alerts are OFF" in capsys.readouterr().out
+
+
+def test_survivor_scan_buys_only_live_believable_coins(tmp_path, monkeypatch):
+    import time as _t
+    import bot.survivors as sv
+    from bot.launch_watch import connect
+    db = connect(str(tmp_path / "l.db"))
+    now = _t.time()
+    for tok in ("LIVE", "DEAD", "FAKE"):
+        db.execute("insert into coins values (?,?,?,?,?,?,?,?,?)", (tok, "p", tok, "pump-fun", now - 7200, now - 7000, 0, 0, 0))
+    pair = lambda tok, vol, mcap: {"baseToken": {"address": tok}, "priceUsd": "1", "liquidity": {"usd": 20000}, "marketCap": mcap,
+                                   "volume": {"h1": vol}, "priceChange": {"h1": 5, "h6": 10}, "txns": {"h1": {"buys": 9, "sells": 3}}}
+    monkeypatch.setattr(sv, "_pairs", lambda toks: {"LIVE": pair("LIVE", 5000, 100000), "DEAD": pair("DEAD", 10, 100000),
+                                                    "FAKE": pair("FAKE", 5000, 9e9)})
+    assert sv.scan(db) == 1
+    row = db.execute("select token, uptrend from survivor_buys").fetchall()
+    assert row == [("LIVE", 1)]

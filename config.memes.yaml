@@ -1,0 +1,28 @@
+# Trend-catching for established meme coins (tested on 33 meme coins, see README).
+# BUY when the price closes above its highest close of the last 20 days (a breakout);
+# SELL when it closes below its lowest of the last 10 days. Daily candles, buy-only.
+# Practice (Nov 2024 - Sep 2025): median +41% while holding lost -69%.
+# Exam (Oct 2025 - Oct 2026, a meme crash): median -24% while holding lost -60%;
+# made money on only 6 of 33 coins. It cuts losses in crashes; it does not guarantee gains.
+exchange: coinbase
+symbol: DOGE/USD
+market_type: spot
+timeframe: 1d
+strategy: breakout
+strategy_params:
+  entry: 20
+  exit: 10
+  trend: 0
+allow_short: false
+starting_cash: 10000
+fee_pct: 0.006
+slippage_pct: 0.002
+risk:
+  position_pct: 0.95
+  stop_loss_pct: 0.0
+  take_profit_pct: 0.0
+  max_drawdown_pct: 0.0
+mode: paper
+poll_seconds: 300
+state_file: state.json
+trade_log: trades.csv

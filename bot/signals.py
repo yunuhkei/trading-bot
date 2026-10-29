@@ -71,6 +71,12 @@ def explain(cfg: Config, df: pd.DataFrame, stance: str) -> str:
             return f"SELL if it closes below {money(down)} ({down / price - 1:+.1%} from here)"
         up = avg * (1 + band)
         return f"BUY if it closes above {money(up)} ({up / price - 1:+.1%} from here)"
+    if cfg.strategy == "breakout":
+        hi = df["high"].rolling(p.get("entry", 20)).max().iloc[-1]
+        lo = df["low"].rolling(p.get("exit", 10)).min().iloc[-1]
+        if stance == "IN":
+            return f"SELL if it closes below {money(lo)} ({lo / price - 1:+.1%} from here)"
+        return f"BUY if it closes above {money(hi)} ({hi / price - 1:+.1%} from here)"
     if cfg.strategy == "rsi_revert":
         r = rsi(close, p.get("period", 14)).iloc[-1]
         if stance == "IN":
