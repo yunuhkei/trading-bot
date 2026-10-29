@@ -215,6 +215,18 @@ def run(cfg: Config, markets: list[str], topic: str | None, every_minutes: float
         time.sleep(every_minutes * 60)
 
 
+def alert_target(default: str | None = None) -> str | None:
+    """Where alerts go, kept out of the (public) repo: ALERT_TARGET env var, then my_alert_channel.txt, then default."""
+    import os
+
+    if os.environ.get("ALERT_TARGET"):
+        return os.environ["ALERT_TARGET"]
+    local = Path("my_alert_channel.txt")
+    if local.exists() and local.read_text().strip():
+        return local.read_text().strip()
+    return default or None
+
+
 def read_watchlist(path: str) -> list[str]:
     """Markets from a text file: one per line, anything after # ignored."""
     from pathlib import Path as _P
@@ -227,7 +239,7 @@ def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_ov
     import yaml
 
     settings = yaml.safe_load(Path(settings_path).read_text())
-    target = notify_override or settings.get("notify")
+    target = notify_override or alert_target(settings.get("notify"))
     every = float(settings.get("every_minutes", 60))
     while True:
         print(time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()), flush=True)

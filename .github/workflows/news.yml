@@ -1,0 +1,32 @@
+# Every 10 minutes: meme coin IDEAS from the news (never buy signals). See bot/news_ideas.py.
+# Sends at most 3 new ideas per check and never the same coin twice in a week.
+name: news
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  ideas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: news_ideas_state.json
+          key: news-ideas-${{ github.run_id }}
+          restore-keys: news-ideas-
+      - name: Check the news for meme coin ideas
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+        run: python -m bot ideas ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: news_ideas_state.json
+          key: news-ideas-${{ github.run_id }}

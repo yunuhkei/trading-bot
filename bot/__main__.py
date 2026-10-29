@@ -122,7 +122,10 @@ def cmd_alerts(args, cfg):
     from .signals import notify, run_alerts
 
     if args.test_alert:
-        target = args.notify or yaml.safe_load(Path(args.settings).read_text()).get("notify")
+        from .signals import alert_target
+        target = args.notify or alert_target(yaml.safe_load(Path(args.settings).read_text()).get("notify"))
+        if not target:
+            sys.exit("No alert channel set: put e.g. ntfy:your-channel in my_alert_channel.txt (see alerts.yaml).")
         ok = notify(target, "Test alert from your trading bot", "If you can read this, phone alerts work.", buy=True)
         print("Test alert sent. Check your phone." if ok else "The test alert was NOT delivered (see the warning above).")
         return
@@ -130,10 +133,18 @@ def cmd_alerts(args, cfg):
 
 
 def cmd_ideas(args, cfg):
-    from . import news_ideas
+    import time
 
-    ideas = news_ideas.run(args.notify, args.state, args.max)
-    print(news_ideas.table(ideas))
+    from . import news_ideas
+    from .signals import alert_target
+
+    while True:
+        ideas = news_ideas.run(args.notify or alert_target(), args.state, args.max)
+        print(time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()))
+        print(news_ideas.table(ideas), flush=True)
+        if not args.every:
+            return
+        time.sleep(args.every * 60)
 
 
 def cmd_chart(args, cfg):
@@ -225,6 +236,7 @@ def main(argv=None):
     ni.add_argument("--notify", metavar="TARGET", help="also send new ideas to your phone (ntfy:TOPIC, ...)")
     ni.add_argument("--state", default="news_ideas_state.json")
     ni.add_argument("--max", type=int, default=3, help="most new ideas to send at once")
+    ni.add_argument("--every", type=float, metavar="MINUTES", help="keep checking every N minutes (e.g. 10)")
 
     sg = sub.add_parser("signals", help="BUY/SELL signals for a watchlist, with optional phone alerts (never trades)")
     sg.add_argument("--markets", default="BTC-USD,ETH-USD,SOL-USD,SPY,QQQ,GLD",

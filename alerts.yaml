@@ -1,7 +1,10 @@
 # Your alert settings. `python -m bot alerts` (or double-click START_ALERTS) reads this file.
 # The bot never trades: it sends BUY / SELL alerts and you place the trades yourself.
 
-notify: ntfy:tbot-00dcc1a84c   # your private ntfy channel (Part 1 of the guide)
+# Where alerts go is kept private, never in this file (the repo is public):
+#   on GitHub: the ALERT_TARGET secret (Settings > Secrets and variables > Actions), e.g. ntfy:your-channel
+#   on your computer: put the same text in a file called my_alert_channel.txt next to this one
+notify:
 every_minutes: 60              # how often to check
 
 lists:
@@ -21,5 +24,5 @@ lists:
 # News ideas: meme coins named after what's in the news right now that pass safety filters
 # ($20k+ in the pool, $50k+ traded today, under 2 weeks old, worth under $50M). Sent as "IDEA", never as BUY.
 news_ideas:
-  enabled: true
+  enabled: false        # on GitHub the separate "news" workflow checks every 10 minutes; set true to include it here
   max_per_check: 3      # at most this many new ideas per check; the same coin is never sent twice in a week
