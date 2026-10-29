@@ -25,13 +25,58 @@ COINBASE_GRAN = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "6h": 21600, "1d":
 YAHOO = {"1d": ("1d", "2y"), "1h": ("60m", "60d"), "15m": ("15m", "30d"), "5m": ("5m", "10d")}
 
 
+CHAINS = {"sol": "solana", "solana": "solana", "base": "base", "bsc": "bsc", "bnb": "bsc", "eth": "ethereum", "ethereum": "ethereum"}
+GECKO_NET = {"solana": "solana", "base": "base", "bsc": "bsc", "ethereum": "eth"}
+GECKO_TF = {"1d": ("day", 1), "4h": ("hour", 4), "1h": ("hour", 1), "15m": ("minute", 15), "5m": ("minute", 5)}
+_names: dict[str, str] = {}
+
+
+def is_onchain(market: str) -> bool:
+    """'sol:<address>', 'base:<address>' etc.: a coin that trades on a blockchain (what apps like Fomo trade)."""
+    return market.split(":", 1)[0].lower() in CHAINS and ":" in market
+
+
 def is_crypto(market: str) -> bool:
     return "-" in market or "/" in market
 
 
+def display_name(market: str) -> str:
+    return _names.get(market, market if not is_onchain(market) else market.split(":", 1)[0] + ":" + market.split(":", 1)[1][:6] + "…")
+
+
+def fetch_onchain_candles(market: str, timeframe: str) -> pd.DataFrame:
+    """Candles for a blockchain coin from its busiest trading pool (pool found on DEX Screener, candles from GeckoTerminal)."""
+    chain_key, address = market.split(":", 1)
+    chain = CHAINS[chain_key.lower()]
+    pairs = requests.get(f"https://api.dexscreener.com/tokens/v1/{chain}/{address}", timeout=30).json()
+    pairs = [p for p in pairs if p["baseToken"]["address"].lower() == address.lower()]
+    if not pairs:
+        raise ValueError("no trading pool found for that address")
+    pool = max(pairs, key=lambda p: (p.get("liquidity") or {}).get("usd") or 0)
+    _names[market] = pool["baseToken"]["symbol"]
+    unit, agg = GECKO_TF[timeframe]
+    for attempt in range(4):
+        r = requests.get(f"https://api.geckoterminal.com/api/v2/networks/{GECKO_NET[chain]}/pools/{pool['pairAddress']}/ohlcv/{unit}",
+                         params={"aggregate": agg, "limit": 300, "currency": "usd", "token": "base"},
+                         headers={"Accept": "application/json;version=20230302"}, timeout=30)
+        if r.status_code != 429:
+            break
+        time.sleep(10 * (attempt + 1))  # the free feed allows only a few requests a minute
+    r.raise_for_status()
+    rows = r.json()["data"]["attributes"]["ohlcv_list"]
+    df = pd.DataFrame(rows, columns=["t", *COLUMNS]).sort_values("t")
+    df.index = pd.to_datetime(df.pop("t"), unit="s", utc=True)
+    step = {"day": 86400, "hour": 3600, "minute": 60}[unit] * agg
+    df = df[df.index + pd.Timedelta(seconds=step) <= pd.Timestamp.now(tz="UTC")]  # drop the candle still forming
+    time.sleep(2.5)
+    return clean(df.astype(float))
+
+
 def fetch_candles(market: str, timeframe: str) -> pd.DataFrame:
-    """Recent candles, oldest first, without the candle that's still forming.
-    Crypto ('BTC-USD') comes from Coinbase; anything else ('SPY', 'NVDA') from Yahoo Finance."""
+    """Recent candles, oldest first, without the candle that's still forming. Coinbase crypto ('BTC-USD'),
+    blockchain coins by address ('sol:<address>', e.g. what you trade on Fomo), or stocks/funds ('SPY') from Yahoo."""
+    if is_onchain(market):
+        return fetch_onchain_candles(market, timeframe)
     if is_crypto(market):
         gran = COINBASE_GRAN[timeframe]
         r = requests.get(f"https://api.exchange.coinbase.com/products/{market.replace('/', '-')}/candles",
@@ -111,7 +156,8 @@ def notify(target: str, title: str, message: str, buy: bool) -> bool:
         return False
 
 
-def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json", topic: str | None = None) -> list[dict]:
+def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json", topic: str | None = None,
+          stake: float | None = None) -> list[dict]:
     state = json.loads(Path(state_path).read_text()) if Path(state_path).exists() else {}
     strategy = build_strategy(cfg.strategy, cfg.strategy_params)
     rows = []
@@ -137,7 +183,8 @@ def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json
                "changed": prev is not None and prev != stance}
         if row["changed"]:
             action = "BUY" if stance == "IN" else "SELL" if prev == "IN" else stance
-            title = f"{action} {market} at {money(row['price'])}"
+            what = f"${stake:,.0f} of {display_name(market)}" if stake and action == "BUY" else display_name(market)
+            title = f"{action} {what} at {money(row['price'])}"
             msg = f"{cfg.strategy} ({cfg.timeframe}) switched {prev} -> {stance}. {row['note']}"
             log.warning("ALERT %s: %s", title, msg)
             if topic:
@@ -152,17 +199,17 @@ def table(rows: list[dict]) -> str:
     out = [f"{'market':<10}{'price':>14}  {'signal':<22}{'since':<14}what would change it"]
     for r in rows:
         if "error" in r:
-            out.append(f"{r['market']:<10}  could not check: {r['error']}")
+            out.append(f"{display_name(r['market']):<10}  could not check: {r['error']}")
             continue
         signal = {"IN": "IN  (buy / hold)", "OUT": "OUT (sell / cash)", "SHORT": "SHORT"}[r["stance"]] + (" NEW!" if r["changed"] else "")
-        out.append(f"{r['market']:<10}{money(r['price']):>14}  {signal:<22}{r['since']:%b %d %H:%M}  {r['note']}")
+        out.append(f"{display_name(r['market']):<10}{money(r['price']):>14}  {signal:<22}{r['since']:%b %d %H:%M}  {r['note']}")
     return "\n".join(out)
 
 
-def run(cfg: Config, markets: list[str], topic: str | None, every_minutes: float | None, state_path: str):
+def run(cfg: Config, markets: list[str], topic: str | None, every_minutes: float | None, state_path: str, stake: float | None = None):
     while True:
         print(time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()))
-        print(table(check(cfg, markets, state_path, topic)), flush=True)
+        print(table(check(cfg, markets, state_path, topic, stake)), flush=True)
         if not every_minutes:
             return
         time.sleep(every_minutes * 60)

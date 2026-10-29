@@ -157,7 +157,7 @@ def outcomes(db_path: str, round_trip_cost: float = 0.04):
 
     db = connect(db_path)
     q = """select c.token, c.name, c.dex, c.created_at, c.seen_at, c.fdv_seen, c.buys_seen, c.sells_seen,
-                  e.price as entry, e.liquidity as entry_liq, k.label, k.price, k.missing, k.liquidity
+                  e.price as entry, e.liquidity as entry_liq, k.label, k.price, k.missing, k.liquidity, k.fdv as fdv_later
            from coins c join checks e on e.token = c.token and e.label = '0m'
            join checks k on k.token = c.token and k.label != '0m'
            where e.price > 0 and e.missing = 0 and k.done_at is not null and k.missing != 2"""
@@ -167,6 +167,10 @@ def outcomes(db_path: str, round_trip_cost: float = 0.04):
     # and you couldn't sell, so it's a total loss. (Pump.fun coins report no liquidity figure; those are kept.)
     rugged = df.liquidity.notna() & (df.liquidity < 500)
     df.loc[rugged, "ret"] = -1.0
+    # Rigged pools: a coin "becoming" a billion-dollar coin within hours is a fake price set up to lure buyers;
+    # nobody could actually sell at it.
+    fake = (df.fdv_later > 1e9) & (df.ret > 100)
+    df.loc[fake, "ret"] = -1.0
     df["net"] = (1 + df.ret) * (1 - round_trip_cost) - 1
     df["age_seen_min"] = (df.seen_at - df.created_at) / 60
     return df

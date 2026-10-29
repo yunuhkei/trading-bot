@@ -181,6 +181,40 @@ class Momentum(Strategy):
         return pd.Series(np.where(change.isna(), 0, np.sign(change)), index=df.index).astype(int)
 
 
+class Overnight(Strategy):
+    """Hold from `buy_hour` to `sell_hour` (UTC, can wrap past midnight), e.g. 1 -> 13 = 8 pm to 8 am US Eastern/Central.
+    With `trend` > 0, only on nights when the close is above its `trend`-candle average (the coin is already rising)."""
+
+    name = "overnight"
+
+    def __init__(self, buy_hour: int = 1, sell_hour: int = 13, trend: int = 0):
+        super().__init__(buy_hour=buy_hour, sell_hour=sell_hour, trend=trend)
+        self.buy_hour, self.sell_hour, self.trend = buy_hour, sell_hour, trend
+
+    @property
+    def warmup(self) -> int:
+        return self.trend
+
+    def signals(self, df: pd.DataFrame) -> pd.Series:
+        step = df.index.to_series().diff().median() if len(df) > 1 else pd.Timedelta(hours=1)
+        nxt = (df.index + step).hour  # the signal on a candle's close is acted on at the next candle's open
+        b, e = self.buy_hour, self.sell_hour
+        window = (nxt >= b) & (nxt < e) if b < e else (nxt >= b) | (nxt < e)
+        ok = np.ones(len(df), bool)
+        if self.trend:
+            avg = sma(df["close"], self.trend)
+            ok = (df["close"] > avg).to_numpy()
+        # Decide at the evening entry and keep that decision for the whole night.
+        out, pos = np.zeros(len(df), int), 0
+        for i in range(len(df)):
+            if not window[i]:
+                pos = 0
+            elif pos == 0 and (i == 0 or not window[i - 1]):
+                pos = int(ok[i])
+            out[i] = pos
+        return pd.Series(out, index=df.index)
+
+
 def _day_key(df: pd.DataFrame) -> pd.Index:
     return df.index.normalize()
 
@@ -313,7 +347,7 @@ class LateDayMomentum(Strategy):
 
 
 STRATEGIES = {cls.name: cls for cls in (SMACross, RSIMeanReversion, Breakout, TrendFilter, Momentum,
-                                        OpeningRange, VWAP, Bollinger, LateDayMomentum)}
+                                        OpeningRange, VWAP, Bollinger, LateDayMomentum, Overnight)}
 
 
 def build_strategy(name: str, params: dict | None = None) -> Strategy:

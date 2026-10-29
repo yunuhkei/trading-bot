@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 import pandas as pd
 import logging
@@ -107,8 +108,12 @@ def cmd_signals(args, cfg):
         ok = notify(args.notify, "Test alert from your trading bot", "If you can read this, phone alerts work.", buy=True)
         print("Test alert sent. Check your phone." if ok else "The test alert was NOT delivered (see the warning above).")
         return
-    markets = [m.strip() for m in args.markets.split(",") if m.strip()]
-    run(cfg, markets, args.notify, args.every, args.state)
+    if args.watchlist:
+        lines = Path(args.watchlist).read_text().splitlines()
+        markets = [l.split("#", 1)[0].strip() for l in lines if l.split("#", 1)[0].strip()]
+    else:
+        markets = [m.strip() for m in args.markets.split(",") if m.strip()]
+    run(cfg, markets, args.notify, args.every, args.state, args.stake)
 
 
 def cmd_markets(args, cfg):
@@ -182,12 +187,15 @@ def main(argv=None):
 
     sg = sub.add_parser("signals", help="BUY/SELL signals for a watchlist, with optional phone alerts (never trades)")
     sg.add_argument("--markets", default="BTC-USD,ETH-USD,SOL-USD,SPY,QQQ,GLD",
-                    help="comma-separated: crypto as BTC-USD (Coinbase), stocks/funds as SPY (Yahoo)")
+                    help="comma-separated: crypto as BTC-USD (Coinbase), blockchain coins as sol:<address> (e.g. from Fomo), "
+                         "stocks/funds as SPY (Yahoo)")
     sg.add_argument("--notify", metavar="TARGET",
                     help="where to send alerts: ntfy:TOPIC, discord:WEBHOOK_URL or telegram:BOT_TOKEN:CHAT_ID")
     sg.add_argument("--every", type=float, metavar="MINUTES", help="keep checking every N minutes (default: check once)")
     sg.add_argument("--state", default="signals_state.json", help="remembers the last signal so only changes alert")
     sg.add_argument("--test-alert", action="store_true", help="send one test notification and exit")
+    sg.add_argument("--watchlist", metavar="FILE", help="read markets from a text file, one per line (e.g. watchlist.memes.txt)")
+    sg.add_argument("--stake", type=float, help="dollars to buy per BUY alert, shown in the alert (e.g. 30)")
 
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")
     m.add_argument("--search", default="BTC")

@@ -25,7 +25,11 @@ jobs:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
           MARKETS: ${{ vars.MARKETS || 'BTC-USD,ETH-USD,SOL-USD,SPY,QQQ' }}
           CONFIG: ${{ vars.CONFIG || 'config.trend.yaml' }}
-        run: python -m bot -c "$CONFIG" signals --markets "$MARKETS" ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
+          WATCHLIST: ${{ vars.WATCHLIST }}   # e.g. watchlist.memes.txt (used instead of MARKETS when set)
+          STAKE: ${{ vars.STAKE }}           # e.g. 30 -> alerts say "BUY $30 of ..."
+        run: |
+          if [ -n "$WATCHLIST" ]; then WHAT="--watchlist $WATCHLIST"; else WHAT="--markets $MARKETS"; fi
+          python -m bot -c "$CONFIG" signals $WHAT ${STAKE:+--stake "$STAKE"} ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
       - uses: actions/cache/save@v4
         if: always()
         with:

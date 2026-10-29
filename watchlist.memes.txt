@@ -1,0 +1,31 @@
+# Meme coins to watch with config.memes.yaml (daily breakout). One per line; lines starting with # are ignored.
+#
+# Coinbase coins: NAME-USD
+# Coins from Fomo (or any Solana/Base/BNB app): chain:contract-address
+#   In Fomo, open the coin, copy its contract address (CA), and add a line like:  sol:PASTE-ADDRESS-HERE
+#   Use base: for Base coins and bsc: for BNB Chain coins.
+#   Always use the address, not the name: scammers copy famous names.
+
+# --- Coinbase meme coins ---
+DOGE-USD
+SHIB-USD
+PEPE-USD
+BONK-USD
+WIF-USD
+FLOKI-USD
+POPCAT-USD
+MOG-USD
+PENGU-USD
+TRUMP-USD
+FARTCOIN-USD
+PNUT-USD
+MOODENG-USD
+GIGA-USD
+SPX-USD
+TURBO-USD
+TOSHI-USD
+DEGEN-USD
+PUMP-USD
+
+# --- Fomo / Solana coins by address (add your own below) ---
+# sol:DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263   (Bonk, same coin as BONK-USD above)

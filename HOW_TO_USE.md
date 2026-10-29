@@ -143,6 +143,14 @@ Once the project is in your GitHub repository:
 3. Go to the **Actions** tab → enable workflows → **signals → Run workflow** to test it.
 It then checks every hour (`.github/workflows/signals.yml`) and only alerts when something changes.
 
+**Meme-coin alerts, including coins you trade on Fomo**
+```bash
+# 20-day breakout signals for the meme coins in watchlist.memes.txt; alerts say "BUY $30 of ..."
+python -m bot -c config.memes.yaml signals --watchlist watchlist.memes.txt --stake 30 --notify ntfy:tbot-7f3k9q2xw1 --every 60
+```
+To add a Fomo coin, copy its contract address in Fomo and add a line `sol:<address>` (or `base:`/`bsc:`) to
+`watchlist.memes.txt`. The bot reads its price from the coin's public trading pool. It can't see Fomo's own lists.
+
 **Meme-coin research tools** (paper only, Solana):
 ```bash
 python -m bot launches watch --hours 2 --last 1h   # record new coins and their prices for the next hour

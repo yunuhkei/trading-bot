@@ -377,3 +377,37 @@ def test_survivor_scan_buys_only_live_believable_coins(tmp_path, monkeypatch):
     assert sv.scan(db) == 1
     row = db.execute("select token, uptrend from survivor_buys").fetchall()
     assert row == [("LIVE", 1)]
+
+
+def test_launch_report_counts_rigged_billion_dollar_prices_as_total_loss(tmp_path):
+    from bot.launch_watch import connect, outcomes
+    path = str(tmp_path / "l.db"); db = connect(path)
+    db.execute("insert into coins values ('N','p','NEX','pumpswap',0,60,13000,1,0)")
+    db.execute("insert into checks values ('N','0m',60,61,0.00001,13000,25000,0)")
+    db.execute("insert into checks values ('N','1h',3660,3661,22.7,2.27e10,156000,0)")  # 'worth' $22.7 billion an hour later
+    db.commit()
+    assert outcomes(path, round_trip_cost=0.0).ret.iloc[0] == -1.0
+
+
+def test_overnight_holds_only_between_evening_and_morning():
+    from bot.strategies import Overnight
+    df = frame(np.linspace(100, 110, 72))  # 3 days of hourly candles from midnight UTC
+    sig = Overnight(buy_hour=1, sell_hour=13).signals(df)
+    held_hours = sorted(set((df.index[sig.to_numpy() == 1] + pd.Timedelta(hours=1)).hour))
+    assert held_hours == list(range(1, 13))
+    res = run_backtest(df, Overnight(1, 13), cfg())
+    assert all(t.exit_time.hour == 13 for t in res.trades if t.reason == "signal")
+
+
+def test_overnight_trend_filter_skips_falling_nights():
+    from bot.strategies import Overnight
+    falling = frame(np.linspace(200, 100, 24 * 6))
+    assert Overnight(1, 13, trend=24).signals(falling).iloc[48:].sum() == 0
+
+
+def test_onchain_market_names_are_recognised():
+    from bot.signals import display_name, is_crypto, is_onchain
+    assert is_onchain("sol:DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263")
+    assert is_onchain("base:0xabc") and is_onchain("bsc:0xabc")
+    assert not is_onchain("BTC-USD") and not is_onchain("SPY") and is_crypto("BTC-USD")
+    assert display_name("sol:DezXAZ8z7Pnrn").startswith("sol:DezXAZ")
