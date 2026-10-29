@@ -17,3 +17,9 @@ lists:
     config: config.memes.yaml        # best meme-coin strategy in testing
     watchlist: watchlist.memes.txt   # add Fomo coins here as sol:<contract address>
     stake: 30                        # alerts say "BUY $30 of ..."
+
+# News ideas: meme coins named after what's in the news right now that pass safety filters
+# ($20k+ in the pool, $50k+ traded today, under 2 weeks old, worth under $50M). Sent as "IDEA", never as BUY.
+news_ideas:
+  enabled: true
+  max_per_check: 3      # at most this many new ideas per check; the same coin is never sent twice in a week

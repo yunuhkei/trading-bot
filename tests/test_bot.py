@@ -427,3 +427,29 @@ def test_alerts_runs_every_saved_list_with_its_own_strategy(tmp_path, monkeypatc
     monkeypatch.chdir(tmp_path)
     sg.run_alerts(str(tmp_path / "alerts.yaml"), once=True)
     assert seen == [("trend", ["AAA"], None), ("breakout", ["BBB"], 30)]
+
+
+def test_news_ideas_filter_match_and_never_repeat(tmp_path, monkeypatch):
+    import bot.news_ideas as ni
+    good = {"chain": "solana", "address": "AAA", "symbol": "MUSETTI", "name": "Musetti", "age_h": 10, "liq": 50_000,
+            "vol24": 200_000, "mcap": 500_000, "url": ""}
+    thin = {**good, "address": "BBB", "liq": 1_000}               # almost no money in the pool
+    old = {**good, "address": "CCC", "age_h": 2000}                # not riding today's news
+    unrelated = {**good, "address": "DDD", "symbol": "FROGZ", "name": "Frogz"}
+    copy = {**good, "address": "EEE", "symbol": "MUSETTI", "name": "Musetti Inc."}
+    monkeypatch.setattr(ni, "candidates", lambda: [good, thin, old, unrelated, copy])
+    monkeypatch.setattr(ni, "current_topics", lambda: {"musetti": "Musetti stuns Alcaraz in Paris"})
+    sent = []
+    monkeypatch.setattr("bot.signals.notify", lambda t, title, msg, buy: sent.append((title, msg)))
+    state = str(tmp_path / "s.json")
+    ideas = ni.run("ntfy:x", state)
+    assert [i["address"] for i in ideas] == ["AAA"]                 # the company copycat is left out
+    assert len(sent) == 1 and "sol:AAA" in sent[0][1] and "Not a buy signal" in sent[0][1]
+    assert ni.run("ntfy:x", state) and len(sent) == 1               # same coin again: no repeat alert
+
+
+def test_news_ideas_leave_out_big_coin_impostors(monkeypatch):
+    import bot.news_ideas as ni
+    fake = {"chain": "solana", "address": "F", "symbol": "Bitcoin", "name": "Bitcoin", "age_h": 45, "liq": 30_000,
+            "vol24": 700_000, "mcap": 84_000, "url": ""}
+    assert ni.find_ideas([fake], {"bitcoin": "bitcoin price"}) == []

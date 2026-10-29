@@ -39,7 +39,10 @@ says said say will would can could may might just more most very also one two th
 week time man woman people world news live update today video watch how why what who when where which all any some
 coin token sol solana pump fun moon inu meme memecoin crypto official real community the based baby mini super mega
 king queen lord god dog cat frog pepe wif bonk usd usdc bot bots app ai gpt agent chain swap finance capital labs
-""".split())
+january february march april may june july august september october november december monday tuesday wednesday
+thursday friday saturday sunday north south east west street house city state states united national president
+minister government police court league cup series game games week price market markets stock stocks report
+windows season team player players election elections party""".split())
 
 SCHEMA = """
 create table if not exists news (id text primary key, source text, title text, published_at real, fetched_at real);

@@ -22,7 +22,9 @@ jobs:
       # Remember the last signals between runs, so you only get alerted when one changes.
       - uses: actions/cache/restore@v4
         with:
-          path: signals_state_*.json
+          path: |
+            signals_state_*.json
+            news_ideas_state.json
           key: signals-state-${{ github.run_id }}
           restore-keys: signals-state-
       - name: Send a test alert
@@ -38,5 +40,7 @@ jobs:
       - uses: actions/cache/save@v4
         if: always()
         with:
-          path: signals_state_*.json
+          path: |
+            signals_state_*.json
+            news_ideas_state.json
           key: signals-state-${{ github.run_id }}

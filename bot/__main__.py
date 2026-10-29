@@ -129,6 +129,13 @@ def cmd_alerts(args, cfg):
     run_alerts(args.settings, once=args.once, notify_override=args.notify)
 
 
+def cmd_ideas(args, cfg):
+    from . import news_ideas
+
+    ideas = news_ideas.run(args.notify, args.state, args.max)
+    print(news_ideas.table(ideas))
+
+
 def cmd_markets(args, cfg):
     import ccxt
 
@@ -204,6 +211,11 @@ def main(argv=None):
     al.add_argument("--notify", metavar="TARGET", help="override where alerts go (default: notify in alerts.yaml)")
     al.add_argument("--test-alert", action="store_true", help="send one test notification and exit")
 
+    ni = sub.add_parser("ideas", help="meme coins named after today's news that pass safety filters (ideas, not buy signals)")
+    ni.add_argument("--notify", metavar="TARGET", help="also send new ideas to your phone (ntfy:TOPIC, ...)")
+    ni.add_argument("--state", default="news_ideas_state.json")
+    ni.add_argument("--max", type=int, default=3, help="most new ideas to send at once")
+
     sg = sub.add_parser("signals", help="BUY/SELL signals for a watchlist, with optional phone alerts (never trades)")
     sg.add_argument("--markets", default="BTC-USD,ETH-USD,SOL-USD,SPY,QQQ,GLD",
                     help="comma-separated: crypto as BTC-USD (Coinbase), blockchain coins as sol:<address> (e.g. from Fomo), "
@@ -240,6 +252,8 @@ def main(argv=None):
         cmd_rotation(args, cfg)
     elif args.cmd == "launches":
         cmd_launches(args, cfg)
+    elif args.cmd == "ideas":
+        cmd_ideas(args, cfg)
     elif args.cmd == "alerts":
         cmd_alerts(args, cfg)
     elif args.cmd == "signals":

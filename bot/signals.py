@@ -237,6 +237,12 @@ def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_ov
             rows = check(cfg, read_watchlist(lst["watchlist"]), f"signals_state_{slug}.json", target, lst.get("stake"))
             print(f"\n== {lst['name']} ==")
             print(table(rows), flush=True)
+        ideas_cfg = settings.get("news_ideas") or {}
+        if ideas_cfg.get("enabled"):
+            from . import news_ideas
+            ideas = news_ideas.run(target, "news_ideas_state.json", int(ideas_cfg.get("max_per_check", 3)))
+            print("\n== Meme coin ideas from the news (not buy signals) ==")
+            print(news_ideas.table(ideas), flush=True)
         if once:
             return
         print(f"\nNext check in {every:.0f} minutes. Leave this window open; close it to stop.\n", flush=True)
