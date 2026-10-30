@@ -31,7 +31,7 @@ practice_trading:
   file: practice_account.json
 
 # News ideas: meme coins named after what's in the news right now that pass safety filters
-# ($20k+ in the pool, $50k+ traded today, under 2 weeks old, worth under $50M). Sent as "IDEA", never as BUY.
+# ($20k+ in the pool, $50k+ traded today, under 45 days old, worth under $50M). Sent as "IDEA", never as BUY.
 news_ideas:
   enabled: false        # on GitHub the separate "news" workflow checks every 10 minutes; set true to include it here
   max_per_check: 3      # at most this many new ideas per check; the same coin is never sent twice in a week

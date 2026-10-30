@@ -188,6 +188,10 @@ One-time setup:
 Then: **Windows:** drag the screenshot onto **CHECK_CHART.bat**. **Mac:** double-click **check_chart.command** and drag
 the screenshot into the window. Or type `python -m bot chart path/to/screenshot.png`.
 
+**On your phone:** send the screenshot to Claude in the Claude app and say *"check this chart"*. Claude reads it
+and runs the same check (`python -m bot chart --ticker GANG --chain solana --value 1200000`, or `--ca <address>`).
+No API key needed.
+
 What it does: Claude reads the coin's name, blockchain and value from the picture (it does not guess the price from
 the chart shape, which tested as a coin flip), the bot finds the real coin (using the value to skip same-name
 copycats), and runs your tested rules on its full price history. Coins under 21 days old, with under $20k in their

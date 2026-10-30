@@ -24,7 +24,7 @@ from . import news
 log = logging.getLogger("news_ideas")
 NETWORKS = {"solana": "sol", "base": "base", "bsc": "bsc"}
 GECKO_HEADERS = {"Accept": "application/json;version=20230302"}
-MIN_LIQ, MIN_VOL24, MAX_AGE_H, MAX_MCAP = 20_000, 50_000, 14 * 24, 50_000_000
+MIN_LIQ, MIN_VOL24, MAX_AGE_H, MAX_MCAP = 20_000, 50_000, 45 * 24, 50_000_000
 COPYCAT = ("inc", "inc.", "corp", "corp.", "corporation", "ltd", "llc", "company")
 # Coins pretending to be a big, real coin (a "Bitcoin" meme coin is not Bitcoin): always left out.
 IMPOSTOR = {"bitcoin", "btc", "ethereum", "eth", "solana", "sol", "xrp", "bnb", "usdc", "usdt", "tether", "dogecoin", "doge"}
@@ -48,9 +48,10 @@ def _get(url, **kw):
 def candidates() -> list[dict]:
     """Meme coins with the most action right now, with the numbers the filters need."""
     found = {}
+    lists = [("trending_pools", page) for page in (1, 2, 3)] + [("pools", page) for page in (1, 2)]  # hot + busiest
     for net in NETWORKS:
-        for page in (1, 2):
-            data = _get(f"https://api.geckoterminal.com/api/v2/networks/{net}/trending_pools",
+        for kind, page in lists:
+            data = _get(f"https://api.geckoterminal.com/api/v2/networks/{net}/{kind}",
                         params={"page": page, "include": "base_token"}, headers=GECKO_HEADERS)
             time.sleep(2.5)
             if not data:

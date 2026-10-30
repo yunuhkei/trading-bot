@@ -150,7 +150,14 @@ def cmd_ideas(args, cfg):
 def cmd_chart(args, cfg):
     from .chart_check import report
 
-    print(report(args.image, args.settings))
+    info = None
+    if not args.image:
+        if not (args.ticker or args.name or args.ca):
+            sys.exit("Give a screenshot, or what it shows: --ticker/--name (and --chain, --value) or --ca.")
+        info = {"found_asset": True, "kind": args.kind, "name": args.name or "", "ticker": args.ticker or "",
+                "chain": args.chain, "market_cap_usd": args.value, "price_usd": None, "contract_address": args.ca or "",
+                "app": "", "notes": ""}
+    print(report(args.image, args.settings, info))
 
 
 def cmd_markets(args, cfg):
@@ -230,7 +237,13 @@ def main(argv=None):
     al.add_argument("--minutes", type=float, help="keep checking for this many minutes, then stop")
 
     ch = sub.add_parser("chart", help="screenshot of a coin or stock -> BUY / WAIT / AVOID, stop-loss and amount")
-    ch.add_argument("image", help="path to the screenshot (png/jpg)")
+    ch.add_argument("image", nargs="?", help="path to the screenshot (png/jpg); or describe the coin with the options below")
+    ch.add_argument("--ticker", help="ticker shown, e.g. GANG")
+    ch.add_argument("--name", help="coin or company name shown")
+    ch.add_argument("--chain", default="unknown", choices=["solana", "base", "bsc", "ethereum", "none", "unknown"])
+    ch.add_argument("--value", type=float, help="market value shown, in dollars (tells copycats apart)")
+    ch.add_argument("--ca", help="contract address, if shown")
+    ch.add_argument("--kind", default="meme_coin", choices=["meme_coin", "crypto", "stock"])
     ch.add_argument("--settings", default="alerts.yaml")
 
     ni = sub.add_parser("ideas", help="meme coins named after today's news that pass safety filters (ideas, not buy signals)")

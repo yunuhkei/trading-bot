@@ -204,11 +204,13 @@ def verdict(coin: dict, settings: dict) -> dict:
             "why": f"no BUY signal. The rule buys if it closes above {money(trigger)} ({trigger / price - 1:+.1%} from here)"}
 
 
-def report(path: str, settings_path: str = "alerts.yaml") -> str:
+def report(path: str | None, settings_path: str = "alerts.yaml", info: dict | None = None) -> str:
+    """`info`: what was read from the screenshot (READ_SCHEMA fields), e.g. read by Claude in the chat app when you
+    send it a phone screenshot. Without it, Claude reads the image at `path` through the API."""
     import yaml
 
     settings = yaml.safe_load(Path(settings_path).read_text())
-    info = read_screenshot(path)
+    info = info or read_screenshot(path)
     lines = [f"Read from the screenshot: {info.get('name') or '?'} {('(' + info['ticker'] + ')') if info.get('ticker') else ''}"
              f"{', ' + info['chain'] if info.get('chain') not in ('none', 'unknown', '') else ''}"
              f"{', value ' + money(info['market_cap_usd']) if info.get('market_cap_usd') else ''}"
