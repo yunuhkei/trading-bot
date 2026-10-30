@@ -528,6 +528,14 @@ def test_chart_check_verdicts(monkeypatch):
     assert cc.verdict(thin, _chart_settings())["decision"] == "AVOID"                # red flag: tiny pool
 
 
+def test_chart_check_avoids_a_coin_with_no_full_day_of_history(monkeypatch):
+    import bot.chart_check as cc
+    monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: frame([1.0]).iloc[:0])
+    settings = {"lists": [{"config": "config.memes.yaml", "stake": 30}]}
+    v = cc.verdict({"market": "bsc:0xabc", "kind": "meme_coin", "liquidity": 100_000, "age_days": 0.1}, settings)
+    assert v["decision"] == "AVOID" and "not even one full day" in v["why"]
+
+
 def test_chart_check_picks_the_coin_matching_the_screenshot_value(monkeypatch):
     import bot.chart_check as cc
     pair = lambda addr, cap, liq: {"chainId": "bsc", "baseToken": {"address": addr, "symbol": "GANG", "name": "Gang"},

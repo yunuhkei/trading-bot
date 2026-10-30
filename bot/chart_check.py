@@ -174,6 +174,9 @@ def verdict(coin: dict, settings: dict) -> dict:
     except Exception as e:
         return {**out, "decision": "AVOID", "why": f"couldn't get its price history ({str(e)[:80]})"}
     strategy = build_strategy(cfg.strategy, cfg.strategy_params)
+    if df.empty:
+        return {**out, "decision": "AVOID", "why": "too new for the rule: not even one full day of price history yet. "
+                "In testing, buying coins this young lost money"}
     price = float(df.close.iloc[-1])
     out["price"] = price
     if len(df) <= strategy.warmup:
