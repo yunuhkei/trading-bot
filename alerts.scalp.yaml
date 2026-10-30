@@ -12,3 +12,10 @@ lists:
     watchlist: watchlist.scalp.txt
     stake: 30
     practice: true
+
+# Practice auto-trading for the scalping list: its own fake-money account (see alerts.yaml).
+practice_trading:
+  enabled: true
+  cash: 80
+  per_trade: 10
+  file: practice_account_scalp.json

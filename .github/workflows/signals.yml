@@ -25,6 +25,7 @@ jobs:
           path: |
             signals_state_*.json
             news_ideas_state.json
+            practice_account.json
           key: signals-state-${{ github.run_id }}
           restore-keys: signals-state-
       - name: Send a test alert
@@ -43,4 +44,5 @@ jobs:
           path: |
             signals_state_*.json
             news_ideas_state.json
+            practice_account.json
           key: signals-state-${{ github.run_id }}

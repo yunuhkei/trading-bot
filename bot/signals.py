@@ -224,8 +224,55 @@ def practice_result(score: dict, entry: float, exit_: float) -> str:
             f"{score['growth'] - 1:+.1%} total ($100 would now be ${100 * score['growth']:,.2f}).")
 
 
+class PracticeAccount:
+    """Fake-money account that trades every BUY and SELL alert by itself at live prices, a fixed amount per buy,
+    after fees. Shows what auto-trading would have done before any real money is used."""
+
+    def __init__(self, path: str, cash: float = 80.0, per_trade: float = 10.0, fee: float = PRACTICE_FEE):
+        self.path, self.per_trade, self.fee = path, per_trade, fee
+        saved = json.loads(Path(path).read_text()) if Path(path).exists() else {}
+        self.start = saved.get("start", cash)
+        self.cash = saved.get("cash", cash)
+        self.positions = saved.get("positions", {})  # market -> {"qty", "cost", "price"}
+        self.closed = saved.get("closed", [])        # % result of each finished trade, after fees
+
+    def save(self):
+        Path(self.path).write_text(json.dumps({"start": self.start, "cash": self.cash, "positions": self.positions,
+                                               "closed": self.closed[-500:]}, indent=2))
+
+    def value(self) -> float:
+        return self.cash + sum(p["qty"] * p["price"] for p in self.positions.values())
+
+    def mark(self, market: str, price: float):
+        if market in self.positions:
+            self.positions[market]["price"] = price
+
+    def buy(self, market: str, price: float) -> str:
+        if market in self.positions:
+            return "Practice account: already holding it."
+        if self.cash < self.per_trade:
+            return f"Practice account: skipped, only ${self.cash:,.2f} cash left (needs ${self.per_trade:,.0f})."
+        self.cash -= self.per_trade
+        self.positions[market] = {"qty": self.per_trade * (1 - self.fee) / price, "cost": self.per_trade, "price": price}
+        return f"Practice account: bought ${self.per_trade:,.0f} by itself. " + self.summary()
+
+    def sell(self, market: str, price: float) -> str:
+        pos = self.positions.pop(market, None)
+        if not pos:
+            return ""
+        got = pos["qty"] * price * (1 - self.fee)
+        self.cash += got
+        self.closed.append(got / pos["cost"] - 1)
+        return f"Practice account: sold by itself for ${got:,.2f} ({got / pos['cost'] - 1:+.1%} after fees). " + self.summary()
+
+    def summary(self) -> str:
+        wins = sum(r > 0 for r in self.closed)
+        return (f"Account ${self.value():,.2f} (started ${self.start:,.0f}, {self.value() / self.start - 1:+.1%}): "
+                f"${self.cash:,.2f} cash, {len(self.positions)} open, {len(self.closed)} trades done, {wins} wins.")
+
+
 def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json", topic: str | None = None,
-          stake: float | None = None, practice: bool = False) -> list[dict]:
+          stake: float | None = None, practice: bool = False, account: PracticeAccount | None = None) -> list[dict]:
     state = json.loads(Path(state_path).read_text()) if Path(state_path).exists() else {}
     strategy = build_strategy(cfg.strategy, cfg.strategy_params)
     rows = []
@@ -258,10 +305,16 @@ def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json
                     score.setdefault("open", {})[key] = row["price"]
                 elif action == "SELL" and key in score.get("open", {}):
                     msg += "\n" + practice_result(score, score["open"].pop(key), row["price"])
+            if account and action in ("BUY", "SELL"):
+                note = account.buy(market, row["price"]) if action == "BUY" else account.sell(market, row["price"])
+                if note:
+                    msg += "\n" + note
             log.warning("ALERT %s: %s", title, msg)
             if topic:
                 notify(topic, title, msg, buy=stance == "IN")
         state[key] = stance
+        if account:
+            account.mark(market, row["price"])
         rows.append(row)
     Path(state_path).write_text(json.dumps(state, indent=2))
     return rows
@@ -316,15 +369,21 @@ def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_ov
     target = notify_override or alert_target(settings.get("notify"))
     every = float(settings.get("every_minutes", 60))
     stop_at = time.time() + minutes * 60 if minutes else None
+    pt = settings.get("practice_trading") or {}
     while True:
         print(time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()), flush=True)
+        account = PracticeAccount(pt.get("file", "practice_account.json"), float(pt.get("cash", 80)),
+                                  float(pt.get("per_trade", 10))) if pt.get("enabled") else None
         for lst in settings["lists"]:
             cfg = Config.load(lst["config"])
             slug = re.sub(r"[^a-z0-9]+", "_", lst["name"].lower()).strip("_")
             rows = check(cfg, read_watchlist(lst["watchlist"]), f"signals_state_{slug}.json", target, lst.get("stake"),
-                         bool(lst.get("practice")))
+                         bool(lst.get("practice")), account)
             print(f"\n== {lst['name']} ==")
             print(table(rows), flush=True)
+        if account:
+            account.save()
+            print("\n== Practice auto-trading (fake money) ==\n" + account.summary(), flush=True)
         ideas_cfg = settings.get("news_ideas") or {}
         if ideas_cfg.get("enabled"):
             from . import news_ideas

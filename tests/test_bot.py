@@ -362,6 +362,19 @@ def test_practice_alerts_are_labeled_and_keep_a_score_after_fees(tmp_path, monke
     assert "This trade: -40.7% after fees" in sell_msg and "1 trades, 0 wins" in sell_msg
 
 
+def test_practice_account_trades_alerts_by_itself_with_fixed_amounts(tmp_path):
+    from bot.signals import PracticeAccount
+    path = str(tmp_path / "acct.json")
+    acct = PracticeAccount(path, cash=15, per_trade=10, fee=0.0)
+    assert "bought $10" in acct.buy("BTC-USD", 100.0)
+    assert "skipped" in acct.buy("ETH-USD", 50.0)  # only $5 left
+    acct.save()
+    acct = PracticeAccount(path, fee=0.0)  # picks up where it left off
+    acct.mark("BTC-USD", 120.0)
+    assert round(acct.value(), 2) == 17.0
+    assert "+20.0%" in acct.sell("BTC-USD", 120.0) and acct.cash == 17.0 and acct.sell("BTC-USD", 1.0) == ""
+
+
 def test_prices_paste_as_plain_decimals_and_copy_line():
     from bot.signals import alert_text, money, plain
     assert plain(0.00000437) == "0.000004370" or plain(0.00000437) == "0.00000437"
@@ -459,7 +472,7 @@ def test_alerts_runs_every_saved_list_with_its_own_strategy(tmp_path, monkeypatc
         f"notify: ntfy:x\nlists:\n  - {{name: Main, config: {tmp_path}/t.yaml, watchlist: {tmp_path}/w1.txt}}\n"
         f"  - {{name: Memes, config: {tmp_path}/m.yaml, watchlist: {tmp_path}/w2.txt, stake: 30}}\n")
     seen = []
-    monkeypatch.setattr(sg, "check", lambda cfg, markets, state, topic, stake, practice=False: seen.append((cfg.strategy, markets, stake)) or [])
+    monkeypatch.setattr(sg, "check", lambda cfg, markets, state, topic, stake, practice=False, account=None: seen.append((cfg.strategy, markets, stake)) or [])
     monkeypatch.chdir(tmp_path)
     sg.run_alerts(str(tmp_path / "alerts.yaml"), once=True)
     assert seen == [("trend", ["AAA"], None), ("breakout", ["BBB"], 30)]
