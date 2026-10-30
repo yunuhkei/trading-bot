@@ -1,0 +1,14 @@
+# Scalping PRACTICE alerts: RSI dip buying on 15-minute candles, checked every 5 minutes.
+# Every alert says PRACTICE. In testing (20 markets) this rule lost about 31% a year at Coinbase/Fomo fees
+# (~0.6% per buy or sell) and only broke even with near-zero fees, so don't use real money with it.
+# Each SELL alert shows a running practice score (after 0.6% fees) so you can see how it's doing.
+# On GitHub the "scalp" workflow runs this all day; on your computer: python -m bot alerts --settings alerts.scalp.yaml
+notify:                 # same channel as alerts.yaml (ALERT_TARGET secret or my_alert_channel.txt)
+every_minutes: 5
+
+lists:
+  - name: Scalping practice (RSI dip, 15m)
+    config: config.daytrade.yaml
+    watchlist: watchlist.scalp.txt
+    stake: 30
+    practice: true

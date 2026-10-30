@@ -155,8 +155,12 @@ def stop_level(cfg: Config, df: pd.DataFrame) -> float | None:
     return None
 
 
-def alert_text(cfg: Config, df: pd.DataFrame, market: str, action: str, stake: float | None) -> tuple[str, str]:
+def alert_text(cfg: Config, df: pd.DataFrame, market: str, action: str, stake: float | None,
+               practice: bool = False) -> tuple[str, str]:
     """Plain-English alert: what to do, how much, the stop-loss and the exit plan."""
+    if practice:
+        title, msg = alert_text(cfg, df, market, action, stake)
+        return "PRACTICE " + title, "Practice only: don't use real money (this rule lost money at app fees in testing).\n" + msg
     price = float(df["close"].iloc[-1])
     name = display_name(market)
     rule = RULE_NAMES.get(cfg.strategy, cfg.strategy)
@@ -167,7 +171,7 @@ def alert_text(cfg: Config, df: pd.DataFrame, market: str, action: str, stake: f
         if stop:
             lines.append(f"Stop-loss: {money(stop)} ({stop / price - 1:+.1%}). Sell everything if it closes below this; "
                          "you can set it as a stop order in your app.")
-        lines.append("Take-profit: none. Hold until the SELL alert.")
+        lines.append("Take-profit: none. Hold until the SELL alert" + (" (it comes the same day)." if cfg.day_trade else "."))
         lines.append(f"Rule: {rule}.")
         copy = [copy_id(market), f"buy ${stake:,.0f}" if stake else "buy", f"price {plain(price)}"]
         if stop:
@@ -207,8 +211,21 @@ def notify(target: str, title: str, message: str, buy: bool) -> bool:
         return False
 
 
+PRACTICE_FEE = 0.006  # per buy or sell, about what Coinbase and Fomo charge on small trades
+
+
+def practice_result(score: dict, entry: float, exit_: float) -> str:
+    """Record one practice trade (after fees) and describe it plus the running score."""
+    pct = exit_ / entry * (1 - PRACTICE_FEE) ** 2 - 1
+    score["trades"] = score.get("trades", 0) + 1
+    score["wins"] = score.get("wins", 0) + (pct > 0)
+    score["growth"] = score.get("growth", 1.0) * (1 + pct)
+    return (f"This trade: {pct:+.1%} after fees. Practice score: {score['trades']} trades, {score['wins']} wins, "
+            f"{score['growth'] - 1:+.1%} total ($100 would now be ${100 * score['growth']:,.2f}).")
+
+
 def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json", topic: str | None = None,
-          stake: float | None = None) -> list[dict]:
+          stake: float | None = None, practice: bool = False) -> list[dict]:
     state = json.loads(Path(state_path).read_text()) if Path(state_path).exists() else {}
     strategy = build_strategy(cfg.strategy, cfg.strategy_params)
     rows = []
@@ -234,7 +251,13 @@ def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json
                "changed": prev is not None and prev != stance}
         if row["changed"]:
             action = "BUY" if stance == "IN" else "SELL" if prev == "IN" else stance
-            title, msg = alert_text(cfg, df, market, action, stake)
+            title, msg = alert_text(cfg, df, market, action, stake, practice)
+            if practice:
+                score = state.setdefault("_practice", {})
+                if action == "BUY":
+                    score.setdefault("open", {})[key] = row["price"]
+                elif action == "SELL" and key in score.get("open", {}):
+                    msg += "\n" + practice_result(score, score["open"].pop(key), row["price"])
             log.warning("ALERT %s: %s", title, msg)
             if topic:
                 notify(topic, title, msg, buy=stance == "IN")
@@ -282,20 +305,24 @@ def read_watchlist(path: str) -> list[str]:
     return [l.split("#", 1)[0].strip() for l in _P(path).read_text().splitlines() if l.split("#", 1)[0].strip()]
 
 
-def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_override: str | None = None):
-    """Check every list in alerts.yaml (each with its own strategy and watchlist) and alert on changes."""
+def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_override: str | None = None,
+               minutes: float | None = None):
+    """Check every list in alerts.yaml (each with its own strategy and watchlist) and alert on changes.
+    `minutes`: stop after this long (lets GitHub run one long job that checks every few minutes)."""
     import re
     import yaml
 
     settings = yaml.safe_load(Path(settings_path).read_text())
     target = notify_override or alert_target(settings.get("notify"))
     every = float(settings.get("every_minutes", 60))
+    stop_at = time.time() + minutes * 60 if minutes else None
     while True:
         print(time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()), flush=True)
         for lst in settings["lists"]:
             cfg = Config.load(lst["config"])
             slug = re.sub(r"[^a-z0-9]+", "_", lst["name"].lower()).strip("_")
-            rows = check(cfg, read_watchlist(lst["watchlist"]), f"signals_state_{slug}.json", target, lst.get("stake"))
+            rows = check(cfg, read_watchlist(lst["watchlist"]), f"signals_state_{slug}.json", target, lst.get("stake"),
+                         bool(lst.get("practice")))
             print(f"\n== {lst['name']} ==")
             print(table(rows), flush=True)
         ideas_cfg = settings.get("news_ideas") or {}
@@ -304,7 +331,7 @@ def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_ov
             ideas = news_ideas.run(target, "news_ideas_state.json", int(ideas_cfg.get("max_per_check", 3)))
             print("\n== Meme coin ideas from the news (not buy signals) ==")
             print(news_ideas.table(ideas), flush=True)
-        if once:
+        if once or (stop_at and time.time() + every * 60 > stop_at):
             return
         print(f"\nNext check in {every:.0f} minutes. Leave this window open; close it to stop.\n", flush=True)
         time.sleep(every * 60)

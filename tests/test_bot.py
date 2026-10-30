@@ -346,6 +346,22 @@ def test_signals_alert_only_when_the_signal_changes(tmp_path, monkeypatch):
     assert sent == [("SELL all of TEST at $120.00", False)]
 
 
+def test_practice_alerts_are_labeled_and_keep_a_score_after_fees(tmp_path, monkeypatch):
+    import bot.signals as sg
+    up = frame(np.linspace(100, 200, 260))
+    down = frame(list(np.linspace(100, 200, 230)) + list(np.linspace(200, 120, 30)))
+    sent = []
+    monkeypatch.setattr(sg, "notify", lambda topic, title, msg, buy: sent.append((title, msg)))
+    cfg = Config(strategy="trend", strategy_params={"period": 200, "band": 0.02}, timeframe="1h")
+    state = str(tmp_path / "s.json")
+    for df in (down, up, down):
+        monkeypatch.setattr(sg, "fetch_candles", lambda m, tf, df=df: df)
+        sg.check(cfg, ["TEST"], state, topic="t", stake=30, practice=True)
+    (buy_title, _), (sell_title, sell_msg) = sent
+    assert buy_title == "PRACTICE BUY $30 of TEST at $200.00" and sell_title.startswith("PRACTICE SELL")
+    assert "This trade: -40.7% after fees" in sell_msg and "1 trades, 0 wins" in sell_msg
+
+
 def test_prices_paste_as_plain_decimals_and_copy_line():
     from bot.signals import alert_text, money, plain
     assert plain(0.00000437) == "0.000004370" or plain(0.00000437) == "0.00000437"
@@ -443,7 +459,7 @@ def test_alerts_runs_every_saved_list_with_its_own_strategy(tmp_path, monkeypatc
         f"notify: ntfy:x\nlists:\n  - {{name: Main, config: {tmp_path}/t.yaml, watchlist: {tmp_path}/w1.txt}}\n"
         f"  - {{name: Memes, config: {tmp_path}/m.yaml, watchlist: {tmp_path}/w2.txt, stake: 30}}\n")
     seen = []
-    monkeypatch.setattr(sg, "check", lambda cfg, markets, state, topic, stake: seen.append((cfg.strategy, markets, stake)) or [])
+    monkeypatch.setattr(sg, "check", lambda cfg, markets, state, topic, stake, practice=False: seen.append((cfg.strategy, markets, stake)) or [])
     monkeypatch.chdir(tmp_path)
     sg.run_alerts(str(tmp_path / "alerts.yaml"), once=True)
     assert seen == [("trend", ["AAA"], None), ("breakout", ["BBB"], 30)]

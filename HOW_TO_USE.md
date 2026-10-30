@@ -158,6 +158,14 @@ python -m bot launches news --hours 2              # in a second terminal: flag 
 python -m bot launches report                      # results, incl. news-matched vs everything else
 ```
 
+## Scalping practice alerts (all day)
+
+The **scalp** workflow on GitHub checks 20 coins and stocks every 5 minutes, all day, with the best day-trading rule
+(RSI dip buying on 15-minute charts). Expect about 6 alerts a day. Every alert says **PRACTICE**: in testing this rule
+lost about 31% a year at Coinbase/Fomo fees, so don't use real money with it. Each SELL alert shows a running
+**practice score** after fees, so you can see whether it would have made money. Settings: `alerts.scalp.yaml`,
+markets: `watchlist.scalp.txt`. On your computer: `python -m bot alerts --settings alerts.scalp.yaml`.
+
 ## Check a chart screenshot (PC)
 
 Take a screenshot of a coin or stock in any app (Fomo, Coinbase, Robinhood...) and the bot tells you

@@ -1,0 +1,23 @@
+# Scalping practice list: the 20 markets the RSI dip rule was tested on (15-minute candles).
+# Coins (Coinbase, around the clock)
+BTC-USD
+ETH-USD
+SOL-USD
+XRP-USD
+DOGE-USD
+ADA-USD
+AVAX-USD
+LINK-USD
+LTC-USD
+BCH-USD
+# Stocks and funds (US market hours only)
+SPY
+QQQ
+IWM
+NVDA
+TSLA
+AAPL
+MSFT
+AMZN
+GOOGL
+META

@@ -1,0 +1,36 @@
+# Scalping PRACTICE alerts (alerts.scalp.yaml): one long job that checks every 5 minutes for almost 6 hours,
+# then the next one takes over, so checks run all day. Free on public repositories.
+name: scalp
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # starts a new job if none is running; waits its turn otherwise
+  workflow_dispatch:
+concurrency:
+  group: scalp
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      # Remember signals and the practice score between jobs.
+      - uses: actions/cache/restore@v4
+        with:
+          path: signals_state_scalping*.json
+          key: scalp-state-${{ github.run_id }}
+          restore-keys: scalp-state-
+      - name: Check every 5 minutes
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+        run: python -m bot alerts --settings alerts.scalp.yaml --minutes 340 ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: signals_state_scalping*.json
+          key: scalp-state-${{ github.run_id }}

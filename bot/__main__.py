@@ -129,7 +129,7 @@ def cmd_alerts(args, cfg):
         ok = notify(target, "Test alert from your trading bot", "If you can read this, phone alerts work.", buy=True)
         print("Test alert sent. Check your phone." if ok else "The test alert was NOT delivered (see the warning above).")
         return
-    run_alerts(args.settings, once=args.once, notify_override=args.notify)
+    run_alerts(args.settings, once=args.once, notify_override=args.notify, minutes=args.minutes)
 
 
 def cmd_ideas(args, cfg):
@@ -227,6 +227,7 @@ def main(argv=None):
     al.add_argument("--once", action="store_true", help="check once and exit (used by the hourly GitHub runner)")
     al.add_argument("--notify", metavar="TARGET", help="override where alerts go (default: notify in alerts.yaml)")
     al.add_argument("--test-alert", action="store_true", help="send one test notification and exit")
+    al.add_argument("--minutes", type=float, help="keep checking for this many minutes, then stop")
 
     ch = sub.add_parser("chart", help="screenshot of a coin or stock -> BUY / WAIT / AVOID, stop-loss and amount")
     ch.add_argument("image", help="path to the screenshot (png/jpg)")
