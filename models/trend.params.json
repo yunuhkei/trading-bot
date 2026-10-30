@@ -1,0 +1,19 @@
+{
+ "strategy": "trend",
+ "tuned_at": "2026-10-30 23:30 UTC",
+ "params": {
+  "period": 200,
+  "band": 0.04
+ },
+ "changed": true,
+ "reason": "on the newest trades it never studied, the new setting did better (92% sure)",
+ "report": {
+  "was": "200-day average with a 2% band",
+  "tried": 9,
+  "best": "200-day average with a 4% band",
+  "exam_from": "2023-11-06",
+  "exam_current": 0.03899162776451621,
+  "exam_best": 0.049984791702455476,
+  "sure": 0.9165
+ }
+}

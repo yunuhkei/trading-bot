@@ -1,0 +1,19 @@
+{
+ "strategy": "breakout",
+ "tuned_at": "2026-10-30 23:30 UTC",
+ "params": {
+  "entry": 20,
+  "exit": 10
+ },
+ "changed": false,
+ "reason": "the current settings did best while it studied",
+ "report": {
+  "was": "buy after a 20-day high, sell below the 10-day low",
+  "tried": 9,
+  "best": "buy after a 20-day high, sell below the 10-day low",
+  "exam_from": "2025-04-23",
+  "exam_current": -0.04119342099398939,
+  "exam_best": -0.04119342099398939,
+  "sure": 0.0
+ }
+}
