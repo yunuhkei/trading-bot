@@ -24,8 +24,8 @@ import pandas as pd
 import requests
 
 from .config import Config
-from .indicators import sma
-from .signals import bollinger_levels, copy_id, fetch_candles, money, plain
+from .indicators import rsi, sma
+from .signals import asset_type, bollinger_levels, copy_id, fetch_candles, money, plain
 from .strategies import build_strategy, targets
 
 MODEL = "claude-opus-5-5"
@@ -252,6 +252,34 @@ def verdict(coin: dict, settings: dict) -> dict:
             "why": f"no BUY signal. The rule buys if it closes above {money(trigger)} ({trigger / price - 1:+.1%} from here)"}
 
 
+SCALP_CONFIG = "config.daytrade.yaml"   # the same rule as your scalping alerts
+
+
+def scalp_read(market: str) -> dict:
+    """The scalping rule (RSI dip buying on the 15-minute chart, as in alerts.scalp.yaml) on this coin or stock."""
+    cfg = Config.load(SCALP_CONFIG)
+    p = cfg.strategy_params
+    try:
+        df = fetch_candles(market, "15m")
+    except Exception as e:
+        return {"decision": "N/A", "why": f"couldn't get its 15-minute chart ({str(e)[:60]})"}
+    strategy = build_strategy(cfg.strategy, p)
+    if len(df) <= strategy.warmup:
+        return {"decision": "WAIT", "why": f"only {len(df)} fifteen-minute candles so far, it needs {strategy.warmup + 1}"}
+    sig = targets(strategy, df, False)
+    r = float(rsi(df.close, p.get("period", 14)).iloc[-1])
+    price = float(df.close.iloc[-1])
+    flips = np.flatnonzero(sig.to_numpy()[1:] != sig.to_numpy()[:-1])
+    mins_in = 15 * (len(sig) - 1 - flips[-1]) if len(flips) else None
+    if int(sig.iloc[-1]) == 1 and mins_in is not None and mins_in <= 30:
+        return {"decision": "BUY", "price": price, "why": f"dip score (RSI) {r:.0f}, it just dropped hard. Sell when the score gets back "
+                f"above {p.get('high', 50)}, usually within a few hours"}
+    if int(sig.iloc[-1]) == 1:
+        return {"decision": "HOLD", "why": f"in a scalp trade for {mins_in} min (dip score {r:.0f}); it sells when the score gets back above "
+                f"{p.get('high', 50)}. Too late to join"}
+    return {"decision": "WAIT", "why": f"dip score (RSI) {r:.0f}. A scalp BUY comes when it drops below {p.get('low', 20)}"}
+
+
 def report(path: str | None, settings_path: str = "alerts.yaml", info: dict | None = None) -> str:
     """`info`: what was read from the screenshot (READ_SCHEMA fields), e.g. read by Claude in the chat app when you
     send it a phone screenshot. Without it, Claude reads the image at `path` through the API."""
@@ -270,6 +298,7 @@ def report(path: str | None, settings_path: str = "alerts.yaml", info: dict | No
         return "\n".join(lines + ["Couldn't check it: " + coin["reason"]])
     v = verdict(coin, settings)
     lines.append(f"Matched to: {coin['label']}" + (f"  {coin['url']}" if coin.get("url") else ""))
+    lines.append(f"Type: {asset_type(coin['market'])}")
     lines.append(f"Rule used: {v['rule']}")
     lines.append("")
     lines.append(f"DECISION: {v['decision']}")
@@ -294,5 +323,12 @@ def report(path: str | None, settings_path: str = "alerts.yaml", info: dict | No
     for f in v.get("flags", []):
         if not v["why"].startswith("red flags"):
             lines.append(f"Warning: {f}")
+    s = scalp_read(coin["market"])
+    lines.append("")
+    lines.append(f"SCALPING: {s['decision']} (RSI dip on the 15-minute chart, the same rule as your scalping alerts)")
+    lines.append(f"Why: {s['why']}")
+    if s["decision"] == "BUY" and v["decision"] == "AVOID":
+        lines.append("But the main check says AVOID: the red flags above still apply, so skip it or use lottery money only.")
+    lines.append("Scalping is for practice: at app fees (~0.6%+ per buy or sell) it lost money in testing.")
     lines.append("Reminder: the rules are tested, not guaranteed. Only use money you can afford to lose.")
     return "\n".join(lines)

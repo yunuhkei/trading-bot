@@ -40,6 +40,24 @@ def is_crypto(market: str) -> bool:
     return "-" in market or "/" in market
 
 
+FUNDS = {"SPY", "QQQ", "IWM", "DIA", "VOO", "VTI", "IVV", "SCHD", "ARKK", "GLD", "TLT", "SMH", "XLK", "XLF", "XLE"}
+CHAIN_NAMES = {"solana": "Solana", "base": "Base", "bsc": "BNB chain", "ethereum": "Ethereum"}
+_meme_markets: set[str] | None = None
+
+
+def asset_type(market: str) -> str:
+    """What it is, in plain words, and where you'd buy it: 'meme coin on Solana, Fomo', 'stock', 'crypto, Coinbase'..."""
+    global _meme_markets
+    if is_onchain(market):
+        return f"meme coin on {CHAIN_NAMES[CHAINS[market.split(':', 1)[0].lower()]]}, Fomo"
+    if is_crypto(market):
+        if _meme_markets is None:
+            f = Path("watchlist.memes.txt")
+            _meme_markets = set(read_watchlist(str(f))) if f.exists() else set()
+        return "meme coin, Coinbase" if market in _meme_markets or market.split("-")[0] in {"DOGE", "SHIB"} else "crypto, Coinbase"
+    return "stock fund/ETF" if market.upper() in FUNDS else "stock"
+
+
 def display_name(market: str) -> str:
     return _names.get(market, market if not is_onchain(market) else market.split(":", 1)[0] + ":" + market.split(":", 1)[1][:6] + "…")
 
@@ -182,7 +200,7 @@ def alert_text(cfg: Config, df: pd.DataFrame, market: str, action: str, stake: f
     rule = RULE_NAMES.get(cfg.strategy, cfg.strategy)
     if action == "BUY":
         stop = stop_level(cfg, df)
-        title = f"BUY {'$' + format(stake, ',.0f') + ' of ' if stake else ''}{name} at {money(price)}"
+        title = f"BUY {'$' + format(stake, ',.0f') + ' of ' if stake else ''}{name} ({asset_type(market)}) at {money(price)}"
         lines = [f"Amount: {'$' + format(stake, ',.0f') if stake else 'your usual fixed amount for this list'}."]
         if stop:
             lines.append(f"Stop-loss: {money(stop)} ({stop / price - 1:+.1%}). Sell everything if it closes below this; "
@@ -199,7 +217,7 @@ def alert_text(cfg: Config, df: pd.DataFrame, market: str, action: str, stake: f
         lines.append("Copy: " + " | ".join(copy))
         return title, "\n".join(lines)
     if action == "SELL":
-        return (f"SELL all of {name} at {money(price)}",
+        return (f"SELL all of {name} ({asset_type(market)}) at {money(price)}",
                 f"The {rule} says the move is over. Sell your whole position and keep the cash for the next BUY.\n"
                 f"Copy: {copy_id(market)} | sell all | price {plain(price)}")
     return f"{action} {name} at {money(price)}", f"The {rule} switched to {action}."

@@ -343,7 +343,7 @@ def test_signals_alert_only_when_the_signal_changes(tmp_path, monkeypatch):
     monkeypatch.setattr(sg, "fetch_candles", lambda m, tf: down)
     flipped = sg.check(cfg, ["TEST"], state, topic="t")[0]
     assert flipped["stance"] == "OUT" and flipped["changed"]
-    assert sent == [("SELL all of TEST at $120.00", False)]
+    assert sent == [("SELL all of TEST (stock) at $120.00", False)]
 
 
 def test_practice_alerts_are_labeled_and_keep_a_score_after_fees(tmp_path, monkeypatch):
@@ -358,7 +358,7 @@ def test_practice_alerts_are_labeled_and_keep_a_score_after_fees(tmp_path, monke
         monkeypatch.setattr(sg, "fetch_candles", lambda m, tf, df=df: df)
         sg.check(cfg, ["TEST"], state, topic="t", stake=30, practice=True)
     (buy_title, _), (sell_title, sell_msg) = sent
-    assert buy_title == "PRACTICE BUY $30 of TEST at $200.00" and sell_title.startswith("PRACTICE SELL")
+    assert buy_title == "PRACTICE BUY $30 of TEST (stock) at $200.00" and sell_title.startswith("PRACTICE SELL")
     assert "This trade: -40.7% after fees" in sell_msg and "1 trades, 0 wins" in sell_msg
 
 
@@ -373,6 +373,13 @@ def test_practice_account_trades_alerts_by_itself_with_fixed_amounts(tmp_path):
     acct.mark("BTC-USD", 120.0)
     assert round(acct.value(), 2) == 17.0
     assert "+20.0%" in acct.sell("BTC-USD", 120.0) and acct.cash == 17.0 and acct.sell("BTC-USD", 1.0) == ""
+
+
+def test_alerts_say_what_kind_of_asset_it_is():
+    from bot.signals import asset_type
+    assert asset_type("PEPE-USD") == "meme coin, Coinbase" and asset_type("BTC-USD") == "crypto, Coinbase"
+    assert asset_type("sol:abc") == "meme coin on Solana, Fomo" and asset_type("bsc:0x1") == "meme coin on BNB chain, Fomo"
+    assert asset_type("SPY") == "stock fund/ETF" and asset_type("NVDA") == "stock"
 
 
 def test_prices_paste_as_plain_decimals_and_copy_line():
@@ -391,7 +398,7 @@ def test_buy_alert_spells_out_amount_and_stop_loss():
     cfg = Config(strategy="breakout", strategy_params={"entry": 20, "exit": 10, "trend": 0}, timeframe="1d")
     df = frame(list(np.full(40, 100.0)) + [130])
     title, msg = alert_text(cfg, df, "PEPE-USD", "BUY", 30)
-    assert title == "BUY $30 of PEPE-USD at $130.00"
+    assert title == "BUY $30 of PEPE-USD (meme coin, Coinbase) at $130.00"
     assert "Amount: $30" in msg and "Stop-loss: $100.00 (-23.1%)" in msg and "Hold until the SELL alert" in msg
 
 

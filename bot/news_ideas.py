@@ -20,6 +20,7 @@ from pathlib import Path
 import requests
 
 from . import news
+from .signals import CHAIN_NAMES
 
 log = logging.getLogger("news_ideas")
 NETWORKS = {"solana": "sol", "base": "base", "bsc": "bsc"}
@@ -120,7 +121,7 @@ def find_ideas(cands: list[dict], topics: dict[str, str]) -> list[dict]:
 
 
 def message(i: dict) -> tuple[str, str]:
-    title = f"IDEA: {i['symbol']} (news: {i['keyword']})"
+    title = f"IDEA: {i['symbol']} (meme coin on {CHAIN_NAMES[i['chain']]}, news: {i['keyword']})"
     lines = [f"\"{i['headline'][:110]}\"",
              f"{i['name']}: {i['age_h']:.0f}h old, value ${i['mcap']:,.0f}, ${i['vol24']:,.0f} traded today, ${i['liq']:,.0f} in the pool.",
              f"Not a buy signal. To track it, add this line to watchlist.memes.txt: {NETWORKS[i['chain']]}:{i['address']}"]
