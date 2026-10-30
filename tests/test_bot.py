@@ -577,3 +577,41 @@ def test_chart_check_picks_the_coin_matching_the_screenshot_value(monkeypatch):
     info = {"kind": "meme_coin", "name": "Gang", "ticker": "", "chain": "bsc", "market_cap_usd": 2_080_000, "contract_address": ""}
     coin = cc.resolve(info)
     assert coin["market"] == "bsc:0xREAL" and not coin["uncertain"]
+
+
+def test_learning_replays_trades_with_features_and_results():
+    from bot import learn
+    cfg = Config(strategy="breakout", strategy_params={"entry": 20, "exit": 10, "trend": 0}, timeframe="1d", fee_pct=0.006)
+    prices = np.concatenate([np.linspace(100, 160, 80), np.linspace(160, 110, 40), np.linspace(110, 190, 80)])
+    rows = learn.replay(frame(prices), cfg, "test")
+    assert rows and all(set(learn.FEATURES) <= set(r) for r in rows)
+    assert all(abs(r["ret"]) < 1 for r in rows)
+
+
+def test_learning_model_filters_alerts_only_when_switched_on(tmp_path, monkeypatch):
+    import json
+    import bot.learn as learn
+    import bot.signals as sg
+    monkeypatch.setattr(learn, "MODELS", tmp_path)
+    n = len(learn.FEATURES)
+    report = {"exam_trades": 500, "every_signal": {"trades": 500, "win_rate": 0.3, "avg": 0.01},
+              "approved": {"trades": 150, "win_rate": 0.4, "avg": 0.03, "sure": 0.9}, "learned": []}
+    model = {"strategy": "trend", "features": learn.FEATURES, "enabled": True, "threshold": 0.99, "report": report,
+             "model": {"mean": [0.0] * n, "scale": [1.0] * n, "coef": [0.0] * n, "intercept": 0.0}}
+    (tmp_path / "trend.json").write_text(json.dumps(model))
+    up = frame(np.linspace(100, 200, 260))
+    down = frame(list(np.linspace(100, 200, 230)) + list(np.linspace(200, 120, 30)))
+    a = learn.assess("trend", up)
+    assert a["p"] == 0.5 and not a["approve"] and "SKIP" in learn.describe(a)
+    sent = []
+    monkeypatch.setattr(sg, "notify", lambda topic, title, msg, buy: sent.append((title, msg)))
+    cfg = Config(strategy="trend", strategy_params={"period": 200, "band": 0.02}, timeframe="1h")
+    acct = sg.PracticeAccount(str(tmp_path / "acct.json"), cash=80, per_trade=10, fee=0.0)
+    for df in (down, up):
+        monkeypatch.setattr(sg, "fetch_candles", lambda m, tf, df=df: df)
+        sg.check(cfg, ["TEST"], str(tmp_path / "s.json"), topic="t", account=acct)
+    title, msg = sent[-1]
+    assert title.startswith("LOW ODDS BUY") and "skipped it" in msg and not acct.positions
+    model["enabled"] = False
+    (tmp_path / "trend.json").write_text(json.dumps(model))
+    assert learn.assess("trend", up)["approve"] and "still studying" in learn.describe(learn.assess("trend", up))

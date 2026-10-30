@@ -160,6 +160,25 @@ def cmd_chart(args, cfg):
     print(report(args.image, args.settings, info))
 
 
+def cmd_learn(args, cfg):
+    import warnings
+
+    from . import learn
+
+    warnings.filterwarnings("ignore")
+    if args.refresh:
+        learn.refresh()
+    for name in args.only or list(learn.STRATEGIES):
+        if args.report:
+            saved = learn.load(name)
+            print(learn.report_text(saved) if saved else f"== {name} ==\n  not trained yet", "\n")
+            continue
+        try:
+            print(learn.report_text(learn.train(name)), "\n", flush=True)
+        except ValueError as e:
+            print(e)
+
+
 def cmd_markets(args, cfg):
     import ccxt
 
@@ -264,6 +283,11 @@ def main(argv=None):
     sg.add_argument("--watchlist", metavar="FILE", help="read markets from a text file, one per line (e.g. watchlist.memes.txt)")
     sg.add_argument("--stake", type=float, help="dollars to buy per BUY alert, shown in the alert (e.g. 30)")
 
+    le = sub.add_parser("learn", help="the bot studies every past signal and learns which ones tend to win")
+    le.add_argument("--refresh", action="store_true", help="first add the newest prices to data/ (the weekly run does this)")
+    le.add_argument("--only", nargs="+", choices=["trend", "breakout", "rsi_revert"], help="just these strategies")
+    le.add_argument("--report", action="store_true", help="show what the saved models learned, without retraining")
+
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")
     m.add_argument("--search", default="BTC")
 
@@ -296,6 +320,8 @@ def main(argv=None):
         cmd_alerts(args, cfg)
     elif args.cmd == "signals":
         cmd_signals(args, cfg)
+    elif args.cmd == "learn":
+        cmd_learn(args, cfg)
     elif args.cmd == "markets":
         cmd_markets(args, cfg)
     else:

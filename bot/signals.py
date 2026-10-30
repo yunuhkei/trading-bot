@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import requests
 
+from . import learn
 from .config import Config
 from .data import COLUMNS, clean
 from .indicators import rsi, sma
@@ -337,6 +338,11 @@ def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json
         if row["changed"]:
             action = "BUY" if stance == "IN" else "SELL" if prev == "IN" else stance
             title, msg = alert_text(cfg, df, market, action, stake, practice)
+            learned = learn.assess(cfg.strategy, df) if action == "BUY" else None
+            if learned:
+                if not learned["approve"]:
+                    title = "LOW ODDS " + title
+                msg += "\n" + learn.describe(learned)
             if practice:
                 score = state.setdefault("_practice", {})
                 if action == "BUY":
@@ -344,7 +350,10 @@ def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json
                 elif action == "SELL" and key in score.get("open", {}):
                     msg += "\n" + practice_result(score, score["open"].pop(key), row["price"])
             if account and action in ("BUY", "SELL"):
-                note = account.buy(market, row["price"]) if action == "BUY" else account.sell(market, row["price"])
+                if action == "BUY" and learned and not learned["approve"]:
+                    note = "Practice account: skipped it, because the bot's learning rated it low."
+                else:
+                    note = account.buy(market, row["price"]) if action == "BUY" else account.sell(market, row["price"])
                 if note:
                     msg += "\n" + note
             log.warning("ALERT %s: %s", title, msg)

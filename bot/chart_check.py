@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 import requests
 
+from . import learn
 from .config import Config
 from .indicators import rsi, sma
 from .signals import asset_type, bollinger_levels, copy_id, fetch_candles, money, plain
@@ -244,6 +245,7 @@ def verdict(coin: dict, settings: dict) -> dict:
     risk = 1 - stop / price
     if out["flags"] and meme:
         return {**out, "decision": "AVOID", "why": "red flags: " + "; ".join(out["flags"])}
+    out["learn"] = learn.assess(cfg.strategy, df)
     if int(sig.iloc[-1]) == 1 and price < stop:
         return {**out, "decision": "WAIT", "trigger": None,
                 "why": f"the trend is breaking today: it's at {money(price)}, already {price / stop - 1:.1%} below the stop-loss "
@@ -292,7 +294,7 @@ def scalp_read(market: str) -> dict:
     flips = np.flatnonzero(sig.to_numpy()[1:] != sig.to_numpy()[:-1])
     mins_in = 15 * (len(sig) - 1 - flips[-1]) if len(flips) else None
     if int(sig.iloc[-1]) == 1 and mins_in is not None and mins_in <= 30:
-        return {"decision": "BUY", "price": price, "why": f"dip score (RSI) {r:.0f}, it just dropped hard. Sell when the score gets back "
+        return {"decision": "BUY", "price": price, "learn": learn.assess(cfg.strategy, df), "why": f"dip score (RSI) {r:.0f}, it just dropped hard. Sell when the score gets back "
                 f"above {p.get('high', 50)}, usually within a few hours"}
     if int(sig.iloc[-1]) == 1:
         return {"decision": "HOLD", "why": f"in a scalp trade for {mins_in} min (dip score {r:.0f}); it sells when the score gets back above "
@@ -343,10 +345,14 @@ def report(path: str | None, settings_path: str = "alerts.yaml", info: dict | No
     for f in v.get("flags", []):
         if not v["why"].startswith("red flags"):
             lines.append(f"Warning: {f}")
+    if v["decision"].startswith("BUY") and v.get("learn"):
+        lines.append(learn.describe(v["learn"]))
     s = scalp_read(coin["market"])
     lines.append("")
     lines.append(f"SCALPING: {s['decision']} (RSI dip on the 15-minute chart, the same rule as your scalping alerts)")
     lines.append(f"Why: {s['why']}")
+    if s.get("learn"):
+        lines.append(learn.describe(s["learn"]))
     if s["decision"] == "BUY" and v["decision"] == "AVOID":
         lines.append("But the main check says AVOID: the red flags above still apply, so skip it or use lottery money only.")
     lines.append("Scalping is for practice: at app fees (~0.6%+ per buy or sell) it lost money in testing.")

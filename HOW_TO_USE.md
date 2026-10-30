@@ -175,6 +175,19 @@ Each alert then ends with a line like *"Practice account: bought $10 by itself. 
 amounts under `practice_trading:` in those files. Real-money auto-trading (Coinbase only; Fomo has no bot access)
 is a later step, once the practice accounts show it's worth it.
 
+## The bot's learning
+
+`python -m bot learn` makes the bot study every BUY its rules have ever given (about 7,000 trades across 10 years of
+coins, 500 stocks, meme coins and 15-minute charts): what the market looked like at the moment of the signal, and
+whether the trade made money after fees. It learns from the older trades and takes an exam on the newest ones, which
+it never saw. It switches itself on only when its picks beat taking every signal on that exam, make money on average,
+and still win in at least 80% of reshuffled exams, so luck alone can't switch it on.
+
+When it's on, BUY alerts and chart checks say whether it likes the signal, and low-rated ones are marked
+**LOW ODDS** (the practice accounts skip them). When it's off, alerts say it's still studying. The **learn** workflow
+adds the newest prices and retrains every Sunday, so it keeps learning, including from the signals it gave that week.
+See what it learned: `python -m bot learn --report` (models are readable files in `models/`).
+
 ## Check a chart screenshot (PC)
 
 Take a screenshot of a coin or stock in any app (Fomo, Coinbase, Robinhood...) and the bot tells you
