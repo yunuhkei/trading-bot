@@ -10,12 +10,12 @@ lists:
   - name: Scalping practice (RSI dip, 15m)
     config: config.daytrade.yaml
     watchlist: watchlist.scalp.txt
-    stake: 30
+    stake: 800
     practice: true
 
 # Practice auto-trading for the scalping list: its own fake-money account (see alerts.yaml).
 practice_trading:
   enabled: true
-  cash: 80
-  per_trade: 10
-  file: practice_account_scalp.json
+  cash: 8000            # room for 10 trades open at once
+  per_trade: 800
+  file: practice_account_scalp_800.json

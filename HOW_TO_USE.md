@@ -168,8 +168,9 @@ markets: `watchlist.scalp.txt`. On your computer: `python -m bot alerts --settin
 
 ## Practice auto-trading (fake money)
 
-Two fake-money accounts trade **by themselves** on every new BUY and SELL alert, at live prices, $10 per buy, after
-0.6% fees, starting with $80 each: one for your main lists (`alerts.yaml`) and one for scalping (`alerts.scalp.yaml`).
+Two fake-money accounts trade **by themselves** on every new BUY and SELL alert, at live prices, after
+0.6% fees: one for your main lists (`alerts.yaml`, $80 to start, $10 per buy) and one for scalping
+(`alerts.scalp.yaml`, $8,000 to start, $800 per buy).
 Each alert then ends with a line like *"Practice account: bought $10 by itself. Account $80.00 ..."*. Change the
 amounts under `practice_trading:` in those files. Real-money auto-trading (Coinbase only; Fomo has no bot access)
 is a later step, once the practice accounts show it's worth it.

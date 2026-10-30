@@ -24,7 +24,7 @@ jobs:
         with:
           path: |
             signals_state_scalping*.json
-            practice_account_scalp.json
+            practice_account_scalp*.json
           key: scalp-state-${{ github.run_id }}
           restore-keys: scalp-state-
       - name: Check every 5 minutes
@@ -36,5 +36,5 @@ jobs:
         with:
           path: |
             signals_state_scalping*.json
-            practice_account_scalp.json
+            practice_account_scalp*.json
           key: scalp-state-${{ github.run_id }}
