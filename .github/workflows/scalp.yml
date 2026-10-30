@@ -31,7 +31,10 @@ jobs:
       - name: Check every 5 minutes
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
-        run: python -m bot alerts --settings alerts.scalp.yaml --minutes 340 ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
+        # Pull new commits every 5 minutes so coins added to a watchlist are checked without restarting the job.
+        run: |
+          (while sleep 300; do git pull -q --ff-only origin main || true; done) &
+          python -m bot alerts --settings alerts.scalp.yaml --minutes 340 ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
       - uses: actions/cache/save@v4
         if: always()
         with:
