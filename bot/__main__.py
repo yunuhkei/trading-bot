@@ -113,7 +113,9 @@ def cmd_signals(args, cfg):
         markets = read_watchlist(args.watchlist)
     else:
         markets = [m.strip() for m in args.markets.split(",") if m.strip()]
-    run(cfg, markets, args.notify, args.every, args.state, args.stake)
+    from .learn import apply
+
+    run(apply(cfg), markets, args.notify, args.every, args.state, args.stake)
 
 
 def cmd_alerts(args, cfg):
@@ -168,15 +170,14 @@ def cmd_learn(args, cfg):
     warnings.filterwarnings("ignore")
     if args.refresh:
         learn.refresh()
-    for name in args.only or list(learn.STRATEGIES):
-        if args.report:
-            saved = learn.load(name)
-            print(learn.report_text(saved) if saved else f"== {name} ==\n  not trained yet", "\n")
-            continue
-        try:
-            print(learn.report_text(learn.train(name)), "\n", flush=True)
-        except ValueError as e:
-            print(e)
+    names = args.only or list(learn.STRATEGIES)
+    if not args.report:
+        learn.run(names, notify_changes=args.notify_changes, log=lambda t: print(t, flush=True))
+        return
+    for name in names:
+        saved, tuned = learn.load(name), learn.load(f"{name}.params")
+        print(learn.report_text(saved) if saved else f"== {name} ==\n  not trained yet")
+        print(learn.tune_text(tuned) if tuned else "  Settings: not tuned yet", "\n")
 
 
 def cmd_markets(args, cfg):
@@ -287,6 +288,7 @@ def main(argv=None):
     le.add_argument("--refresh", action="store_true", help="first add the newest prices to data/ (the weekly run does this)")
     le.add_argument("--only", nargs="+", choices=["trend", "breakout", "rsi_revert"], help="just these strategies")
     le.add_argument("--report", action="store_true", help="show what the saved models learned, without retraining")
+    le.add_argument("--notify-changes", action="store_true", help="send a phone alert when it changes a strategy or switches a filter")
 
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")
     m.add_argument("--search", default="BTC")

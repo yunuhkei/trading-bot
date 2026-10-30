@@ -201,7 +201,7 @@ def verdict(coin: dict, settings: dict) -> dict:
     lst = next((l for l in settings["lists"] if ("memes" in l["config"]) == meme), settings["lists"][0])
     if meme and coin.get("age_days") is not None and coin["age_days"] < MIN_AGE_DAYS:
         return young_verdict(coin, lst.get("stake"))
-    cfg = Config.load(lst["config"])
+    cfg = learn.apply(Config.load(lst["config"]))
     stake = lst.get("stake")
     out = {"rule": "20-day breakout (meme coins)" if meme else "200-day trend filter", "stake": stake, "flags": []}
     if coin.get("liquidity") is not None and coin.get("age_days") is not None:
@@ -279,7 +279,7 @@ SCALP_CONFIG = "config.daytrade.yaml"   # the same rule as your scalping alerts
 
 def scalp_read(market: str) -> dict:
     """The scalping rule (RSI dip buying on the 15-minute chart, as in alerts.scalp.yaml) on this coin or stock."""
-    cfg = Config.load(SCALP_CONFIG)
+    cfg = learn.apply(Config.load(SCALP_CONFIG))
     p = cfg.strategy_params
     try:
         df = fetch_candles(market, "15m")

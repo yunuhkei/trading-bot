@@ -422,7 +422,7 @@ def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_ov
         account = PracticeAccount(pt.get("file", "practice_account.json"), float(pt.get("cash", 80)),
                                   float(pt.get("per_trade", 10))) if pt.get("enabled") else None
         for lst in settings["lists"]:
-            cfg = Config.load(lst["config"])
+            cfg = learn.apply(Config.load(lst["config"]))
             slug = re.sub(r"[^a-z0-9]+", "_", lst["name"].lower()).strip("_")
             rows = check(cfg, read_watchlist(lst["watchlist"]), f"signals_state_{slug}.json", target, lst.get("stake"),
                          bool(lst.get("practice")), account if lst.get("practice_account", True) else None)

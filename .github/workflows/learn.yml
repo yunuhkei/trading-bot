@@ -1,9 +1,10 @@
-# Every week: add the newest prices to data/, let the bot relearn which of its signals tend to win, and save what it
-# learned (models/*.json). Alerts and chart checks use the new models right away. Run it by hand from the Actions tab.
+# Every day: add the newest prices to data/ (including the Fomo coins on your watchlist), let the bot tune its
+# strategies and relearn which signals tend to win, and save what it learned (models/). Alerts and chart checks use it
+# right away, and your phone gets a message whenever it changes a strategy. Run it by hand from the Actions tab.
 name: learn
 on:
   schedule:
-    - cron: "23 9 * * 0"      # Sundays 09:23 UTC
+    - cron: "23 9 * * *"      # every day, 09:23 UTC
   workflow_dispatch:
 permissions:
   contents: write
@@ -18,8 +19,10 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Add the newest prices and relearn
-        run: python -m bot learn --refresh
+      - name: Add the newest prices, tune and relearn
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+        run: python -m bot learn --refresh --notify-changes
       - name: Save what it learned
         run: |
           git config user.name "github-actions[bot]"

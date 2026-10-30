@@ -615,3 +615,22 @@ def test_learning_model_filters_alerts_only_when_switched_on(tmp_path, monkeypat
     model["enabled"] = False
     (tmp_path / "trend.json").write_text(json.dumps(model))
     assert learn.assess("trend", up)["approve"] and "still studying" in learn.describe(learn.assess("trend", up))
+
+
+def test_tuning_adopts_new_settings_only_when_they_win_the_exam(tmp_path, monkeypatch):
+    import json
+    import bot.learn as learn
+    monkeypatch.setattr(learn, "MODELS", tmp_path)
+    monkeypatch.setattr(learn, "GRIDS", {"breakout": {"entry": [20, 30], "exit": [10]}})
+    rng = np.random.default_rng(1)
+    hist = [(f"m{i}", frame(100 * np.exp(np.cumsum(rng.normal(0.001, 0.03, 900))))) for i in range(12)]
+    t = learn.tune("breakout", hist)
+    saved = json.loads((tmp_path / "breakout.params.json").read_text())
+    assert saved["params"]["entry"] in (20, 30) and saved["params"]["exit"] == 10 and "reason" in saved
+    if not t["changed"]:
+        assert saved["params"]["entry"] == 20      # kept the config's own settings
+    # Whatever it adopted is what the live alerts use.
+    saved["params"] = {"entry": 30, "exit": 10}
+    (tmp_path / "breakout.params.json").write_text(json.dumps(saved))
+    cfg = Config(strategy="breakout", strategy_params={"entry": 20, "exit": 10, "trend": 0})
+    assert learn.apply(cfg).strategy_params == {"entry": 30, "exit": 10, "trend": 0}

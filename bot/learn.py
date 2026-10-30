@@ -1,4 +1,4 @@
-"""The bot's learning brain: it studies every BUY its rules have ever given and learns which kind tends to win.
+"""The bot's learning brain: it studies every BUY its rules have ever given, tunes the rules, and learns which BUYs win.
 
 For each strategy it replays the rule over every price history in data/ and records each trade: what the market
 looked like when the BUY fired (trend, momentum, how stretched, volatile and busy it was) and whether the trade made
@@ -7,12 +7,18 @@ switched on only if, on those unseen trades, the signals it approves made more p
 signal; otherwise it keeps studying and filters nothing. The weekly learn workflow adds the newest prices and
 retrains, so it keeps learning as markets change, including from the signals it gave live that week.
 
-A model is a small JSON file in models/ (a logistic regression: one weight per market feature), so you can read what
-it learned.
+It also tunes the rules themselves (tune): it tries small changes to each strategy's settings and adopts one only if,
+on the newest trades it never studied, it made more per market than the current settings, made money, and held up in
+80% of reshuffled exams. The daily learn workflow adds the newest prices (including every Fomo coin on your
+watchlist) and does both, so the strategy keeps adapting to what the market is doing.
+
+A model is a small JSON file in models/ (a logistic regression: one weight per market feature) and tuned settings are
+in models/<strategy>.params.json, so you can read what it learned.
 """
 from __future__ import annotations
 
 import glob
+import itertools
 import json
 import time
 from pathlib import Path
@@ -42,8 +48,14 @@ CRYPTO_15M = {"btc", "eth", "sol", "xrp", "doge", "ada", "avax", "link", "ltc", 
 STRATEGIES = {
     "trend": {"config": "config.trend.yaml",
               "files": ["data/daily/*.csv", "data/sp500/*.csv", "data/spy_1d.csv", "data/qqq_1d.csv", "data/gld_1d.csv", "data/tlt_1d.csv"]},
-    "breakout": {"config": "config.memes.yaml", "files": ["data/memes/*.csv", "data/daily/*.csv"]},
+    "breakout": {"config": "config.memes.yaml", "files": ["data/memes/*.csv", "data/seen/*.csv", "data/daily/*.csv"]},
     "rsi_revert": {"config": "config.daytrade.yaml", "files": ["data/intraday/*_15m.csv"]},
+}
+# The small changes it may try to each strategy's settings.
+GRIDS = {
+    "trend": {"period": [150, 200, 250], "band": [0.0, 0.02, 0.04]},
+    "breakout": {"entry": [15, 20, 30], "exit": [5, 10, 15]},
+    "rsi_revert": {"low": [15, 20, 25], "high": [45, 50, 55]},
 }
 TEST_SHARE = 0.3          # the newest 30% of trades are the exam the model never studies
 MIN_KEPT = 30             # it must approve at least this many exam trades to count
@@ -89,21 +101,53 @@ def replay(df: pd.DataFrame, cfg: Config, market: str) -> list[dict]:
     return rows
 
 
-def dataset(name: str) -> pd.DataFrame:
-    spec = STRATEGIES[name]
-    cfg = Config.load(spec["config"])
-    cfg.risk.max_drawdown_pct = 0.0     # learn from every trade, never stop a replay early
-    seen, rows = set(), []
-    for pattern in spec["files"]:
+def histories(name: str) -> list[tuple[str, pd.DataFrame]]:
+    """Every price history this strategy learns from, once per market."""
+    seen, out = set(), []
+    for pattern in STRATEGIES[name]["files"]:
         for path in sorted(glob.glob(pattern)):
             market = Path(path).stem.replace("_1d", "").replace("_15m", "").lower()
             if market.startswith("_") or market in seen:
                 continue
             seen.add(market)
             try:
-                rows += replay(load_csv(path), cfg, market)
+                out.append((market, load_csv(path)))
             except Exception:
                 continue
+    return out
+
+
+def current_params(name: str) -> dict:
+    """The settings the bot has adopted for this strategy so far ({} = the config file's own)."""
+    path = MODELS / f"{name}.params.json"
+    try:
+        return json.loads(path.read_text()).get("params", {}) if path.exists() else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def apply(cfg: Config) -> Config:
+    """Use the settings the bot learned for this strategy, if it adopted any."""
+    if cfg.strategy in GRIDS:
+        cfg.strategy_params = {**cfg.strategy_params, **current_params(cfg.strategy)}
+    return cfg
+
+
+def _config(name: str, params: dict | None = None) -> Config:
+    cfg = Config.load(STRATEGIES[name]["config"])
+    cfg.risk.max_drawdown_pct = 0.0     # learn from every trade, never stop a replay early
+    cfg.strategy_params = {**cfg.strategy_params, **current_params(name), **(params or {})}
+    return cfg
+
+
+def dataset(name: str, params: dict | None = None, hist: list | None = None) -> pd.DataFrame:
+    cfg = _config(name, params)
+    rows = []
+    for market, df in hist if hist is not None else histories(name):
+        try:
+            rows += replay(df, cfg, market)
+        except Exception:
+            continue
     d = pd.DataFrame(rows)
     if len(d):
         d["time"] = pd.to_datetime(d["time"], utc=True)
@@ -141,9 +185,76 @@ def _summary(ret: pd.Series) -> dict:
             "avg": float(ret.mean()) if len(ret) else 0.0}
 
 
-def train(name: str) -> dict:
+def settings_text(name: str, p: dict) -> str:
+    if name == "trend":
+        return f"{p.get('period')}-day average with a {p.get('band', 0):.0%} band"
+    if name == "breakout":
+        return f"buy after a {p.get('entry')}-day high, sell below the {p.get('exit')}-day low"
+    if name == "rsi_revert":
+        return f"buy when the dip score drops below {p.get('low')}, sell when it's back above {p.get('high')}"
+    return str(p)
+
+
+def tune(name: str, hist: list | None = None) -> dict:
+    """Try small changes to the strategy's settings; adopt one only if it wins the exam. Saves models/<name>.params.json."""
+    hist = hist if hist is not None else histories(name)
+    current = _config(name).strategy_params
+    grid = GRIDS[name]
+    combos = [{**current, **dict(zip(grid, vals))} for vals in itertools.product(*grid.values())]
+    if current not in combos:
+        combos.append(current)
+    trades = {json.dumps(c, sort_keys=True): dataset(name, c, hist) for c in combos}
+    cur = trades[json.dumps(current, sort_keys=True)]
+    if len(cur) < 200:
+        raise ValueError(f"{name}: only {len(cur)} trades to tune on, need 200")
+    cutoff = cur["time"].quantile(1 - TEST_SHARE)
+    markets = sorted({m for m, _ in hist})
+
+    def per_market(d: pd.DataFrame, exam: bool) -> pd.Series:
+        part = d[(d["time"] >= cutoff) == exam] if len(d) else d
+        return (part.groupby("market")["ret"].sum() if len(part) else pd.Series(dtype=float)).reindex(markets, fill_value=0.0)
+
+    study = {k: per_market(d, False).mean() for k, d in trades.items()}
+    best_key = max(study, key=study.get)
+    best = json.loads(best_key)
+    exam_cur, exam_best = per_market(cur, True), per_market(trades[best_key], True)
+    diff = (exam_best - exam_cur).to_numpy()
+    rng = np.random.default_rng(0)
+    sure = float((rng.choice(diff, (2000, len(diff))).mean(axis=1) > 0).mean()) if diff.any() else 0.0
+    if best == current:
+        reason = "the current settings did best while it studied"
+    elif diff.mean() <= 0:
+        reason = "the setting that studied best did not beat the current one on the newest trades"
+    elif exam_best.mean() <= 0:
+        reason = "the setting that studied best still lost money on the newest trades"
+    elif sure < MIN_SURE:
+        reason = f"the new setting did better on the newest trades, but only in {sure:.0%} of reshuffled exams: could be luck"
+    else:
+        reason = f"on the newest trades it never studied, the new setting did better ({sure:.0%} sure)"
+    adopt = reason.startswith("on the newest trades")
+    chosen = best if adopt else current
+    out = {"strategy": name, "tuned_at": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
+           "params": {k: chosen[k] for k in grid}, "changed": adopt, "reason": reason,
+           "report": {"was": settings_text(name, current), "tried": len(combos), "best": settings_text(name, best),
+                      "exam_from": str(cutoff.date()), "exam_current": float(exam_cur.mean()),
+                      "exam_best": float(exam_best.mean()), "sure": sure}}
+    MODELS.mkdir(exist_ok=True)
+    (MODELS / f"{name}.params.json").write_text(json.dumps(out, indent=1))
+    return out
+
+
+def tune_text(t: dict) -> str:
+    r = t["report"]
+    return "\n".join([
+        f"  Settings: tried {r['tried']}; best while studying: {r['best']}.",
+        f"  On the newest trades (from {r['exam_from']}): current {r['exam_current']:+.1%} per market vs that one {r['exam_best']:+.1%}.",
+        f"  {'CHANGED to ' + r['best'] if t['changed'] else 'Kept: ' + r['was']} ({t['reason']}).",
+    ])
+
+
+def train(name: str, hist: list | None = None) -> dict:
     """Learn from the older trades, grade on the newest, decide whether to switch on, and save models/<name>.json."""
-    d = dataset(name)
+    d = dataset(name, hist=hist)
     if len(d) < 200:
         raise ValueError(f"{name}: only {len(d)} trades to learn from, need 200")
     X, y, ret = d[FEATURES].to_numpy(float), (d["ret"] > 0).astype(int).to_numpy(), d["ret"]
@@ -226,6 +337,38 @@ def describe(a: dict | None) -> str:
     verdict = "likes this one" if a["approve"] else "would SKIP this one"
     return (f"Bot's learning: {verdict} ({a['p']:.0%} chance of a win). On {r['exam_trades']} recent trades it never saw, "
             f"the ones it approved averaged {m['avg']:+.1%} ({m['win_rate']:.0%} won) vs {b['avg']:+.1%} ({b['win_rate']:.0%} won) for every signal.")
+
+
+LABELS = {"trend": "trend strategy (BTC, ETH, SOL, stocks)", "breakout": "meme-coin strategy", "rsi_revert": "scalping strategy"}
+
+
+def run(names: list[str], notify_changes: bool = False, log=print) -> list[tuple[str, str]]:
+    """Tune and retrain each strategy; tell your phone about anything that changed. Returns the changes."""
+    changes = []
+    for name in names:
+        try:
+            hist = histories(name)
+            before = load(name)
+            t = tune(name, hist)
+            m = train(name, hist)
+        except ValueError as e:
+            log(str(e))
+            continue
+        log(report_text(m) + "\n" + tune_text(t) + "\n")
+        if t["changed"]:
+            changes.append((f"The bot updated its {LABELS[name]}",
+                            f"Now: {t['report']['best']} (was: {t['report']['was']}). Why: {t['reason']}."))
+        if before and before.get("enabled") != m["enabled"]:
+            changes.append((f"The bot's {LABELS[name]} filter is now {'ON' if m['enabled'] else 'OFF'}", m["reason"] + "."))
+    if notify_changes and changes:
+        from .signals import alert_target, notify
+
+        target = alert_target()
+        for title, msg in changes:
+            log(f"CHANGE {title}: {msg}")
+            if target:
+                notify(target, title, msg, buy=True)
+    return changes
 
 
 def report_text(m: dict) -> str:
@@ -322,8 +465,34 @@ def refresh(log=print) -> int:
             safe(path, lambda: _coinbase_since(f"{sym.upper()}-USD", 900, load_csv(path).index[-1]))
         else:
             safe(path, lambda: fetch_candles(sym.upper(), "15m"))
+    # The Fomo coins on your watchlist: their charts become part of what the meme strategy studies.
+    from .signals import is_onchain, read_watchlist
+
+    Path("data/seen").mkdir(parents=True, exist_ok=True)
+    for market in read_watchlist("watchlist.memes.txt") if Path("watchlist.memes.txt").exists() else []:
+        if not is_onchain(market):
+            continue
+        chain, address = market.split(":", 1)
+        path = f"data/seen/{chain.lower()}_{address}.csv"
+        if Path(path).exists():
+            safe(path, lambda: fetch_candles(market, "1d"))
+        else:
+            try:
+                added += _write_new(path, fetch_candles(market, "1d"))
+            except Exception as e:
+                log(f"  skipped {market}: {str(e)[:80]}")
     log(f"Added {added} new candles.")
     return added
+
+
+def _write_new(path: str, df: pd.DataFrame) -> int:
+    if df is None or df.empty:
+        return 0
+    with open(path, "w") as f:
+        f.write("ts,open,high,low,close,volume\n")
+        for ts, row in zip(df.index, df.itertuples(index=False)):
+            f.write(",".join([ts.strftime("%Y-%m-%d")] + [repr(float(x)) for x in (row.open, row.high, row.low, row.close, row.volume)]) + "\n")
+    return len(df)
 
 
 def _gecko_daily(net: str, pool: str) -> pd.DataFrame:

@@ -184,9 +184,16 @@ it never saw. It switches itself on only when its picks beat taking every signal
 and still win in at least 80% of reshuffled exams, so luck alone can't switch it on.
 
 When it's on, BUY alerts and chart checks say whether it likes the signal, and low-rated ones are marked
-**LOW ODDS** (the practice accounts skip them). When it's off, alerts say it's still studying. The **learn** workflow
-adds the newest prices and retrains every Sunday, so it keeps learning, including from the signals it gave that week.
-See what it learned: `python -m bot learn --report` (models are readable files in `models/`).
+**LOW ODDS** (the practice accounts skip them). When it's off, alerts say it's still studying.
+
+It also **tunes the strategies themselves**: it tries small changes to each rule's settings (like a 15-, 20- or 30-day
+breakout) and adopts one only if it beat the current settings on the newest trades it never studied, made money, and
+held up in 80% of reshuffled exams. Alerts and chart checks use whatever it adopted.
+
+The **learn** workflow runs every day: it adds the newest prices (including the charts of every Fomo coin on your
+watchlist, saved in `data/seen/`), tunes and retrains, and sends your phone a message whenever it changes a strategy or
+switches its filter on or off. See what it learned: `python -m bot learn --report` (everything is in readable files in
+`models/`).
 
 ## Check a chart screenshot (PC)
 
