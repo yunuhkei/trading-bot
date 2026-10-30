@@ -180,6 +180,12 @@ def cmd_learn(args, cfg):
         print(learn.tune_text(tuned) if tuned else "  Settings: not tuned yet", "\n")
 
 
+def cmd_autotrade(args, cfg):
+    from .autotrade import run
+
+    print(run(args.settings))
+
+
 def cmd_markets(args, cfg):
     import ccxt
 
@@ -290,6 +296,9 @@ def main(argv=None):
     le.add_argument("--report", action="store_true", help="show what the saved models learned, without retraining")
     le.add_argument("--notify-changes", action="store_true", help="send a phone alert when it changes a strategy or switches a filter")
 
+    at = sub.add_parser("autotrade", help="trade on Coinbase for you with the trend rule (settings: autotrade.yaml)")
+    at.add_argument("--settings", default="autotrade.yaml")
+
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")
     m.add_argument("--search", default="BTC")
 
@@ -322,6 +331,8 @@ def main(argv=None):
         cmd_alerts(args, cfg)
     elif args.cmd == "signals":
         cmd_signals(args, cfg)
+    elif args.cmd == "autotrade":
+        cmd_autotrade(args, cfg)
     elif args.cmd == "learn":
         cmd_learn(args, cfg)
     elif args.cmd == "markets":

@@ -634,3 +634,102 @@ def test_tuning_adopts_new_settings_only_when_they_win_the_exam(tmp_path, monkey
     (tmp_path / "breakout.params.json").write_text(json.dumps(saved))
     cfg = Config(strategy="breakout", strategy_params={"entry": 20, "exit": 10, "trend": 0})
     assert learn.apply(cfg).strategy_params == {"entry": 30, "exit": 10, "trend": 0}
+
+
+class FakeCoinbase:
+    """A pretend Coinbase account for the auto-trader tests."""
+
+    def __init__(self, usd=200.0, coins=None, can_transfer=False):
+        self.prices = {"BTC/USD": 100.0, "ETH/USD": 10.0}
+        self.free = {"USD": usd, **(coins or {})}
+        self.can_transfer, self.orders = can_transfer, {}
+
+    def v3PrivateGetBrokerageKeyPermissions(self):
+        return {"can_view": True, "can_trade": True, "can_transfer": self.can_transfer}
+
+    def fetch_ticker(self, symbol):
+        return {"last": self.prices[symbol]}
+
+    def fetch_balance(self):
+        return {"free": dict(self.free)}
+
+    def amount_to_precision(self, symbol, amount):
+        return f"{amount:.8f}"
+
+    def create_market_buy_order_with_cost(self, symbol, cost):
+        units = cost * 0.99 / self.prices[symbol]
+        self.free["USD"] -= cost
+        self.free[symbol.split("/")[0]] = self.free.get(symbol.split("/")[0], 0) + units
+        return self._order(units, cost * 0.99, cost * 0.01)
+
+    def create_market_sell_order(self, symbol, amount):
+        coin = symbol.split("/")[0]
+        self.free[coin] -= amount
+        got = amount * self.prices[symbol]
+        self.free["USD"] += got * 0.99
+        return self._order(amount, got, got * 0.01)
+
+    def _order(self, filled, cost, fee):
+        oid = str(len(self.orders))
+        self.orders[oid] = {"id": oid, "status": "closed", "filled": filled, "cost": cost, "fee": {"cost": fee}}
+        return self.orders[oid]
+
+    def fetch_order(self, oid, symbol):
+        return self.orders[oid]
+
+
+def _autotrade_setup(tmp_path, monkeypatch, mode="dry_run", **extra):
+    from pathlib import Path
+    import yaml
+    import bot.autotrade as at
+    monkeypatch.chdir(tmp_path)
+    Path("config.trend.yaml").write_text(Path(__file__).parent.parent.joinpath("config.trend.yaml").read_text())
+    Path("autotrade.yaml").write_text(yaml.safe_dump({"mode": mode, "strategy_config": "config.trend.yaml",
+                                                      "markets": ["BTC-USD", "ETH-USD"], "budget": 100, "max_loss": 30, **extra}))
+    monkeypatch.setattr(at.time, "sleep", lambda s: None)
+    holds = {"BTC-USD": True, "ETH-USD": True}
+    monkeypatch.setattr(at, "rule_says_hold", lambda cfg, m: holds[m])
+    sent = []
+    return at, holds, sent, (lambda title, msg, buy: sent.append(title))
+
+
+def test_autotrade_follows_the_rule_within_budget_and_never_sells_your_own_coins(tmp_path, monkeypatch):
+    at, holds, sent, tell = _autotrade_setup(tmp_path, monkeypatch, mode="live")
+    ex = FakeCoinbase(usd=200.0, coins={"BTC": 5.0})        # you already own 5 BTC
+    at.run(exchange=ex, tell=tell)
+    assert ex.free["USD"] == 100.0                          # spent exactly the $100 budget, $50 per coin
+    assert any(t.startswith("BOUGHT $50.00 of BTC-USD") for t in sent)
+    at.run(exchange=ex, tell=tell)
+    assert ex.free["USD"] == 100.0                          # already holding: no second buy
+    holds["BTC-USD"] = False
+    at.run(exchange=ex, tell=tell)
+    assert abs(ex.free["BTC"] - 5.0) < 1e-9                 # sold only what the bot bought; your 5 BTC untouched
+    assert any(t.startswith("SOLD BTC-USD") for t in sent)
+
+
+def test_autotrade_kill_switch_sells_and_stops(tmp_path, monkeypatch):
+    at, holds, sent, tell = _autotrade_setup(tmp_path, monkeypatch, mode="live")
+    ex = FakeCoinbase()
+    at.run(exchange=ex, tell=tell)
+    ex.prices = {"BTC/USD": 40.0, "ETH/USD": 4.0}             # both down 60%: a $60 loss, over the $30 limit
+    assert at.run(exchange=ex, tell=tell) == "Kill switch."
+    assert ex.free.get("BTC", 0) < 1e-9 and ex.free.get("ETH", 0) < 1e-9
+    assert "kill switch" in at.run(exchange=ex, tell=tell)
+
+
+def test_autotrade_refuses_a_key_that_can_withdraw_and_stops_without_its_notes(tmp_path, monkeypatch):
+    at, holds, sent, tell = _autotrade_setup(tmp_path, monkeypatch, mode="live")
+    ex = FakeCoinbase(can_transfer=True)
+    assert at.run(exchange=ex, tell=tell) == "Refused: key can transfer." and ex.free["USD"] == 200.0
+    at, holds, sent, tell = _autotrade_setup(tmp_path, monkeypatch, mode="live", live_since="2026-11-06")
+    ex = FakeCoinbase()
+    assert at.run(exchange=ex, tell=tell) == "Stopped: ledger missing." and ex.free["USD"] == 200.0
+
+
+def test_autotrade_dry_run_places_no_orders(tmp_path, monkeypatch):
+    at, holds, sent, tell = _autotrade_setup(tmp_path, monkeypatch)
+    ex = FakeCoinbase()
+    status = at.run(exchange=ex, tell=tell)
+    assert not ex.orders and ex.free["USD"] == 200.0
+    assert sent[0].startswith("DRY RUN: Auto-trader connected") and any(t.startswith("DRY RUN: BOUGHT") for t in sent)
+    assert status.startswith("DRY RUN:")

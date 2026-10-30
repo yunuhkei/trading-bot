@@ -1,0 +1,37 @@
+# Auto-trading on Coinbase (autotrade.yaml): every hour, follow the trend rule within the budget and kill switch.
+# Needs the COINBASE_API_KEY and COINBASE_API_SECRET secrets (a trade-only key). Remembers its trades between runs.
+name: autotrade
+on:
+  schedule:
+    - cron: "41 * * * *"     # every hour at :41
+  workflow_dispatch:
+concurrency:
+  group: autotrade
+  cancel-in-progress: false
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: autotrade_state_*.json
+          key: autotrade-state-${{ github.run_id }}
+          restore-keys: autotrade-state-
+      - name: Follow the rule
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+          COINBASE_API_KEY: ${{ secrets.COINBASE_API_KEY }}
+          COINBASE_API_SECRET: ${{ secrets.COINBASE_API_SECRET }}
+        run: python -m bot autotrade
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: autotrade_state_*.json
+          key: autotrade-state-${{ github.run_id }}

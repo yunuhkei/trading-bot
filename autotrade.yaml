@@ -1,0 +1,8 @@
+# Auto-trading on Coinbase with real money (bot/autotrade.py). The bot can buy and sell, never withdraw.
+# Checked every hour by the "autotrade" workflow. Every order (or would-be order) is sent to your phone.
+mode: dry_run            # off | dry_run (decides real trades, messages them, places NO orders) | live (real orders)
+strategy_config: config.trend.yaml   # the 200-day trend rule, with whatever settings the bot's learning adopted
+markets: [BTC-USD, ETH-USD, SOL-USD]
+budget: 100              # most money the bot may have in its trades at once, in dollars (split evenly across markets)
+max_loss: 30             # kill switch: if its trades are down this many dollars in total, it sells what it bought and stops
+live_since:              # set when switching to live; if its notes ever go missing after that, it stops instead of guessing

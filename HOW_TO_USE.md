@@ -195,6 +195,28 @@ watchlist, saved in `data/seen/`), tunes and retrains, and sends your phone a me
 switches its filter on or off. See what it learned: `python -m bot learn --report` (everything is in readable files in
 `models/`).
 
+## Auto-trading on Coinbase (real money)
+
+The **autotrade** workflow trades for you every hour on Coinbase with the trend rule (BTC, ETH, SOL), using the
+settings the bot's learning adopted. Settings are in `autotrade.yaml`: `budget` (most money in its trades, $100 to
+start), `max_loss` (kill switch: if its trades are down that much it sells what it bought and stops), and `mode`
+(`dry_run` messages what it would do without trading; `live` places real orders). It only sells coins it bought
+itself, never coins you already had, and every order is sent to your phone.
+
+Setup (one time):
+1. Go to **portal.cdp.coinbase.com** (same login as Coinbase) → **API keys** → **Create API key**.
+   Allow **View** and **Trade** only. Leave **Transfer** off, so the key can never move money out.
+   Under advanced settings choose the **ECDSA** signature type (Coinbase's trading API needs it).
+2. Copy the **API key name** (starts with `organizations/...`) and the **private key** (the whole block, from
+   `-----BEGIN EC PRIVATE KEY-----` to `-----END EC PRIVATE KEY-----`).
+3. In GitHub, add two repository secrets (Settings → Secrets and variables → Actions → New repository secret):
+   `COINBASE_API_KEY` = the key name, `COINBASE_API_SECRET` = the private key.
+4. Keep the money for the bot as **USD cash** in Coinbase (not USDC).
+
+It starts in **dry run**: your phone gets "Auto-trader connected" and then "DRY RUN: BOUGHT ..." messages. When those
+match the alerts for a few days, ask Claude to switch it to live. In live mode it refuses a key that can transfer
+money, and if it ever loses its notes on what it bought, it stops instead of guessing.
+
 ## Check a chart screenshot (PC)
 
 Take a screenshot of a coin or stock in any app (Fomo, Coinbase, Robinhood...) and the bot tells you
