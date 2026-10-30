@@ -192,6 +192,11 @@ the screenshot into the window. Or type `python -m bot chart path/to/screenshot.
 and runs the same check (`python -m bot chart --ticker GANG --chain solana --value 1200000`, or `--ca <address>`).
 No API key needed.
 
+**Hours-old coins (under 7 days):** the check uses the *dip bounce* rule on the 5-minute chart instead: BUY right after
+a sharp dip, sell when the price gets back to its recent average (usually within an hour), 20% stop-loss. In a test on
+38 brand-new coins, chasing pumps lost money and this was the only short-term rule ahead after fees (a small test:
+lottery money only). Add the coin to `watchlist.young.txt` to get its SELL alert (checked every 5 minutes).
+
 What it does: Claude reads the coin's name, blockchain and value from the picture (it does not guess the price from
 the chart shape, which tested as a coin flip), the bot finds the real coin (using the value to skip same-name
 copycats), and runs your tested rules on its full price history. Coins under 21 days old, with under $20k in their

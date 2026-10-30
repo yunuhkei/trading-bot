@@ -1,0 +1,2 @@
+# Hours-old coins to watch with the dip-bounce rule (5-minute chart, checked every 5 minutes by the scalp workflow).
+# Add a coin as chain:address, e.g. sol:<contract address>. Remove it when you're done with it.

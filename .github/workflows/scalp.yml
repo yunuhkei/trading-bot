@@ -24,6 +24,7 @@ jobs:
         with:
           path: |
             signals_state_scalping*.json
+            signals_state_young*.json
             practice_account_scalp*.json
           key: scalp-state-${{ github.run_id }}
           restore-keys: scalp-state-
@@ -36,5 +37,6 @@ jobs:
         with:
           path: |
             signals_state_scalping*.json
+            signals_state_young*.json
             practice_account_scalp*.json
           key: scalp-state-${{ github.run_id }}

@@ -1,0 +1,21 @@
+# Hours-old coins (under 7 days): "dip bounce" on 5-minute candles.
+# Buy when the price drops 2 standard deviations below its last-20-candle average (a sharp dip), sell when it gets
+# back to that average, stop-loss 20% below the buy. Tested (Oct 2026) on 38 Solana coins recorded at launch that had
+# $5k+ in their pool at 1 hour old, at ~1% fees per buy or sell: chasing pumps (breakouts, fast trends) lost money and
+# buying at 1h and holding lost 34% on average; this rule was the only one ahead (+2% per trade, 38% of trades won,
+# most gains from a few big bounces). A small test: treat it as lottery money.
+exchange: coinbase
+symbol: BTC/USD
+timeframe: 5m
+strategy: bollinger
+strategy_params:
+  period: 20
+  width: 2.0
+allow_short: false
+fee_pct: 0.01             # Fomo / DEX swap fee + price slippage on small pools, per buy or sell
+slippage_pct: 0.0
+risk:
+  position_pct: 0.95
+  stop_loss_pct: 0.20
+  take_profit_pct: 0.0
+  max_drawdown_pct: 0.0

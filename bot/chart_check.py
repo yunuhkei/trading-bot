@@ -25,13 +25,14 @@ import requests
 
 from .config import Config
 from .indicators import sma
-from .signals import copy_id, fetch_candles, money, plain
+from .signals import bollinger_levels, copy_id, fetch_candles, money, plain
 from .strategies import build_strategy, targets
 
 MODEL = "claude-opus-5-5"
 FRESH_DAYS = 3          # a BUY that flipped within this many daily candles counts as fresh
 MAX_LATE_RISK = 0.15    # joining an old trend is OK only if the stop is at most this far below
 MIN_LIQ, MIN_AGE_DAYS = 20_000, 7
+YOUNG_CONFIG, MIN_YOUNG_HOURS = "config.young.yaml", 1   # coins under MIN_AGE_DAYS: dip bounce on 5-minute candles
 
 READ_SCHEMA = {
     "type": "object",
@@ -155,10 +156,50 @@ def resolve(info: dict) -> dict:
             "matches": len(by_token), "uncertain": uncertain, "url": best.get("url")}
 
 
+def young_verdict(coin: dict, stake: float | None) -> dict:
+    """Hours-old coins: the dip-bounce rule on 5-minute candles (see config.young.yaml for how it tested)."""
+    cfg = Config.load(YOUNG_CONFIG)
+    out = {"rule": "dip bounce on the 5-minute chart (for coins under 7 days old)", "stake": stake, "flags": [], "young": True}
+    if coin.get("liquidity") is not None and coin["liquidity"] < MIN_LIQ:
+        out["flags"].append(f"only {money(coin['liquidity'])} in its trading pool (easy to rug or hard to sell)")
+    if coin.get("uncertain"):
+        out["flags"].append(f"{coin['matches']} coins share this name and none clearly matches the screenshot: send the contract address to be sure")
+    if out["flags"]:
+        return {**out, "decision": "AVOID", "why": "red flags: " + "; ".join(out["flags"])}
+    if coin.get("age_days", 1) * 24 < MIN_YOUNG_HOURS:
+        return {**out, "decision": "AVOID", "why": f"only {coin['age_days'] * 24 * 60:.0f} minutes old. Wait until it's at least an hour old "
+                "and has a few hours of trading; most coins die in their first hour"}
+    try:
+        df = fetch_candles(coin["market"], "5m")
+    except Exception as e:
+        return {**out, "decision": "AVOID", "why": f"couldn't get its price history ({str(e)[:80]})"}
+    strategy = build_strategy(cfg.strategy, cfg.strategy_params)
+    if len(df) <= strategy.warmup:
+        return {**out, "decision": "WAIT", "why": f"only {len(df)} five-minute candles of trading so far; the rule needs {strategy.warmup + 1}. "
+                "Send it again in about an hour"}
+    price = float(df.close.iloc[-1])
+    mid, lower = bollinger_levels(cfg, df)
+    stop = price * (1 - cfg.risk.stop_loss_pct)
+    sig = targets(strategy, df, False)
+    flips = np.flatnonzero(sig.to_numpy()[1:] != sig.to_numpy()[:-1])
+    mins_in = 5 * (len(sig) - 1 - flips[-1]) if len(flips) else None
+    out.update(price=price, stop=stop, target=mid)
+    if int(sig.iloc[-1]) == 1 and mins_in is not None and mins_in <= 30 and mid / price - 1 >= 0.03:
+        return {**out, "decision": "BUY", "why": f"it just dipped sharply ({mins_in} min ago) and the rule buys dips like this; "
+                f"it sells when the price gets back to {money(mid)} ({mid / price - 1:+.1%})"}
+    if int(sig.iloc[-1]) == 1:
+        return {**out, "decision": "WAIT", "trigger": lower, "why": f"the dip has mostly bounced already. The next BUY comes if it drops below "
+                f"{money(lower)} ({lower / price - 1:+.1%} from here)"}
+    return {**out, "decision": "WAIT", "trigger": lower, "why": f"no dip right now. The rule buys if it drops below {money(lower)} "
+            f"({lower / price - 1:+.1%} from here). Buying hours-old coins after they pump lost money in testing"}
+
+
 def verdict(coin: dict, settings: dict) -> dict:
     """Apply the tested rule for this kind of asset and decide BUY / WAIT / AVOID with a stop-loss."""
     meme = coin["kind"] == "meme_coin" or coin["market"].split(":")[0] in ("sol", "base", "bsc", "eth")
     lst = next((l for l in settings["lists"] if ("memes" in l["config"]) == meme), settings["lists"][0])
+    if meme and coin.get("age_days") is not None and coin["age_days"] < MIN_AGE_DAYS:
+        return young_verdict(coin, lst.get("stake"))
     cfg = Config.load(lst["config"])
     stake = lst.get("stake")
     out = {"rule": "20-day breakout (meme coins)" if meme else "200-day trend filter", "stake": stake, "flags": []}
@@ -174,11 +215,15 @@ def verdict(coin: dict, settings: dict) -> dict:
     except Exception as e:
         return {**out, "decision": "AVOID", "why": f"couldn't get its price history ({str(e)[:80]})"}
     strategy = build_strategy(cfg.strategy, cfg.strategy_params)
+    if df.empty and meme and coin.get("age_days") is not None:
+        return young_verdict(coin, stake)
     if df.empty:
         return {**out, "decision": "AVOID", "why": "too new for the rule: not even one full day of price history yet. "
                 "In testing, buying coins this young lost money"}
     price = float(df.close.iloc[-1])
     out["price"] = price
+    if len(df) <= strategy.warmup and meme and coin.get("age_days") is not None:
+        return young_verdict(coin, stake)  # not enough daily candles yet: use the 5-minute rule
     if len(df) <= strategy.warmup:
         return {**out, "decision": "AVOID", "why": f"too new for the rule: {len(df)} days of history, it needs {strategy.warmup + 1}. "
                 "In testing, buying coins this young lost money; treat it as a lottery ticket at most."}
@@ -233,13 +278,19 @@ def report(path: str | None, settings_path: str = "alerts.yaml", info: dict | No
         if v.get("stake"):
             lines.append(f"Amount: ${v['stake']:,.0f} (your fixed amount for this list)")
         lines.append(f"Stop-loss: {money(v['stop'])}. Sell everything if it closes below this; you can also set it as a stop order in your app.")
-        lines.append("Take-profit: none. Let it run; the bot's SELL alert (or the stop above) is your exit.")
-        if coin.get("market"):
-            lines.append(f"Track it: add this line to your watchlist so you get the SELL alert: {coin['market']}")
+        if v.get("young"):
+            lines.append(f"Take-profit: {money(v['target'])} ({v['target'] / v['price'] - 1:+.1%}). Sell when it gets back there, "
+                         "usually within an hour. Don't hold an hours-old coin overnight on this rule.")
+            lines.append(f"Track it: add {coin['market']} to watchlist.young.txt and the bot sends the SELL alert (checked every 5 minutes)")
+        else:
+            lines.append("Take-profit: none. Let it run; the bot's SELL alert (or the stop above) is your exit.")
+            if coin.get("market"):
+                lines.append(f"Track it: add this line to your watchlist so you get the SELL alert: {coin['market']}")
         lines.append("Copy: " + " | ".join([copy_id(coin["market"]), f"buy ${v['stake']:,.0f}" if v.get("stake") else "buy",
                                           f"price {plain(v['price'])}", f"stop {plain(v['stop'])}"]))
     elif v["decision"] == "WAIT" and v.get("trigger"):
-        lines.append("Copy: " + " | ".join([copy_id(coin["market"]), "wait", f"buy above {plain(v['trigger'])}"]))
+        lines.append("Copy: " + " | ".join([copy_id(coin["market"]), "wait",
+                                          f"buy {'below' if v.get('young') else 'above'} {plain(v['trigger'])}"]))
     for f in v.get("flags", []):
         if not v["why"].startswith("red flags"):
             lines.append(f"Warning: {f}")

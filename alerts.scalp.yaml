@@ -13,6 +13,12 @@ lists:
     stake: 800
     practice: true
 
+  - name: Young coins (dip bounce, 5m)
+    config: config.young.yaml        # hours-old coins: buy sharp dips, sell at the average, 20% stop-loss
+    watchlist: watchlist.young.txt   # coins added after a chart check (sol:<contract address>)
+    stake: 30
+    practice_account: false          # real alerts for your lottery money, not part of the $800 practice scalper
+
 # Practice auto-trading for the scalping list: its own fake-money account (see alerts.yaml).
 practice_trading:
   enabled: true

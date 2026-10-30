@@ -522,18 +522,34 @@ def test_chart_check_verdicts(monkeypatch):
     w = cc.verdict(old_coin, _chart_settings())
     assert w["decision"] == "WAIT" and w["trigger"] > w["price"]
     monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: young)
-    assert cc.verdict(old_coin, _chart_settings())["decision"] == "AVOID"            # too little history
+    short = cc.verdict(old_coin, _chart_settings())                                  # too little daily history:
+    assert short["young"] and short["decision"] == "WAIT"                           # 5-minute rule, needs more candles
     monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: rising)
     thin = {**old_coin, "liquidity": 3_000}
     assert cc.verdict(thin, _chart_settings())["decision"] == "AVOID"                # red flag: tiny pool
 
 
-def test_chart_check_avoids_a_coin_with_no_full_day_of_history(monkeypatch):
+def test_chart_check_waits_on_a_coin_with_no_full_day_of_history(monkeypatch):
     import bot.chart_check as cc
     monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: frame([1.0]).iloc[:0])
     settings = {"lists": [{"config": "config.memes.yaml", "stake": 30}]}
     v = cc.verdict({"market": "bsc:0xabc", "kind": "meme_coin", "liquidity": 100_000, "age_days": 0.1}, settings)
-    assert v["decision"] == "AVOID" and "not even one full day" in v["why"]
+    assert v["decision"] == "WAIT" and v["young"] and "five-minute candles" in v["why"]
+
+
+def test_chart_check_uses_the_dip_bounce_rule_for_hours_old_coins(monkeypatch):
+    import bot.chart_check as cc
+    settings = {"lists": [{"config": "config.memes.yaml", "stake": 30}]}
+    coin = {"market": "sol:abc", "kind": "meme_coin", "liquidity": 100_000, "age_days": 0.3}
+    calm = list(1 + 0.01 * np.sin(np.arange(40)))
+    monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: frame(calm + [0.8]))  # a sharp dip on the last candle
+    v = cc.verdict(coin, settings)
+    assert v["decision"] == "BUY" and v["young"] and v["stake"] == 30
+    assert abs(v["stop"] - 0.8 * 0.8) < 1e-9 and v["target"] > 0.8  # 20% stop, sells back at the average
+    monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: frame(calm))
+    assert cc.verdict(coin, settings)["decision"] == "WAIT"
+    assert cc.verdict({**coin, "liquidity": 5_000}, settings)["decision"] == "AVOID"
+    assert cc.verdict({**coin, "age_days": 0.01}, settings)["decision"] == "AVOID"  # under an hour old
 
 
 def test_chart_check_picks_the_coin_matching_the_screenshot_value(monkeypatch):

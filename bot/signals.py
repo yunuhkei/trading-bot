@@ -139,10 +139,24 @@ def explain(cfg: Config, df: pd.DataFrame, stance: str) -> str:
         if stance == "IN":
             return f"RSI {r:.0f}: SELL when it rises above {p.get('high', 55)}" + (" or at the end of the day" if cfg.day_trade else "")
         return f"RSI {r:.0f}: BUY when it drops below {p.get('low', 30)}"
+    if cfg.strategy == "bollinger":
+        mid, lower = bollinger_levels(cfg, df)
+        if stance == "IN":
+            return f"SELL when it gets back to {money(mid)} ({mid / price - 1:+.1%} from here)"
+        return f"BUY if it drops below {money(lower)} ({lower / price - 1:+.1%} from here)"
     return ""
 
 
-RULE_NAMES = {"trend": "200-day trend filter", "breakout": "20-day breakout", "rsi_revert": "RSI dip buying"}
+def bollinger_levels(cfg: Config, df: pd.DataFrame) -> tuple[float, float]:
+    """The dip-bounce rule's average (where it sells) and lower band (where it buys)."""
+    p, close = cfg.strategy_params, df["close"]
+    n, width = p.get("period", 20), p.get("width", 2.0)
+    mid, sd = close.rolling(n).mean().iloc[-1], close.rolling(n).std().iloc[-1]
+    return float(mid), float(mid - width * sd)
+
+
+RULE_NAMES = {"trend": "200-day trend filter", "breakout": "20-day breakout", "rsi_revert": "RSI dip buying",
+              "bollinger": "dip bounce (5-minute chart)"}
 
 
 def stop_level(cfg: Config, df: pd.DataFrame) -> float | None:
@@ -152,6 +166,8 @@ def stop_level(cfg: Config, df: pd.DataFrame) -> float | None:
         return float(sma(df["close"], p.get("period", 200)).iloc[-1]) * (1 - p.get("band", 0.0))
     if cfg.strategy == "breakout":
         return float(df["low"].rolling(p.get("exit", 10)).min().iloc[-1])
+    if cfg.risk.stop_loss_pct:
+        return float(df["close"].iloc[-1]) * (1 - cfg.risk.stop_loss_pct)
     return None
 
 
@@ -171,7 +187,11 @@ def alert_text(cfg: Config, df: pd.DataFrame, market: str, action: str, stake: f
         if stop:
             lines.append(f"Stop-loss: {money(stop)} ({stop / price - 1:+.1%}). Sell everything if it closes below this; "
                          "you can set it as a stop order in your app.")
-        lines.append("Take-profit: none. Hold until the SELL alert" + (" (it comes the same day)." if cfg.day_trade else "."))
+        if cfg.strategy == "bollinger":
+            mid = bollinger_levels(cfg, df)[0]
+            lines.append(f"Take-profit: about {money(mid)} ({mid / price - 1:+.1%}), where the SELL alert comes (usually within an hour).")
+        else:
+            lines.append("Take-profit: none. Hold until the SELL alert" + (" (it comes the same day)." if cfg.day_trade else "."))
         lines.append(f"Rule: {rule}.")
         copy = [copy_id(market), f"buy ${stake:,.0f}" if stake else "buy", f"price {plain(price)}"]
         if stop:
@@ -378,7 +398,7 @@ def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_ov
             cfg = Config.load(lst["config"])
             slug = re.sub(r"[^a-z0-9]+", "_", lst["name"].lower()).strip("_")
             rows = check(cfg, read_watchlist(lst["watchlist"]), f"signals_state_{slug}.json", target, lst.get("stake"),
-                         bool(lst.get("practice")), account)
+                         bool(lst.get("practice")), account if lst.get("practice_account", True) else None)
             print(f"\n== {lst['name']} ==")
             print(table(rows), flush=True)
         if account:
