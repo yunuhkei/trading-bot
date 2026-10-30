@@ -536,6 +536,15 @@ def test_chart_check_verdicts(monkeypatch):
     assert cc.verdict(thin, _chart_settings())["decision"] == "AVOID"                # red flag: tiny pool
 
 
+def test_chart_check_uses_the_live_price_not_just_yesterdays_close(monkeypatch):
+    import bot.chart_check as cc
+    rising = frame(list(np.full(40, 100.0)) + [130, 131])            # fresh breakout, stop near 100
+    coin = {"market": "sol:AAA", "kind": "meme_coin", "liquidity": 90_000, "age_days": 60}
+    monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: rising if tf == "1d" else frame([90.0]))
+    v = cc.verdict(coin, _chart_settings())
+    assert v["decision"] == "WAIT" and v["price"] == 90.0 and "trend is breaking today" in v["why"]
+
+
 def test_chart_check_waits_on_a_coin_with_no_full_day_of_history(monkeypatch):
     import bot.chart_check as cc
     monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: frame([1.0]).iloc[:0])

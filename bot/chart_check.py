@@ -238,9 +238,20 @@ def verdict(coin: dict, settings: dict) -> dict:
     out["stop"] = stop
     flips = np.flatnonzero(sig.to_numpy()[1:] != sig.to_numpy()[:-1])
     days_in = len(sig) - 1 - flips[-1] if len(flips) else len(sig)
+    # The rule runs on finished days; judge the entry against the price right now, which can be far from yesterday's close.
+    price = live_price(coin["market"]) or price
+    out["price"] = price
     risk = 1 - stop / price
     if out["flags"] and meme:
         return {**out, "decision": "AVOID", "why": "red flags: " + "; ".join(out["flags"])}
+    if int(sig.iloc[-1]) == 1 and price < stop:
+        return {**out, "decision": "WAIT", "trigger": None,
+                "why": f"the trend is breaking today: it's at {money(price)}, already {price / stop - 1:.1%} below the stop-loss "
+                       f"({money(stop)}). Unless it climbs back above that by the daily close, the rule turns SELL. Don't buy into that"}
+    if int(sig.iloc[-1]) != 1 and price > trigger:
+        return {**out, "decision": "WAIT", "trigger": trigger,
+                "why": f"it's above the BUY level ({money(trigger)}) right now. If it closes the day above it, that's a fresh BUY: "
+                       "check again after the daily close"}
     if int(sig.iloc[-1]) == 1:
         if days_in <= FRESH_DAYS:
             return {**out, "decision": "BUY", "why": f"fresh BUY signal {days_in} day(s) ago; your stop is {risk:.0%} below the price"}
@@ -250,6 +261,15 @@ def verdict(coin: dict, settings: dict) -> dict:
                 "Wait for the next fresh BUY", "trigger": None}
     return {**out, "decision": "WAIT", "trigger": trigger,
             "why": f"no BUY signal. The rule buys if it closes above {money(trigger)} ({trigger / price - 1:+.1%} from here)"}
+
+
+def live_price(market: str) -> float | None:
+    """The latest price (last finished 5-minute candle), or None if it can't be fetched."""
+    try:
+        df = fetch_candles(market, "5m")
+        return float(df.close.iloc[-1]) if len(df) else None
+    except Exception:
+        return None
 
 
 SCALP_CONFIG = "config.daytrade.yaml"   # the same rule as your scalping alerts
