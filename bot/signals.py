@@ -130,6 +130,40 @@ def explain(cfg: Config, df: pd.DataFrame, stance: str) -> str:
     return ""
 
 
+RULE_NAMES = {"trend": "200-day trend filter", "breakout": "20-day breakout", "rsi_revert": "RSI dip buying"}
+
+
+def stop_level(cfg: Config, df: pd.DataFrame) -> float | None:
+    """The price where the rule would say SELL: the stop-loss for a position opened now."""
+    p = cfg.strategy_params
+    if cfg.strategy == "trend":
+        return float(sma(df["close"], p.get("period", 200)).iloc[-1]) * (1 - p.get("band", 0.0))
+    if cfg.strategy == "breakout":
+        return float(df["low"].rolling(p.get("exit", 10)).min().iloc[-1])
+    return None
+
+
+def alert_text(cfg: Config, df: pd.DataFrame, market: str, action: str, stake: float | None) -> tuple[str, str]:
+    """Plain-English alert: what to do, how much, the stop-loss and the exit plan."""
+    price = float(df["close"].iloc[-1])
+    name = display_name(market)
+    rule = RULE_NAMES.get(cfg.strategy, cfg.strategy)
+    if action == "BUY":
+        stop = stop_level(cfg, df)
+        title = f"BUY {'$' + format(stake, ',.0f') + ' of ' if stake else ''}{name} at {money(price)}"
+        lines = [f"Amount: {'$' + format(stake, ',.0f') if stake else 'your usual fixed amount for this list'}."]
+        if stop:
+            lines.append(f"Stop-loss: {money(stop)} ({stop / price - 1:+.1%}). Sell everything if it closes below this; "
+                         "you can set it as a stop order in your app.")
+        lines.append("Take-profit: none. Hold until the SELL alert.")
+        lines.append(f"Rule: {rule}.")
+        return title, "\n".join(lines)
+    if action == "SELL":
+        return (f"SELL all of {name} at {money(price)}",
+                f"The {rule} says the move is over. Sell your whole position and keep the cash for the next BUY.")
+    return f"{action} {name} at {money(price)}", f"The {rule} switched to {action}."
+
+
 def notify(target: str, title: str, message: str, buy: bool) -> bool:
     """Send an alert. `target` is one of:
       ntfy:TOPIC (or just TOPIC)        the free ntfy phone app; anyone who knows the topic can read it, so pick a hard-to-guess name
@@ -183,9 +217,7 @@ def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json
                "changed": prev is not None and prev != stance}
         if row["changed"]:
             action = "BUY" if stance == "IN" else "SELL" if prev == "IN" else stance
-            what = f"${stake:,.0f} of {display_name(market)}" if stake and action == "BUY" else display_name(market)
-            title = f"{action} {what} at {money(row['price'])}"
-            msg = f"{cfg.strategy} ({cfg.timeframe}) switched {prev} -> {stance}. {row['note']}"
+            title, msg = alert_text(cfg, df, market, action, stake)
             log.warning("ALERT %s: %s", title, msg)
             if topic:
                 notify(topic, title, msg, buy=stance == "IN")

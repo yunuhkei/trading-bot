@@ -343,7 +343,16 @@ def test_signals_alert_only_when_the_signal_changes(tmp_path, monkeypatch):
     monkeypatch.setattr(sg, "fetch_candles", lambda m, tf: down)
     flipped = sg.check(cfg, ["TEST"], state, topic="t")[0]
     assert flipped["stance"] == "OUT" and flipped["changed"]
-    assert sent == [("SELL TEST at $120.00", False)]
+    assert sent == [("SELL all of TEST at $120.00", False)]
+
+
+def test_buy_alert_spells_out_amount_and_stop_loss():
+    from bot.signals import alert_text
+    cfg = Config(strategy="breakout", strategy_params={"entry": 20, "exit": 10, "trend": 0}, timeframe="1d")
+    df = frame(list(np.full(40, 100.0)) + [130])
+    title, msg = alert_text(cfg, df, "PEPE-USD", "BUY", 30)
+    assert title == "BUY $30 of PEPE-USD at $130.00"
+    assert "Amount: $30" in msg and "Stop-loss: $100.00 (-23.1%)" in msg and "Hold until the SELL alert" in msg
 
 
 def test_meme_alerts_stay_off_when_the_model_has_not_passed(tmp_path, capsys):
