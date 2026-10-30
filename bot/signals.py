@@ -105,6 +105,11 @@ def fetch_candles(market: str, timeframe: str) -> pd.DataFrame:
         df["ts"] = pd.to_datetime(df.t, unit="s", utc=True)
         df = df.set_index("ts")[COLUMNS].astype(float)
         return clean(df[df.index + pd.Timedelta(seconds=gran) <= pd.Timestamp.now(tz="UTC")])
+    return fetch_yahoo(market, timeframe)
+
+
+def fetch_yahoo(market: str, timeframe: str) -> pd.DataFrame:
+    """Finished candles for a stock or fund from Yahoo (also tickers with a dash, like BRK-B)."""
     interval, rng = YAHOO[timeframe]
     r = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{market}", params={"range": rng, "interval": interval},
                      headers={"User-Agent": "Mozilla/5.0"}, timeout=30)

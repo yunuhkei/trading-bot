@@ -429,7 +429,7 @@ def _coinbase_since(product: str, gran: int, since: pd.Timestamp) -> pd.DataFram
 
 def refresh(log=print) -> int:
     """Append the newest candles to the price files the bot learns from. Returns rows added."""
-    from .signals import fetch_candles
+    from .signals import fetch_candles, fetch_yahoo
 
     added = 0
 
@@ -457,14 +457,14 @@ def refresh(log=print) -> int:
         if Path(path).stem.startswith("_") or not Path(path).exists():
             continue
         ticker = Path(path).stem.replace("_1d", "").upper().replace(".", "-")
-        safe(path, lambda: fetch_candles(ticker, "1d"))
+        safe(path, lambda: fetch_yahoo(ticker, "1d"))
         time.sleep(0.3)
     for path in sorted(glob.glob("data/intraday/*_15m.csv")):
         sym = Path(path).stem.replace("_15m", "")
         if sym in CRYPTO_15M:
             safe(path, lambda: _coinbase_since(f"{sym.upper()}-USD", 900, load_csv(path).index[-1]))
         else:
-            safe(path, lambda: fetch_candles(sym.upper(), "15m"))
+            safe(path, lambda: fetch_yahoo(sym.upper(), "15m"))
     # The Fomo coins on your watchlist: their charts become part of what the meme strategy studies.
     from .signals import is_onchain, read_watchlist
 
@@ -498,10 +498,14 @@ def _write_new(path: str, df: pd.DataFrame) -> int:
 def _gecko_daily(net: str, pool: str) -> pd.DataFrame:
     import requests
 
-    r = requests.get(f"https://api.geckoterminal.com/api/v2/networks/{net}/pools/{pool}/ohlcv/day",
-                     params={"limit": 60, "currency": "usd", "token": "base"},
-                     headers={"Accept": "application/json;version=20230302"}, timeout=30)
-    time.sleep(2.5)
+    for attempt in range(4):
+        r = requests.get(f"https://api.geckoterminal.com/api/v2/networks/{net}/pools/{pool}/ohlcv/day",
+                         params={"limit": 60, "currency": "usd", "token": "base"},
+                         headers={"Accept": "application/json;version=20230302"}, timeout=30)
+        time.sleep(2.5)
+        if r.status_code != 429:
+            break
+        time.sleep(15 * (attempt + 1))   # the free feed allows only a few requests a minute
     r.raise_for_status()
     df = pd.DataFrame(r.json()["data"]["attributes"]["ohlcv_list"], columns=["t", "open", "high", "low", "close", "volume"])
     df.index = pd.to_datetime(df.pop("t"), unit="s", utc=True)
