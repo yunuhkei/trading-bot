@@ -136,6 +136,12 @@ def cmd_ideas(args, cfg):
     print(news_ideas.table(ideas))
 
 
+def cmd_chart(args, cfg):
+    from .chart_check import report
+
+    print(report(args.image, args.settings))
+
+
 def cmd_markets(args, cfg):
     import ccxt
 
@@ -211,6 +217,10 @@ def main(argv=None):
     al.add_argument("--notify", metavar="TARGET", help="override where alerts go (default: notify in alerts.yaml)")
     al.add_argument("--test-alert", action="store_true", help="send one test notification and exit")
 
+    ch = sub.add_parser("chart", help="screenshot of a coin or stock -> BUY / WAIT / AVOID, stop-loss and amount")
+    ch.add_argument("image", help="path to the screenshot (png/jpg)")
+    ch.add_argument("--settings", default="alerts.yaml")
+
     ni = sub.add_parser("ideas", help="meme coins named after today's news that pass safety filters (ideas, not buy signals)")
     ni.add_argument("--notify", metavar="TARGET", help="also send new ideas to your phone (ntfy:TOPIC, ...)")
     ni.add_argument("--state", default="news_ideas_state.json")
@@ -252,6 +262,8 @@ def main(argv=None):
         cmd_rotation(args, cfg)
     elif args.cmd == "launches":
         cmd_launches(args, cfg)
+    elif args.cmd == "chart":
+        cmd_chart(args, cfg)
     elif args.cmd == "ideas":
         cmd_ideas(args, cfg)
     elif args.cmd == "alerts":

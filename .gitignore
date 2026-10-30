@@ -10,3 +10,5 @@ data/launches.db*
 signals_state*.json
 data/meme_model.pkl
 news_ideas_state.json
+my_alert_channel.txt
+my_anthropic_key.txt

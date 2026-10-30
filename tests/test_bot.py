@@ -453,3 +453,38 @@ def test_news_ideas_leave_out_big_coin_impostors(monkeypatch):
     fake = {"chain": "solana", "address": "F", "symbol": "Bitcoin", "name": "Bitcoin", "age_h": 45, "liq": 30_000,
             "vol24": 700_000, "mcap": 84_000, "url": ""}
     assert ni.find_ideas([fake], {"bitcoin": "bitcoin price"}) == []
+
+
+def _chart_settings():
+    return {"lists": [{"name": "Main", "config": "config.trend.yaml", "watchlist": "w"},
+                      {"name": "Memes", "config": "config.memes.yaml", "watchlist": "w", "stake": 30}]}
+
+
+def test_chart_check_verdicts(monkeypatch):
+    import bot.chart_check as cc
+    rising = frame(list(np.full(40, 100.0)) + [130, 131])            # fresh 20-day breakout today
+    falling = frame(np.linspace(100, 60, 60))
+    young = frame(np.linspace(1, 2, 8))
+    old_coin = {"market": "sol:AAA", "kind": "meme_coin", "liquidity": 90_000, "age_days": 60}
+    monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: rising)
+    v = cc.verdict(old_coin, _chart_settings())
+    assert v["decision"] == "BUY" and v["stake"] == 30 and v["stop"] < v["price"]
+    monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: falling)
+    w = cc.verdict(old_coin, _chart_settings())
+    assert w["decision"] == "WAIT" and w["trigger"] > w["price"]
+    monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: young)
+    assert cc.verdict(old_coin, _chart_settings())["decision"] == "AVOID"            # too little history
+    monkeypatch.setattr(cc, "fetch_candles", lambda m, tf: rising)
+    thin = {**old_coin, "liquidity": 3_000}
+    assert cc.verdict(thin, _chart_settings())["decision"] == "AVOID"                # red flag: tiny pool
+
+
+def test_chart_check_picks_the_coin_matching_the_screenshot_value(monkeypatch):
+    import bot.chart_check as cc
+    pair = lambda addr, cap, liq: {"chainId": "bsc", "baseToken": {"address": addr, "symbol": "GANG", "name": "Gang"},
+                                   "marketCap": cap, "liquidity": {"usd": liq}, "pairCreatedAt": 0, "url": ""}
+    monkeypatch.setattr(cc, "_dex_pairs", lambda q: [pair("0xBIG", 90_000_000, 5_000_000), pair("0xREAL", 2_100_000, 200_000),
+                                                     pair("0xTINY", 4_000, 900)])
+    info = {"kind": "meme_coin", "name": "Gang", "ticker": "", "chain": "bsc", "market_cap_usd": 2_080_000, "contract_address": ""}
+    coin = cc.resolve(info)
+    assert coin["market"] == "bsc:0xREAL" and not coin["uncertain"]

@@ -158,6 +158,24 @@ python -m bot launches news --hours 2              # in a second terminal: flag 
 python -m bot launches report                      # results, incl. news-matched vs everything else
 ```
 
+## Check a chart screenshot (PC)
+
+Take a screenshot of a coin or stock in any app (Fomo, Coinbase, Robinhood...) and the bot tells you
+**BUY / WAIT / AVOID**, your **stop-loss**, and **how much** (from alerts.yaml).
+
+One-time setup:
+1. Go to **console.anthropic.com**, sign up, add a few dollars of credit (Billing), then **API Keys -> Create Key**.
+2. Copy the key (starts with `sk-ant-`) into a new text file called **my_anthropic_key.txt** in the trading-bot
+   folder. It's never uploaded. Each screenshot costs about a cent.
+
+Then: **Windows:** drag the screenshot onto **CHECK_CHART.bat**. **Mac:** double-click **check_chart.command** and drag
+the screenshot into the window. Or type `python -m bot chart path/to/screenshot.png`.
+
+What it does: Claude reads the coin's name, blockchain and value from the picture (it does not guess the price from
+the chart shape, which tested as a coin flip), the bot finds the real coin (using the value to skip same-name
+copycats), and runs your tested rules on its full price history. Coins under 21 days old, with under $20k in their
+pool, or under 7 days old are marked AVOID. For a sure match, include the contract address in the screenshot.
+
 ## Running it 24/7
 
 Paper trading only works while the terminal stays open. To keep it running around the clock,
