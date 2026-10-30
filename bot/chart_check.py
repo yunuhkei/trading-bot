@@ -159,7 +159,7 @@ def resolve(info: dict) -> dict:
 def young_verdict(coin: dict, stake: float | None) -> dict:
     """Hours-old coins: the dip-bounce rule on 5-minute candles (see config.young.yaml for how it tested)."""
     cfg = Config.load(YOUNG_CONFIG)
-    out = {"rule": "dip bounce on the 5-minute chart (for coins under 7 days old)", "stake": stake, "flags": [], "young": True}
+    out = {"rule": "dip bounce on the 5-minute chart (for coins too new for the 20-day rule)", "stake": stake, "flags": [], "young": True}
     if coin.get("liquidity") is not None and coin["liquidity"] < MIN_LIQ:
         out["flags"].append(f"only {money(coin['liquidity'])} in its trading pool (easy to rug or hard to sell)")
     if coin.get("uncertain"):
