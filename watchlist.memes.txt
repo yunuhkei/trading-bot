@@ -29,3 +29,4 @@ PUMP-USD
 
 # --- Fomo / Solana coins by address (add your own below) ---
 # sol:DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263   (Bonk, same coin as BONK-USD above)
+sol:4kjruqGHDsSqkMdFfCjV7Vb62HPFhtXyWc2t6JpQzDnz   # GTA VI (GTA6), Fomo
