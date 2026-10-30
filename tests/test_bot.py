@@ -346,6 +346,17 @@ def test_signals_alert_only_when_the_signal_changes(tmp_path, monkeypatch):
     assert sent == [("SELL all of TEST at $120.00", False)]
 
 
+def test_prices_paste_as_plain_decimals_and_copy_line():
+    from bot.signals import alert_text, money, plain
+    assert plain(0.00000437) == "0.000004370" or plain(0.00000437) == "0.00000437"
+    assert "e" not in plain(4.97e-06) and money(4.97e-06).startswith("$0.00000")
+    assert plain(81249.31) == "81249.31"
+    cfg = Config(strategy="breakout", strategy_params={"entry": 20, "exit": 10, "trend": 0}, timeframe="1d")
+    df = frame(list(np.full(40, 0.000004)) + [0.0000052])
+    _, msg = alert_text(cfg, df, "sol:DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", "BUY", 30)
+    assert msg.splitlines()[-1] == "Copy: DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263 | buy $30 | price 0.0000052 | stop 0.000004"
+
+
 def test_buy_alert_spells_out_amount_and_stop_loss():
     from bot.signals import alert_text
     cfg = Config(strategy="breakout", strategy_params={"entry": 20, "exit": 10, "trend": 0}, timeframe="1d")

@@ -25,7 +25,7 @@ import requests
 
 from .config import Config
 from .indicators import sma
-from .signals import fetch_candles, money
+from .signals import copy_id, fetch_candles, money, plain
 from .strategies import build_strategy, targets
 
 MODEL = "claude-opus-5-5"
@@ -231,6 +231,10 @@ def report(path: str, settings_path: str = "alerts.yaml") -> str:
         lines.append("Take-profit: none. Let it run; the bot's SELL alert (or the stop above) is your exit.")
         if coin.get("market"):
             lines.append(f"Track it: add this line to your watchlist so you get the SELL alert: {coin['market']}")
+        lines.append("Copy: " + " | ".join([copy_id(coin["market"]), f"buy ${v['stake']:,.0f}" if v.get("stake") else "buy",
+                                          f"price {plain(v['price'])}", f"stop {plain(v['stop'])}"]))
+    elif v["decision"] == "WAIT" and v.get("trigger"):
+        lines.append("Copy: " + " | ".join([copy_id(coin["market"]), "wait", f"buy above {plain(v['trigger'])}"]))
     for f in v.get("flags", []):
         if not v["why"].startswith("red flags"):
             lines.append(f"Warning: {f}")

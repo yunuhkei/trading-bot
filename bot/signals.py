@@ -100,8 +100,20 @@ def fetch_candles(market: str, timeframe: str) -> pd.DataFrame:
     return clean(df.astype(float))
 
 
+def plain(x: float) -> str:
+    """A price as a normal decimal you can paste into an app: 2 decimals from $1 up, else 4 significant digits."""
+    if x >= 1:
+        return f"{x:.2f}"
+    return np.format_float_positional(x, precision=4, unique=False, fractional=False, trim="-")
+
+
 def money(x: float) -> str:
-    return f"${x:,.2f}" if x >= 1 else f"${x:.4g}"
+    return f"${x:,.2f}" if x >= 1 else "$" + plain(x)
+
+
+def copy_id(market: str) -> str:
+    """What to paste into an app's search: the full contract address for blockchain coins, else the ticker."""
+    return market.split(":", 1)[1] if is_onchain(market) else market
 
 
 def explain(cfg: Config, df: pd.DataFrame, stance: str) -> str:
@@ -157,10 +169,15 @@ def alert_text(cfg: Config, df: pd.DataFrame, market: str, action: str, stake: f
                          "you can set it as a stop order in your app.")
         lines.append("Take-profit: none. Hold until the SELL alert.")
         lines.append(f"Rule: {rule}.")
+        copy = [copy_id(market), f"buy ${stake:,.0f}" if stake else "buy", f"price {plain(price)}"]
+        if stop:
+            copy.append(f"stop {plain(stop)}")
+        lines.append("Copy: " + " | ".join(copy))
         return title, "\n".join(lines)
     if action == "SELL":
         return (f"SELL all of {name} at {money(price)}",
-                f"The {rule} says the move is over. Sell your whole position and keep the cash for the next BUY.")
+                f"The {rule} says the move is over. Sell your whole position and keep the cash for the next BUY.\n"
+                f"Copy: {copy_id(market)} | sell all | price {plain(price)}")
     return f"{action} {name} at {money(price)}", f"The {rule} switched to {action}."
 
 
