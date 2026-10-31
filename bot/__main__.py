@@ -144,6 +144,11 @@ def cmd_ideas(args, cfg):
         ideas = news_ideas.run(args.notify or alert_target(), args.state, args.max)
         print(time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()))
         print(news_ideas.table(ideas), flush=True)
+        if args.headlines:
+            from . import headlines
+
+            sent = headlines.run(args.notify or alert_target(), most=args.headlines)
+            print(f"News digest: sent {len(sent)} new headlines." if sent else "News digest: nothing new.", flush=True)
         if not args.every:
             return
         time.sleep(args.every * 60)
@@ -277,6 +282,8 @@ def main(argv=None):
     ni.add_argument("--state", default="news_ideas_state.json")
     ni.add_argument("--max", type=int, default=3, help="most new ideas to send at once")
     ni.add_argument("--every", type=float, metavar="MINUTES", help="keep checking every N minutes (e.g. 10)")
+    ni.add_argument("--headlines", type=int, default=0, metavar="N",
+                    help="also send a digest of up to N new top headlines (any topic), e.g. 5")
 
     sg = sub.add_parser("signals", help="BUY/SELL signals for a watchlist, with optional phone alerts (never trades)")
     sg.add_argument("--markets", default="BTC-USD,ETH-USD,SOL-USD,SPY,QQQ,GLD",

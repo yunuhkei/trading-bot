@@ -229,7 +229,7 @@ def alert_text(cfg: Config, df: pd.DataFrame, market: str, action: str, stake: f
     return f"{action} {name} at {money(price)}", f"The {rule} switched to {action}."
 
 
-def notify(target: str, title: str, message: str, buy: bool) -> bool:
+def notify(target: str, title: str, message: str, buy: bool, tag: str | None = None) -> bool:
     """Send an alert. `target` is one of:
       ntfy:TOPIC (or just TOPIC)        the free ntfy phone app; anyone who knows the topic can read it, so pick a hard-to-guess name
       discord:WEBHOOK_URL               a channel in your own Discord server (Server settings > Integrations > Webhooks)
@@ -237,11 +237,12 @@ def notify(target: str, title: str, message: str, buy: bool) -> bool:
     Returns True if it was delivered; logs the reason if not.
     """
     kind, _, rest = target.partition(":") if target.split(":", 1)[0] in ("ntfy", "discord", "telegram") else ("ntfy", "", target)
-    icon = "🟢" if buy else "🔴"
+    icon = {"newspaper": "📰"}.get(tag, "🟢" if buy else "🔴")
     try:
         if kind == "ntfy":
             r = requests.post(f"https://ntfy.sh/{rest}", data=message.encode(), timeout=20,
-                              headers={"Title": title.encode("utf-8"), "Tags": "green_circle" if buy else "red_circle", "Priority": "high"})
+                              headers={"Title": title.encode("utf-8"), "Tags": tag or ("green_circle" if buy else "red_circle"),
+                                       "Priority": "default" if tag else "high"})
         elif kind == "discord":
             r = requests.post(rest, json={"content": f"{icon} **{title}**\n{message}"}, timeout=20)
         else:

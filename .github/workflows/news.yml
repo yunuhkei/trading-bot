@@ -1,4 +1,5 @@
-# Every 10 minutes: meme coin IDEAS from the news (never buy signals). See bot/news_ideas.py.
+# Every 10 minutes: meme coin IDEAS from the news (never buy signals, see bot/news_ideas.py), plus a digest of up to 5
+# new top headlines on any topic (bot/headlines.py).
 # Sends at most 3 new ideas per check and never the same coin twice in a week.
 name: news
 on:
@@ -18,15 +19,19 @@ jobs:
       - run: pip install -r requirements.txt
       - uses: actions/cache/restore@v4
         with:
-          path: news_ideas_state.json
+          path: |
+            news_ideas_state.json
+            news_headlines_state.json
           key: news-ideas-${{ github.run_id }}
           restore-keys: news-ideas-
       - name: Check the news for meme coin ideas
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
-        run: python -m bot ideas ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
+        run: python -m bot ideas --headlines 5 ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
       - uses: actions/cache/save@v4
         if: always()
         with:
-          path: news_ideas_state.json
+          path: |
+            news_ideas_state.json
+            news_headlines_state.json
           key: news-ideas-${{ github.run_id }}

@@ -733,3 +733,24 @@ def test_autotrade_dry_run_places_no_orders(tmp_path, monkeypatch):
     assert not ex.orders and ex.free["USD"] == 200.0
     assert sent[0].startswith("DRY RUN: Auto-trader connected") and any(t.startswith("DRY RUN: BOUGHT") for t in sent)
     assert status.startswith("DRY RUN:")
+
+
+def test_news_digest_mixes_sections_skips_repeats_and_columns():
+    from bot import headlines
+    now = 1_800_000_000.0
+    rss = lambda *titles: "<rss><channel>" + "".join(
+        f"<item><title>{t} - Outlet</title><source>Outlet</source><pubDate>Fri, 15 Jan 2027 08:00:00 GMT</pubDate></item>"
+        for t in titles) + "</channel></rss>"
+    feeds = {"Top": headlines.parse(rss("Storm hits Florida coast overnight", "Senate passes budget bill")),
+             "Tech": headlines.parse(rss("Column | My neighbor keeps borrowing my ladder", "Apple unveils new chip")),
+             "Crypto": headlines.parse(rss("Florida coast storm hits overnight, thousands without power"))}
+    for items in feeds.values():
+        for i in items:
+            i["published"] = now - 3600
+    assert feeds["Top"][0]["title"] == "Storm hits Florida coast overnight" and feeds["Top"][0]["outlet"] == "Outlet"
+    assert len(feeds["Tech"]) == 1                                   # the advice column is dropped
+    chosen = headlines.pick(feeds, sent=[], most=5, now=now)
+    titles = [c["title"] for c in chosen]
+    assert titles[:2] == ["Storm hits Florida coast overnight", "Apple unveils new chip"]   # sections take turns
+    assert "Florida coast storm hits overnight, thousands without power" not in titles      # same story, other outlet
+    assert headlines.pick(feeds, sent=titles, most=5, now=now) == []                        # nothing sent twice
