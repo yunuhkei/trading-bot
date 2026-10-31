@@ -6,6 +6,9 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+concurrency:          # one check at a time, so an idea or headline is never sent twice
+  group: news
+  cancel-in-progress: false
 jobs:
   ideas:
     runs-on: ubuntu-latest
