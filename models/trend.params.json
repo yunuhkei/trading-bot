@@ -1,6 +1,6 @@
 {
  "strategy": "trend",
- "tuned_at": "2026-11-01 10:11 UTC",
+ "tuned_at": "2026-11-02 10:35 UTC",
  "params": {
   "period": 200,
   "band": 0.04
