@@ -908,11 +908,12 @@ def _solbot_fakes(monkeypatch, tmp_path, price):
     mint = "COIN111"
     (tmp_path / "young.txt").write_text(f"sol:{mint}   # COIN\n")
     sig = {"in": False, "fresh_buy": None, "name": "COIN", "candle_price": price[0]}
-    monkeypatch.setattr(sb, "signal", lambda market, cfg: dict(sig))
+    monkeypatch.setattr(sb, "signal", lambda market, cfg, *a: dict(sig))
     monkeypatch.setattr(sb, "prices", lambda mints: {m: {"usdPrice": price[0], "decimals": 6} for m in mints})
     monkeypatch.setattr(sb, "dex_info", lambda mints: {m: {"liq": 1e6, "vol24": 1e6, "h6": 1, "h24": 1, "mcap": 1e6,
                                                            "name": m, "symbol": m, "age_h": 50} for m in mints})
     monkeypatch.setattr(sb, "find_coins", lambda settings, exclude, n: [])
+    monkeypatch.setattr(sb, "safety_check", lambda mint, *a: (True, "passed the rug check"))
     import bot.solbot_learn as sl_
 
     def no_history(market):
@@ -1242,7 +1243,7 @@ def test_strategy_review_keeps_a_working_strategy_switches_a_failing_one_or_sits
                       index=pd.date_range(t0, periods=400, freq="30min"))
     results = {}
 
-    def replay(d, strategy, params, fee=0.01, stop_loss=0.2):
+    def replay(d, strategy, params, fee=0.01, stop_loss=0.2, max_drop=None):
         return results.get((strategy, params.get("width"), params.get("low")), [])
     monkeypatch.setattr(ss, "replay", replay)
     monkeypatch.setattr(ss, "CANDIDATES", [("dip bounce", "bollinger", {"period": [20], "width": [2.0, 1.5], "exit": [0.0]}),
@@ -1269,10 +1270,10 @@ def test_solbot_trades_each_coin_with_its_strategy_and_sits_out_when_none_wins(t
     import bot.solbot_strats as ss
     monkeypatch.setattr(sl_, "coin_history", lambda market: pd.DataFrame())
     used = []
-    monkeypatch.setattr(sb, "signal", lambda market, cfg: used.append((cfg.strategy, dict(cfg.strategy_params))) or dict(sig))
+    monkeypatch.setattr(sb, "signal", lambda market, cfg, *a: used.append((cfg.strategy, dict(cfg.strategy_params))) or dict(sig))
     rsi = {"label": "RSI dip", "strategy": "rsi_scalp", "params": {"period": 7, "low": 25, "high": 65, "tp": 0.0, "sl": 0.0},
            "exam": {"trades": 6, "won": 0.83, "avg": 0.04}}
-    monkeypatch.setattr(ss, "review", lambda df, current, live, mwr=0.81, sl=0.2: ("switch", rsi, "dip bounce stopped working"))
+    monkeypatch.setattr(ss, "review", lambda df, current, live, mwr=0.81, sl=0.2, **kw: ("switch", rsi, "dip bounce stopped working"))
     sig.update({"in": True, "fresh_buy": "t1"})
     sb.step(settings, tell)
     assert any(t == "DRY RUN: Solana bot: COIN111 switched to RSI dip" or "switched to RSI dip" in t for t, _ in sent)
@@ -1280,7 +1281,7 @@ def test_solbot_trades_each_coin_with_its_strategy_and_sits_out_when_none_wins(t
     state = json.loads(Path("solbot_state_dry_run.json").read_text())
     assert state["positions"][mint]["strategy"] == "rsi_scalp"                # its exit follows the strategy it was bought with
     # Nothing wins 81%+: sits out (no new buys), but still sells what it holds by its own rule
-    monkeypatch.setattr(ss, "review", lambda df, current, live, mwr=0.81, sl=0.2: ("sit out", None, "nothing wins"))
+    monkeypatch.setattr(ss, "review", lambda df, current, live, mwr=0.81, sl=0.2, **kw: ("sit out", None, "nothing wins"))
     state["strats"][mint]["reviewed_at"] = 0
     Path("solbot_state_dry_run.json").write_text(json.dumps(state))
     sig.update({"in": False, "fresh_buy": None})
@@ -1315,7 +1316,7 @@ def test_practice_account_takes_every_signal_with_the_live_strategies_and_report
     rsi = {"label": "RSI dip", "strategy": "rsi_scalp", "params": {"period": 7, "low": 25, "high": 65, "tp": 0.0, "sl": 0.0}}
     Path("solbot_state_live.json").write_text(json.dumps({"strats": {mint: rsi}}))
     used = []
-    monkeypatch.setattr(sb, "signal", lambda market, cfg: used.append(cfg.strategy) or dict(sig))
+    monkeypatch.setattr(sb, "signal", lambda market, cfg, *a: used.append(cfg.strategy) or dict(sig))
     called = []
     monkeypatch.setattr(sb, "find_coins", lambda *a: called.append(1) or [])
     sig.update({"in": True, "fresh_buy": "t1"})
@@ -1337,3 +1338,68 @@ def test_practice_account_takes_every_signal_with_the_live_strategies_and_report
     assert sb.report_due(mke(5, 15, 0), "15:00", days=["Thursday"]) == "2026-11-05"
     assert sb.report_due(mke(5, 18, 0), "15:00", last_day="2026-11-05", days=["Thursday"]) is None   # once
     assert sb.report_due(mke(4, 15, 30), "15:00", days=["Thursday"]) is None        # Wednesday: no report
+
+
+def test_rug_check_blocks_printable_freezable_flagged_and_whale_coins(monkeypatch):
+    from bot import solbot as sb
+    report = {}
+
+    class R:
+        def json(self): return report
+    monkeypatch.setattr("requests.get", lambda *a, **k: R())
+    good = {"rugged": False, "mintAuthority": None, "freezeAuthority": None, "transferFee": {"pct": 0}, "risks": [],
+            "knownAccounts": {"POOL": {"type": "AMM"}},
+            "topHolders": [{"address": "POOL", "owner": "x", "pct": 60}, {"address": "a", "owner": "a", "pct": 5}]}
+    report.update(good)
+    assert sb.safety_check("M") == (True, "passed the rug check")              # the 60% is the trading pool: fine
+    for change, says in (({"mintAuthority": "abc"}, "print more"), ({"freezeAuthority": "abc"}, "freeze"),
+                         ({"rugged": True}, "rugged"), ({"transferFee": {"pct": 5}}, "fee on every transfer"),
+                         ({"risks": [{"name": "Copycat token", "level": "danger"}]}, "Copycat"),
+                         ({"topHolders": [{"address": "w", "owner": "w", "pct": 35}]}, "one wallet owns 35%")):
+        report.clear(); report.update({**good, **change})
+        ok, why = sb.safety_check("M")
+        assert not ok and says in why, (change, why)
+
+
+def test_solbot_wont_buy_an_unsafe_coin_or_a_falling_knife_or_while_sol_crashes(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    monkeypatch.setattr(sb, "safety_check", lambda mint, *a: (False, "one wallet owns 40% of it"))
+    sig.update({"in": True, "fresh_buy": "t1"})
+    sb.step(settings, tell)
+    assert not any(t.startswith("DRY RUN: BOUGHT") for t, _ in sent) and any("won't buy COIN" in t for t, _ in sent)
+    # falling knife: down 10%+ in 6 hours
+    idx = pd.date_range("2026-11-01", periods=100, freq="5min", tz="UTC")
+    knife = pd.DataFrame({"close": np.r_[np.ones(28), np.linspace(1, 0.85, 72)]}, index=idx)
+    assert sb.falling(knife, 0.10) and not sb.falling(knife, 0.20) and not sb.falling(knife, None)
+    # SOL down 3%+ in the last hour: no coin buys
+    monkeypatch.setattr(sb, "safety_check", lambda mint, *a: (True, "ok"))
+    import bot.signals as sg
+    sol = pd.DataFrame({"close": np.r_[np.ones(20) * 100, np.linspace(100, 95, 13)]})
+    monkeypatch.setattr(sg, "fetch_candles", lambda m, tf: sol)
+    sig.update({"in": True, "fresh_buy": "t2"})
+    sb.step({**settings, "market_drop_1h": 0.03}, tell)
+    assert not any(t.startswith("DRY RUN: BOUGHT") for t, _ in sent)
+
+
+def test_solbot_guard_sells_at_the_stop_within_seconds_and_on_a_pool_money_drop(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    assert sb.step(settings, tell, guard=True) == "guard: nothing held"
+    sig.update({"in": True, "fresh_buy": "t1"})
+    sb.step(settings, tell)
+    assert any(t.startswith("DRY RUN: BOUGHT") for t, _ in sent)
+    price[0] = 0.78                                                  # a crash between the 5-minute checks
+    status = sb.step(settings, tell, guard=True)
+    assert "sold 1" in status and any(t.startswith("DRY RUN: SOLD") and "Stop-loss" in m for t, m in sent)
+    # the pool loses 40% of its money while holding: sold at once
+    price[0] = 1.0
+    sig.update({"in": True, "fresh_buy": "t2"})
+    sb.step(settings, tell)
+    liq = [1e6]
+    monkeypatch.setattr(sb, "dex_info", lambda mints: {m: {"liq": liq[0], "vol24": 1e6, "h6": 1, "h24": 1, "mcap": 1e6,
+                                                           "name": m, "symbol": m, "age_h": 50} for m in mints})
+    sb.step(settings, tell, guard=True)
+    liq[0] = 6e5
+    sb.step(settings, tell, guard=True)
+    assert "possible rug pull" in sent[-1][1] and sent[-1][0].startswith("DRY RUN: SOLD")

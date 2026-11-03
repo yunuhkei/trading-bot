@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from dataclasses import replace
 import logging
 import os
@@ -273,8 +274,8 @@ class PaperWallet:
 
 # ---- The rule: young coins (5-minute chart) ----
 
-def signal(market: str, cfg) -> dict:
-    """The dip-bounce rule on the coin's latest finished 5-minute candles."""
+def signal(market: str, cfg, max_drop: float | None = None) -> dict:
+    """The coin's strategy on its latest finished 5-minute candles. No fresh BUY while it's a falling knife."""
     from .signals import display_name, fetch_onchain_candles
     from .strategies import build_strategy, targets
 
@@ -287,8 +288,21 @@ def signal(market: str, cfg) -> dict:
     for i in (len(sig) - 1, len(sig) - 2):          # a BUY that started on one of the last 2 candles is still fresh
         if sig[i] == 1 and sig[i - 1] == 0:
             flip = str(df.index[i])
-    return {"in": bool(sig[-1] == 1), "fresh_buy": flip if sig[-1] == 1 else None, "name": display_name(market),
-            "candle_price": float(df["close"].iloc[-1]), "last": df.index[-1]}
+    knife = falling(df, max_drop)
+    return {"in": bool(sig[-1] == 1), "fresh_buy": flip if sig[-1] == 1 and not knife else None, "falling": knife,
+            "name": display_name(market), "candle_price": float(df["close"].iloc[-1]), "last": df.index[-1]}
+
+
+def watch_names(watchlist: str) -> dict[str, str]:
+    """market -> the coin's name from its comment in the watchlist ("sol:<address>   # NIO, Fomo" -> "NIO")."""
+    out = {}
+    if Path(watchlist).exists():
+        for line in Path(watchlist).read_text().splitlines():
+            market, _, note = line.partition("#")
+            name = re.split(r"[,(]", note, maxsplit=1)[0].strip()
+            if market.strip() and name:
+                out[market.strip()] = name
+    return out
 
 
 def solana_coins(watchlist: str) -> list[tuple[str, str]]:
@@ -303,6 +317,58 @@ def solana_coins(watchlist: str) -> list[tuple[str, str]]:
         if chain.lower() in ("sol", "solana") and addr:
             out.append((m, addr))
     return out
+
+
+# ---- Safety: rug check before buying ----
+
+RUGCHECK = "https://api.rugcheck.xyz/v1/tokens/{}/report"
+BURN = {"11111111111111111111111111111111", "1nc1nerator11111111111111111111111111111111"}
+
+
+def safety_check(mint: str, max_holder: float = 0.20, max_top10: float = 0.50) -> tuple[bool, str]:
+    """RugCheck's report on the coin: (safe?, why). Unsafe if it was rugged, the creator can still print or freeze
+    coins, it taxes transfers, RugCheck flags a danger, or a few wallets own most of it (trading pools and burned
+    coins don't count)."""
+    import requests
+
+    d = requests.get(RUGCHECK.format(mint), timeout=20).json()
+    if d.get("rugged"):
+        return False, "it has been rugged"
+    if d.get("mintAuthority"):
+        return False, "its creator can still print more of it"
+    if d.get("freezeAuthority"):
+        return False, "its creator can freeze people's coins"
+    if float((d.get("transferFee") or {}).get("pct") or 0) > 0:
+        return False, "it takes a fee on every transfer"
+    danger = [r.get("name") for r in d.get("risks") or [] if str(r.get("level", "")).lower() == "danger"]
+    if danger:
+        return False, "RugCheck warns: " + ", ".join(str(x) for x in danger[:3])
+    known = set(d.get("knownAccounts") or {})
+    pcts = sorted((float(h.get("pct") or 0) / 100 for h in d.get("topHolders") or []
+                   if h.get("address") not in known and h.get("owner") not in known and h.get("owner") not in BURN), reverse=True)
+    if pcts and pcts[0] > max_holder:
+        return False, f"one wallet owns {pcts[0]:.0%} of it"
+    if sum(pcts[:10]) > max_top10:
+        return False, f"10 wallets own {sum(pcts[:10]):.0%} of it"
+    return True, "passed the rug check"
+
+
+def safe(mint: str, state: dict, now: float, settings: dict) -> tuple[bool, str]:
+    """The rug check, remembered for 6 hours. If it can't run, the answer is no (never buy unchecked)."""
+    c = state.setdefault("safety", {}).get(mint)
+    if c and now - c["t"] < 6 * 3600:
+        return c["ok"], c["why"]
+    try:
+        ok, why = safety_check(mint, float(settings.get("max_holder_pct", 20)) / 100, float(settings.get("max_top10_pct", 50)) / 100)
+    except Exception as e:
+        return False, f"the rug check couldn't run right now ({str(e)[:60]})"
+    state["safety"][mint] = {"t": now, "ok": ok, "why": why}
+    return ok, why
+
+
+def falling(df: pd.DataFrame, max_drop: float | None, candles: int = 72) -> bool:
+    """A falling knife: down more than `max_drop` over the last `candles` (72 five-minute candles = 6 hours)."""
+    return bool(max_drop) and len(df) > candles and df["close"].iloc[-1] / df["close"].iloc[-1 - candles] < 1 - max_drop
 
 
 # ---- Finding new coins and dropping dying ones ----
@@ -366,8 +432,13 @@ def find_coins(settings: dict, exclude: set[str], n: int) -> list[dict]:
         try:
             if cost(order(USDC, c["address"], int(trade_size(settings, 30) * 10 ** USDC_DECIMALS))) > float(settings.get("max_cost", 0.03)):
                 continue
+            ok, why = safety_check(c["address"], float(settings.get("max_holder_pct", 20)) / 100,
+                                   float(settings.get("max_top10_pct", 50)) / 100)
+            if not ok:
+                log.warning("coin %s skipped: %s", c.get("symbol"), why)
+                continue
             choice = choose(coin_history(f"sol:{c['address']}"), float(settings.get("min_win_rate", 0.81)),
-                            float(settings.get("stop_loss", 0.2)))
+                            float(settings.get("stop_loss", 0.2)), max_drop=settings.get("max_drop_6h", 0.10))
         except Exception as e:
             log.warning("coin check %s failed: %s", c.get("symbol"), e)
             continue
@@ -460,7 +531,8 @@ def value(wallet, positions: dict, px: dict) -> float:
 
 # ---- One check ----
 
-def step(settings: dict, tell=print, wallet=None, now: float | None = None, only: set[str] | None = None) -> str:
+def step(settings: dict, tell=print, wallet=None, now: float | None = None, only: set[str] | None = None,
+         guard: bool = False) -> str:
     """One check: drop dying coins and find new ones (every few hours), follow the rule for every coin and stock,
     enforce the pauses and stops. `only`: just re-check these coins (the feed was late). Returns a one-line status."""
     from .config import Config
@@ -480,6 +552,10 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
     state = json.loads(Path(state_path).read_text()) if Path(state_path).exists() else {}
     if state.get("stopped"):
         return f"Dry run stopped: {state['stopped']}."
+    if guard:
+        if not state.get("positions") or "started" not in state:
+            return "guard: nothing held"
+        only = set()                  # guard: just watch what it holds (no searching, learning or new buys)
     tag = "" if live else "PRACTICE: " if practice else "DRY RUN: "
     if wallet is None:
         if live:
@@ -520,6 +596,10 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
     positions = state.setdefault("positions", {})
     watchlist = settings.get("watchlist", "watchlist.young.txt")
     coins = solana_coins(watchlist)
+    nick = watch_names(watchlist)
+
+    def cname(market: str) -> str:
+        return nick.get(market) or display_name(market)
     stocks = []
     if settings.get("stocks") and only is None:
         try:
@@ -610,6 +690,11 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                            "entry": spent / tokens if tokens else float(px.get(mint, {}).get("usdPrice") or 0),
                            "cost": spent, "bought_at": now,
                            **({"strategy": strat["strategy"], "params": strat["params"], "label": strat.get("label")} if strat else {})}
+        if kind == "coin":
+            try:
+                positions[mint]["liq_max"] = (dex_info([mint]).get(mint) or {}).get("liq")
+            except Exception:
+                pass
         state.setdefault("trades", []).append({"t": now, "action": "BUY", "what": name, "usd": spent, "tx": fill["tx"]})
         tell(f"{tag}BOUGHT {money(spent)} of {name}",
              f"{why}. It sells when the rule says so, or at {float(settings.get('stop_loss', 0.2)):.0%} down. "
@@ -653,7 +738,31 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         state["size"] = size
         return None
 
+    def watch_held(coin_mints: list[str]) -> list[str]:
+        """Sell anything at its stop-loss, and any coin whose pool lost `liquidity_drop` of its money since the bot
+        bought it (often the start of a rug pull). Returns what it sold."""
+        sold, stop = [], float(settings.get("stop_loss", 0.2))
+        drop = float(settings.get("liquidity_drop", 0.30))
+        info = dex_info(coin_mints) if coin_mints and drop else {}
+        for mint in list(positions):
+            p = positions[mint]
+            price = float(px.get(mint, {}).get("usdPrice") or 0)
+            liq = (info.get(mint) or {}).get("liq")
+            if liq:
+                p["liq_max"] = max(float(p.get("liq_max") or 0), liq)
+            if price and p.get("entry") and price <= p["entry"] * (1 - stop):
+                if sell(mint, f"Stop-loss: down {price / p['entry'] - 1:.0%} from the buy"):
+                    sold.append(mint)
+            elif liq and p.get("liq_max") and liq < p["liq_max"] * (1 - drop):
+                if sell(mint, f"Its pool lost {1 - liq / p['liq_max']:.0%} of its money since the buy "
+                              f"({money(p['liq_max'])} → {money(liq)}): possible rug pull, sold to be safe"):
+                    sold.append(mint)
+        return sold
+
     try:
+        if guard:
+            sold = watch_held([m for m, p in positions.items() if p.get("kind", "coin") == "coin"])
+            return f"guard: {len(positions)} held" + (f", sold {len(sold)}" if sold else "")
         if only is None and not practice and now - state.get("scanned_at", 0) >= float(settings.get("scan_every_hours", 2)) * 3600:
             state["scanned_at"] = now
             dead, info = [], dex_info([mint for _, mint in coins])
@@ -676,9 +785,9 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
             if dead or new:
                 edit_watchlist(watchlist, [m for m, _, _ in dead], new)
                 commit([watchlist], "Solana bot: " + "; ".join(
-                    [f"removed {display_name(m)} ({why})" for m, _, why in dead] + [f"added {c['name']}" for c in new]))
+                    [f"removed {cname(m)} ({why})" for m, _, why in dead] + [f"added {c['name']}" for c in new]))
                 for m, _, why in dead:
-                    tell(f"{tag}Solana bot: dropped {display_name(m)}", f"It's dying: {why}. Removed from the young-coin list.")
+                    tell(f"{tag}Solana bot: dropped {cname(m)}", f"It's dying: {why}. Removed from the young-coin list.")
                 from .solbot_strats import describe
                 for c in new:
                     if c.get("choice"):
@@ -725,11 +834,12 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                 current = None if (st or {}).get("sitting_out") else (st or default)
                 try:
                     decision, choice, why = review(coin_history(market), current,
-                                                   state.get("coin_results", {}).get(mint, []), mwr, stop_loss)
+                                                   state.get("coin_results", {}).get(mint, []), mwr, stop_loss,
+                                                   max_drop=settings.get("max_drop_6h", 0.10))
                 except Exception as e:
                     log.warning("%s: strategy review failed: %s", market, e)
                     continue
-                name = display_name(market)
+                name = cname(market)
                 if decision == "keep":
                     strats[mint] = {**current, "reviewed_at": now, "since": (st or {}).get("since", now)}
                 elif decision == "switch":
@@ -746,6 +856,18 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                              f"{why[0].upper() + why[1:]}. No new buys on it until a strategy wins {mwr:.0%}+ again "
                              "(it re-checks every 2 hours; anything it holds is still sold by its rule).")
         just_closed = pd.Timestamp(now - now % 300 - 300, unit="s", tz="UTC")
+        watch_held([m for m, p in positions.items() if p.get("kind", "coin") == "coin"])
+        market_ok, market_note = True, ""
+        if settings.get("market_drop_1h"):
+            try:
+                from .signals import fetch_candles
+                sol = fetch_candles("SOL-USD", "5m")["close"]
+                ch = sol.iloc[-1] / sol.iloc[-13] - 1
+                market_ok = ch > -float(settings["market_drop_1h"])
+                market_note = "" if market_ok else f"SOL is down {ch:.1%} in the last hour"
+            except Exception as e:
+                log.warning("SOL check failed: %s", e)
+        max_drop = settings.get("max_drop_6h", 0.10)
         listed = {mint for _, mint in coins}
         held_off_list = [(p.get("market") or f"sol:{m}", m) for m, p in positions.items()
                          if p.get("kind", "coin") == "coin" and m not in listed]   # taken off the list: still sold by the rule
@@ -758,7 +880,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                 continue
             ccfg = replace(cfg, strategy=st.get("strategy", cfg.strategy), strategy_params=dict(st.get("params", cfg.strategy_params)))
             try:
-                s = signal(market, ccfg)
+                s = signal(market, ccfg, max_drop)
             except Exception as e:
                 log.warning("%s: no signal: %s", market, e)
                 continue
@@ -775,6 +897,15 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                 continue
             if mint in listed and s["fresh_buy"] and state.get("last_buy", {}).get(mint) != s["fresh_buy"]:
                 state.setdefault("last_buy", {})[mint] = s["fresh_buy"]
+                if not market_ok:
+                    log.warning("%s: skipped a buy: %s", s["name"], market_note)
+                    continue
+                ok, why = safe(mint, state, now, settings)
+                if not ok:
+                    if now - state.setdefault("unsafe_told", {}).get(mint, 0) > 86400:
+                        state["unsafe_told"][mint] = now
+                        tell(f"{tag}Solana bot: won't buy {s['name']}", f"It failed the rug check: {why}.")
+                    continue
                 buy(mint, "coin", market, s["name"], f"{st.get('label', 'dip bounce').capitalize()} signal on the 5-minute chart",
                     value(wallet, positions, px), st)
         if stocks:
@@ -810,9 +941,9 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                         value(wallet, positions, px))
         if to_bench:
             edit_watchlist(watchlist, [m for m, _ in to_bench], [])
-            commit([watchlist], "Solana bot: benched " + ", ".join(display_name(m) for m, _ in to_bench))
+            commit([watchlist], "Solana bot: benched " + ", ".join(cname(m) for m, _ in to_bench))
             for m, n in to_bench:
-                tell(f"{tag}Solana bot: benched {display_name(m)}",
+                tell(f"{tag}Solana bot: benched {cname(m)}",
                      f"It lost {n} trades in a row on this coin, so it dropped it from the list (and won't pick it again for 2 weeks).")
         wallet.refresh()
         if (done := limits()):
@@ -942,4 +1073,15 @@ def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every:
         wait = every * 60 - time.time() % (every * 60) + 30          # 30 s after the next candle closes
         if time.time() + wait > stop_at:
             return
-        time.sleep(wait)
+        # Between checks: every 30 s, watch what it holds (stop-loss, pool money), so a crash is sold within about
+        # 30 seconds instead of up to 5 minutes later.
+        next_check, every_s = time.time() + wait, float(settings.get("guard_seconds", 30))
+        while time.time() + every_s < next_check:
+            time.sleep(every_s)
+            for gs, gtell in ((settings, tell), (practice_settings(settings), lambda t, m: log.warning("PRACTICE %s: %s", t, m))):
+                if gs:
+                    try:
+                        step(gs, gtell, guard=True)
+                    except Exception as e:
+                        log.warning("guard check failed: %s", e)
+        time.sleep(max(0.0, next_check - time.time()))

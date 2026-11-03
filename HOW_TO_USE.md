@@ -251,6 +251,12 @@ coins are only added if a strategy passes that test on the coin's own prices. NI
 for losing, it switches or sits out instead. (Your young-coin alerts still use plain dip bounce; the bot's own BOUGHT /
 SOLD messages show what it actually does.)
 
+**Safety** (`solbot.yaml`): before every buy it runs a **rug check** (RugCheck): no buy if the creator can still print
+or freeze coins, it taxes transfers, it's flagged as dangerous, or one wallet owns 20%+ (top 10: 50%+). Between the
+5-minute checks it watches what it holds **every 30 seconds**: it sells at the 20% stop-loss within seconds, and sells at
+once if a coin's pool loses 30% of its money (often the start of a rug pull). It doesn't buy **falling knives** (coins
+down 10%+ in 6 hours; in testing this doubled the profit per trade) or while **SOL is crashing** (down 3%+ in an hour).
+
 **It learns** (`bot/solbot_learn.py`): every day for coins (the last week of every coin it watched in the last 2 weeks,
 including the ones that died) and every week for stocks (daily prices since 2019), it re-tests the dip-bounce
 settings (how long an average, how deep a dip) and switches only if a new setting also made more money on the newest

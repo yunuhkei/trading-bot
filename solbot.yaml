@@ -16,6 +16,14 @@ stop_below: 10            # account at or below this: sell everything and stop
 stop_drawdown: 0.5        # account down this much from its best: sell everything and stop (protects the bigger amounts)
 stop_loss: 0.20           # sell a coin or stock if it's down this much from the buy
 max_cost: 0.03            # skip a buy if fees + price impact would be more than this (3%)
+
+# --- Safety (rug pulls, crashes, falling knives) ---
+max_holder_pct: 20        # rug check before every buy (RugCheck): skip if one wallet owns more than 20%,
+max_top10_pct: 50         # or the top 10 own more than 50%, or the creator can print/freeze coins, or it's flagged
+liquidity_drop: 0.30      # sell a coin at once if its pool loses 30% of its money while the bot holds it
+guard_seconds: 30         # check the stop-loss and pool money of what it holds every 30 seconds
+max_drop_6h: 0.10         # no buys while a coin is a falling knife (down 10%+ in 6 hours): doubled profit per trade in testing
+market_drop_1h: 0.03      # no coin buys while SOL itself is down 3%+ in the last hour
 start_cash: 30            # dry run only: the pretend starting money
 
 # --- Practice account next to the live bot: same coins and strategies, pretend money, takes EVERY signal ---

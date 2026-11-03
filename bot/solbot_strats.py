@@ -28,8 +28,10 @@ STUDY_SHARE = 0.6
 MIN_STUDY, MIN_EXAM = 6, 4
 
 
-def replay(df: pd.DataFrame, strategy: str, params: dict, fee: float = FEE, stop_loss: float = 0.2) -> list[tuple]:
-    """(buy time, result after fees) of every finished long trade; sold at the stop-loss if the low reaches it."""
+def replay(df: pd.DataFrame, strategy: str, params: dict, fee: float = FEE, stop_loss: float = 0.2,
+           max_drop: float | None = None) -> list[tuple]:
+    """(buy time, result after fees) of every finished long trade; sold at the stop-loss if the low reaches it.
+    `max_drop`: skip buys while the coin is a falling knife (down more than that over the last 6 hours), like the bot."""
     from .strategies import build_strategy
 
     s = build_strategy(strategy, params)
@@ -39,7 +41,7 @@ def replay(df: pd.DataFrame, strategy: str, params: dict, fee: float = FEE, stop
     c, lo, idx = df["close"].to_numpy(), df["low"].to_numpy(), df.index
     out, entry = [], None
     for i in range(1, len(df)):
-        if entry is None and sig[i] == 1 and sig[i - 1] == 0:
+        if entry is None and sig[i] == 1 and sig[i - 1] == 0 and not (max_drop and i >= 72 and c[i] / c[i - 72] < 1 - max_drop):
             entry, et = c[i], idx[i]
         elif entry is not None:
             if lo[i] <= entry * (1 - stop_loss):
@@ -58,7 +60,7 @@ def _stats(r: list[float]) -> dict:
 
 
 def choose(df: pd.DataFrame, min_win_rate: float = 0.81, stop_loss: float = 0.2, min_study_win: float = 0.6,
-           top: int = 5, exclude: tuple | None = None) -> dict | None:
+           top: int = 5, exclude: tuple | None = None, max_drop: float | None = None) -> dict | None:
     """The best strategy for this coin right now, or None if none qualifies (see the module notes).
 
     It ranks every strategy and setting on the older days (it must have made money there and won at least
@@ -73,7 +75,7 @@ def choose(df: pd.DataFrame, min_win_rate: float = 0.81, stop_loss: float = 0.2,
             params = dict(zip(grid, values))
             if exclude and (strategy, params) == exclude:
                 continue
-            trades = replay(df, strategy, params, stop_loss=stop_loss)
+            trades = replay(df, strategy, params, stop_loss=stop_loss, max_drop=max_drop)
             study = _stats([r for t, r in trades if t < cutoff])
             if study["trades"] >= MIN_STUDY and study["won"] >= min_study_win and study["avg"] > 0:
                 ranked.append({"label": label, "strategy": strategy, "params": params, "study": study,
@@ -99,14 +101,15 @@ def describe(c: dict) -> str:
             f"{e['avg']:+.1%} average after fees")
 
 
-def recent(df: pd.DataFrame, strategy: str, params: dict, days: float = 3, stop_loss: float = 0.2) -> dict:
+def recent(df: pd.DataFrame, strategy: str, params: dict, days: float = 3, stop_loss: float = 0.2,
+           max_drop: float | None = None) -> dict:
     """How a strategy did on this coin's last `days` days."""
     since = df.index[-1] - pd.Timedelta(days=days)
-    return _stats([r for t, r in replay(df, strategy, params, stop_loss=stop_loss) if t >= since])
+    return _stats([r for t, r in replay(df, strategy, params, stop_loss=stop_loss, max_drop=max_drop) if t >= since])
 
 
 def review(df: pd.DataFrame, current: dict | None, live: list[float], min_win_rate: float = 0.81,
-           stop_loss: float = 0.2) -> tuple[str, dict | None, str]:
+           stop_loss: float = 0.2, max_drop: float | None = None) -> tuple[str, dict | None, str]:
     """Is the coin's strategy still working? Returns (decision, strategy to use or None, why) where decision is
     "keep", "switch" or "sit out".
 
@@ -115,7 +118,7 @@ def review(df: pd.DataFrame, current: dict | None, live: list[float], min_win_ra
     coin (5+) didn't fall below `min_win_rate`. Otherwise it switches to the strategy that passes the full test in
     choose(), or sits the coin out if none does."""
     if current:
-        r = recent(df, current["strategy"], current["params"], stop_loss=stop_loss)
+        r = recent(df, current["strategy"], current["params"], stop_loss=stop_loss, max_drop=max_drop)
         mine = np.array(live[-8:])
         own_ok = len(mine) < 5 or (mine > 0).mean() >= min_win_rate
         if own_ok and r["trades"] < MIN_EXAM:
@@ -129,7 +132,8 @@ def review(df: pd.DataFrame, current: dict | None, live: list[float], min_win_ra
     else:
         why, own_ok = "no strategy yet", True
     # If the bot's own trades with it lost, it's out even if the replay still looks fine (real fills beat replays).
-    c = choose(df, min_win_rate, stop_loss, exclude=None if own_ok or not current else (current["strategy"], current["params"]))
+    c = choose(df, min_win_rate, stop_loss, exclude=None if own_ok or not current else (current["strategy"], current["params"]),
+               max_drop=max_drop)
     if c and current and c["strategy"] == current["strategy"] and c["params"] == current["params"]:
         return "keep", current, why
     if c:
