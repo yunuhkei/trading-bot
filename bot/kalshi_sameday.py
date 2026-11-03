@@ -7,6 +7,10 @@ For every settled city-day in data/kalshi_backtest_rows.json (saved by the day-b
 and saves them to data/kalshi_sameday.json. Then, hour by hour, it compares what the readings said so far with what the
 market charged and what really happened. Run it from GitHub: Actions -> kalshi-backtest -> Run workflow, same-day: yes
 (Kalshi limits requests from shared servers), or `python -m bot kalshi-backtest --sameday`.
+
+What it found (483 city-days, Oct 13 - Nov 2 2026): the readings say where the official high ends (98% exact by 11 pm;
+with IEM's running high, 100%), but the market knew first at every hour (by 4-5 pm its prices were nearly always
+right), and every rule built on the readings lost 15-36%.
 """
 from __future__ import annotations
 

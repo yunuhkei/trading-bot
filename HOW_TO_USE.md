@@ -290,24 +290,31 @@ coins fail); and the wallet key can spend everything in that wallet, so keep onl
 ## The Kalshi bot (weather + arbitrage), practice first
 
 The **kalshi** workflow checks Kalshi every 10 minutes (`bot/kalshi.py`, settings in `kalshi.yaml`). Kalshi contracts pay
-$1 if they come true, and the price is the crowd's probability, so the bot only buys when its own estimate beats the price
-by **10¢+ per contract after Kalshi's fee**:
+$1 if they come true, and the price is the crowd's probability. It trades the daily-high-temperature markets of 20+ US
+cities, which settle on one official weather station per city (The Weather Company's number), plus **arbitrage** (if a
+whole set of brackets costs less than it must pay out after fees, it buys the set: it wins whatever happens).
 
-- **Weather** (daily high temperature in US cities): Kalshi settles on one official weather station per city. The bot
-  averages up to 7 forecasts (the National Weather Service plus the European, GFS, HRRR, National Blend, German and
-  Canadian models, free from Open-Meteo); the more they disagree, the less sure it is. For today it takes the high as
-  whichever is bigger: what the station already recorded (whole °F from the Iowa Environmental Mesonet, like the
-  official report) or the warmest hour the models still expect. It **learns**: every day it grades each city's forecasts
-  against the real high and corrects that city's bias and typical error.
-- **Arbitrage**: if buying YES on every bracket of a set costs less than $1 after fees (or NO on all of them less than
-  n-1), it buys the whole set: it wins whatever happens.
+**What the backtest found** (483 settled city-days, Oct 13 - Nov 2; `kalshi-backtest` workflow):
+- The day before, the **market's own odds beat the weather models** (log loss 0.300 vs 0.350, lower is better), even
+  after correcting the models' 1.2° cold bias per city. Betting where the models disagreed with the market lost 11-20%.
+- On the day itself the market has the answer early: by 4-5 pm its prices were right almost every time. The station's
+  readings (5-minute, hourly, and the 6-hour highs measured like the official number) match the official high at the end
+  of the day, but traders see them as fast; buying the "sure things" the readings showed lost money.
+- One pattern held in every third of the test: **the market's favorite bracket for tomorrow at 60-80¢ won 75% of the
+  time** (120 trades, +12% after fees). Cheap long shots were overpriced too (betting NO on them: +5%, smaller test).
 
-Guard rails: up to $5 a trade and 10 trades a day; no long shots under 10¢ or near-sure things over 97¢; and if the bot
-disagrees with the market by more than 30¢ it assumes the market knows something and skips. It starts in **practice**
-(pretend $100, real prices, settled by Kalshi's real results); every practice trade and result goes to your phone.
+So there are 5 strategies side by side, each with its own pretend $100 (the Thursday 3 pm scoreboard compares them):
+- **A. Market favorites** (pings your phone): YES on tomorrow's favorite bracket when it costs 60-80¢.
+- B. Weather models (7 forecasts averaged, corrected per city, 10¢+ edge) | C. Model favorites (60¢+ only) |
+  D. Late-day sure things (today after 3 pm) | E. Fade long shots (NO at 80¢+). These trade quietly.
 
-Live mode later (after practice shows a real edge): a verified Kalshi account (check it works in Wisconsin), an API key
-from Kalshi's settings saved as the GitHub secrets `KALSHI_KEY_ID` and `KALSHI_PRIVATE_KEY`, and `mode: live`.
+For today's markets the bot knows the high so far exactly: the higher of every station report (incl. the 6-hour highs)
+and the Iowa Environmental Mesonet's running high matched Kalshi's official high on all 480 test days.
+
+Guard rails: up to $5 a trade and 10 trades a day. It runs in **practice** (pretend money, real prices, settled by
+Kalshi's real results). Honest take: the edge found is small and from 3 weeks of data; let practice prove it for a few
+weeks before real money. Live mode later: a verified Kalshi account (check it works in Wisconsin), an API key from
+Kalshi's settings saved as the GitHub secrets `KALSHI_KEY_ID` and `KALSHI_PRIVATE_KEY`, and `mode: live`.
 
 ## Check a chart screenshot (PC)
 

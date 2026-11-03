@@ -5,6 +5,7 @@ practice_cash: 100        # the pretend starting money
 max_per_trade: 5          # dollars per trade (or per whole set, for arbitrage)
 max_trades_per_day: 10
 max_trades_per_check: 3
+# These four are strategy B's (the weather models):
 min_edge: 0.10            # only buy when the bot's chance beats the price by 10¢+ per contract after fees
 min_price: 0.10           # skip long shots under 10¢ (markets overprice them; the model's tails are the least sure)
 max_price: 0.97           # skip 98-99¢ contracts (fees eat the profit)
@@ -12,8 +13,11 @@ max_disagree: 0.30        # if the bot's chance is 30¢+ above the price, assume
 arb_margin: 0.02          # arbitrage: the set must pay at least 2¢ more than it costs, after fees
 
 # --- Strategies tested side by side (each its own practice account; only A pings your phone per trade) ---
-# A Current | B Cautious (50% less sure, 15c edge) | C Favorites (60c+ only) | D Late-day sure things (today after 3 pm,
-# the recorded high mostly decides) | E Fade long shots (buy NO at 80c+ on overpriced cheap YES brackets).
+# Backtest, 483 settled city-days (Oct 13 - Nov 2): the market's own odds beat the weather models, day before and
+# same day (by 4-5 pm the price has the answer). So:
+# A Market favorites: YES on tomorrow's favorite bracket at 60-80c (120 trades, 75% won, +12%; positive in every third)
+# B Weather models (-11%) | C Model favorites (60c+, about even) | D Late-day sure things (today after 3 pm)
+# E Fade long shots (NO at 80c+ on overpriced cheap YES brackets, +5%).
 # Override or add one like:  strategies: {F: {label: "My idea", rules: {min_edge: 0.2, sigma_mult: 1.2}}}
 report_at: "15:00"        # the scoreboard: every Thursday at 3 pm Milwaukee time
 report_days: [Thursday]

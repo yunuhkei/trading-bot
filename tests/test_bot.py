@@ -1469,12 +1469,13 @@ def test_kalshi_reads_the_station_reports_like_the_official_high():
     assert k.metar_temp_f("KMSP 031253Z 00000KT 10SM CLR M02/M05 A3012 RMK AO2") == 28.4      # no T-group: whole °C
     start, end = datetime(2026, 11, 1, 6, tzinfo=timezone.utc), datetime(2026, 11, 2, 6, tzinfo=timezone.utc)
     t = start.timestamp()
-    readings = [[t + 13 * 3600, 84.2, "ob"], [t + 18 * 3600, 86.0, "max6"],      # 6-hour high sent at 6 pm: 86
+    readings = [[t + 13 * 3600, 84.02, "ob"], [t + 18 * 3600, 86.0, "max6"],     # 6-hour high sent at 6 pm: 86
                 [t - 600, 90.0, "ob"],                                           # before the day: doesn't count
                 [t + 3 * 3600, 95.0, "max6"]]                                    # its 6 hours started the day before
     assert k.recorded_high(readings, start, end) == 86.0
     assert k.recorded_high(readings, start, end, now=t + 17 * 3600) == 84.0      # before the 6 pm report
     assert k.recorded_high([], start, end) is None
+    assert k.recorded_high([[t + 3600, 87.8, "ob"]], start, end) == 87.0           # 31°C: could be 86.9-88.6°F
 
 
 def test_kalshi_grades_its_forecasts_and_reads_the_models(monkeypatch):
@@ -1535,15 +1536,18 @@ def test_kalshi_strategies_follow_their_own_rules_and_keep_their_own_accounts(tm
         mk("LOW", "less", None, 70, 0.15, 0.86),         # bot: ~5%: a long shot the crowd overpays for
         mk("MID", "between", 70, 71, 0.62, 0.40),         # bot: ~79%: a favorite it likes even more
         mk("HIGH", "greater", 71, None, 0.30, 0.72)]}     # bot: ~15%
-    view = {"mu": 71.0, "sigma": 0.6, "floor": None, "late": False, "why": "test"}
+    view = {"mu": 71.0, "sigma": 0.6, "floor": None, "late": False, "tomorrow": True, "why": "test"}
     rules = {key: v["rules"] for key, v in k.strategies({}).items()}
     pick = lambda key, late=False: [(i["ticker"], i["side"]) for i in k.ideas_from_views([(ev, {**view, "late": late})], rules[key])]
-    assert ("MID", "yes") in pick("A")
+    assert pick("A") == [("MID", "yes")]                                            # the market's favorite, at 62c
+    assert k.ideas_from_views([(ev, {**view, "tomorrow": False})], rules["A"]) == []  # tomorrow's markets only
+    cheap = {**ev, "markets": [{**ev["markets"][1], "yes_ask_dollars": "0.55", "no_ask_dollars": "0.47"}, ev["markets"][2]]}
+    assert k.ideas_from_views([(cheap, view)], rules["A"]) == []                    # a 55c favorite: outside 60-80c
+    assert ("MID", "yes") in pick("B")                                              # the weather models like it too
     fav = k.ideas_from_views([(ev, view)], rules["C"])
     assert ("MID", "yes") in pick("C") and all(i["price"] >= 0.60 for i in fav)       # favorites: 60c+ sides only
     assert pick("D") == [] and pick("D", late=True)                                  # late-day only after 3 pm today
     assert pick("E") and all(side == "no" for _, side in pick("E"))                  # fade: NO only
-    assert len(pick("B")) <= len(pick("A"))                                          # cautious trades less
     monkeypatch.setattr(k, "weather_views", lambda events, now, state: [(ev, view)])
     told = []
     k.step({"mode": "practice", "practice_cash": 100}, lambda t, m: told.append(t), events=[ev])
@@ -1583,7 +1587,8 @@ def test_kalshi_backtest_reads_history_and_scores_strategies(monkeypatch):
                 mk("HIGH", "greater", 71, None, 0.30, 0.72, "no")]},
              "station": "KMDW", "day": f"2026-11-{d:02d}", "mu": 71.0, "spread": 0.0, "models": 6, "actual": 71.0} for d in (1, 2, 3)]
     out = kb.simulate(rows, k.strategies({}), sigma=0.8)
-    assert out["A"]["trades"] == 3 and out["A"]["wins"] == 3 and out["A"]["profit"] > 0
+    assert out["B"]["trades"] == 3 and out["B"]["wins"] == 3 and out["B"]["profit"] > 0
+    assert out["A"]["trades"] == 0                                    # the favorite costs 55c: under A's 60c
     table, ll = kb.calibration(rows, 0.8)
     assert table and ll > 0
     text = kb.report(rows, k.strategies({}))
@@ -1636,3 +1641,21 @@ def test_kalshi_sameday_learns_where_the_official_high_ends_and_trades_it():
     bought = {(t["ticker"].split("-")[1], t["side"]) for t in o["list"]}
     assert bought == {("B81.5", "yes"), ("B79.5", "no")}               # buys the real bracket and fades the market's pick
     assert "same-day backtest" in sd.report(data)
+
+
+def test_kalshi_new_strategy_lineup_restarts_practice_accounts_and_says_so(tmp_path, monkeypatch):
+    import json
+    from pathlib import Path
+    from bot import kalshi as k
+    monkeypatch.chdir(tmp_path)
+    Path("kalshi_state_practice.json").write_text(json.dumps({"cash": 42.0, "start": 100.0, "positions": {"OLD": {}},
+                                                              "variants": {"B": {"cash": 1.0}}, "series": ["KXHIGHCHI"]}))
+    monkeypatch.setattr(k, "weather_views", lambda events, now, state: [])
+    told = []
+    k.step({"mode": "practice", "practice_cash": 100}, lambda t, m: told.append((t, m)), events=[])
+    state = json.loads(Path("kalshi_state_practice.json").read_text())
+    assert state["cash"] == 100 and not state["positions"] and state["variants"]["B"]["cash"] == 100
+    assert state["series"] == ["KXHIGHCHI"] and state["lineup"] == k.LINEUP           # what it learned is kept
+    assert len(told) == 1 and "Market favorites" in told[0][1] and "E. Fade long shots" in told[0][1]
+    k.step({"mode": "practice", "practice_cash": 100}, lambda t, m: told.append((t, m)), events=[])
+    assert len(told) == 1                                                              # said once

@@ -271,11 +271,45 @@ def iem_readings(st: str, info: dict, local_day: str) -> list[list]:
 
 def recorded_high(readings: list[list], start: datetime, end: datetime, now: float | None = None) -> float | None:
     """The climate day's high so far from the readings (whole °F): every reading in the day, and every 6-hour high
-    whose 6 hours are all inside it. `now`: only what had been sent by then (the backtest)."""
+    whose 6 hours are all inside it. `now`: only what had been sent by then (the backtest).
+    Most 5-minute readings are whole °C (31°C = "87.8°F" could be 86.9 to 88.6), so those count as the lowest they
+    could be."""
     s, e = start.timestamp(), end.timestamp()
-    vals = [v for t, v, kind in readings if (now is None or t <= now) and (
+    vals = [lowest_f(v) if kind == "ob" else v for t, v, kind in readings if (now is None or t <= now) and (
         s <= t < e if kind == "ob" else s <= t - 6 * 3600 and t <= e)]
     return float(math.floor(max(vals) + 0.5)) if vals else None
+
+
+def lowest_f(f: float) -> float:
+    """A reading in °F at its lowest: a whole-°C reading could have been up to 0.5°C (0.9°F) cooler."""
+    c = (f - 32) * 5 / 9
+    return f - 0.9 if abs(c - round(c)) < 0.03 else f
+
+
+def todays_high(st: str, info: dict, start: datetime, end: datetime, now: datetime) -> tuple[float, bool] | None:
+    """(the climate day's high so far, whether it's exact to the degree) for the station: the higher of what every
+    report and 6-hour high say (recorded_high) and IEM's running high. By the end of the day that was exactly
+    Kalshi's official high on all 480 city-days of the backtest (each alone: 97-98%). Else the NWS readings."""
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo(info["tz"])
+    found = []
+    try:
+        readings = []
+        for d in sorted({start.astimezone(tz).date().isoformat(), min(now, end - timedelta(seconds=1)).astimezone(tz).date().isoformat()}):
+            readings += iem_readings(st, info, d)
+        high = recorded_high(readings, start, end, now.timestamp())
+        if high is not None:
+            found.append(high)
+    except Exception as ex:
+        log.warning("IEM readings for %s failed: %s", st, ex)
+    try:
+        iem = iem_today_max(st, info)
+        if iem and iem[1] == now.astimezone(tz).date().isoformat():
+            found.append(float(math.floor(iem[0] + 0.5)))
+    except Exception as ex:
+        log.warning("IEM for %s failed: %s", st, ex)
+    return (max(found), True) if found else observed_max_f(st, start, end)
 
 
 def climate_day(day: date, tz: str) -> tuple[datetime, datetime]:
@@ -436,15 +470,7 @@ def weather_views(events: list[dict], now: datetime, state: dict) -> list[tuple[
                     mcache[st] = {"t": now.timestamp() - 3000, "data": old}          # try again in 10 minutes
             start, end = climate_day(day, info["tz"])
             if start <= now < end and st not in obs_cache:
-                got = None
-                try:
-                    iem = iem_today_max(st, info)
-                    local_day = now.astimezone(ZoneInfo(info["tz"])).date().isoformat()
-                    if iem and iem[1] == local_day:
-                        got = (iem[0], True)
-                except Exception as ex:
-                    log.warning("IEM for %s failed: %s", st, ex)
-                obs_cache[st] = got or observed_max_f(st, start, end)
+                obs_cache[st] = todays_high(st, info, start, end, now)
             view = weather_view(day, info, st, now, fc_cache[st], obs_cache, mcache.get(st, {}).get("data"),
                                 state.get("calib", {}).get(st))
         except Exception as ex:
@@ -458,18 +484,39 @@ def weather_views(events: list[dict], now: datetime, state: dict) -> list[tuple[
         if horizon and view.get("avg") is not None:
             state.setdefault("fc_log", {}).setdefault(st, {}).setdefault(day.isoformat(), {}).setdefault(horizon, round(view["avg"], 2))
         view["late"] = start <= now and local_hour >= 15 and view.get("floor") is not None   # today, the high mostly in
+        view["tomorrow"] = now < start
         out.append((e, view))
     return out
 
 
 # The strategies tested side by side (each with its own practice account); kalshi.yaml can change them.
+# The 21-day backtest (483 settled city-days): the market's own odds beat the weather models, so the main strategy (A)
+# follows the market's favorite where favorites were underpriced; the model-based ones practice quietly.
 STRATEGIES = {
-    "A": {"label": "Current", "rules": {}},
-    "B": {"label": "Cautious", "rules": {"sigma_mult": 1.5, "min_edge": 0.15}},
-    "C": {"label": "Favorites", "rules": {"min_price": 0.60, "max_price": 0.95, "min_edge": 0.05}},
+    "A": {"label": "Market favorites", "rules": {"pick": "favorite", "when": "tomorrow", "min_price": 0.60, "max_price": 0.80,
+                                                 "hit_rate": 0.75}},
+    "B": {"label": "Weather models", "rules": {}},          # kalshi.yaml's min_edge, min/max_price, max_disagree
+    "C": {"label": "Model favorites", "rules": {"min_price": 0.60, "max_price": 0.95, "min_edge": 0.05}},
     "D": {"label": "Late-day sure things", "rules": {"when": "late", "min_price": 0.50, "min_edge": 0.04}},
     "E": {"label": "Fade long shots", "rules": {"side": "no", "min_price": 0.80, "min_edge": 0.04}},
 }
+LINEUP = 2          # bump when the lineup changes: the practice accounts start over so old bets don't count
+
+
+def favorite_idea(e: dict, rules: dict) -> list[dict]:
+    """YES on the bracket the market likes most (highest mid price), if it costs between min and max price: in the
+    backtest, favorites at 60-80c won 75% of the time (90 of 120), more than their price."""
+    ms = [m for m in e.get("markets") or [] if 0 < _f(m.get("yes_ask_dollars")) < 1 and 0 < _f(m.get("no_ask_dollars")) < 1]
+    if not ms:
+        return []
+    f = max(ms, key=lambda m: _f(m["yes_ask_dollars"]) + 1 - _f(m["no_ask_dollars"]))
+    price, size, hit = _f(f["yes_ask_dollars"]), _f(f.get("yes_ask_size_fp")), float(rules.get("hit_rate", 0.75))
+    if not (float(rules.get("min_price", 0.60)) <= price <= float(rules.get("max_price", 0.80))) or size < 1:
+        return []
+    return [{"kind": "weather", "event": e["event_ticker"], "ticker": f["ticker"], "side": "yes", "price": price,
+             "size": size, "fair": hit, "edge": hit - price - fee(price),
+             "title": f"{e.get('title', '').replace('?', '')}: {f.get('yes_sub_title')}",
+             "why": f"the market's favorite; in the backtest favorites at 60-80¢ won {hit:.0%} of the time"}]
 
 
 def ideas_from_views(views: list[tuple[dict, dict]], rules: dict) -> list[dict]:
@@ -479,7 +526,11 @@ def ideas_from_views(views: list[tuple[dict, dict]], rules: dict) -> list[dict]:
     mult, only_side = float(rules.get("sigma_mult", 1.0)), rules.get("side")
     ideas = []
     for e, view in views:
-        if rules.get("when") == "late" and not view.get("late"):
+        when = rules.get("when")
+        if (when == "late" and not view.get("late")) or (when == "tomorrow" and not view.get("tomorrow")):
+            continue
+        if rules.get("pick") == "favorite":
+            ideas += favorite_idea(e, rules)
             continue
         for m in e.get("markets") or []:
             p = bracket_prob(m, view["mu"], view["sigma"] * mult, view["floor"])
@@ -570,7 +621,7 @@ def strategies(settings: dict) -> dict:
         out[k] = {"label": v.get("label", k), "rules": dict(v.get("rules") or {})}
     base = {k: settings[k] for k in ("min_edge", "min_price", "max_price", "max_disagree") if k in settings}
     for k, v in out.items():
-        v["rules"] = {**base, **v["rules"]} if k == "A" else {**{kk: vv for kk, vv in base.items() if kk == "max_disagree"}, **v["rules"]}
+        v["rules"] = {**base, **v["rules"]} if k == "B" else {**{kk: vv for kk, vv in base.items() if kk == "max_disagree"}, **v["rules"]}
     return out
 
 
@@ -686,13 +737,26 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
         if client is None:
             return "No Kalshi API key yet (KALSHI_KEY_ID and KALSHI_PRIVATE_KEY secrets)."
     cash0 = float(settings.get("practice_cash", 100))
+    if state.get("lineup") != LINEUP:              # new strategy lineup: fresh practice accounts (real money is kept)
+        state["variants"] = {}
+        if not live:
+            for key in ("cash", "start", "positions", "results", "day", "trades_today", "report_day"):
+                state.pop(key, None)
+        state["lineup"] = LINEUP
     if "cash" not in state:
         state["cash"] = client.balance() if live else cash0
         state["start"] = state["cash"]
-        tell(f"{tag}Kalshi bot connected", f"{'Account' if live else 'Pretend account'}: {money(state['cash'])}. "
-             f"Weather markets + arbitrage, up to {money(float(settings.get('max_per_trade', 5)))} a trade, only when it's "
-             f"{float(settings.get('min_edge', 0.10)) * 100:.0f}¢+ better than the price after fees.")
     strats = strategies(settings)
+    if state.get("announced") != LINEUP:          # first run, or a new lineup: say what it does
+        state["announced"] = LINEUP
+        main = strats["A"]
+        tell(f"{tag}Kalshi bot connected", f"{'Account' if live else 'Pretend account'}: {money(state['cash'])}, up to "
+             f"{money(float(settings.get('max_per_trade', 5)))} a trade. Main strategy (pings you): A. {main['label']}"
+             + (" (YES on tomorrow's favorite bracket when it costs "
+                f"{float(main['rules'].get('min_price', 0.6)) * 100:.0f}-{float(main['rules'].get('max_price', 0.8)) * 100:.0f}¢: "
+                f"in the backtest they won {float(main['rules'].get('hit_rate', 0.75)):.0%})" if main["rules"].get("pick") == "favorite" else "")
+             + ", plus sure-profit arbitrage. Practicing quietly with their own accounts: "
+             + ", ".join(f"{key}. {v['label']}" for key, v in strats.items() if key != "A") + ". Scoreboard on Thursdays.")
     quiet = lambda t, m: log.warning("KALSHI (quiet) %s: %s", t, m)
     try:
         cache: dict = {}

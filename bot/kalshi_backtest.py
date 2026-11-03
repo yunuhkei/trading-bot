@@ -179,7 +179,7 @@ def simulate(rows: list[dict], strategies: dict, sigma: float = 2.0, budget: flo
     for r in (corrected(rows) if use_bias or learned_sigma else rows):
         mu = r["mu"] + (r.get("bias", 0.0) if use_bias else 0.0)
         sg = r.get("err", sigma) if learned_sigma else sigma
-        view = {"mu": mu, "sigma": max(sg, r["spread"], 0.8), "floor": None, "late": False, "why": "backtest"}
+        view = {"mu": mu, "sigma": max(sg, r["spread"], 0.8), "floor": None, "late": False, "tomorrow": True, "why": "backtest"}
         result = {m["ticker"]: m["result"] for m in r["event"]["markets"]}
         for key, v in strategies.items():
             ideas = k.ideas_from_views([(r["event"], view)], v["rules"])
