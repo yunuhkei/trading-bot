@@ -209,6 +209,15 @@ def cmd_kalshi(args, cfg):
     run(args.settings)
 
 
+def cmd_kalshi_backtest(args, cfg):
+    import logging
+
+    from .kalshi_backtest import run
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    run(args.days)
+
+
 def cmd_markets(args, cfg):
     import ccxt
 
@@ -329,6 +338,8 @@ def main(argv=None):
     sb.add_argument("--minutes", type=float, default=None, help="keep checking every 5 minutes for this long")
     ka = sub.add_parser("kalshi", help="Kalshi bot: weather markets + arbitrage (settings: kalshi.yaml)")
     ka.add_argument("--settings", default="kalshi.yaml")
+    kb = sub.add_parser("kalshi-backtest", help="test the Kalshi weather strategies on settled markets")
+    kb.add_argument("--days", type=int, default=14)
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")
     m.add_argument("--search", default="BTC")
 
@@ -367,6 +378,8 @@ def main(argv=None):
         cmd_solbot(args, cfg)
     elif args.cmd == "kalshi":
         cmd_kalshi(args, cfg)
+    elif args.cmd == "kalshi-backtest":
+        cmd_kalshi_backtest(args, cfg)
     elif args.cmd == "learn":
         cmd_learn(args, cfg)
     elif args.cmd == "markets":

@@ -353,13 +353,12 @@ def grade_forecasts(state: dict, now: datetime, limit: int = 10):
             days.pop(d)
 
 
-def weather_ideas(events: list[dict], now: datetime, settings: dict, state: dict) -> list[dict]:
-    """Trades where the bot's estimate beats the price by more than fees + min_edge."""
+def weather_views(events: list[dict], now: datetime, state: dict) -> list[tuple[dict, dict]]:
+    """(event, the bot's view of its high) for every weather event it can read. Gathers the forecasts, models and
+    station readings once, for every strategy to use."""
     from zoneinfo import ZoneInfo
 
-    min_edge, ideas, obs_cache, fc_cache = float(settings.get("min_edge", 0.10)), [], {}, {}
-    max_gap = float(settings.get("max_disagree", 0.30))
-    lo_p, hi_p = float(settings.get("min_price", 0.03)), float(settings.get("max_price", 0.97))
+    out, obs_cache, fc_cache = [], {}, {}
     stations, mcache = state.setdefault("stations", {}), state.setdefault("models", {})
     for e in events:
         day, markets = event_day(e["event_ticker"]), e.get("markets") or []
@@ -400,13 +399,37 @@ def weather_ideas(events: list[dict], now: datetime, settings: dict, state: dict
         horizon = "d1" if now < start else "d0" if local_hour < 10 else None
         if horizon and view.get("avg") is not None:
             state.setdefault("fc_log", {}).setdefault(st, {}).setdefault(day.isoformat(), {}).setdefault(horizon, round(view["avg"], 2))
-        for m in markets:
-            p = bracket_prob(m, view["mu"], view["sigma"], view["floor"])
+        view["late"] = start <= now and local_hour >= 15 and view.get("floor") is not None   # today, the high mostly in
+        out.append((e, view))
+    return out
+
+
+# The strategies tested side by side (each with its own practice account); kalshi.yaml can change them.
+STRATEGIES = {
+    "A": {"label": "Current", "rules": {}},
+    "B": {"label": "Cautious", "rules": {"sigma_mult": 1.5, "min_edge": 0.15}},
+    "C": {"label": "Favorites", "rules": {"min_price": 0.60, "max_price": 0.95, "min_edge": 0.05}},
+    "D": {"label": "Late-day sure things", "rules": {"when": "late", "min_price": 0.50, "min_edge": 0.04}},
+    "E": {"label": "Fade long shots", "rules": {"side": "no", "min_price": 0.80, "min_edge": 0.04}},
+}
+
+
+def ideas_from_views(views: list[tuple[dict, dict]], rules: dict) -> list[dict]:
+    """The trades one strategy would make: its chance beats the price by `min_edge` after fees, within its rules."""
+    min_edge, max_gap = float(rules.get("min_edge", 0.10)), float(rules.get("max_disagree", 0.30))
+    lo_p, hi_p = float(rules.get("min_price", 0.10)), float(rules.get("max_price", 0.97))
+    mult, only_side = float(rules.get("sigma_mult", 1.0)), rules.get("side")
+    ideas = []
+    for e, view in views:
+        if rules.get("when") == "late" and not view.get("late"):
+            continue
+        for m in e.get("markets") or []:
+            p = bracket_prob(m, view["mu"], view["sigma"] * mult, view["floor"])
             if math.isnan(p):
                 continue
             for side, price, size, fair in (("yes", _f(m.get("yes_ask_dollars")), _f(m.get("yes_ask_size_fp")), p),
                                             ("no", _f(m.get("no_ask_dollars")), _f(m.get("no_ask_size_fp")), 1 - p)):
-                if not (lo_p <= price <= hi_p) or size < 1:
+                if (only_side and side != only_side) or not (lo_p <= price <= hi_p) or size < 1:
                     continue
                 edge = fair - price - fee(price)
                 if edge >= min_edge and fair - price <= max_gap:   # disagreeing by more: the market knows something
@@ -415,6 +438,11 @@ def weather_ideas(events: list[dict], now: datetime, settings: dict, state: dict
                                   "title": f"{e.get('title', '').replace('?', '')}: {m.get('yes_sub_title')}",
                                   "why": view["why"]})
     return sorted(ideas, key=lambda i: -i["edge"])
+
+
+def weather_ideas(events: list[dict], now: datetime, settings: dict, state: dict) -> list[dict]:
+    """The main strategy's weather trades (see ideas_from_views)."""
+    return ideas_from_views(weather_views(events, now, state), settings)
 
 
 def arb_ideas(events: list[dict], settings: dict) -> list[dict]:
@@ -478,8 +506,115 @@ def weather_events(state: dict, now: float, budget_s: float = 240) -> list[dict]
     return events
 
 
+def strategies(settings: dict) -> dict:
+    out = {k: {"label": v["label"], "rules": dict(v["rules"])} for k, v in STRATEGIES.items()}
+    for k, v in (settings.get("strategies") or {}).items():
+        out[k] = {"label": v.get("label", k), "rules": dict(v.get("rules") or {})}
+    base = {k: settings[k] for k in ("min_edge", "min_price", "max_price", "max_disagree") if k in settings}
+    for k, v in out.items():
+        v["rules"] = {**base, **v["rules"]} if k == "A" else {**{kk: vv for kk, vv in base.items() if kk == "max_disagree"}, **v["rules"]}
+    return out
+
+
+def settle(acct: dict, tell, tag: str, now: float, cache: dict, label: str = "") -> None:
+    """Pay out finished positions with Kalshi's real result."""
+    positions = acct.setdefault("positions", {})
+    for ticker in list(positions):
+        p = positions[ticker]
+        if ticker not in cache:
+            try:
+                cache[ticker] = kget(f"/markets/{ticker}").get("market", {})
+            except Exception as e:
+                log.warning("market %s: %s", ticker, e)
+                continue
+        m = cache[ticker]
+        if m.get("result") in ("yes", "no") and m.get("status") in ("finalized", "settled", "determined"):
+            won = m["result"] == p["side"]
+            paid = p["count"] * 1.0 if won else 0.0
+            acct["cash"] += paid
+            profit = paid - p["cost"]
+            positions.pop(ticker)
+            acct.setdefault("results", []).append({"t": now, "title": p["title"], "kind": p["kind"], "won": won,
+                                                   "profit": profit, "fair": p.get("fair"), "price": p["price"]})
+            tell(f"{'✅' if won else '❌'} {tag}Kalshi {'WON' if won else 'LOST'}: {profit:+,.2f}",
+                 f"{label}{p['title']} ({p['count']} {p['side'].upper()} at {p['price'] * 100:.0f}¢): settled "
+                 f"{m['result'].upper()}. Account {money(acct['cash'] + sum(q['cost'] for q in positions.values()))}.")
+
+
+def trade(acct: dict, ideas: list[dict], settings: dict, tell, tag: str, now: float, live: bool = False, client=None) -> int:
+    """Buy the best ideas within the limits; returns how many trades it made."""
+    positions = acct.setdefault("positions", {})
+    day = time.strftime("%Y-%m-%d", time.gmtime(now))
+    if acct.get("day") != day:
+        acct.update(day=day, trades_today=0)
+    held_events, bought = {p["event"] for p in positions.values()}, 0
+    for i in ideas:
+        if acct["trades_today"] >= int(settings.get("max_trades_per_day", 10)) or bought >= int(settings.get("max_trades_per_check", 3)):
+            break
+        if i["event"] in held_events:
+            continue
+        budget = min(float(settings.get("max_per_trade", 5)), acct["cash"])
+        if i["kind"] == "arbitrage":
+            count = min(i["count"], int(budget // i["cost"]))
+            legs = list(zip(i["legs"], i["prices"]))
+        else:
+            count = min(int(i["size"]), int(budget // (i["price"] + fee(i["price"]))))
+            legs = [(i["ticker"], i["price"])]
+        if count < 1:
+            continue
+        spent = 0.0
+        for ticker, price in legs:
+            if live:
+                order = client.buy(ticker, i["side"], count, price)
+                filled = int(order.get("fill_count") or order.get("filled_count") or 0)
+                if filled < 1:
+                    continue
+            else:
+                filled = count
+            cost = filled * price + fee(price, filled)
+            spent += cost
+            positions[ticker] = {"event": i["event"], "side": i["side"], "count": filled, "price": price, "cost": cost,
+                                 "kind": i["kind"], "fair": i.get("fair"), "opened": now,
+                                 "title": i["title"] if i["kind"] == "weather" else f"{i['title']} ({ticker.split('-')[-1]})"}
+        if live:
+            client.cancel_resting()
+        if spent <= 0:
+            continue
+        acct["cash"] -= spent
+        acct["trades_today"] += 1
+        bought += 1
+        held_events.add(i["event"])
+        if i["kind"] == "arbitrage":
+            tell(f"🔁 {tag}Kalshi arbitrage: {money(spent)} for a sure {money(count * i['payout'])}",
+                 f"{i['title']}: bought {count} {i['side'].upper()} on all {len(legs)} brackets. Whatever happens it pays "
+                 f"{money(count * i['payout'])} (profit about {money(count * i['payout'] - spent)} after fees).")
+        else:
+            tell(f"🎯 {tag}Kalshi: bought {count} {i['side'].upper()} at {i['price'] * 100:.0f}¢ ({money(spent)})",
+                 f"{i['title']}. The bot thinks {i['side'].upper()} has a {i['fair']:.0%} chance ({i['why']}); "
+                 f"the market says {i['price']:.0%}. Pays {money(count)} if right.")
+    return bought
+
+
+def scoreboard(state: dict, strats: dict) -> tuple[str, str]:
+    """Each strategy's record: settled trades, wins, profit, and open bets."""
+    lines, best = [], None
+    for k, v in strats.items():
+        acct = state if k == "A" else state.get("variants", {}).get(k, {})
+        res = acct.get("results", [])
+        start = acct.get("start", 100.0)
+        value = acct.get("cash", start) + sum(p["cost"] for p in acct.get("positions", {}).values())
+        wins = sum(r["won"] for r in res)
+        lines.append(f"{k}. {v['label']}: {len(res)} settled, {wins}-{len(res) - wins}, "
+                     f"{sum(r['profit'] for r in res):+,.2f} | {len(acct.get('positions', {}))} open | account {money(value)}")
+        if res and (best is None or value > best[1]):
+            best = (f"{k}. {v['label']}", value)
+    return ("📊 Kalshi scoreboard" + (f": {best[0]} leads" if best else ""),
+            "Practice accounts, $100 each, same markets, different rules:\n" + "\n".join(lines))
+
+
 def step(settings: dict, tell=print, now: float | None = None, events: list[dict] | None = None, client=None) -> str:
-    """One check: settle finished trades, then look for weather and arbitrage trades. Returns a one-line status."""
+    """One check: settle finished trades, then let every strategy look for trades with its own account. The main
+    strategy (A) pings your phone; the others trade quietly and show up in the Thursday scoreboard."""
     now = now or time.time()
     mode = settings.get("mode", "practice")
     if mode not in ("practice", "live"):
@@ -492,102 +627,60 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
         client = Kalshi.from_env()
         if client is None:
             return "No Kalshi API key yet (KALSHI_KEY_ID and KALSHI_PRIVATE_KEY secrets)."
+    cash0 = float(settings.get("practice_cash", 100))
     if "cash" not in state:
-        state["cash"] = client.balance() if live else float(settings.get("practice_cash", 100))
+        state["cash"] = client.balance() if live else cash0
         state["start"] = state["cash"]
         tell(f"{tag}Kalshi bot connected", f"{'Account' if live else 'Pretend account'}: {money(state['cash'])}. "
              f"Weather markets + arbitrage, up to {money(float(settings.get('max_per_trade', 5)))} a trade, only when it's "
              f"{float(settings.get('min_edge', 0.10)) * 100:.0f}¢+ better than the price after fees.")
-    positions = state.setdefault("positions", {})
+    strats = strategies(settings)
+    quiet = lambda t, m: log.warning("KALSHI (quiet) %s: %s", t, m)
     try:
-        # 1) Settle what finished (Kalshi's real result)
-        for ticker in list(positions):
-            p = positions[ticker]
-            try:
-                m = kget(f"/markets/{ticker}").get("market", {})
-            except Exception as e:
-                log.warning("market %s: %s", ticker, e)
-                continue
-            if m.get("result") in ("yes", "no") and m.get("status") in ("finalized", "settled", "determined"):
-                won = m["result"] == p["side"]
-                paid = p["count"] * 1.0 if won else 0.0
-                state["cash"] += paid
-                profit = paid - p["cost"]
-                positions.pop(ticker)
-                state.setdefault("results", []).append({"t": now, "title": p["title"], "kind": p["kind"], "won": won,
-                                                        "profit": profit, "fair": p.get("fair"), "price": p["price"]})
-                tell(f"{'✅' if won else '❌'} {tag}Kalshi {'WON' if won else 'LOST'}: {profit:+,.2f}",
-                     f"{p['title']} ({p['count']} {p['side'].upper()} at {p['price'] * 100:.0f}¢): settled "
-                     f"{m['result'].upper()}. Account {money(state['cash'] + sum(q['cost'] for q in positions.values()))}.")
-        # 2) Look for trades
+        cache: dict = {}
+        settle(state, tell, tag, now, cache)
+        for k in strats:
+            if k != "A":
+                acct = state.setdefault("variants", {}).setdefault(k, {"cash": cash0, "start": cash0, "positions": {}})
+                settle(acct, quiet, "PRACTICE ", now, cache, f"[{k}] ")
         if events is None:
             events = weather_events(state, now)
-        day = time.strftime("%Y-%m-%d", time.gmtime(now))
-        if state.get("day") != day:
-            state.update(day=day, trades_today=0)
-        held_events = {p["event"] for p in positions.values()}
         nowdt = datetime.fromtimestamp(now, timezone.utc)
         try:
             grade_forecasts(state, nowdt)
         except Exception as e:
             log.warning("grading failed: %s", e)
-        ideas = arb_ideas(events, settings) + weather_ideas(events, nowdt, settings, state)
-        bought = 0
-        for i in ideas:
-            if state["trades_today"] >= int(settings.get("max_trades_per_day", 10)) or bought >= int(settings.get("max_trades_per_check", 3)):
-                break
-            if i["event"] in held_events:
-                continue
-            budget = min(float(settings.get("max_per_trade", 5)), state["cash"])
-            if i["kind"] == "arbitrage":
-                unit = i["cost"]
-                count = min(i["count"], int(budget // unit))
-                if count < 1:
-                    continue
-                legs = list(zip(i["legs"], i["prices"]))
+        views = weather_views(events, nowdt, state)
+        bought, summary = 0, []
+        for k, v in strats.items():
+            ideas = ideas_from_views(views, v["rules"])
+            if k == "A":
+                ideas = arb_ideas(events, settings) + ideas
+                bought = trade(state, ideas, settings, tell, tag, now, live, client)
             else:
-                count = min(int(i["size"]), int(budget // (i["price"] + fee(i["price"]))))
-                if count < 1:
-                    continue
-                legs = [(i["ticker"], i["price"])]
-            spent = 0.0
-            for ticker, price in legs:
-                if live:
-                    order = client.buy(ticker, i["side"], count, price)
-                    filled = int(order.get("fill_count") or order.get("filled_count") or 0)
-                    if filled < 1:
-                        continue
-                else:
-                    filled = count
-                cost = filled * price + fee(price, filled)
-                spent += cost
-                positions[ticker] = {"event": i["event"], "side": i["side"], "count": filled, "price": price, "cost": cost,
-                                     "kind": i["kind"], "fair": i.get("fair"), "opened": now,
-                                     "title": i["title"] if i["kind"] == "weather" else f"{i['title']} ({ticker.split('-')[-1]})"}
-            if live:
-                client.cancel_resting()
-            if spent <= 0:
-                continue
-            state["cash"] -= spent
-            state["trades_today"] += 1
-            bought += 1
-            held_events.add(i["event"])
-            if i["kind"] == "arbitrage":
-                tell(f"🔁 {tag}Kalshi arbitrage: {money(spent)} for a sure {money(count * i['payout'])}",
-                     f"{i['title']}: bought {count} {i['side'].upper()} on all {len(legs)} brackets. Whatever happens it pays "
-                     f"{money(count * i['payout'])} (profit about {money(count * i['payout'] - spent)} after fees).")
-            else:
-                tell(f"🎯 {tag}Kalshi: bought {count} {i['side'].upper()} at {i['price'] * 100:.0f}¢ ({money(spent)})",
-                     f"{i['title']}. The bot thinks {i['side'].upper()} has a {i['fair']:.0%} chance ({i['why']}); "
-                     f"the market says {i['price']:.0%}. Pays {money(count)} if right.")
-        held = sum(p["cost"] for p in positions.values())
+                n = trade(state["variants"][k], ideas, settings, quiet, "PRACTICE ", now)
+                summary.append(f"{k}:{n}")
+        due = None
+        try:
+            from .solbot import report_due
+            due = report_due(now, settings.get("report_at", "15:00"), settings.get("timezone", "America/Chicago"),
+                             state.get("report_day"), settings.get("report_days", ["Thursday"]))
+        except Exception as e:
+            log.warning("report check failed: %s", e)
+        if due:
+            state["report_day"] = due
+            tell(*scoreboard(state, strats))
+        held = sum(p["cost"] for p in state.get("positions", {}).values())
         mc = state.get("models", {})
         with_models = sum(1 for v in mc.values() if (v.get("data") or {}).get("daily"))
         graded = sum(len(v.get("d1", [])) + len(v.get("d0", [])) for v in state.get("calib", {}).values())
-        return (f"{tag}Kalshi: cash {money(state['cash'])}, {len(positions)} open ({money(held)}), {len(ideas)} ideas, "
-                f"bought {bought}. Weather models for {with_models}/{len(mc)} cities; {graded} forecasts graded so far.")
+        return (f"{tag}Kalshi: cash {money(state['cash'])}, {len(state.get('positions', {}))} open ({money(held)}), "
+                f"bought {bought}; other strategies bought {' '.join(summary)}. Weather models for {with_models}/{len(mc)} "
+                f"cities; {graded} forecasts graded so far.")
     finally:
         state["results"] = state.get("results", [])[-500:]
+        for v in state.get("variants", {}).values():
+            v["results"] = v.get("results", [])[-500:]
         path.write_text(json.dumps(state, indent=1, default=str))
 
 

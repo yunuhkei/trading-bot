@@ -10,3 +10,11 @@ min_price: 0.10           # skip long shots under 10¢ (markets overprice them; 
 max_price: 0.97           # skip 98-99¢ contracts (fees eat the profit)
 max_disagree: 0.30        # if the bot's chance is 30¢+ above the price, assume the market knows something and skip
 arb_margin: 0.02          # arbitrage: the set must pay at least 2¢ more than it costs, after fees
+
+# --- Strategies tested side by side (each its own practice account; only A pings your phone per trade) ---
+# A Current | B Cautious (50% less sure, 15c edge) | C Favorites (60c+ only) | D Late-day sure things (today after 3 pm,
+# the recorded high mostly decides) | E Fade long shots (buy NO at 80c+ on overpriced cheap YES brackets).
+# Override or add one like:  strategies: {F: {label: "My idea", rules: {min_edge: 0.2, sigma_mult: 1.2}}}
+report_at: "15:00"        # the scoreboard: every Thursday at 3 pm Milwaukee time
+report_days: [Thursday]
+timezone: America/Chicago

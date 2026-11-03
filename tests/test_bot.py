@@ -1495,7 +1495,7 @@ def test_kalshi_practice_buys_an_edge_settles_it_and_finds_arbitrage(tmp_path, m
                        "yes_ask_dollars": "0.60", "yes_ask_size_fp": "50", "no_ask_dollars": "0.42", "no_ask_size_fp": "50"}]}
     arbs = k.arb_ideas([ev], {"arb_margin": 0.02})
     assert arbs and arbs[0]["side"] == "yes" and abs(arbs[0]["cost"] - 0.94) < 1e-9   # 30 + 60 + fees 4 = 94¢ for a sure $1
-    monkeypatch.setattr(k, "weather_ideas", lambda *a, **kw: [])
+    monkeypatch.setattr(k, "weather_views", lambda *a, **kw: [])
     told = []
     status = k.step({"mode": "practice", "practice_cash": 100, "max_per_trade": 5}, lambda t, m: told.append((t, m)), events=[ev])
     assert "bought 1" in status and any("arbitrage" in t for t, _ in told)
@@ -1507,3 +1507,68 @@ def test_kalshi_practice_buys_an_edge_settles_it_and_finds_arbitrage(tmp_path, m
     cost = 5 * 0.90 + k.fee(0.30, 5) + k.fee(0.60, 5)                                     # fees round once per order
     assert not state["positions"] and abs(state["cash"] - (100 - cost + 5)) < 1e-6 and cost < 4.70   # paid $5 for $4.67
     assert sum("WON" in t for t, _ in told) == 1 and sum("LOST" in t for t, _ in told) == 1
+
+
+def test_kalshi_strategies_follow_their_own_rules_and_keep_their_own_accounts(tmp_path, monkeypatch):
+    from bot import kalshi as k
+    monkeypatch.chdir(tmp_path)
+    mk = lambda t, kind, lo, hi, ya, na: {"ticker": t, "strike_type": kind, "floor_strike": lo, "cap_strike": hi,
+                                          "yes_sub_title": t, "yes_ask_dollars": str(ya), "yes_ask_size_fp": "100",
+                                          "no_ask_dollars": str(na), "no_ask_size_fp": "100"}
+    ev = {"event_ticker": "KXHIGHCHI-26NOV04", "title": "Chicago high Nov 4?", "markets": [
+        mk("LOW", "less", None, 70, 0.15, 0.86),         # bot: ~5%: a long shot the crowd overpays for
+        mk("MID", "between", 70, 71, 0.62, 0.40),         # bot: ~79%: a favorite it likes even more
+        mk("HIGH", "greater", 71, None, 0.30, 0.72)]}     # bot: ~15%
+    view = {"mu": 71.0, "sigma": 0.6, "floor": None, "late": False, "why": "test"}
+    rules = {key: v["rules"] for key, v in k.strategies({}).items()}
+    pick = lambda key, late=False: [(i["ticker"], i["side"]) for i in k.ideas_from_views([(ev, {**view, "late": late})], rules[key])]
+    assert ("MID", "yes") in pick("A")
+    fav = k.ideas_from_views([(ev, view)], rules["C"])
+    assert ("MID", "yes") in pick("C") and all(i["price"] >= 0.60 for i in fav)       # favorites: 60c+ sides only
+    assert pick("D") == [] and pick("D", late=True)                                  # late-day only after 3 pm today
+    assert pick("E") and all(side == "no" for _, side in pick("E"))                  # fade: NO only
+    assert len(pick("B")) <= len(pick("A"))                                          # cautious trades less
+    monkeypatch.setattr(k, "weather_views", lambda events, now, state: [(ev, view)])
+    told = []
+    k.step({"mode": "practice", "practice_cash": 100}, lambda t, m: told.append(t), events=[ev])
+    state = json.loads(Path("kalshi_state_practice.json").read_text())
+    assert state["positions"] and set(state["variants"]) == {"B", "C", "D", "E"}
+    assert state["variants"]["E"]["positions"] and all(p["side"] == "no" for p in state["variants"]["E"]["positions"].values())
+    assert sum("Kalshi: bought" in t for t in told) == len(state["positions"])        # only A pings per trade
+    title, msg = k.scoreboard(state, k.strategies({}))
+    assert title.startswith("📊 Kalshi scoreboard") and "E. Fade long shots" in msg and "0 settled" in msg
+
+
+def test_kalshi_backtest_reads_history_and_scores_strategies(monkeypatch):
+    from datetime import datetime, timezone
+    from bot import kalshi as k, kalshi_backtest as kb
+    at = datetime(2026, 11, 2, 18, tzinfo=timezone.utc)
+    candles = lambda ya, yb: [{"end_period_ts": int(at.timestamp()) - 3600, "yes_ask": {"close_dollars": str(ya)}, "yes_bid": {"close_dollars": str(yb)}},
+                              {"end_period_ts": int(at.timestamp()) + 3600, "yes_ask": {"close_dollars": "0.99"}, "yes_bid": {"close_dollars": "0.98"}}]
+    monkeypatch.setattr(k, "kget", lambda path, params=None: {"market_tickers": ["LOW", "MID"],
+                                                               "market_candlesticks": [candles(0.20, 0.18), candles(0.55, 0.50)]})
+    assert kb.prices_at("KXHIGHCHI", "KXHIGHCHI-26NOV03", at) == {"LOW": (0.20, 0.82), "MID": (0.55, 0.50)}   # no later candles
+
+    class R:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self):
+            t = int(datetime(2026, 11, 3, 18, tzinfo=timezone.utc).timestamp())
+            return {"hourly": {"time": [t, t + 3600], "temperature_2m_previous_day1_ecmwf_ifs025": [70.0, 72.0],
+                               "temperature_2m_previous_day1_gfs_seamless": [71.0, None]}}
+    monkeypatch.setattr("requests.get", lambda *a, **kw: R())
+    got = kb.past_day_ahead({"lat": 1, "lon": 1, "tz": "America/Chicago"}, at.date(), at.date())
+    assert sorted(got["2026-11-03"]) == [71.0, 72.0]                                 # each model's high for the day
+    mk = lambda t, kind, lo, hi, ya, na, res: {"ticker": t, "strike_type": kind, "floor_strike": lo, "cap_strike": hi,
+                                               "yes_sub_title": t, "yes_ask_dollars": ya, "no_ask_dollars": na,
+                                               "yes_ask_size_fp": 100, "no_ask_size_fp": 100, "result": res}
+    rows = [{"event": {"event_ticker": f"KXHIGHCHI-26NOV{d:02d}", "title": "x", "markets": [
+                mk("LOW", "less", None, 70, 0.15, 0.86, "no"), mk("MID", "between", 70, 71, 0.62, 0.40, "yes"),
+                mk("HIGH", "greater", 71, None, 0.30, 0.72, "no")]},
+             "station": "KMDW", "day": f"2026-11-{d:02d}", "mu": 71.0, "spread": 0.0, "models": 6, "actual": 71.0} for d in (1, 2, 3)]
+    out = kb.simulate(rows, k.strategies({}), sigma=0.6)
+    assert out["A"]["trades"] == 3 and out["A"]["wins"] == 3 and out["A"]["profit"] > 0
+    table, ll = kb.calibration(rows, 0.6)
+    assert table and ll > 0
+    text = kb.report(rows, k.strategies({}))
+    assert "3 settled city-days" in text and "Best forecast uncertainty" in text and "E. Fade long shots" in text
