@@ -1,0 +1,32 @@
+{
+ "kind": "stock",
+ "learned_at": 1793710862.5268524,
+ "params": {
+  "period": 20,
+  "width": 2.0
+ },
+ "changed": false,
+ "reason": "the setting that studied best did not beat the current one on the newest trades",
+ "was": {
+  "period": 20,
+  "width": 2.0
+ },
+ "best": {
+  "period": 20,
+  "width": 2.5
+ },
+ "tried": 12,
+ "markets": 12,
+ "exam_from": "2024-07-25 00:00:00+00:00",
+ "exam_current": {
+  "trades": 107,
+  "won": 0.7476635514018691,
+  "avg": 0.025888915793541245
+ },
+ "exam_best": {
+  "trades": 52,
+  "won": 0.6923076923076923,
+  "avg": 0.028820581313514212
+ },
+ "sure": 0.08
+}
