@@ -1563,12 +1563,30 @@ def test_kalshi_backtest_reads_history_and_scores_strategies(monkeypatch):
                                                "yes_sub_title": t, "yes_ask_dollars": ya, "no_ask_dollars": na,
                                                "yes_ask_size_fp": 100, "no_ask_size_fp": 100, "result": res}
     rows = [{"event": {"event_ticker": f"KXHIGHCHI-26NOV{d:02d}", "title": "x", "markets": [
-                mk("LOW", "less", None, 70, 0.15, 0.86, "no"), mk("MID", "between", 70, 71, 0.62, 0.40, "yes"),
+                mk("LOW", "less", None, 70, 0.15, 0.86, "no"), mk("MID", "between", 70, 71, 0.55, 0.47, "yes"),
                 mk("HIGH", "greater", 71, None, 0.30, 0.72, "no")]},
              "station": "KMDW", "day": f"2026-11-{d:02d}", "mu": 71.0, "spread": 0.0, "models": 6, "actual": 71.0} for d in (1, 2, 3)]
-    out = kb.simulate(rows, k.strategies({}), sigma=0.6)
+    out = kb.simulate(rows, k.strategies({}), sigma=0.8)
     assert out["A"]["trades"] == 3 and out["A"]["wins"] == 3 and out["A"]["profit"] > 0
-    table, ll = kb.calibration(rows, 0.6)
+    table, ll = kb.calibration(rows, 0.8)
     assert table and ll > 0
     text = kb.report(rows, k.strategies({}))
-    assert "3 settled city-days" in text and "Best forecast uncertainty" in text and "E. Fade long shots" in text
+    assert "3 settled city-days" in text and "best sigma" in text and "WITH the bias correction" in text and "E. Fade long shots" in text
+
+
+def test_kalshi_backtest_bias_correction_only_uses_earlier_days_and_seeds_city_priors(tmp_path, monkeypatch):
+    from bot import kalshi as k, kalshi_backtest as kb
+    rows = [{"station": "KMDW", "day": f"2026-10-{d:02d}", "mu": 70.0, "actual": 72.0, "spread": 0.0, "models": 6,
+             "event": {"event_ticker": "x", "markets": []}} for d in range(1, 11)]
+    c = kb.corrected(rows)
+    assert c[0]["bias"] == 0.0                                    # day 1: nothing known yet
+    assert 1.5 < c[-1]["bias"] <= 2.0                              # later: learned the +2° from earlier days only
+    pri = kb.city_priors(rows)
+    assert pri == {"KMDW": {"bias": 2.0, "err": 2.0, "n": 10}}
+    monkeypatch.chdir(tmp_path)
+    Path("models").mkdir()
+    Path("models/kalshi_priors.json").write_text(json.dumps(pri))
+    monkeypatch.setattr(k, "_PRIORS", None)
+    bias, err, n = k.learned({}, "d1", "KMDW")
+    assert (bias, err, n) == (2.0, 2.0, 10)                        # the live bot starts from the backtest's measurement
+    assert k.learned({}, "d1", "KDEN") == (0.0, k.PRIOR["d1"], 0)  # unknown city: the default

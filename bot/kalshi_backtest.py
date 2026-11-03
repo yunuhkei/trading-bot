@@ -153,11 +153,33 @@ def collect(days: int = 14, series: list[str] | None = None, budget_s: float = 2
     return rows
 
 
-def simulate(rows: list[dict], strategies: dict, sigma: float = 2.0, budget: float = 5.0) -> dict[str, dict]:
-    """Each strategy's trades on the collected city-days: best idea per city-day, $5 each, settled by the real result."""
+def corrected(rows: list[dict], prior_n: int = 5) -> list[dict]:
+    """Each city-day with the bias correction the bot could have known THEN: from earlier days only (walk-forward),
+    per city, blended with the all-city average so far (prior_n days count as much as it). Adds "bias" and "err"."""
+    out, seen, allerr = [], {}, []
+    for r in sorted(rows, key=lambda r: r["day"]):
+        errs = seen.get(r["station"], [])
+        g = sum(allerr) / len(allerr) if allerr else 0.0
+        gerr = math.sqrt(sum(e * e for e in allerr) / len(allerr)) if allerr else 2.0
+        n = len(errs)
+        bias = (sum(errs) + prior_n * g) / (n + prior_n)
+        rmse = math.sqrt((sum(e * e for e in errs) + prior_n * gerr ** 2) / (n + prior_n))
+        out.append({**r, "bias": bias, "err": rmse})
+        if r.get("actual") is not None:
+            seen.setdefault(r["station"], []).append(r["actual"] - r["mu"])
+            allerr.append(r["actual"] - r["mu"])
+    return out
+
+
+def simulate(rows: list[dict], strategies: dict, sigma: float = 2.0, budget: float = 5.0, use_bias: bool = False,
+             learned_sigma: bool = False) -> dict[str, dict]:
+    """Each strategy's trades on the collected city-days: best idea per city-day, $5 each, settled by the real result.
+    use_bias / learned_sigma: correct each forecast with what was known before that day (walk-forward)."""
     out = {key: {"label": v["label"], "trades": 0, "wins": 0, "profit": 0.0, "staked": 0.0} for key, v in strategies.items()}
-    for r in rows:
-        view = {"mu": r["mu"], "sigma": max(sigma, r["spread"]), "floor": None, "late": False, "why": "backtest"}
+    for r in (corrected(rows) if use_bias or learned_sigma else rows):
+        mu = r["mu"] + (r.get("bias", 0.0) if use_bias else 0.0)
+        sg = r.get("err", sigma) if learned_sigma else sigma
+        view = {"mu": mu, "sigma": max(sg, r["spread"], 0.8), "floor": None, "late": False, "why": "backtest"}
         result = {m["ticker"]: m["result"] for m in r["event"]["markets"]}
         for key, v in strategies.items():
             ideas = k.ideas_from_views([(r["event"], view)], v["rules"])
@@ -177,12 +199,13 @@ def simulate(rows: list[dict], strategies: dict, sigma: float = 2.0, budget: flo
     return out
 
 
-def calibration(rows: list[dict], sigma: float = 2.0) -> tuple[list[tuple[str, int, float, float]], float]:
+def calibration(rows: list[dict], sigma: float = 2.0, use_bias: bool = False) -> tuple[list[tuple[str, int, float, float]], float]:
     """(probability bucket, brackets, average predicted, how often it happened) and the log loss, over every bracket."""
     buckets, ll, n = {}, 0.0, 0
-    for r in rows:
+    for r in (corrected(rows) if use_bias else rows):
+        mu = r["mu"] + (r.get("bias", 0.0) if use_bias else 0.0)
         for m in r["event"]["markets"]:
-            p = k.bracket_prob(m, r["mu"], max(sigma, r["spread"]), None)
+            p = k.bracket_prob(m, mu, max(sigma, r["spread"]), None)
             if math.isnan(p):
                 continue
             hit = m["result"] == "yes"
@@ -196,6 +219,16 @@ def calibration(rows: list[dict], sigma: float = 2.0) -> tuple[list[tuple[str, i
     return table, ll / max(n, 1)
 
 
+def city_priors(rows: list[dict]) -> dict:
+    """Per station: forecast bias and typical error over the whole test (seeds the live bot's self-learning)."""
+    by = {}
+    for r in rows:
+        if r.get("actual") is not None:
+            by.setdefault(r["station"], []).append(r["actual"] - r["mu"])
+    return {st: {"bias": round(sum(e) / len(e), 2), "err": round(math.sqrt(sum(x * x for x in e) / len(e)), 2), "n": len(e)}
+            for st, e in by.items()}
+
+
 def report(rows: list[dict], strategies: dict) -> str:
     errs = [r["actual"] - r["mu"] for r in rows if r.get("actual") is not None]
     lines = [f"Kalshi backtest: {len(rows)} settled city-days, day-before decisions at noon Central."]
@@ -203,28 +236,40 @@ def report(rows: list[dict], strategies: dict) -> str:
         rmse = math.sqrt(sum(e * e for e in errs) / len(errs))
         lines.append(f"Model forecasts vs the real high: bias {sum(errs) / len(errs):+.1f}°, typical error {rmse:.1f}° "
                      f"({len(errs)} days, avg {sum(r['models'] for r in rows) / len(rows):.1f} models each).")
-    best_sigma, best_ll = None, None
-    for sg in (1.5, 2.0, 2.5, 3.0, 3.5, 4.0):
-        _, ll = calibration(rows, sg)
-        if best_ll is None or ll < best_ll:
-            best_sigma, best_ll = sg, ll
-    lines.append(f"Best forecast uncertainty (sigma): {best_sigma}° (the bot uses 2.0° before it has graded a city).")
-    table, _ = calibration(rows, best_sigma)
-    lines.append("Calibration at that sigma (bot said -> happened): " + ", ".join(
-        f"{b}: {pred:.0%}->{act:.0%} (n={n})" for b, n, pred, act in table if n >= 5))
-    for sg in sorted({2.0, best_sigma}):
-        lines.append(f"\nStrategies with sigma {sg}°:")
-        for key, o in simulate(rows, strategies, sg).items():
-            roi = o["profit"] / o["staked"] if o["staked"] else 0.0
-            lines.append(f"  {key}. {o['label']}: {o['trades']} trades, {o['wins']}-{o['trades'] - o['wins']}, "
-                         f"{o['profit']:+,.2f} on {k.money(o['staked'])} staked ({roi:+.0%})")
+    for use_bias in (False, True):
+        best_sigma, best_ll = None, None
+        for sg in (1.5, 2.0, 2.5, 3.0, 3.5, 4.0):
+            _, ll = calibration(rows, sg, use_bias)
+            if best_ll is None or ll < best_ll:
+                best_sigma, best_ll = sg, ll
+        table, _ = calibration(rows, best_sigma, use_bias)
+        lines.append(f"\n{'WITH' if use_bias else 'Without'} the bias correction (walk-forward): best sigma {best_sigma}°, "
+                     f"log loss {best_ll:.3f}. Said -> happened: " + ", ".join(
+                         f"{b}: {pred:.0%}->{act:.0%} (n={n})" for b, n, pred, act in table if n >= 5))
+        for label, kw in (("sigma 2.0", {"sigma": 2.0}), (f"sigma {best_sigma}", {"sigma": best_sigma}),
+                          ("each city's learned error", {"learned_sigma": True})):
+            if label == f"sigma {best_sigma}" and best_sigma == 2.0:
+                continue
+            lines.append(f"  Strategies, {label}:")
+            for key, o in simulate(rows, strategies, use_bias=use_bias, **kw).items():
+                roi = o["profit"] / o["staked"] if o["staked"] else 0.0
+                lines.append(f"    {key}. {o['label']}: {o['trades']} trades, {o['wins']}-{o['trades'] - o['wins']}, "
+                             f"{o['profit']:+,.2f} on {k.money(o['staked'])} staked ({roi:+.0%})")
     return "\n".join(lines)
 
 
-def run(days: int = 14):
+def run(days: int = 14, save: bool = True):
+    import json
+    from pathlib import Path
+
     from .signals import alert_target, notify
 
     rows = collect(days)
+    if save and rows:                  # keep the data (re-test ideas in seconds) and seed the live bot's per-city learning
+        Path("data").mkdir(exist_ok=True)
+        Path("data/kalshi_backtest_rows.json").write_text(json.dumps(rows, default=str))
+        Path("models").mkdir(exist_ok=True)
+        Path("models/kalshi_priors.json").write_text(json.dumps(city_priors(rows), indent=1))
     text = report(rows, k.strategies(k.load_settings()))
     print(text, flush=True)
     target = alert_target()

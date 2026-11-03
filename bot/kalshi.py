@@ -260,16 +260,36 @@ def observed_max_f(st: str, start: datetime, end: datetime) -> tuple[float, bool
 PRIOR = {"d1": 2.0, "d0": 1.8}     # typical forecast error (°F) before the bot has graded any: tomorrow, this morning
 
 
-def learned(calib: dict, horizon: str) -> tuple[float, float, int]:
+_PRIORS: dict | None = None
+
+
+def city_prior(st: str | None, horizon: str) -> tuple[float, float, int]:
+    """(bias, typical error, days) measured by the backtest for this station (models/kalshi_priors.json), for
+    day-ahead forecasts; else no bias and the default error."""
+    global _PRIORS
+    if _PRIORS is None:
+        try:
+            _PRIORS = json.loads(Path("models/kalshi_priors.json").read_text())
+        except (OSError, ValueError):
+            _PRIORS = {}
+    p = _PRIORS.get(st or "", {})
+    if horizon == "d1" and p.get("n", 0) >= 5:
+        return float(p["bias"]), max(1.0, float(p["err"])), int(p["n"])
+    return 0.0, PRIOR[horizon], 0
+
+
+def learned(calib: dict, horizon: str, st: str | None = None) -> tuple[float, float, int]:
     """(bias, typical error, graded days) for a station: what its forecasts got wrong before, blended with the prior
-    until there are enough graded days (5 count as much as the prior)."""
+    (the backtest's measurement for this city if there is one) until there are enough graded days."""
+    pb, pe, pn = city_prior(st, horizon)
+    w = min(pn, 10) if pn else 5                          # how much the prior counts, in days
     errs = calib.get(horizon, [])
     n = len(errs)
     if not n:
-        return 0.0, PRIOR[horizon], 0
+        return pb, pe, pn
     bias = sum(errs) / n
     rmse = math.sqrt(sum(e * e for e in errs) / n)
-    return n / (n + 5) * bias, math.sqrt((n * rmse ** 2 + 5 * PRIOR[horizon] ** 2) / (n + 5)), n
+    return (n * bias + w * pb) / (n + w), math.sqrt((n * rmse ** 2 + w * pe ** 2) / (n + w)), n + pn
 
 
 def weather_view(day: date, info: dict, st: str, now: datetime, fc: dict, obs_cache: dict,
@@ -287,7 +307,7 @@ def weather_view(day: date, info: dict, st: str, now: datetime, fc: dict, obs_ca
     if now < start:                                    # tomorrow: the forecasts are all there is
         if not daily:
             return None
-        bias, err, n = learned(calib, "d1")
+        bias, err, n = learned(calib, "d1", st)
         avg, spread = mean(daily), pstdev(daily) if len(daily) > 1 else 0.0
         return {"mu": avg + bias, "sigma": max(err, spread), "floor": None, "avg": avg,
                 "why": f"{len(daily)} forecast{'s' if len(daily) > 1 else ''} average {avg:.0f}°" + (f" (spread {spread:.1f}°)" if spread else "")
