@@ -1,0 +1,21 @@
+# Stocks (as xStocks on Solana) for the Solana bot: "dip bounce" on the DAILY chart.
+# Buy after a day that closes 2 standard deviations below its 20-day average (a sharp dip), sell when a day closes back
+# at that average. Tested 2021-2026 on the 12 stocks/funds that have verified xStocks (Apple, Amazon, Google, Intel,
+# McDonald's, Meta, Microsoft, Nvidia, Palantir, Tesla, SPY, QQQ), buying at the next open with 0.2% costs per buy
+# or sell: 293 trades, 70% won, +1.65% per trade, held ~12 days. On all 500 S&P stocks: 69% won, +1.2% per trade.
+# (Stocks that are big today did well in those years, so expect somewhat less.)
+exchange: coinbase
+symbol: BTC/USD
+timeframe: 1d
+strategy: bollinger
+strategy_params:
+  period: 20
+  width: 2.0
+allow_short: false
+fee_pct: 0.002
+slippage_pct: 0.0
+risk:
+  position_pct: 0.95
+  stop_loss_pct: 0.20
+  take_profit_pct: 0.0
+  max_drawdown_pct: 0.0

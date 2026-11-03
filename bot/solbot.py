@@ -1,17 +1,20 @@
-"""Auto-trading brand-new Solana coins (your young-coin list, e.g. NIO on Fomo) with the dip-bounce rule, from a
-wallet that belongs to the bot alone. Settings: solbot.yaml. Runs all day on GitHub (the "solbot" workflow).
+"""The Solana auto-trader: buys dips with the dip-bounce rule, from a wallet that belongs to the bot alone.
+Settings: solbot.yaml. Runs all day on GitHub (the "solbot" workflow), checking every 5 minutes.
 
-What it does every 5 minutes, for each Solana coin in watchlist.young.txt:
-- BUY (up to `per_trade` dollars of USDC) right after a fresh dip-bounce signal on the 5-minute chart (the same rule as
-  your young-coin alerts, config.young.yaml), unless the swap would cost more than `max_cost` (fees + price impact).
-- SELL when the price is back at its average (the rule's exit), or it's down `stop_loss` from the buy.
-- Account = the wallet's USDC + the coins the bot bought. If it falls to `stop_below` or reaches `stop_above`, it sells
-  everything, stops for good and tells you. To start again after a stop, delete solbot_stopped.json (or ask Claude).
+What it trades:
+- Young Solana coins (watchlist.young.txt, e.g. NIO) on the 5-minute chart. Every few hours it removes coins that are
+  dying (little money left in the pool, or nobody trading) and searches for new ones like NIO (busy, rising, real
+  pool) to add, up to `max_coins`.
+- Stocks as verified "xStocks" on Solana (NVDAx = Nvidia...) on the daily chart, only for companies the rule was
+  tested on (S&P 500, SPY, QQQ), only during US market hours, and only when the xStock's price matches the real stock.
+
+The rule: BUY right after a sharp dip below the recent average; SELL when the price is back at the average, or at the
+`stop_loss`. Trade size grows with the account (`tiers`); at each `pause_at` amount it sells everything, stops and
+tells you (start it again by deleting solbot_stopped.json, or ask Claude). It stops for good at `stop_below` or if the
+account falls `stop_drawdown` from its best.
 
 Swaps go through Jupiter (the router most Solana apps use): Jupiter builds the swap, the bot signs it with the wallet
-key (SOLANA_BOT_KEY secret) and Jupiter sends it. The bot never sends money anywhere else: it only swaps USDC for a coin
-on your list and back. Keep only what you're willing to lose in that wallet (plus a little SOL for network fees).
-
+key (SOLANA_BOT_KEY secret) and Jupiter sends it. The bot only ever swaps USDC for something on its lists and back.
 `mode: dry_run` uses real Jupiter quotes (real fees and price impact) with pretend money and places no trades.
 Every buy and sell (or would-be one) is sent to your phone.
 """
@@ -36,6 +39,7 @@ MIN_TRADE = 5.0          # dollars: smaller buys are skipped
 MIN_SOL = 0.005          # the wallet needs a little SOL for network fees
 RETRY_SECONDS, RETRY_FOR = 30, 240   # the price feed can lag 1-3 minutes: re-check until the new candle shows up
 stale: list[str] = []    # coins whose just-finished candle wasn't in the feed yet at the last check
+FUNDS_TESTED = {"SPY", "QQQ"}
 
 
 class TradeError(Exception):
@@ -49,7 +53,7 @@ def _jup_base() -> tuple[str, dict]:
     return ("https://api.jup.ag", {"x-api-key": key}) if key else ("https://lite-api.jup.ag", {})
 
 
-def jup(path: str, params: dict | None = None, body: dict | None = None) -> dict:
+def jup(path: str, params: dict | None = None, body: dict | None = None):
     import requests
 
     base, headers = _jup_base()
@@ -65,10 +69,12 @@ def jup(path: str, params: dict | None = None, body: dict | None = None) -> dict
 
 def prices(mints: list[str]) -> dict[str, dict]:
     """mint -> {"usdPrice", "decimals", ...} from Jupiter's price feed."""
-    if not mints:
-        return {}
-    data = jup("/price/v3", params={"ids": ",".join(mints)})
-    return {m: v for m, v in data.items() if v and v.get("usdPrice")}
+    out = {}
+    mints = list(mints)
+    for i in range(0, len(mints), 50):
+        data = jup("/price/v3", params={"ids": ",".join(mints[i:i + 50])})
+        out.update({m: v for m, v in data.items() if v and v.get("usdPrice")})
+    return out
 
 
 def balances(wallet: str) -> dict[str, dict]:
@@ -186,7 +192,7 @@ class PaperWallet:
         return {"in": int(amount_raw), "out": got, "quoted_out": got, "tx": None}
 
 
-# ---- The rule ----
+# ---- The rule: young coins (5-minute chart) ----
 
 def signal(market: str, cfg) -> dict:
     """The dip-bounce rule on the coin's latest finished 5-minute candles."""
@@ -211,6 +217,8 @@ def solana_coins(watchlist: str) -> list[tuple[str, str]]:
     from .signals import read_watchlist
 
     out = []
+    if not Path(watchlist).exists():
+        return out
     for m in read_watchlist(watchlist):
         chain, _, addr = m.partition(":")
         if chain.lower() in ("sol", "solana") and addr:
@@ -218,30 +226,157 @@ def solana_coins(watchlist: str) -> list[tuple[str, str]]:
     return out
 
 
-# ---- One check ----
+# ---- Finding new coins and dropping dying ones ----
+
+def dex_info(mints: list[str]) -> dict[str, dict]:
+    """mint -> pool money, 24 h trading, price changes, name... from each coin's busiest DEX Screener pool."""
+    import requests
+
+    out = {}
+    for i in range(0, len(mints), 30):
+        try:
+            pairs = requests.get("https://api.dexscreener.com/tokens/v1/solana/" + ",".join(mints[i:i + 30]), timeout=30).json()
+        except Exception as e:
+            log.warning("DEX Screener lookup failed: %s", e)
+            continue
+        for p in pairs or []:
+            mint = p["baseToken"]["address"]
+            liq = float((p.get("liquidity") or {}).get("usd") or 0)
+            if mint in out and out[mint]["liq"] >= liq:
+                continue
+            ch = p.get("priceChange") or {}
+            out[mint] = {"liq": liq, "vol24": float((p.get("volume") or {}).get("h24") or 0),
+                         "h6": float(ch.get("h6") or 0), "h24": float(ch.get("h24") or 0),
+                         "mcap": float(p.get("marketCap") or p.get("fdv") or 0), "name": p["baseToken"].get("name") or "",
+                         "symbol": p["baseToken"].get("symbol") or "",
+                         "age_h": (time.time() * 1000 - (p.get("pairCreatedAt") or 0)) / 3.6e6}
+    return out
+
+
+BIG_COINS = {"monero", "xmr", "cardano", "ada", "litecoin", "ltc", "chainlink", "link", "polkadot", "dot", "avalanche",
+             "avax", "shiba inu", "shib", "pepe", "tron", "trx", "toncoin", "ton", "sui", "stellar", "xlm", "hyperliquid",
+             "hype", "jupiter", "jup", "bonk", "dogwifhat", "wif", "pump", "fartcoin", "trump", "usd", "wrapped"}
+
+
+def find_coins(settings: dict, exclude: set[str], n: int) -> list[dict]:
+    """Up to n new young Solana coins that look like NIO did: real pool, busy, rising, cheap enough to trade."""
+    from .news_ideas import COPYCAT, IMPOSTOR, candidates
+
+    f = {"min_age_hours": 48, "max_age_days": 21, "min_liquidity": 50_000, "min_volume_24h": 250_000,
+         "min_mcap": 250_000, "max_mcap": 50_000_000, **(settings.get("coin_filters") or {})}
+
+    def looks_right(c: dict) -> bool:
+        name, sym = c["name"].strip().lower(), c["symbol"].strip().lower()
+        return (f["min_age_hours"] <= c["age_h"] <= f["max_age_days"] * 24 and c["liq"] >= f["min_liquidity"]
+                and c["vol24"] >= f["min_volume_24h"] and f["min_mcap"] <= c["mcap"] <= f["max_mcap"]
+                and name not in IMPOSTOR | BIG_COINS and sym not in IMPOSTOR | BIG_COINS
+                and not any(w in COPYCAT for w in name.split()))
+
+    cands = [c for c in candidates({"solana": "sol"}) if c["chain"] == "solana" and c["address"] not in exclude and looks_right(c)]
+    info = dex_info([c["address"] for c in cands])
+    # Check again with DEX Screener's numbers for the coin's busiest pool, and keep only coins that are rising.
+    rising = [m for m in ({**c, **info[c["address"]]} for c in cands if c["address"] in info)
+              if looks_right(m) and m["h24"] > 0 and m["h6"] > -10]
+    picks = []
+    for c in sorted(rising, key=lambda c: -c["vol24"]):
+        if len(picks) >= n:
+            break
+        try:
+            if cost(order(USDC, c["address"], int(trade_size(settings, 30) * 10 ** USDC_DECIMALS))) > float(settings.get("max_cost", 0.03)):
+                continue
+        except Exception:
+            continue
+        picks.append(c)
+    return picks
+
+
+def edit_watchlist(path: str, remove: list[str], add: list[dict]):
+    lines = Path(path).read_text().splitlines() if Path(path).exists() else []
+    lines = [l for l in lines if l.split("#", 1)[0].strip() not in remove]
+    day = time.strftime("%b %d", time.gmtime())
+    for c in add:
+        lines.append(f"sol:{c['address']}   # {c['name']} ({c['symbol']}), found by the Solana bot {day}: "
+                     f"${c['liq'] / 1000:,.0f}k pool, ${c['vol24'] / 1000:,.0f}k traded in 24 h")
+    Path(path).write_text("\n".join(lines) + "\n")
+
+
+def commit(files: list[str], message: str):
+    """Save files to the repo (on GitHub only), so the change lasts and the alerts see it too."""
+    if os.environ.get("SOLBOT_COMMIT") != "1":
+        return
+    for cmd in (["git", "config", "user.name", "github-actions[bot]"],
+                ["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"],
+                ["git", "add", *files], ["git", "commit", "-q", "-m", message],
+                ["git", "pull", "-q", "--rebase", "origin", "main"], ["git", "push", "-q", "origin", "HEAD:main"]):
+        subprocess.run(cmd, check=False)
+
+
+# ---- Stocks (xStocks on Solana, daily chart) ----
+
+def xstocks(state: dict, now: float) -> list[tuple[str, str]]:
+    """(ticker, mint) for each verified xStock of a company the rule was tested on. Looked up once a day."""
+    cached = state.get("xstocks")
+    if cached and now - cached["t"] < 86400:
+        return [tuple(x) for x in cached["list"]]
+    tested = {p.stem.upper() for p in Path("data/sp500").glob("*.csv")} | FUNDS_TESTED
+    found = {}
+    for q in ("xStock", "xStocks"):
+        for t in jup("/tokens/v2/search", params={"query": q}) or []:
+            sym, name = t.get("symbol") or "", t.get("name") or ""
+            if t.get("isVerified") and name.endswith("xStock") and t["id"].startswith("Xs") and sym.endswith("x") \
+                    and sym[:-1].upper() in tested:
+                found[sym[:-1].upper()] = t["id"]
+    out = sorted(found.items())
+    state["xstocks"] = {"t": now, "list": out}
+    return out
+
+
+def stock_quote(ticker: str) -> dict:
+    """The real stock's price now and whether the US market is open (Yahoo)."""
+    import requests
+
+    meta = requests.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}", params={"range": "1d", "interval": "1m"},
+                        headers={"User-Agent": "Mozilla/5.0"}, timeout=20).json()["chart"]["result"][0]["meta"]
+    reg = meta["currentTradingPeriod"]["regular"]
+    return {"price": float(meta["regularMarketPrice"]), "start": reg["start"], "end": reg["end"]}
+
+
+def stock_signal(ticker: str, cfg) -> dict:
+    """The dip-bounce rule on the stock's finished daily candles: a fresh BUY means yesterday closed in a sharp dip."""
+    from .signals import fetch_yahoo
+    from .strategies import build_strategy, targets
+
+    df = fetch_yahoo(ticker, "1d")
+    sig = targets(build_strategy(cfg.strategy, cfg.strategy_params), df, False).to_numpy()
+    fresh = str(df.index[-1].date()) if sig[-1] == 1 and sig[-2] == 0 else None
+    return {"in": bool(sig[-1] == 1), "fresh_buy": fresh, "name": f"{ticker} (xStock)", "day": str(df.index[-1].date())}
+
+
+# ---- Money management ----
 
 def load_settings(path: str = "solbot.yaml") -> dict:
     return yaml.safe_load(Path(path).read_text()) or {}
 
 
+def trade_size(settings: dict, account: float) -> float:
+    """Dollars per trade for this account size (the `tiers` in solbot.yaml)."""
+    for t in settings.get("tiers") or []:
+        if "below" not in t or account < float(t["below"]):
+            return float(t["per_trade"])
+    return float(settings.get("per_trade", 30))
+
+
 def value(wallet, positions: dict, px: dict) -> float:
-    """Account value: USDC + the coins the bot bought, at Jupiter's prices."""
+    """Account value: USDC + everything the bot bought, at Jupiter's prices."""
     return wallet.cash() + sum(p["raw"] / 10 ** p["decimals"] * float(px.get(m, {}).get("usdPrice") or p["entry"])
                                for m, p in positions.items())
 
 
-def _stop_file_commit(reason: str):
-    if os.environ.get("SOLBOT_COMMIT_STOP") != "1":
-        return
-    for cmd in (["git", "config", "user.name", "github-actions[bot]"],
-                ["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"],
-                ["git", "add", STOP_FILE], ["git", "commit", "-q", "-m", f"Solana bot stopped: {reason}"],
-                ["git", "pull", "-q", "--rebase", "origin", "main"], ["git", "push", "-q", "origin", "HEAD:main"]):
-        subprocess.run(cmd, check=False)
+# ---- One check ----
 
-
-def step(settings: dict, tell=print, wallet=None, now: float | None = None) -> str:
-    """One check: follow the rule for every coin, enforce the account stops. Returns a one-line status."""
+def step(settings: dict, tell=print, wallet=None, now: float | None = None, only: set[str] | None = None) -> str:
+    """One check: drop dying coins and find new ones (every few hours), follow the rule for every coin and stock,
+    enforce the pauses and stops. `only`: just re-check these coins (the feed was late). Returns a one-line status."""
     from .config import Config
     from .signals import display_name, money
 
@@ -253,11 +388,11 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None) -> s
         return "Off (mode: off in solbot.yaml)."
     live = mode == "live"
     if live and Path(STOP_FILE).exists():
-        return f"Stopped earlier: {json.loads(Path(STOP_FILE).read_text()).get('reason')}. Delete {STOP_FILE} to start again."
+        return f"Stopped: {json.loads(Path(STOP_FILE).read_text()).get('reason')}. Delete {STOP_FILE} to start again."
     state_path = f"solbot_state_{mode}.json"
     state = json.loads(Path(state_path).read_text()) if Path(state_path).exists() else {}
     if state.get("stopped"):
-        return f"Dry run stopped earlier: {state['stopped']}."
+        return f"Dry run stopped: {state['stopped']}."
     tag = "" if live else "DRY RUN: "
     if wallet is None:
         if live:
@@ -268,27 +403,42 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None) -> s
         else:
             wallet = PaperWallet(state, float(settings.get("start_cash", 30)))
     positions = state.setdefault("positions", {})
-    coins = solana_coins(settings.get("watchlist", "watchlist.young.txt"))
-    names = {mint: m for m, mint in coins}
+    watchlist = settings.get("watchlist", "watchlist.young.txt")
+    coins = solana_coins(watchlist)
+    stocks = []
+    if settings.get("stocks") and only is None:
+        try:
+            stocks = xstocks(state, now)
+        except Exception as e:
+            log.warning("xStock list failed: %s", e)
+    kinds = {mint: ("coin", m) for m, mint in coins} | {mint: ("stock", t) for t, mint in stocks}
+
+    def label(mint: str) -> str:
+        p = positions.get(mint) or {}
+        kind, m = kinds.get(mint, (p.get("kind"), p.get("market") or mint))
+        return p.get("name") or (f"{m} (xStock)" if kind == "stock" else display_name(m))
+
     if not state.get("started"):
         state["started"] = now
+        pauses = " and ".join(money(float(x)) for x in settings.get("pause_at") or [])
         tell(f"{tag}Solana bot connected",
-             f"Wallet: {wallet.address}. Cash ${wallet.cash():,.2f} USDC. Trading {len(coins)} coins with the dip-bounce rule, "
-             f"up to ${float(settings.get('per_trade', 30)):,.0f} a trade. Stops at ${settings.get('stop_below')} or ${settings.get('stop_above')}."
+             f"Wallet: {wallet.address}. Cash {money(wallet.cash())} USDC. Trading {len(coins)} young coins"
+             + (f" and {len(stocks)} stocks" if stocks else "") + f" with the dip-bounce rule, {money(trade_size(settings, wallet.cash()))} a trade."
+             + (f" Pauses at {pauses}." if pauses else "") + f" Stops at {money(float(settings.get('stop_below', 0)))}."
              + ("" if live else " Dry run: it will message what it WOULD buy and sell, without trading."))
-    if live:   # a dedicated wallet: coins from the list that it holds but has no notes on are treated as its own
-        for m, mint in coins:
+    if live:   # a dedicated wallet: things from its lists that it holds but has no notes on are treated as its own
+        for mint, (kind, m) in kinds.items():
             if mint not in positions and wallet.held_raw(mint) > 0:
-                positions[mint] = {"market": m, "raw": wallet.held_raw(mint), "decimals": None, "entry": None, "cost": None,
-                                   "adopted": True}
-    px = prices(list({*positions, *names}))
+                positions[mint] = {"market": m, "kind": kind, "raw": wallet.held_raw(mint), "decimals": None, "entry": None,
+                                   "cost": None, "adopted": True}
+    px = prices(list({*positions, *kinds}))
     for mint, p in positions.items():
         p["decimals"] = p["decimals"] or int(px.get(mint, {}).get("decimals") or 6)
         if p["entry"] is None:
             p["entry"] = float(px.get(mint, {}).get("usdPrice") or 0)
             p["cost"] = p["raw"] / 10 ** p["decimals"] * p["entry"]
-            tell(f"{tag}Solana bot: found {display_name(names.get(mint, mint))} in its wallet",
-                 "It had no notes on this coin, so it treats it as bought at today's price and will sell it by the rule.")
+            tell(f"{tag}Solana bot: found {label(mint)} in its wallet",
+                 "It had no notes on it, so it treats it as bought at today's price and will sell it by the rule.")
     if live and wallet.sol() < MIN_SOL and now - state.get("low_sol_told", 0) > 6 * 3600:
         state["low_sol_told"] = now
         tell("Solana bot: add a little SOL", f"The wallet has {wallet.sol():.4f} SOL. Swaps need about 0.01 SOL for network fees.")
@@ -296,7 +446,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None) -> s
     def sell(mint: str, why: str) -> bool:
         p = positions[mint]
         raw = min(p["raw"], wallet.held_raw(mint)) if live else p["raw"]
-        name = p.get("name") or display_name(names.get(mint, mint))
+        name = label(mint)
         if raw <= 0:
             positions.pop(mint)
             tell(f"{tag}Solana bot: {name} is no longer in the wallet", "It was sold or moved outside the bot, so the bot forgot it.")
@@ -313,52 +463,117 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None) -> s
         got = fill["out"] / 10 ** USDC_DECIMALS
         result = got / p["cost"] - 1 if p.get("cost") else 0.0
         positions.pop(mint)
-        state.setdefault("trades", []).append({"t": now, "action": "SELL", "coin": name, "usd": got, "result": result, "tx": fill["tx"]})
+        state.setdefault("trades", []).append({"t": now, "action": "SELL", "what": name, "usd": got, "result": result, "tx": fill["tx"]})
         tell(f"{tag}SOLD {name} for {money(got)} ({result:+.1%})",
-             f"{why}. Bought for {money(p['cost'])}, sold for {money(got)} after fees: {got - p['cost']:+,.2f}."
+             f"{why}. Bought for {money(p['cost'])}, sold for {money(got)} after fees: {got - p['cost']:+,.2f}. "
+             f"Account now about {money(value(wallet, positions, px))}."
              + (f"\nhttps://solscan.io/tx/{fill['tx']}" if fill.get("tx") else ""))
         return True
 
-    def stop_all(reason: str, title: str) -> str:
+    def buy(mint: str, kind: str, market: str, name: str, why: str, account: float):
+        usd = min(trade_size(settings, account), wallet.cash())
+        if usd < MIN_TRADE:
+            return
+        try:
+            fill = wallet.swap(USDC, mint, int(usd * 10 ** USDC_DECIMALS), float(settings.get("max_cost", 0.03)))
+        except Exception as e:
+            tell(f"{tag}Solana bot: didn't buy {name}", str(e))
+            return
+        dec = int(px.get(mint, {}).get("decimals") or 6)
+        spent, tokens = fill["in"] / 10 ** USDC_DECIMALS, fill["out"] / 10 ** dec
+        positions[mint] = {"market": market, "kind": kind, "name": name, "raw": fill["out"], "decimals": dec,
+                           "entry": spent / tokens if tokens else float(px.get(mint, {}).get("usdPrice") or 0),
+                           "cost": spent, "bought_at": now}
+        state.setdefault("trades", []).append({"t": now, "action": "BUY", "what": name, "usd": spent, "tx": fill["tx"]})
+        tell(f"{tag}BOUGHT {money(spent)} of {name}",
+             f"{why}. It sells when the price is back at its average, or at {float(settings.get('stop_loss', 0.2)):.0%} down. "
+             f"Cash left: {money(wallet.cash())}." + (f"\nhttps://solscan.io/tx/{fill['tx']}" if fill.get("tx") else ""))
+
+    def halt(reason: str, title: str) -> str:
+        """Sell everything and stop (a pause or a stop: either way it waits for you)."""
         for mint in list(positions):
-            sell(mint, reason)
+            sell(mint, reason[0].upper() + reason[1:])
         wallet.refresh()
         final = value(wallet, positions, px)
         if positions:
-            reason += " (some coins could not be sold yet: it keeps trying)"
-            return f"Stopping: {reason}."
+            return f"Stopping: {reason} (some things could not be sold yet: it keeps trying)."
         if live:
             Path(STOP_FILE).write_text(json.dumps({"stopped_at": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(now)),
                                                    "reason": reason, "account": round(final, 2)}, indent=1))
-            _stop_file_commit(reason)
+            commit([STOP_FILE], f"Solana bot stopped: {reason}")
         else:
             state["stopped"] = reason
-        tell(f"{tag}{title}", f"{reason}. Everything is sold: the account is {money(final)} in USDC. The bot has stopped."
-             + (f" To start again, delete {STOP_FILE} (or ask Claude)." if live else ""))
+        tell(f"{tag}{title}", f"{reason[0].upper() + reason[1:]}. Everything is sold: the account is {money(final)} in USDC. "
+             "The bot is stopped until you start it again" + (f" (delete {STOP_FILE}, or ask Claude)." if live else " (ask Claude)."))
         return f"Stopped: {reason}."
 
-    def check_stops() -> str | None:
+    def limits() -> str | None:
         v = value(wallet, positions, px)
+        last, peak = state.get("last_value", v), max(state.get("peak", v), v)
+        state["last_value"], state["peak"] = v, peak
         if v <= float(settings.get("stop_below", 0)):
-            return stop_all(f"the account fell to {money(v)} (limit {money(float(settings['stop_below']))})", "Solana bot STOPPED: loss limit")
-        if settings.get("stop_above") and v >= float(settings["stop_above"]):
-            return stop_all(f"the account reached {money(v)} (goal {money(float(settings['stop_above']))})", "Solana bot STOPPED: goal reached")
+            return halt(f"the account fell to {money(v)} (limit {money(float(settings['stop_below']))})", "Solana bot STOPPED: loss limit")
+        dd = float(settings.get("stop_drawdown") or 0)
+        if dd and v <= peak * (1 - dd):
+            return halt(f"the account fell to {money(v)}, {1 - v / peak:.0%} below its best ({money(peak)})", "Solana bot STOPPED: big drop")
+        for m in sorted(float(x) for x in settings.get("pause_at") or []):
+            if last < m <= v:
+                nxt = trade_size(settings, v)
+                return halt(f"the account reached {money(v)} (your {money(m)} checkpoint). Next: {money(nxt)} a trade",
+                            f"Solana bot PAUSED at {money(m)} 🎉")
+        size = trade_size(settings, v)
+        if state.get("size") not in (None, size):
+            tell(f"{tag}Solana bot: now {money(size)} a trade", f"The account is {money(v)}, so each trade is now {money(size)}.")
+        state["size"] = size
         return None
 
     try:
-        if (done := check_stops()):
+        if only is None and now - state.get("scanned_at", 0) >= float(settings.get("scan_every_hours", 2)) * 3600:
+            state["scanned_at"] = now
+            dead, info = [], dex_info([mint for _, mint in coins])
+            for m, mint in coins:
+                i = info.get(mint)
+                why = ("no trading pool left" if not i
+                       else f"only {money(i['liq'])} left in its pool" if i["liq"] < float(settings.get("dead_below_liquidity", 20_000))
+                       else f"only {money(i['vol24'])} traded in 24 h" if i["vol24"] < float(settings.get("dead_below_volume_24h", 20_000))
+                       else None)
+                if why and (mint not in positions or sell(mint, f"It's dying ({why})")):
+                    dead.append((m, mint, why))
+            room = int(settings.get("max_coins", 6)) - (len(coins) - len(dead))
+            new = []
+            if settings.get("find_coins", True) and room > 0:
+                try:
+                    new = find_coins(settings, {mint for _, mint in coins}, room)
+                except Exception as e:
+                    log.warning("coin search failed: %s", e)
+            if dead or new:
+                edit_watchlist(watchlist, [m for m, _, _ in dead], new)
+                commit([watchlist], "Solana bot: " + "; ".join(
+                    [f"removed {display_name(m)} ({why})" for m, _, why in dead] + [f"added {c['name']}" for c in new]))
+                for m, _, why in dead:
+                    tell(f"{tag}Solana bot: dropped {display_name(m)}", f"It's dying: {why}. Removed from the young-coin list.")
+                for c in new:
+                    tell(f"{tag}Solana bot: now watching {c['name']} ({c['symbol']})",
+                         f"Found a coin like NIO: {c['age_h'] / 24:.0f} days old, {money(c['liq'])} in its pool, {money(c['vol24'])} "
+                         f"traded in 24 h, up {c['h24']:.0f}% in 24 h. Added to the young-coin list; it trades it on the next dip.")
+                coins = solana_coins(watchlist)
+                kinds.update({mint: ("coin", m) for m, mint in coins})
+                px.update(prices([mint for _, mint in coins if mint not in px]))
+        if (done := limits()):
             return done
-        cfg = Config.load(settings.get("strategy_config", "config.young.yaml"))
         stop_loss = float(settings.get("stop_loss", 0.2))
+        cfg = Config.load(settings.get("strategy_config", "config.young.yaml"))
+        just_closed = pd.Timestamp(now - now % 300 - 300, unit="s", tz="UTC")
         for market, mint in coins:
+            if only is not None and market not in only:
+                continue
             try:
                 s = signal(market, cfg)
             except Exception as e:
                 log.warning("%s: no signal: %s", market, e)
                 continue
-            just_closed = pd.Timestamp(now - now % 300 - 300, unit="s", tz="UTC")
             if s.get("last") is not None and s["last"] == just_closed - pd.Timedelta(minutes=5):
-                stale.append(s["name"])     # exactly one candle behind: the feed is lagging (older = the coin went quiet)
+                stale.append(market)        # exactly one candle behind: the feed is lagging (older = the coin went quiet)
             price = float(px.get(mint, {}).get("usdPrice") or s["candle_price"])
             if mint in positions:
                 p = positions[mint]
@@ -368,33 +583,47 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None) -> s
                 elif not s["in"]:
                     sell(mint, "The price is back at its average (the rule's exit)")
                 continue
-            if not s["fresh_buy"] or state.get("last_buy", {}).get(mint) == s["fresh_buy"]:
-                continue
-            usd = min(float(settings.get("per_trade", 30)), wallet.cash())
-            if usd < MIN_TRADE:
-                continue
-            state.setdefault("last_buy", {})[mint] = s["fresh_buy"]
-            try:
-                fill = wallet.swap(USDC, mint, int(usd * 10 ** USDC_DECIMALS), float(settings.get("max_cost", 0.03)))
-            except Exception as e:
-                tell(f"{tag}Solana bot: didn't buy {s['name']}", str(e))
-                continue
-            dec = int(px.get(mint, {}).get("decimals") or 6)
-            spent = fill["in"] / 10 ** USDC_DECIMALS
-            tokens = fill["out"] / 10 ** dec
-            positions[mint] = {"market": market, "name": s["name"], "raw": fill["out"], "decimals": dec,
-                               "entry": spent / tokens if tokens else price, "cost": spent, "bought_at": now}
-            state.setdefault("trades", []).append({"t": now, "action": "BUY", "coin": s["name"], "usd": spent, "tx": fill["tx"]})
-            tell(f"{tag}BOUGHT {money(spent)} of {s['name']}",
-                 f"Dip-bounce signal on the 5-minute chart. It sells when the price is back at its average, or at "
-                 f"{stop_loss:.0%} down. Cash left: {money(wallet.cash())}."
-                 + (f"\nhttps://solscan.io/tx/{fill['tx']}" if fill.get("tx") else ""))
+            if s["fresh_buy"] and state.get("last_buy", {}).get(mint) != s["fresh_buy"]:
+                state.setdefault("last_buy", {})[mint] = s["fresh_buy"]
+                buy(mint, "coin", market, s["name"], "Dip-bounce signal on the 5-minute chart", value(wallet, positions, px))
+        if stocks:
+            scfg = Config.load(settings.get("stock_strategy_config", "config.stockdip.yaml"))
+            gap_limit = float(settings.get("max_price_gap", 0.01))
+            for ticker, mint in stocks:
+                try:
+                    q = stock_quote(ticker)
+                    if not q["start"] + 900 <= now <= q["end"] - 600:      # market open (skip its first 15 and last 10 minutes)
+                        continue
+                    day = time.strftime("%Y-%m-%d", time.gmtime(now))
+                    s = state.setdefault("stock_sig", {}).get(ticker)
+                    if not s or s.get("checked") != day:
+                        s = {**stock_signal(ticker, scfg), "checked": day}
+                        state["stock_sig"][ticker] = s
+                except Exception as e:
+                    log.warning("%s: no stock signal: %s", ticker, e)
+                    continue
+                jp = float(px.get(mint, {}).get("usdPrice") or 0)
+                gap = jp / q["price"] - 1 if jp and q["price"] else 1.0
+                if mint in positions:
+                    p = positions[mint]
+                    if jp and jp <= p["entry"] * (1 - stop_loss):
+                        sell(mint, f"Stop-loss: down {jp / p['entry'] - 1:.0%} from the buy")
+                    elif not s["in"] and abs(gap) <= gap_limit:
+                        sell(mint, f"{ticker} closed back at its average (the rule's exit)")
+                    continue
+                if s["fresh_buy"] and state.get("last_buy", {}).get(mint) != s["fresh_buy"]:
+                    if abs(gap) > gap_limit:
+                        continue                    # the xStock's price is off from the real stock: wait
+                    state.setdefault("last_buy", {})[mint] = s["fresh_buy"]
+                    buy(mint, "stock", ticker, s["name"], f"{ticker} closed in a sharp dip below its 20-day average",
+                        value(wallet, positions, px))
         wallet.refresh()
-        if (done := check_stops()):
+        if (done := limits()):
             return done
         v = value(wallet, positions, px)
-        held = ", ".join(p.get("name") or m[:6] for m, p in positions.items()) or "nothing"
-        return f"{tag}Account {money(v)} (cash {money(wallet.cash())}; holding {held})."
+        held = ", ".join(label(m) for m in positions) or "nothing"
+        return (f"{tag}Account {money(v)} (cash {money(wallet.cash())}; holding {held}; {money(trade_size(settings, v))} a trade; "
+                f"watching {len(coins)} coins" + (f", {len(stocks)} stocks" if stocks else "") + ").")
     finally:
         state["trades"] = state.get("trades", [])[-300:]
         Path(state_path).write_text(json.dumps(state, indent=1))
@@ -402,7 +631,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None) -> s
 
 def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every: float = 5):
     """Check every `every` minutes (just after each 5-minute candle closes) until `minutes` have passed."""
-    from .signals import alert_target, notify
+    from .signals import alert_target, display_name, notify
 
     stop_at = time.time() + minutes * 60 if minutes else None
     while True:
@@ -412,21 +641,22 @@ def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every:
             log.warning("SOLBOT %s: %s", title, msg)
             target = alert_target()
             if target:
-                notify(target, title, msg, buy="SOLD" not in title and "STOP" not in title)
+                notify(target, title, msg, buy=not any(w in title for w in ("SOLD", "STOP", "dropped", "didn't")))
 
-        first = time.time()
+        first, only = time.time(), None
         while True:
             try:
-                status = step(settings, tell)
+                status = step(settings, tell, only=only)
             except Exception as e:
                 status = f"Check failed: {e}"
                 log.warning(status)
             print(time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()), status
-                  + (f" (waiting for the new candle: {', '.join(stale)})" if stale else ""), flush=True)
-            # The feed often lags 1-3 minutes: re-check every 30 s until the just-finished candle is in, so a dip is
-            # never caught a whole 5 minutes late (tested on NIO: 1-2 minutes late cost nothing, 5 minutes did).
+                  + (f" (waiting for the new candle: {', '.join(display_name(m) for m in stale)})" if stale else ""), flush=True)
+            # The feed often lags 1-3 minutes: re-check those coins every 30 s until the just-finished candle is in, so a
+            # dip is never caught a whole 5 minutes late (tested on NIO: 1-2 minutes late cost nothing, 5 minutes did).
             if not (minutes and stale and time.time() + RETRY_SECONDS - first < RETRY_FOR):
                 break
+            only = set(stale)
             time.sleep(RETRY_SECONDS)
         if not minutes:
             return

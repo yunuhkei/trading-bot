@@ -230,16 +230,26 @@ It starts in **dry run**: your phone gets "Auto-trader connected" and then "DRY 
 match the alerts for a few days, ask Claude to switch it to live. In live mode it refuses a key that can transfer
 money, and if it ever loses its notes on what it bought, it stops instead of guessing.
 
-## Auto-trading young Solana coins (NIO and other Fomo coins)
+## The Solana auto-trader (young coins + stocks)
 
-The **solbot** workflow trades the coins in `watchlist.young.txt` for you with the **dip-bounce** rule (the same rule
-as your young-coin alerts), every 5 minutes, all day. Fomo has no bot access, so the bot uses **its own wallet** and
-swaps through Jupiter (what most Solana apps use behind the scenes). Settings are in `solbot.yaml`:
-`per_trade` ($30), `stop_loss` (sell a coin down 20%), `stop_below` / `stop_above` (if the account, USDC plus its
-coins, falls to $10 or reaches $100, it sells everything and **stops**), `max_cost` (skip a buy if fees plus price
-impact are over 3%), and `mode`.
+The **solbot** workflow buys dips for you with the **dip-bounce** rule, every 5 minutes, all day, from **its own
+wallet** (Fomo has no bot access), swapping through Jupiter (what most Solana apps use behind the scenes):
 
-Setup (one time, about 5 minutes):
+- **Young Solana coins** (`watchlist.young.txt`, e.g. NIO) on the 5-minute chart. Every 2 hours it **drops dying
+  coins** (under $20k in the pool or under $20k traded a day) and **searches for new coins like NIO** (2-21 days old,
+  $50k+ pool, $250k+ traded a day, rising), up to 6 on the list. Your young-coin alerts use the same list.
+- **Stocks** as verified **xStocks** on Solana (NVDAx = Nvidia, SPYx = S&P 500...) on the daily chart: Apple, Amazon,
+  Google, Intel, McDonald's, Meta, Microsoft, Nvidia, Palantir, Tesla, SPY and QQQ (the ones it was tested on). Only
+  during US market hours, and only when the xStock's price is within 1% of the real stock's.
+- Not the meme coins on your other lists: dip bounce didn't make money on them even with no fees.
+
+**Money** (`solbot.yaml`): $30 a trade until the account (USDC + what it holds) reaches **$100**, where it **pauses**:
+sells everything and messages you. Tell Claude to continue: then $50 a trade until **$200** (pauses again), $75 until
+$250, and $100 a trade from $250 up with no more pauses. It **stops** for good if the account falls to $10 or drops 50%
+from its best. Each coin or stock is sold at a 20% loss (stop-loss), and buys are skipped if fees plus price impact
+would be over 3%.
+
+Setup (one time, about 10 minutes):
 1. In **Phantom** (or another Solana wallet) create a **new account just for the bot**. Never use your main wallet.
 2. Send it **$30 of USDC on Solana** plus about **0.03 SOL** (~$3) for network fees.
 3. Export that account's **private key** (Phantom: Settings → Manage Accounts → the bot's account → Show Private Key).
@@ -248,12 +258,12 @@ Setup (one time, about 5 minutes):
 
 It starts in **dry run**: your phone gets "DRY RUN: BOUGHT ..." and "DRY RUN: SOLD ..." messages using real prices
 and fees but pretend money. When you're happy, ask Claude to switch `mode` to `live`. Every real buy and sell is sent
-to your phone with a Solscan link. If it stops at a limit, it saves `solbot_stopped.json`; delete it (or ask Claude)
+to your phone with a Solscan link. When it pauses or stops it saves `solbot_stopped.json`; delete it (or ask Claude)
 to start again.
 
 Know the risks: it checks every 5 minutes, so a crash can go past the 20% stop before it sells; if a coin's team
-pulls the money out of the pool (a rug pull), nothing can sell it; and the wallet key can spend everything in that
-wallet, so keep only lottery money there.
+pulls the money out of the pool (a rug pull), nothing can sell it; coins it finds by itself are strangers (most new
+coins fail); and the wallet key can spend everything in that wallet, so keep only lottery money there.
 
 ## Check a chart screenshot (PC)
 

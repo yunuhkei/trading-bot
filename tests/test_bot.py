@@ -909,20 +909,26 @@ def _solbot_fakes(monkeypatch, tmp_path, price):
     from bot import solbot as sb
     monkeypatch.chdir(tmp_path)
     mint = "COIN111"
+    (tmp_path / "young.txt").write_text(f"sol:{mint}   # COIN\n")
     sig = {"in": False, "fresh_buy": None, "name": "COIN", "candle_price": price[0]}
-    monkeypatch.setattr(sb, "solana_coins", lambda wl: [(f"sol:{mint}", mint)])
     monkeypatch.setattr(sb, "signal", lambda market, cfg: dict(sig))
-    monkeypatch.setattr(sb, "prices", lambda mints: {mint: {"usdPrice": price[0], "decimals": 6}})
+    monkeypatch.setattr(sb, "prices", lambda mints: {m: {"usdPrice": price[0], "decimals": 6} for m in mints})
+    monkeypatch.setattr(sb, "dex_info", lambda mints: {m: {"liq": 1e6, "vol24": 1e6, "h6": 1, "h24": 1, "mcap": 1e6,
+                                                           "name": m, "symbol": m, "age_h": 50} for m in mints})
+    monkeypatch.setattr(sb, "find_coins", lambda settings, exclude, n: [])
 
     def order(i, o, raw, taker=None):
         usd_in = raw / 1e6 * (1 if i == sb.USDC else price[0])
-        out = usd_in * 0.99 / (price[0] if o == mint else 1)
+        out = usd_in * 0.99 / (1 if o == sb.USDC else price[0])
         return {"inAmount": str(raw), "outAmount": str(int(out * 1e6)), "inUsdValue": usd_in, "outUsdValue": usd_in * 0.99,
                 "requestId": "r", "transaction": None}
     monkeypatch.setattr(sb, "order", order)
     sent = []
-    settings = {"mode": "dry_run", "per_trade": 30, "stop_loss": 0.2, "stop_below": 10, "stop_above": 100,
-                "max_cost": 0.03, "start_cash": 30, "strategy_config": str(Path(__file__).parent.parent / "config.young.yaml")}
+    root = Path(__file__).parent.parent
+    settings = {"mode": "dry_run", "tiers": [{"below": 100, "per_trade": 30}, {"below": 200, "per_trade": 50}, {"per_trade": 100}],
+                "pause_at": [100, 200], "stop_loss": 0.2, "stop_below": 10, "stop_drawdown": 0.5, "max_cost": 0.03,
+                "start_cash": 30, "watchlist": str(tmp_path / "young.txt"), "strategy_config": str(root / "config.young.yaml"),
+                "stock_strategy_config": str(root / "config.stockdip.yaml")}
     return sb, mint, sig, settings, (lambda t, m: sent.append((t, m))), sent
 
 
@@ -947,7 +953,15 @@ def test_solbot_dry_run_buys_fresh_dips_sells_at_the_average_and_never_rebuys_th
     assert 32 < state["paper_cash"] < 33 and not state["positions"]
 
 
-def test_solbot_stop_loss_and_account_limits(tmp_path, monkeypatch):
+def test_solbot_trade_size_grows_with_the_account():
+    from bot import solbot as sb
+    tiers = {"tiers": [{"below": 100, "per_trade": 30}, {"below": 200, "per_trade": 50}, {"below": 250, "per_trade": 75},
+                       {"per_trade": 100}]}
+    assert [sb.trade_size(tiers, v) for v in (30, 99.9, 100, 199, 200, 249, 250, 900)] == [30, 30, 50, 50, 75, 75, 100, 100]
+    assert sb.trade_size({"per_trade": 20}, 500) == 20
+
+
+def test_solbot_stop_loss_loss_limit_and_drawdown(tmp_path, monkeypatch):
     price = [1.0]
     sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
     sig.update({"in": True, "fresh_buy": "t1"})
@@ -960,17 +974,76 @@ def test_solbot_stop_loss_and_account_limits(tmp_path, monkeypatch):
     price[0] = 0.30                                             # account falls below $10: sell all and stop
     status = sb.step(settings, tell)
     assert status.startswith("Stopped") and sent[-1][0] == "DRY RUN: Solana bot STOPPED: loss limit"
-    assert sb.step(settings, tell).startswith("Dry run stopped earlier")
-    # The goal: account at $100+ sells everything and stops
+    assert sb.step(settings, tell).startswith("Dry run stopped")
+    # Big drop from its best: stops even above $10
     Path("solbot_state_dry_run.json").unlink()
-    sent.clear()
     price[0] = 1.0
     sig.update({"fresh_buy": "t3"})
-    sb.step({**settings, "start_cash": 90}, tell)
-    price[0] = 1.5
+    sb.step({**settings, "start_cash": 60}, tell)              # $30 in COIN + $30 cash
+    price[0] = 1.25
+    sb.step({**settings, "start_cash": 60}, tell)              # best: about $67
+    price[0] = 0.85
     sig.update({"in": True, "fresh_buy": "t3"})
+    sb.step({**settings, "start_cash": 60, "stop_loss": 0.9, "stop_drawdown": 0.1}, tell)
+    assert sent[-1][0] == "DRY RUN: Solana bot STOPPED: big drop"
+
+
+def test_solbot_pauses_at_each_checkpoint_once_then_trades_bigger(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    sb.step({**settings, "start_cash": 90}, tell)
+    sig.update({"in": True, "fresh_buy": "t1"})
+    sb.step({**settings, "start_cash": 90}, tell)              # $30 in COIN, $60 cash
+    price[0] = 1.5                                              # account about $104: first checkpoint
     status = sb.step({**settings, "start_cash": 90}, tell)
-    assert status.startswith("Stopped") and sent[-1][0] == "DRY RUN: Solana bot STOPPED: goal reached"
+    assert status.startswith("Stopped") and sent[-1][0].startswith("DRY RUN: Solana bot PAUSED at $100")
+    assert "Next: $50.00 a trade" in sent[-1][1]
+    state = json.loads(Path("solbot_state_dry_run.json").read_text())
+    assert not state["positions"] and state["paper_cash"] > 100
+    state.pop("stopped")                                        # you say "continue"
+    Path("solbot_state_dry_run.json").write_text(json.dumps(state))
+    sig.update({"in": True, "fresh_buy": "t2"})
+    status = sb.step({**settings, "start_cash": 90}, tell)     # no second pause at $100; trades $50 now
+    assert not status.startswith("Stopped") and any(t == "DRY RUN: BOUGHT $50.00 of COIN" for t, _ in sent)
+
+
+def test_solbot_drops_dying_coins_and_adds_new_ones_like_nio(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    (tmp_path / "young.txt").write_text(f"# my list\nsol:{mint}   # COIN\nsol:DEAD222   # Halloween\n")
+    monkeypatch.setattr(sb, "dex_info", lambda mints: {m: {"liq": 2000 if m == "DEAD222" else 1e6, "vol24": 1e6, "h6": 1,
+                                                           "h24": 1, "mcap": 1e6, "name": m, "symbol": m, "age_h": 50} for m in mints})
+    found = {"address": "NEW333", "name": "Newcoin", "symbol": "NEW", "age_h": 72, "liq": 90_000, "vol24": 600_000, "h24": 40}
+    monkeypatch.setattr(sb, "find_coins", lambda settings, exclude, n: [found] if "NEW333" not in exclude and n > 0 else [])
+    sb.step(settings, tell)
+    lines = (tmp_path / "young.txt").read_text()
+    assert "DEAD222" not in lines and f"sol:{mint}" in lines and "sol:NEW333   # Newcoin (NEW), found by the Solana bot" in lines
+    assert "# my list" in lines
+    assert any("dropped" in t for t, _ in sent) and any("now watching Newcoin" in t for t, _ in sent)
+    n = len(sent)
+    sb.step(settings, tell)                                     # not time to scan again yet
+    assert len(sent) == n
+
+
+def test_solbot_trades_xstocks_only_in_market_hours_and_at_a_fair_price(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    (tmp_path / "young.txt").write_text("")
+    now = 1_800_000_000.0
+    monkeypatch.setattr(sb, "xstocks", lambda state, t: [("NVDA", "XsNVDA")])
+    quote = {"price": 1.0, "start": now - 3600, "end": now + 3600}
+    monkeypatch.setattr(sb, "stock_quote", lambda t: dict(quote))
+    monkeypatch.setattr(sb, "stock_signal", lambda t, cfg: {"in": True, "fresh_buy": "2026-11-02", "name": "NVDA (xStock)", "day": "2026-11-02"})
+    st = {**settings, "stocks": True}
+    quote["price"] = 1.05                                       # xStock 5% below the real stock: wait
+    sb.step(st, tell, now=now)
+    assert not any(t.startswith("DRY RUN: BOUGHT") for t, _ in sent)
+    quote.update({"price": 1.0, "start": now + 600})            # market not open yet
+    sb.step(st, tell, now=now + 1)
+    assert not any(t.startswith("DRY RUN: BOUGHT") for t, _ in sent)
+    quote["start"] = now - 3600
+    sb.step(st, tell, now=now + 2)
+    assert any(t == "DRY RUN: BOUGHT $30.00 of NVDA (xStock)" for t, _ in sent)
 
 
 def test_solbot_skips_expensive_swaps_and_live_stop_writes_the_stop_file(tmp_path, monkeypatch):
@@ -990,7 +1063,7 @@ def test_solbot_skips_expensive_swaps_and_live_stop_writes_the_stop_file(tmp_pat
         def swap(self, i, o, raw, max_cost=None): raise AssertionError("nothing to trade")
     status = sb.step({**settings, "mode": "live"}, tell, wallet=FakeLive())
     assert status.startswith("Stopped") and json.loads(Path(sb.STOP_FILE).read_text())["account"] == 5.0
-    assert sb.step({**settings, "mode": "live"}, tell, wallet=FakeLive()).startswith("Stopped earlier")
+    assert sb.step({**settings, "mode": "live"}, tell, wallet=FakeLive()).startswith("Stopped")
     assert sb.step({**settings, "mode": "off"}, tell).startswith("Off")
 
 
@@ -1019,7 +1092,7 @@ def test_solbot_notices_when_the_price_feed_hasnt_got_the_newest_candle(tmp_path
     closed = pd.Timestamp(now - now % 300 - 300, unit="s", tz="UTC")
     sig["last"] = closed - pd.Timedelta(minutes=5)              # the feed still ends one candle early
     sb.step(settings, tell, now=now)
-    assert sb.stale == ["COIN"]
+    assert sb.stale == [f"sol:{mint}"]
     sig["last"] = closed                                        # now it has it
     sb.step(settings, tell, now=now + 30)
     assert sb.stale == []

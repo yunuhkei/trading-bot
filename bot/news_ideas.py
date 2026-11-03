@@ -46,11 +46,12 @@ def _get(url, **kw):
     return None
 
 
-def candidates() -> list[dict]:
+def candidates(networks: dict | None = None) -> list[dict]:
     """Meme coins with the most action right now, with the numbers the filters need."""
+    networks = networks or NETWORKS
     found = {}
     lists = [("trending_pools", page) for page in (1, 2, 3)] + [("pools", page) for page in (1, 2)]  # hot + busiest
-    for net in NETWORKS:
+    for net in networks:
         for kind, page in lists:
             data = _get(f"https://api.geckoterminal.com/api/v2/networks/{net}/{kind}",
                         params={"page": page, "include": "base_token"}, headers=GECKO_HEADERS)
@@ -72,7 +73,7 @@ def candidates() -> list[dict]:
     profiles = _get("https://api.dexscreener.com/token-profiles/latest/v1") or []
     by_chain = {}
     for pr in profiles:
-        if pr.get("chainId") in NETWORKS and (pr["chainId"], pr["tokenAddress"]) not in found:
+        if pr.get("chainId") in networks and (pr["chainId"], pr["tokenAddress"]) not in found:
             by_chain.setdefault(pr["chainId"], []).append(pr["tokenAddress"])
     for chain, addrs in by_chain.items():
         for i in range(0, len(addrs), 30):
