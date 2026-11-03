@@ -22,12 +22,19 @@ start_cash: 30            # dry run only: the pretend starting money
 learn: true               # re-test the dip-bounce settings on recent prices; adopt better ones only if they win on unseen days
 learn_coins_every_hours: 24
 learn_stocks_every_hours: 168
-bench_after_losses: 0     # off during the 2-week NIO test. 3 = drop a coin after 3 losses in a row (not picked again for 2 weeks)
+bench_after_losses: 3     # a found coin that loses 3 trades in a row is dropped (not picked again for 2 weeks); never NIO
+
+# --- Strategies per coin (bot/solbot_strats.py): dip bounce, range bounce, RSI dip ---
+min_win_rate: 0.81        # a coin keeps its strategy while it wins 81%+ (last 3 days, and the bot's own last trades);
+                          # otherwise it switches to one that passes the 81% test, or sits the coin out until one does
+review_every_hours: 2
+pinned:                   # always on the list, never benched (they switch strategies or sit out instead)
+  - sol:7SL2VnfYsChvog5oQY9Nmtqu1wceaMiQzWoqoLQpump   # NIO
 
 # --- Young Solana coins (5-minute chart) ---
 watchlist: watchlist.young.txt       # the same list as your young-coin alerts
 strategy_config: config.young.yaml
-find_coins: false         # LOCKED TO NIO for a 2-week test (Nov 3-17 2026). true = search for new coins like NIO
+find_coins: true          # every few hours, search for new coins like NIO; add one only if a strategy wins 81%+ on it
 scan_every_hours: 2
 max_coins: 6              # most coins on the list at once
 coin_filters:             # what a new coin must look like (NIO had: 13 days old, $125k pool, $1M traded, rising)
@@ -41,6 +48,6 @@ dead_below_liquidity: 20000      # a coin with less than this in its pool...
 dead_below_volume_24h: 20000     # ...or less than this traded in a day is dying: sell it and drop it from the list
 
 # --- Stocks (verified xStocks on Solana, daily chart, US market hours only) ---
-stocks: false             # off during the 2-week NIO test. true = also trade xStocks
+stocks: false             # off for now. true = also trade xStocks
 stock_strategy_config: config.stockdip.yaml
 max_price_gap: 0.01       # only trade when the xStock's price is within 1% of the real stock's

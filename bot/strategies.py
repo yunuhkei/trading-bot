@@ -314,13 +314,14 @@ class VWAP(Strategy):
 
 class Bollinger(Strategy):
     """Mean reversion: buy when the close drops `width` standard deviations below its `period`-bar
-    average, exit at the average. Mirrored for shorts."""
+    average, exit at the average ("dip bounce"), or `exit` standard deviations above it ("range bounce", for coins
+    moving sideways). Mirrored for shorts."""
 
     name = "bollinger"
 
-    def __init__(self, period: int = 20, width: float = 2.0):
-        super().__init__(period=period, width=width)
-        self.period, self.width = period, width
+    def __init__(self, period: int = 20, width: float = 2.0, exit: float = 0.0):
+        super().__init__(period=period, width=width, **({"exit": exit} if exit else {}))
+        self.period, self.width, self.exit = period, width, exit
 
     @property
     def warmup(self) -> int:
@@ -335,7 +336,7 @@ class Bollinger(Strategy):
         for i in range(len(df)):
             if np.isnan(mid[i]):
                 continue
-            if pos == 1 and cc[i] >= mid[i] or pos == -1 and cc[i] <= mid[i]:
+            if pos == 1 and cc[i] >= mid[i] + self.exit * sd[i] or pos == -1 and cc[i] <= mid[i] - self.exit * sd[i]:
                 pos = 0
             if pos == 0:
                 pos = 1 if cc[i] < mid[i] - self.width * sd[i] else -1 if cc[i] > mid[i] + self.width * sd[i] else 0

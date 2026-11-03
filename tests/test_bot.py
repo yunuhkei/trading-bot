@@ -916,6 +916,11 @@ def _solbot_fakes(monkeypatch, tmp_path, price):
     monkeypatch.setattr(sb, "dex_info", lambda mints: {m: {"liq": 1e6, "vol24": 1e6, "h6": 1, "h24": 1, "mcap": 1e6,
                                                            "name": m, "symbol": m, "age_h": 50} for m in mints})
     monkeypatch.setattr(sb, "find_coins", lambda settings, exclude, n: [])
+    import bot.solbot_learn as sl_
+
+    def no_history(market):
+        raise ValueError("no network in tests")
+    monkeypatch.setattr(sl_, "coin_history", no_history)
 
     def order(i, o, raw, taker=None):
         usd_in = raw / 1e6 * (1 if i == sb.USDC else price[0])
@@ -1231,3 +1236,73 @@ def test_solbot_live_waits_for_the_deposit_and_only_trades_its_budget(tmp_path, 
     n = sum(t.startswith("BOUGHT") for t, _ in sent)
     sb.step(live, tell, wallet=w)
     assert sum(t.startswith("BOUGHT") for t, _ in sent) == n    # no budget left: no second buy with your money
+
+
+def test_strategy_review_keeps_a_working_strategy_switches_a_failing_one_or_sits_out(monkeypatch):
+    from bot import solbot_strats as ss
+    t0 = pd.Timestamp("2026-11-01", tz="UTC")
+    df = pd.DataFrame({"close": np.ones(400), "low": np.ones(400)},
+                      index=pd.date_range(t0, periods=400, freq="30min"))
+    results = {}
+
+    def replay(d, strategy, params, fee=0.01, stop_loss=0.2):
+        return results.get((strategy, params.get("width"), params.get("low")), [])
+    monkeypatch.setattr(ss, "replay", replay)
+    monkeypatch.setattr(ss, "CANDIDATES", [("dip bounce", "bollinger", {"period": [20], "width": [2.0, 1.5], "exit": [0.0]}),
+                                           ("RSI dip", "rsi_scalp", {"period": [7], "low": [25], "high": [65], "tp": [0.0], "sl": [0.0]})])
+    late = lambda n, r: [(df.index[-1] - pd.Timedelta(hours=i + 1), r) for i in range(n)]
+    early = lambda n, r: [(df.index[0] + pd.Timedelta(hours=i), r) for i in range(n)]
+    current = {"label": "dip bounce", "strategy": "bollinger", "params": {"period": 20, "width": 2.0, "exit": 0.0}}
+    results[("bollinger", 2.0, None)] = early(8, 0.02) + late(10, 0.03)          # still winning lately
+    assert ss.review(df, current, [])[0] == "keep"
+    assert ss.review(df, current, [-0.05, -0.05, 0.02, -0.03, 0.01])[0] != "keep"   # but its own last trades lost: re-check
+    results[("bollinger", 2.0, None)] = early(8, 0.02) + late(5, 0.03) + late(5, -0.04)   # 50% lately: stopped working
+    results[("rsi_scalp", None, 25)] = early(8, 0.03) + late(6, 0.04)          # another strategy wins on both halves
+    d, c, why = ss.review(df, current, [])
+    assert d == "switch" and c["label"] == "RSI dip" and "stopped working" in why
+    results[("rsi_scalp", None, 25)] = early(8, 0.03) + late(6, -0.04)
+    d, c, why = ss.review(df, current, [])
+    assert d == "sit out" and c is None and "81%+" in why
+
+
+def test_solbot_trades_each_coin_with_its_strategy_and_sits_out_when_none_wins(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    import bot.solbot_learn as sl_
+    import bot.solbot_strats as ss
+    monkeypatch.setattr(sl_, "coin_history", lambda market: pd.DataFrame())
+    used = []
+    monkeypatch.setattr(sb, "signal", lambda market, cfg: used.append((cfg.strategy, dict(cfg.strategy_params))) or dict(sig))
+    rsi = {"label": "RSI dip", "strategy": "rsi_scalp", "params": {"period": 7, "low": 25, "high": 65, "tp": 0.0, "sl": 0.0},
+           "exam": {"trades": 6, "won": 0.83, "avg": 0.04}}
+    monkeypatch.setattr(ss, "review", lambda df, current, live, mwr=0.81, sl=0.2: ("switch", rsi, "dip bounce stopped working"))
+    sig.update({"in": True, "fresh_buy": "t1"})
+    sb.step(settings, tell)
+    assert any(t == "DRY RUN: Solana bot: COIN111 switched to RSI dip" or "switched to RSI dip" in t for t, _ in sent)
+    assert used[-1][0] == "rsi_scalp" and any(t.startswith("DRY RUN: BOUGHT") for t, _ in sent)
+    state = json.loads(Path("solbot_state_dry_run.json").read_text())
+    assert state["positions"][mint]["strategy"] == "rsi_scalp"                # its exit follows the strategy it was bought with
+    # Nothing wins 81%+: sits out (no new buys), but still sells what it holds by its own rule
+    monkeypatch.setattr(ss, "review", lambda df, current, live, mwr=0.81, sl=0.2: ("sit out", None, "nothing wins"))
+    state["strats"][mint]["reviewed_at"] = 0
+    Path("solbot_state_dry_run.json").write_text(json.dumps(state))
+    sig.update({"in": False, "fresh_buy": None})
+    sb.step(settings, tell)
+    assert any("sitting out" in t for t, _ in sent) and any(t.startswith("DRY RUN: SOLD") for t, _ in sent)
+    n = len(used)
+    sig.update({"in": True, "fresh_buy": "t2"})
+    sb.step(settings, tell)
+    assert len(used) == n and sum(t.startswith("DRY RUN: BOUGHT") for t, _ in sent) == 1   # sitting out: not even checked
+
+
+def test_solbot_never_benches_a_pinned_coin(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    for k in range(3):
+        price[0] = 1.0
+        sig.update({"in": True, "fresh_buy": f"t{k}"})
+        sb.step({**settings, "bench_after_losses": 3, "pinned": [f"sol:{mint}"]}, tell)
+        price[0] = 0.98
+        sig.update({"in": False, "fresh_buy": None})
+        sb.step({**settings, "bench_after_losses": 3, "pinned": [f"sol:{mint}"]}, tell)
+    assert f"sol:{mint}" in (tmp_path / "young.txt").read_text() and not any("benched" in t for t, _ in sent)

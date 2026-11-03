@@ -243,6 +243,14 @@ wallet** (Fomo has no bot access), swapping through Jupiter (what most Solana ap
   during US market hours, and only when the xStock's price is within 1% of the real stock's.
 - Not the meme coins on your other lists: dip bounce didn't make money on them even with no fees.
 
+**Each coin gets the strategy that's winning on it** (`bot/solbot_strats.py`): dip bounce (sell back at the average),
+range bounce (sell higher, for coins moving sideways) or RSI dip. Every 2 hours it re-checks each coin: it keeps the
+current strategy while it wins **81%+** (last 3 days, and the bot's own last trades on that coin); otherwise it switches
+to one that won 81%+ on the newest days it never studied, or **sits the coin out** (no new buys) until one does. New
+coins are only added if a strategy passes that test on the coin's own prices. NIO is pinned: never benched or dropped
+for losing, it switches or sits out instead. (Your young-coin alerts still use plain dip bounce; the bot's own BOUGHT /
+SOLD messages show what it actually does.)
+
 **It learns** (`bot/solbot_learn.py`): every day for coins (the last week of every coin it watched in the last 2 weeks,
 including the ones that died) and every week for stocks (daily prices since 2019), it re-tests the dip-bounce
 settings (how long an average, how deep a dip) and switches only if a new setting also made more money on the newest

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import base64
 import json
+from dataclasses import replace
 import logging
 import os
 import subprocess
@@ -355,16 +356,23 @@ def find_coins(settings: dict, exclude: set[str], n: int) -> list[dict]:
     # Check again with DEX Screener's numbers for the coin's busiest pool, and keep only coins that are rising.
     rising = [m for m in ({**c, **info[c["address"]]} for c in cands if c["address"] in info)
               if looks_right(m) and m["h24"] > 0 and m["h6"] > -10]
+    from .solbot_learn import coin_history
+    from .solbot_strats import choose
+
     picks = []
-    for c in sorted(rising, key=lambda c: -c["vol24"]):
+    for c in sorted(rising, key=lambda c: -c["vol24"])[:12]:
         if len(picks) >= n:
             break
         try:
             if cost(order(USDC, c["address"], int(trade_size(settings, 30) * 10 ** USDC_DECIMALS))) > float(settings.get("max_cost", 0.03)):
                 continue
-        except Exception:
+            choice = choose(coin_history(f"sol:{c['address']}"), float(settings.get("min_win_rate", 0.81)),
+                            float(settings.get("stop_loss", 0.2)))
+        except Exception as e:
+            log.warning("coin check %s failed: %s", c.get("symbol"), e)
             continue
-        picks.append(c)
+        if choice:                   # it fits: a strategy wins 81%+ on this coin's own recent prices
+            picks.append({**c, "choice": choice})
     return picks
 
 
@@ -529,7 +537,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         pauses = " and ".join(money(float(x)) for x in settings.get("pause_at") or [])
         tell(f"{tag}Solana bot connected",
              f"Wallet: {wallet.address}. " + (f"Its budget: {money(wallet.cash())} USDC. " if live else f"Cash {money(wallet.cash())} USDC. ") + f"Trading {len(coins)} young coins"
-             + (f" and {len(stocks)} stocks" if stocks else "") + f" with the dip-bounce rule, {money(trade_size(settings, wallet.cash()))} a trade."
+             + (f" and {len(stocks)} stocks" if stocks else "") + f", each with the strategy that's winning on it, {money(trade_size(settings, wallet.cash()))} a trade."
              + (f" Pauses at {pauses}." if pauses else "") + f" Stops at {money(float(settings.get('stop_below', 0)))}."
              + ("" if live else " Dry run: it will message what it WOULD buy and sell, without trading."))
     if live:   # a dedicated wallet: things from its lists that it holds but has no notes on are treated as its own
@@ -573,7 +581,8 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
             res = state.setdefault("coin_results", {}).setdefault(mint, [])
             res.append(result)
             n = int(settings.get("bench_after_losses", 3))
-            if n and len(res) >= n and all(r <= 0 for r in res[-n:]):
+            pinned = {str(x).split(":")[-1] for x in settings.get("pinned") or []}
+            if n and mint not in pinned and len(res) >= n and all(r <= 0 for r in res[-n:]):
                 state.setdefault("benched", {})[mint] = now
                 to_bench.append((p.get("market") or f"sol:{mint}", n))
         state.setdefault("trades", []).append({"t": now, "action": "SELL", "what": name, "usd": got, "result": result, "tx": fill["tx"]})
@@ -585,7 +594,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
 
     to_bench: list[tuple[str, int]] = []
 
-    def buy(mint: str, kind: str, market: str, name: str, why: str, account: float):
+    def buy(mint: str, kind: str, market: str, name: str, why: str, account: float, strat: dict | None = None):
         usd = min(trade_size(settings, account), wallet.cash())
         if usd < MIN_TRADE:
             return
@@ -598,10 +607,11 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         spent, tokens = fill["in"] / 10 ** USDC_DECIMALS, fill["out"] / 10 ** dec
         positions[mint] = {"market": market, "kind": kind, "name": name, "raw": fill["out"], "decimals": dec,
                            "entry": spent / tokens if tokens else float(px.get(mint, {}).get("usdPrice") or 0),
-                           "cost": spent, "bought_at": now}
+                           "cost": spent, "bought_at": now,
+                           **({"strategy": strat["strategy"], "params": strat["params"], "label": strat.get("label")} if strat else {})}
         state.setdefault("trades", []).append({"t": now, "action": "BUY", "what": name, "usd": spent, "tx": fill["tx"]})
         tell(f"{tag}BOUGHT {money(spent)} of {name}",
-             f"{why}. It sells when the price is back at its average, or at {float(settings.get('stop_loss', 0.2)):.0%} down. "
+             f"{why}. It sells when the rule says so, or at {float(settings.get('stop_loss', 0.2)):.0%} down. "
              f"Cash left: {money(wallet.cash())}." + (f"\nhttps://solscan.io/tx/{fill['tx']}" if fill.get("tx") else ""))
 
     def halt(reason: str, title: str) -> str:
@@ -668,10 +678,14 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                     [f"removed {display_name(m)} ({why})" for m, _, why in dead] + [f"added {c['name']}" for c in new]))
                 for m, _, why in dead:
                     tell(f"{tag}Solana bot: dropped {display_name(m)}", f"It's dying: {why}. Removed from the young-coin list.")
+                from .solbot_strats import describe
                 for c in new:
+                    if c.get("choice"):
+                        state.setdefault("strats", {})[c["address"]] = {**c["choice"], "since": now, "reviewed_at": now}
                     tell(f"{tag}Solana bot: now watching {c['name']} ({c['symbol']})",
                          f"Found a coin like NIO: {c['age_h'] / 24:.0f} days old, {money(c['liq'])} in its pool, {money(c['vol24'])} "
-                         f"traded in 24 h, up {c['h24']:.0f}% in 24 h. Added to the young-coin list; it trades it on the next dip.")
+                         f"traded in 24 h, up {c['h24']:.0f}% in 24 h. It passed the test: "
+                         + (describe(c["choice"]) if c.get("choice") else "") + ". Added to the list; it trades it on the next signal.")
                 coins = solana_coins(watchlist)
                 kinds.update({mint: ("coin", m) for m, mint in coins})
                 px.update(prices([mint for _, mint in coins if mint not in px]))
@@ -692,6 +706,39 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
             return done
         from .solbot_learn import apply as learned
         cfg = learned("coin", Config.load(settings.get("strategy_config", "config.young.yaml")))
+        strats = state.setdefault("strats", {})
+        default = {"label": "dip bounce", "strategy": cfg.strategy, "params": dict(cfg.strategy_params)}
+        mwr = float(settings.get("min_win_rate", 0.81))
+        if only is None:
+            from .solbot_learn import coin_history
+            from .solbot_strats import describe, review
+            for market, mint in coins:
+                st = strats.get(mint)
+                if st and now - st.get("reviewed_at", 0) < float(settings.get("review_every_hours", 2)) * 3600:
+                    continue
+                current = None if (st or {}).get("sitting_out") else (st or default)
+                try:
+                    decision, choice, why = review(coin_history(market), current,
+                                                   state.get("coin_results", {}).get(mint, []), mwr, stop_loss)
+                except Exception as e:
+                    log.warning("%s: strategy review failed: %s", market, e)
+                    continue
+                name = display_name(market)
+                if decision == "keep":
+                    strats[mint] = {**current, "reviewed_at": now, "since": (st or {}).get("since", now)}
+                elif decision == "switch":
+                    strats[mint] = {**choice, "since": now, "reviewed_at": now}
+                    state.setdefault("coin_results", {})[mint] = []       # judge the new strategy on its own trades
+                    tell(f"{tag}Solana bot: {name} switched to {choice['label']}",
+                         f"{why[0].upper() + why[1:]}. Now: {describe(choice)}.")
+                else:
+                    was_out = (st or {}).get("sitting_out")
+                    strats[mint] = {"sitting_out": True, "why": why, "since": (st or {}).get("since", now) if was_out else now,
+                                    "reviewed_at": now}
+                    if not was_out:
+                        tell(f"{tag}Solana bot: sitting out {name}",
+                             f"{why[0].upper() + why[1:]}. No new buys on it until a strategy wins {mwr:.0%}+ again "
+                             "(it re-checks every 2 hours; anything it holds is still sold by its rule).")
         just_closed = pd.Timestamp(now - now % 300 - 300, unit="s", tz="UTC")
         listed = {mint for _, mint in coins}
         held_off_list = [(p.get("market") or f"sol:{m}", m) for m, p in positions.items()
@@ -699,8 +746,13 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         for market, mint in coins + held_off_list:
             if only is not None and market not in only:
                 continue
+            held = positions.get(mint)
+            st = held if held and held.get("strategy") else strats.get(mint, default)
+            if not held and st.get("sitting_out"):
+                continue
+            ccfg = replace(cfg, strategy=st.get("strategy", cfg.strategy), strategy_params=dict(st.get("params", cfg.strategy_params)))
             try:
-                s = signal(market, cfg)
+                s = signal(market, ccfg)
             except Exception as e:
                 log.warning("%s: no signal: %s", market, e)
                 continue
@@ -713,11 +765,12 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                 if price <= p["entry"] * (1 - stop_loss):
                     sell(mint, f"Stop-loss: down {price / p['entry'] - 1:.0%} from the buy")
                 elif not s["in"]:
-                    sell(mint, "The price is back at its average (the rule's exit)")
+                    sell(mint, f"{p.get('label', 'dip bounce').capitalize()} says sell (the rule's exit)")
                 continue
             if mint in listed and s["fresh_buy"] and state.get("last_buy", {}).get(mint) != s["fresh_buy"]:
                 state.setdefault("last_buy", {})[mint] = s["fresh_buy"]
-                buy(mint, "coin", market, s["name"], "Dip-bounce signal on the 5-minute chart", value(wallet, positions, px))
+                buy(mint, "coin", market, s["name"], f"{st.get('label', 'dip bounce').capitalize()} signal on the 5-minute chart",
+                    value(wallet, positions, px), st)
         if stocks:
             scfg = learned("stock", Config.load(settings.get("stock_strategy_config", "config.stockdip.yaml")))
             gap_limit = float(settings.get("max_price_gap", 0.01))
