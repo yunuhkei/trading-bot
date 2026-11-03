@@ -1332,7 +1332,8 @@ def test_practice_account_takes_every_signal_with_the_live_strategies_and_report
     # 3 pm in New York, once a day
     from datetime import datetime
     from zoneinfo import ZoneInfo
-    ny = lambda h, m: datetime(2026, 11, 4, h, m, tzinfo=ZoneInfo("America/New_York")).timestamp()
-    assert sb.report_due(ny(14, 59), "15:00") is None
-    assert sb.report_due(ny(15, 0), "15:00") == "2026-11-04"
-    assert sb.report_due(ny(18, 0), "15:00", last_day="2026-11-04") is None
+    mke = lambda d, h, m: datetime(2026, 11, d, h, m, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    assert sb.report_due(mke(5, 14, 59), "15:00") is None                         # Thursday Nov 5, before 3 pm
+    assert sb.report_due(mke(5, 15, 0), "15:00", days=["Thursday"]) == "2026-11-05"
+    assert sb.report_due(mke(5, 18, 0), "15:00", last_day="2026-11-05", days=["Thursday"]) is None   # once
+    assert sb.report_due(mke(4, 15, 30), "15:00", days=["Thursday"]) is None        # Wednesday: no report

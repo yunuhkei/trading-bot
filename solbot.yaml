@@ -23,8 +23,9 @@ practice:                 # so there's data on every coin even while the real bu
   enabled: true
   cash: 300               # enough for 10 trades at once
   per_trade: 30
-  report_at: "15:00"      # no ping per pretend trade: one "Daily report" at 3 pm (real bot + practice, per coin)
-  timezone: America/New_York
+  report_at: "15:00"      # no ping per pretend trade: one report (real bot + practice, per coin) on payday at 3 pm
+  report_days: [Thursday]
+  timezone: America/Chicago   # Milwaukee
 
 # --- Learning (bot/solbot_learn.py) ---
 learn: true               # re-test the dip-bounce settings on recent prices; adopt better ones only if they win on unseen days

@@ -836,14 +836,18 @@ def practice_settings(settings: dict) -> dict | None:
             "max_cost": settings.get("max_cost", 0.03)}
 
 
-def report_due(now: float, at: str = "15:00", tz: str = "America/New_York", last_day: str | None = None) -> str | None:
-    """The local date if the daily report is due (it's past `at` there and none was sent that day), else None."""
+def report_due(now: float, at: str = "15:00", tz: str = "America/Chicago", last_day: str | None = None,
+               days: list[str] | None = None) -> str | None:
+    """The local date if the report is due: it's past `at` there, on one of `days` (e.g. ["Thursday"]; None = every
+    day), and none was sent that day. Else None."""
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
     local = datetime.fromtimestamp(now, ZoneInfo(tz))
     h, m = (int(x) for x in str(at).split(":"))
     day = local.date().isoformat()
+    if days and local.strftime("%a").lower() not in {d.strip().lower()[:3] for d in days}:
+        return None
     return day if (local.hour, local.minute) >= (h, m) and last_day != day else None
 
 
@@ -912,8 +916,8 @@ def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every:
                     pstate_path = Path("solbot_state_practice.json")
                     pstate = json.loads(pstate_path.read_text())
                     pr = settings.get("practice") or {}
-                    day = report_due(time.time(), pr.get("report_at", "15:00"), pr.get("timezone", "America/New_York"),
-                                     pstate.get("report_day"))
+                    day = report_due(time.time(), pr.get("report_at", "15:00"), pr.get("timezone", "America/Chicago"),
+                                     pstate.get("report_day"), pr.get("report_days"))
                     if only is None and day:
                         since = pstate.get("reported_at", pstate.get("started", time.time() - 86400))
                         live_state = json.loads(Path("solbot_state_live.json").read_text()) if Path("solbot_state_live.json").exists() else {}
