@@ -240,6 +240,44 @@ def iem_day_max(st: str, info: dict, day: str) -> float | None:
     return float(row["max_tmpf"]) if row.get("max_tmpf") is not None else None
 
 
+def metar_temp_f(raw: str) -> float | None:
+    """The temperature in a raw METAR report, °F: from the precise T-group (tenths of °C) if it's there."""
+    m = re.search(r" T([01])(\d{3})[01]\d{3}", raw or "")
+    if m:
+        return round((-1 if m.group(1) == "1" else 1) * int(m.group(2)) / 10 * 9 / 5 + 32, 1)
+    m = re.search(r" (M?\d{2})/(M?\d{2})? ", raw or "")
+    return round(int(m.group(1).replace("M", "-")) * 9 / 5 + 32, 1) if m else None
+
+
+def iem_readings(st: str, info: dict, local_day: str) -> list[list]:
+    """[unix time, °F, kind] for every report the station sent on that local date (Iowa Environmental Mesonet):
+    "ob" for each temperature reading (hourly, special and 5-minute), "max6" for the 6-hour highs (sent at 00, 06, 12
+    and 18 UTC, covering the 6 hours before, measured from the 1-minute data the official climate report uses)."""
+    import requests
+
+    r = requests.get(f"{IEM}/obhistory.json", params={"station": st[1:], "network": f"{info['state']}_ASOS",
+                                                     "date": local_day, "full": 1}, timeout=60)
+    r.raise_for_status()
+    out = []
+    for row in r.json().get("data") or []:
+        t = datetime.strptime(row["utc_valid"], "%Y-%m-%dT%H:%MZ").replace(tzinfo=timezone.utc).timestamp()
+        temp = row.get("tmpf") if row.get("tmpf") is not None else metar_temp_f(row.get("raw", ""))
+        if temp is not None:
+            out.append([t, float(temp), "ob"])
+        if row.get("max_tmpf_6hr") is not None:
+            out.append([t, float(row["max_tmpf_6hr"]), "max6"])
+    return out
+
+
+def recorded_high(readings: list[list], start: datetime, end: datetime, now: float | None = None) -> float | None:
+    """The climate day's high so far from the readings (whole °F): every reading in the day, and every 6-hour high
+    whose 6 hours are all inside it. `now`: only what had been sent by then (the backtest)."""
+    s, e = start.timestamp(), end.timestamp()
+    vals = [v for t, v, kind in readings if (now is None or t <= now) and (
+        s <= t < e if kind == "ob" else s <= t - 6 * 3600 and t <= e)]
+    return float(math.floor(max(vals) + 0.5)) if vals else None
+
+
 def climate_day(day: date, tz: str) -> tuple[datetime, datetime]:
     """The climate report's day: midnight to midnight local STANDARD time (no daylight saving), in UTC."""
     from zoneinfo import ZoneInfo

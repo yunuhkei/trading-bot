@@ -1434,9 +1434,10 @@ def test_kalshi_bracket_odds_fees_and_dates():
     assert k.bracket_prob(less, 74, 1.0, floor_f=72.0) == 0.0                     # 72°+ already recorded: "70 or below" is dead
 
 
-def test_kalshi_weather_view_uses_what_was_recorded_the_models_and_the_rest_of_the_day():
+def test_kalshi_weather_view_uses_what_was_recorded_the_models_and_the_rest_of_the_day(monkeypatch):
     from datetime import date, datetime, timezone
     from bot import kalshi as k
+    monkeypatch.setattr(k, "_PRIORS", {})                 # no backtest measurements for the station here
     info = {"tz": "America/Chicago"}
     b = lambda lo, hi: {"strike_type": "between", "floor_strike": lo, "cap_strike": hi}
     # 3 pm, the high came overnight (66°) and the forecast is only 59°: the answer is basically in
@@ -1459,6 +1460,21 @@ def test_kalshi_weather_view_uses_what_was_recorded_the_models_and_the_rest_of_t
     # it learned this station runs 2° cold: shifts the forecast up (blended with the prior: 10 days -> 2/3 of it)
     v = k.weather_view(date(2026, 11, 4), info, "KMDW", morning, {"2026-11-04": 64}, {}, models, {"d1": [2.0] * 10})
     assert abs(v["mu"] - (64 + 2 * 10 / 15)) < 1e-9 and "corrected" in v["why"]
+
+
+def test_kalshi_reads_the_station_reports_like_the_official_high():
+    from datetime import datetime, timezone
+    from bot import kalshi as k
+    assert k.metar_temp_f("KAUS 011925Z AUTO 13008KT 10SM CLR 29/14 A3001 RMK T02890144 MADISHF") == 84.0
+    assert k.metar_temp_f("KMSP 031253Z 00000KT 10SM CLR M02/M05 A3012 RMK AO2") == 28.4      # no T-group: whole °C
+    start, end = datetime(2026, 11, 1, 6, tzinfo=timezone.utc), datetime(2026, 11, 2, 6, tzinfo=timezone.utc)
+    t = start.timestamp()
+    readings = [[t + 13 * 3600, 84.2, "ob"], [t + 18 * 3600, 86.0, "max6"],      # 6-hour high sent at 6 pm: 86
+                [t - 600, 90.0, "ob"],                                           # before the day: doesn't count
+                [t + 3 * 3600, 95.0, "max6"]]                                    # its 6 hours started the day before
+    assert k.recorded_high(readings, start, end) == 86.0
+    assert k.recorded_high(readings, start, end, now=t + 17 * 3600) == 84.0      # before the 6 pm report
+    assert k.recorded_high([], start, end) is None
 
 
 def test_kalshi_grades_its_forecasts_and_reads_the_models(monkeypatch):

@@ -7,6 +7,9 @@ on:
       days:
         description: "How many past days to test"
         default: "14"
+      sameday:
+        description: "Same-day test instead (station readings + day-of prices for the saved city-days): yes / no"
+        default: "no"
 permissions:
   contents: write            # saves the data and the per-city forecast corrections (models/kalshi_priors.json)
 jobs:
@@ -23,14 +26,19 @@ jobs:
       - name: Backtest
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
-        run: python -m bot kalshi-backtest --days "${{ inputs.days || '14' }}"
+        run: |
+          if [ "${{ inputs.sameday }}" = "yes" ]; then
+            python -m bot kalshi-backtest --sameday
+          else
+            python -m bot kalshi-backtest --days "${{ inputs.days || '14' }}"
+          fi
       - name: Save the data and what it measured
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/kalshi_backtest_rows.json models/kalshi_priors.json
+          git add data/kalshi_*.json models/kalshi_priors.json
           if ! git diff --cached --quiet; then
-            git commit -q -m "Kalshi backtest: settled city-days and per-city forecast corrections"
+            git commit -q -m "Kalshi backtest: saved settled city-days and what it measured"
             git pull -q --rebase origin main
             git push -q origin HEAD:main
           fi

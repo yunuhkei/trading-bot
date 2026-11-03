@@ -212,10 +212,13 @@ def cmd_kalshi(args, cfg):
 def cmd_kalshi_backtest(args, cfg):
     import logging
 
-    from .kalshi_backtest import run
-
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
-    run(args.days)
+    if args.sameday:
+        from .kalshi_sameday import run
+        run()
+    else:
+        from .kalshi_backtest import run
+        run(args.days)
 
 
 def cmd_markets(args, cfg):
@@ -340,6 +343,7 @@ def main(argv=None):
     ka.add_argument("--settings", default="kalshi.yaml")
     kb = sub.add_parser("kalshi-backtest", help="test the Kalshi weather strategies on settled markets")
     kb.add_argument("--days", type=int, default=14)
+    kb.add_argument("--sameday", action="store_true", help="same-day trading: collect readings + day-of prices, then test")
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")
     m.add_argument("--search", default="BTC")
 
