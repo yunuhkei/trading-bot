@@ -772,43 +772,40 @@ def test_red_alert_only_for_a_nuclear_weapon_actually_used():
     for t in ["Putin threatens nuclear strike", "Fears of nuclear war grow", "Could a nuclear attack happen?",
               "Iran nuclear talks resume", "North Korea conducts nuclear test", "US strikes Iran nuclear sites",
               "Drone hits Zaporizhzhia nuclear plant", "Hiroshima marks anniversary of atomic bomb",
-              "Kremlin denies plans for nuclear strike"]:
+              "Kremlin denies plans for nuclear strike",
+              # the Nov 2026 false alarm (a commentator's claim, repeated by a dozen sites)
+              "Tucker Carlson: Donald Trump pressured by Benjamin Netanyahu to launch nuclear strike on Iran",
+              "Iran to be hit by nuclear bomb soon? US commentator makes big claim",
+              "Trump is 'considering nuclear strike on Iran', former CIA agent claims",
+              "Tucker Carlson Claims 'Desperate' Netanyahu Pushing US Toward Nuke Strike On Iran, Trump Hesitant",
+              "\u201cWas That a Nuclear Bomb?\u201d russians React to Massive Explosion at Warehouse (Video)",
+              "Kyiv, Moscow Citizens Receive Imminent Nuclear Strike Alerts After \u2018Hackers\u2019 Hit Civil Defence Apps"]:
         assert not headlines.nuclear_used(t), t
+    assert headlines.nuclear_used("Ukraine says Russia struck Kyiv with nuclear missile")
 
 
-def test_red_alert_needs_two_outlets_is_urgent_and_waits_an_hour(tmp_path, monkeypatch):
-    from bot import headlines, signals
-    feeds = {"Top": _rss("Russia launches nuclear strike on Ukraine", outlet="Reuters"),
-             "World": _rss("Nuclear explosion reported near Kyiv", outlet="AP")}
-    one_outlet = {"Top": feeds["Top"], "World": _rss("Senate passes budget bill")}
-    serve = {}
+def test_nuclear_alert_escalates_in_stages_by_outlets_and_major_services():
+    from bot import headlines as h
+    now = 1_800_000_000.0
+    state = {}
 
-    class Resp:
-        def __init__(self, text): self.text = text
-        def raise_for_status(self): pass
+    def feeds(*outlets):
+        return {"Top": [{"title": "Russia launches nuclear strike on Kyiv", "outlet": o, "published": now - 60} for o in outlets]}
+    stage = lambda alert: alert[0][0] if alert else None
+    assert stage(h.nuke_alert(feeds("Daily Blog"), state, now)) == 1                 # 1 outlet: WARNING (unconfirmed)
+    assert h.nuke_alert(feeds("Daily Blog"), state, now + 60) is None               # same stage: not sent twice
+    assert stage(h.nuke_alert(feeds("Other Blog"), state, now + 120)) == 2          # 2 outlets: RED ALERT
+    assert h.nuke_alert(feeds(*[f"Blog {i}" for i in range(6)]), state, now + 180) is None   # 8 small sites: stays RED
+    assert stage(h.nuke_alert(feeds("Reuters", "BBC News"), state, now + 240)) == 3          # + 2 major: CONFIRMED
+    alert = h.nuke_alert(feeds("AP News"), state, now + 300)                       # 3 major: BLACKOUT WARNING
+    assert stage(alert) == 4
+    title, msg = h.nuke_message(*alert)
+    assert title == "⬛ BLACKOUT WARNING" and "charge your phone" in msg and "Reported by 11 outlets" in msg
+    assert msg.index("(Reuters)") < msg.index("(Blog")                              # major services listed first
+    later = now + 2 * 86400                                                          # a quiet day: stages reset
+    again = {"Top": [{"title": "Russia launches nuclear strike on Kyiv", "outlet": "Daily Blog", "published": later - 60}]}
+    assert stage(h.nuke_alert(again, state, later)) == 1
 
-    monkeypatch.setattr(headlines, "SECTIONS", {"Top": "top", "World": "world"})
-    monkeypatch.setattr(headlines.requests, "get", lambda url, **kw: Resp(serve[url]))
-    monkeypatch.setattr(headlines.email.utils, "parsedate_to_datetime",
-                        lambda _: __import__("datetime").datetime.fromtimestamp(headlines.time.time() - 600))
-    sent = []
-    monkeypatch.setattr(signals, "notify", lambda target, title, msg, **kw: sent.append((title, kw)) or True)
-    state = str(tmp_path / "state.json")
-
-    serve.update({"top": one_outlet["Top"], "world": one_outlet["World"]})
-    headlines.run("ntfy:x", state)
-    assert not any(t.startswith("RED ALERT") for t, _ in sent)               # one outlet is not enough
-
-    sent.clear()
-    serve.update({"top": feeds["Top"], "world": feeds["World"]})
-    headlines.run("ntfy:x", state)
-    red = [(t, kw) for t, kw in sent if t.startswith("RED ALERT")]
-    assert len(red) == 1 and red[0][1]["priority"] == "urgent"
-
-    sent.clear()
-    serve["world"] = _rss("Second nuclear bomb dropped on Odesa", outlet="BBC")
-    headlines.run("ntfy:x", state)
-    assert not any(t.startswith("RED ALERT") for t, _ in sent)               # within the hour: no second red alert
 
 
 def _frame5(closes):

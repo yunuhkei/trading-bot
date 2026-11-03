@@ -244,7 +244,8 @@ def notify(target: str, title: str, message: str, buy: bool, tag: str | None = N
     Returns True if it was delivered; logs the reason if not.
     """
     kind, _, rest = target.partition(":") if target.split(":", 1)[0] in ("ntfy", "discord", "telegram") else ("ntfy", "", target)
-    icon = {"newspaper": "📰", "rotating_light": "🚨", "bar_chart": "📊"}.get(tag, "🟢" if buy else "🔴")
+    icon = {"newspaper": "📰", "rotating_light": "🚨", "bar_chart": "📊", "warning": "⚠️",
+            "black_large_square": "⬛"}.get((tag or "").split(",")[0], "🟢" if buy else "🔴")
     try:
         if kind == "ntfy":
             r = requests.post(f"https://ntfy.sh/{rest}", data=message.encode(), timeout=20,

@@ -5,10 +5,15 @@ Each run reads the top US, world, business, tech, crypto and war headlines from 
 is (see SEVERITY), keeps only the bad ones that haven't been sent yet, worst first, skips the same story told by another
 outlet, and sends them as one notification. Sent headlines are remembered for 3 days.
 
-Red alert (see nuclear_used): a headline saying a nuclear weapon was dropped, fired, hit or exploded, not just threatened,
-feared, tested or talked about. To avoid a false alarm from one misleading headline, it needs at least 2 different
-outlets saying so. It goes out as its own urgent notification, at most once an hour (later headlines still show up in
-the normal digest).
+Nuclear alert (see nuclear_used): a headline saying a nuclear weapon WAS dropped, fired, hit or exploded, not one that is
+threatened, feared, tested, planned, claimed, "considered", "soon?" or talked about. It escalates in STAGES as more
+different outlets report it (counted over the last 6 hours), each stage sent once as its own urgent notification:
+  1 outlet          ⚠️ NUCLEAR WARNING (unconfirmed)
+  2-4 outlets       🚨 RED ALERT
+  5-6 outlets       🚨☢️ CONFIRMED RED ALERT   (also needs 2+ major news services: Reuters, AP, BBC...)
+  7+ outlets        ⬛ BLACKOUT WARNING         (also needs 3+ major news services)
+The major-service rule stops a viral rumor repeated by many small sites from reaching the top stages. The stages reset
+after 24 hours with no new reports.
 """
 from __future__ import annotations
 
@@ -32,12 +37,30 @@ SECTIONS = {
     "Tech": f"{GOOGLE}/headlines/section/topic/TECHNOLOGY?{REGION}",
     "Crypto": f"{GOOGLE}/search?q=crypto%20OR%20bitcoin%20when:1d&{REGION}",
     "War": f"{GOOGLE}/search?q=nuclear%20OR%20missile%20OR%20war%20OR%20invasion%20when:1d&{REGION}",
+    "Nuclear": f"{GOOGLE}/search?q=%22nuclear%20strike%22%20OR%20%22nuclear%20attack%22%20OR%20%22nuclear%20explosion%22%20OR%20"
+               f"%22nuclear%20bomb%22%20OR%20nuked%20when:1d&{REGION}",
 }
 FRESH_HOURS, REMEMBER_DAYS, SAME_STORY = 6, 3, 0.5
 WORST = 4                   # a headline must score at least this (see SEVERITY) to be sent: only the crazy stuff
-RED_OUTLETS = 2             # different outlets that must report a nuclear weapon used before a red alert
-RED_COOLDOWN = 3600         # seconds between red alerts
-RED = "RED|"                # state key prefix for headlines already sent as a red alert
+RED = "RED|"                # (older versions) state key prefix for headlines sent as a red alert
+NUKE_KEY = "NUKE|"          # state: NUKE|outlet|headline -> when it was first seen
+STAGE_KEY = "STAGE|"        # state: STAGE|n -> when stage n was sent
+NUKE_WINDOW, NUKE_RESET = 6 * 3600, 24 * 3600
+# (stage, outlets needed, major news services needed, title, ntfy tags, what to do)
+STAGES = [
+    (1, 1, 0, "⚠️ NUCLEAR WARNING (unconfirmed)", "warning",
+     "One outlet reports a nuclear weapon was used. NOT confirmed: often a mistake or a rumor. Wait for more sources."),
+    (2, 2, 0, "🚨 RED ALERT: nuclear weapon reported used", "rotating_light",
+     "More than one outlet now reports it. Still unconfirmed by the big news services: check a trusted source."),
+    (3, 5, 2, "🚨☢️ CONFIRMED RED ALERT: nuclear weapon used", "rotating_light,radioactive",
+     "Major news services confirm it. Follow official emergency alerts and instructions where you are."),
+    (4, 7, 3, "⬛ BLACKOUT WARNING", "black_large_square,radioactive",
+     "Widely confirmed. Power, phone and internet outages are possible: charge your phone and devices now, keep water and "
+     "a flashlight handy, and follow official emergency alerts."),
+]
+MAJOR = ("reuters", "associated press", "ap news", "bbc", "cnn", "nbc", "cbs", "abc news", "the new york times",
+         "the washington post", "the wall street journal", "bloomberg", "al jazeera", "the guardian", "npr", "fox news",
+         "sky news", "financial times", "politico", "axios", "usa today", "los angeles times", "france 24", "dw")
 
 # How bad a headline is: the points of every pattern it contains, added up. Patterns match the start of a word.
 SEVERITY = {
@@ -75,7 +98,15 @@ NOT_HAPPENED = _rx("threat*,warn*,fear*,risk,risks,could,would,might,may,if,poss
                    "no sign,no evidence,deni*,false,fake,hoax,rumor*,rumour*,not,won't,anniversar*,years ago,"
                    "hiroshima,nagasaki,1945,film,movie,oppenheimer,game,games,documentar*,book,museum,plant,plants,"
                    "reactor*,power,energy,facilit*,site,sites,program,programs,programme,enrich*,scenario*,"
-                   "what happens,how to,explainer,opinion,analysis")
+                   "what happens,how to,explainer,opinion,analysis,"
+                   # speculation, claims and the future (the Nov 2026 false alarm: "Trump to launch nuclear strike...",
+                   # "considering a nuclear strike", "pushing toward", "...soon? US commentator makes big claim")
+                   "claim*,commentator*,pressur*,push*,urg*,consider*,mull*,weigh*,decid*,decision*,deadline*,soon,"
+                   "toward,towards,will,set to,ready to,about to,to launch,to nuke,to strike,to hit,to drop,to use,"
+                   "to fire,to attack,to bomb,to be hit,speculat*,alleg*,react*,video,tucker,warned,warns,vows,vow,"
+                   "calls for,demand*,suggest*,hint*,bombshell,"
+                   # fake or mistaken alerts ("...receive imminent nuclear strike alerts after hackers hit civil defence apps")
+                   "imminent,alert,alerts,hack*,app,apps,phishing,scam*,glitch*,mistak*,accident*,error,errors,drill*,false alarm")
 # Advice and opinion columns that Google files under news sections: not news.
 NOT_NEWS = ("column |", "opinion |", "asking eric", "dear abby", "ask amy", "carolyn hax", "miss manners", "dear annie",
             "hints from heloise", "horoscope")
@@ -118,7 +149,7 @@ def severity(title: str) -> int:
 def nuclear_used(title: str) -> bool:
     """True if the headline says a nuclear weapon was actually used (not threatened, feared, tested or discussed)."""
     t = title.lower()
-    return bool(NUKE.search(t) and HAPPENED.search(t) and not NOT_HAPPENED.search(t)) and not t.rstrip().endswith("?")
+    return bool(NUKE.search(t) and HAPPENED.search(t) and not NOT_HAPPENED.search(t)) and "?" not in t
 
 
 def _fresh(feeds: dict[str, list[dict]], now: float) -> list[dict]:
@@ -139,16 +170,34 @@ def pick(feeds: dict[str, list[dict]], sent: list[str], most: int, now: float | 
     return chosen
 
 
-def red_alert(feeds: dict[str, list[dict]], already: list[str], now: float | None = None) -> list[dict]:
-    """New headlines saying a nuclear weapon was used, if at least RED_OUTLETS different outlets say so; else []."""
+def is_major(outlet: str) -> bool:
+    o = outlet.lower()
+    return any(o == m or o.startswith(m + " ") or o.startswith("the " + m) for m in MAJOR)
+
+
+def nuke_alert(feeds: dict[str, list[dict]], state: dict, now: float | None = None) -> tuple[tuple, list[dict]] | None:
+    """Record new reports of a nuclear weapon used; return (stage, reports) if a NEW, higher stage is reached."""
     now = now or time.time()
-    hits = [i for i in _fresh(feeds, now) if nuclear_used(i["title"]) and i["title"] not in already]
-    unique: list[dict] = []
-    for i in hits:
-        if not any(u["title"] == i["title"] and u["outlet"] == i["outlet"] for u in unique):
-            unique.append(i)
-    outlets = {(i["outlet"] or i["title"]).lower() for i in unique}
-    return unique if len(outlets) >= RED_OUTLETS else []
+    if not any(k.startswith(NUKE_KEY) and now - ts <= NUKE_RESET for k, ts in state.items()):
+        for k in [k for k in state if k.startswith(STAGE_KEY)]:
+            state.pop(k)                                       # a quiet day: start again from no stage
+    for i in _fresh(feeds, now):
+        key = f"{NUKE_KEY}{(i['outlet'] or '?').replace('|', '/')}|{i['title']}"
+        if nuclear_used(i["title"]) and now - state.get(key, 0) > NUKE_RESET:
+            state[key] = now
+    reports = [{"outlet": k.split("|", 2)[1], "title": k.split("|", 2)[2], "t": ts}
+               for k, ts in state.items() if k.startswith(NUKE_KEY) and now - ts <= NUKE_WINDOW]
+    outlets = {r["outlet"].lower() for r in reports}
+    major = {o for o in outlets if is_major(o)}
+    reached = [st for st in STAGES if len(outlets) >= st[1] and len(major) >= st[2]]
+    if not reached:
+        return None
+    top = reached[-1]
+    if f"{STAGE_KEY}{top[0]}" in state:
+        return None
+    for st in reached:
+        state.setdefault(f"{STAGE_KEY}{st[0]}", now)            # lower stages count as sent too
+    return top, sorted(reports, key=lambda r: (not is_major(r["outlet"]), -r["t"]))
 
 
 def message(chosen: list[dict]) -> tuple[str, str]:
@@ -157,10 +206,16 @@ def message(chosen: list[dict]) -> tuple[str, str]:
     return title, "\n".join(lines)
 
 
-def red_message(hits: list[dict]) -> tuple[str, str]:
-    title = "RED ALERT: nuclear weapon reported used"
-    lines = [f"• {h['title']}" + (f" ({h['outlet']})" if h["outlet"] else "") for h in hits[:6]]
-    lines.append(f"Reported by {len({h['outlet'] for h in hits})} outlets. Check a trusted news source now.")
+def nuke_message(stage: tuple, reports: list[dict]) -> tuple[str, str]:
+    _, _, _, title, _, todo = stage
+    outlets = {r["outlet"].lower() for r in reports}
+    major = sorted({r["outlet"] for r in reports if is_major(r["outlet"])})
+    lines = [todo, f"Reported by {len(outlets)} outlets" + (f", including {', '.join(major[:4])}" if major else "") + ":"]
+    seen = set()
+    for r in reports:
+        if r["outlet"].lower() not in seen and len(seen) < 6:
+            seen.add(r["outlet"].lower())
+            lines.append(f"• {r['title']} ({r['outlet']})")
     return title, "\n".join(lines)
 
 
@@ -180,17 +235,16 @@ def run(target: str | None, state_path: str = "news_headlines_state.json", most:
         except Exception as e:
             log.warning("news feed %s failed: %s", section, e)
     now = time.time()
-    red_sent = [t[len(RED):] for t in state if t.startswith(RED)]
-    last_red = max((ts for t, ts in state.items() if t.startswith(RED)), default=0)
-    hits = red_alert(feeds, red_sent, now) if now - last_red >= RED_COOLDOWN else []
-    if hits:
-        title, msg = red_message(hits)
-        log.warning("RED ALERT %s | %s", title, msg.replace("\n", " | "))
+    alert = nuke_alert(feeds, state, now)
+    if alert:
+        stage, reports = alert
+        title, msg = nuke_message(stage, reports)
+        log.warning("NUCLEAR STAGE %s %s | %s", stage[0], title, msg.replace("\n", " | "))
         if target:
-            notify(target, title, msg, buy=False, tag="rotating_light", priority="urgent")
-        for h in hits:
-            state[RED + h["title"]] = now
-    chosen = pick(feeds, [t[len(RED):] if t.startswith(RED) else t for t in state], most)
+            notify(target, title, msg, buy=False, tag=stage[4], priority="high" if stage[0] == 1 else "urgent")
+    sent = [t.split("|", 2)[2] if t.startswith(NUKE_KEY) else t[len(RED):] if t.startswith(RED) else t
+            for t in state if not t.startswith(STAGE_KEY)]
+    chosen = pick(feeds, sent, most)
     if chosen:
         title, msg = message(chosen)
         log.warning("NEWS %s | %s", title, msg.replace("\n", " | "))
