@@ -479,7 +479,7 @@ def test_alerts_runs_every_saved_list_with_its_own_strategy(tmp_path, monkeypatc
         f"notify: ntfy:x\nlists:\n  - {{name: Main, config: {tmp_path}/t.yaml, watchlist: {tmp_path}/w1.txt}}\n"
         f"  - {{name: Memes, config: {tmp_path}/m.yaml, watchlist: {tmp_path}/w2.txt, stake: 30}}\n")
     seen = []
-    monkeypatch.setattr(sg, "check", lambda cfg, markets, state, topic, stake, practice=False, account=None: seen.append((cfg.strategy, markets, stake)) or [])
+    monkeypatch.setattr(sg, "check", lambda cfg, markets, state, topic, stake, practice=False, account=None, quiet=False: seen.append((cfg.strategy, markets, stake)) or [])
     monkeypatch.chdir(tmp_path)
     sg.run_alerts(str(tmp_path / "alerts.yaml"), once=True)
     assert seen == [("trend", ["AAA"], None), ("breakout", ["BBB"], 30)]
@@ -805,3 +805,90 @@ def test_red_alert_needs_two_outlets_is_urgent_and_waits_an_hour(tmp_path, monke
     serve["world"] = _rss("Second nuclear bomb dropped on Odesa", outlet="BBC")
     headlines.run("ntfy:x", state)
     assert not any(t.startswith("RED ALERT") for t, _ in sent)               # within the hour: no second red alert
+
+
+def _frame5(closes):
+    df = frame(closes)
+    df.index = pd.date_range("2026-01-05", periods=len(df), freq="5min", tz="UTC")
+    return df
+
+
+def test_rsi_scalp_sells_at_rsi_take_profit_or_stop():
+    lead = [100.0, 100.3] * 15 + [99.0, 97.0]                 # wiggles, then a sharp dip (bought at 97)
+
+    def entry(params, after):
+        sig = build_strategy("rsi_scalp", params).signals(_frame5(lead + after))
+        i = int(np.argmax(sig.to_numpy() == 1))
+        return sig, i, (lead + after)[i]
+
+    tp = {"period": 7, "low": 30, "high": 99, "tp": 0.02, "sl": 0.0}
+    sig, i, px = entry(tp, [])
+    assert i == len(lead) - 1 and px == 97.0
+    sig, _, _ = entry(tp, [px * 1.01, px * 1.025])
+    assert sig.iloc[-2] == 1 and sig.iloc[-1] == 0             # sold once it was up 2%+
+    sl = {"period": 7, "low": 30, "high": 99, "tp": 0.0, "sl": 0.015}
+    sig, i, px = entry(sl, [])
+    sig, _, _ = entry(sl, [px * 0.98])
+    assert sig.iloc[-1] == 0                                   # stop loss: down 1.5%+ from the buy
+    sig, _, _ = entry({"period": 7, "low": 30, "high": 60}, list(np.linspace(97, 101, 8)))
+    assert sig.iloc[-1] == 0                                   # RSI back above 60
+
+
+def test_scalp_replay_charges_fees_and_closes_before_a_market_break():
+    from bot import scalp_learn as sl
+    p = {"period": 7, "low": 30, "high": 60, "tp": 0, "sl": 0}
+    closes = [100.0, 100.3] * 15 + [99.0, 97.0, 94.0, 92.0] + list(np.linspace(92, 100, 8))
+    trades = sl.replay(_frame5(closes), p, "5m", 0.006)
+    no_fee = sl.replay(_frame5(closes), p, "5m", 0.0)
+    assert len(trades) == 1 and no_fee[0][1] > 0
+    assert abs((1 + trades[0][1]) - (1 + no_fee[0][1]) * 0.994 ** 2) < 1e-9   # fee on the buy and the sell
+    df = _frame5([100.0, 100.3] * 15 + [99.0, 97.0, 94.0, 92.0] + [92.0] * 10)
+    df.index = df.index[:34].append(df.index[34:] + pd.Timedelta(hours=17))   # overnight gap after the dip
+    held = sl.replay(df, {**p, "high": 99}, "5m", 0.0)
+    assert len(held) == 1 and held[0][0] < df.index[34]        # closed before the break, not held overnight
+
+
+def test_scalp_learning_picks_settings_that_trade_often_enough(monkeypatch, tmp_path):
+    from bot import scalp_learn as sl
+    from bot.config import Config
+    monkeypatch.setattr(sl, "GRID", {"period": [7], "low": [10, 35], "high": [55], "tp": [0.0], "sl": [0.0]})
+    rng = np.random.default_rng(3)
+    hist = {f"m{i}": _frame5(100 * np.exp(np.cumsum(rng.normal(0, 0.004, 7 * 288)))) for i in range(4)}
+    slow = {"period": 7, "low": 10, "high": 55, "tp": 0.0, "sl": 0.0}
+    r = sl.tune(list(hist), slow, "5m", 0.006, min_per_hour=1, hist=hist)
+    assert r["params"]["low"] == 35 and r["changed"] and "times an hour" in r["reason"]
+    assert "CHANGED to" in sl.learned_text(r)
+    # maybe_learn saves it and uses it until it's time to learn again
+    monkeypatch.setattr(sl, "tune", lambda *a, **k: {**r, "learned_at": 1e9})
+    cfg = Config(strategy="rsi_scalp", timeframe="5m", strategy_params=slow)
+    opts = {"file": str(tmp_path / "learned.json"), "every_hours": 3, "min_trades_per_hour": 1}
+    params, just = sl.maybe_learn(cfg, list(hist), opts, 0.006, now=1e9)
+    assert params["low"] == 35 and just
+    params, just = sl.maybe_learn(cfg, list(hist), opts, 0.006, now=1e9 + 3600)
+    assert params["low"] == 35 and just is None                  # not due yet: keeps what it learned
+
+
+def test_scalp_practice_is_quiet_per_trade_and_reports_hourly(tmp_path, monkeypatch):
+    import bot.signals as sg
+    from bot.config import Config
+    sent = []
+    monkeypatch.setattr(sg, "notify", lambda target, title, msg, buy, tag=None, priority=None: sent.append((title, msg, tag)))
+    cfg = Config(strategy="rsi_scalp", timeframe="5m", strategy_params={"period": 7, "low": 30, "high": 60})
+    acct = sg.PracticeAccount(str(tmp_path / "acct.json"), cash=8000, per_trade=800, fee=0.006)
+    today = pd.Timestamp.now(tz="UTC").floor("5min")
+    base = list(np.linspace(100, 101, 30))
+    for closes in (base, base + list(np.linspace(100, 90, 12)), base + list(np.linspace(100, 90, 12)) + list(np.linspace(90, 99, 8))):
+        df = _frame5(closes)
+        df.index = pd.date_range(end=today, periods=len(df), freq="5min")
+        monkeypatch.setattr(sg, "fetch_candles", lambda m, tf, df=df: df)
+        sg.check(cfg, ["SOL-USD"], str(tmp_path / "s.json"), topic="t", practice=True, account=acct, quiet=True)
+    assert not sent and [e["action"] for e in acct.events] == ["BUY", "SELL"]
+    assert sg.send_report(acct, 60, "t", "my rule", None, 800, now=1e10) is None   # first time: just starts the clock
+    acct.reported_at = acct.events[0]["t"] - 1
+    title, msg = sg.send_report(acct, 60, "t", "my rule", None, 800, now=acct.events[0]["t"] + 3600)
+    assert title.startswith("Scalp report") and "BUY SOL-USD $800" in msg and "SELL SOL-USD" in msg
+    assert "Rule now: my rule" in msg and sent[-1][2] == "bar_chart"
+    acct.save()
+    again = sg.PracticeAccount(str(tmp_path / "acct.json"))
+    assert len(again.events) == 2 and again.reported_at == acct.reported_at
+    assert sg.send_report(again, 60, "t", "my rule", None, 800, now=again.reported_at + 7200) is None   # nothing new

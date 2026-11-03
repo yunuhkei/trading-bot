@@ -1,5 +1,6 @@
-# Scalping PRACTICE alerts (alerts.scalp.yaml): one long job that checks every 5 minutes for almost 6 hours,
-# then the next one takes over, so checks run all day. Free on public repositories.
+# Scalping PRACTICE bot (alerts.scalp.yaml): one long job that checks every 5 minutes for almost 6 hours, then the
+# next one takes over, so checks run all day. It re-learns its settings every 3 hours and sends an hourly report.
+# Free on public repositories.
 name: scalp
 on:
   schedule:
@@ -19,13 +20,14 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      # Remember signals and the practice score between jobs.
+      # Remember signals, the practice account and what it learned between jobs.
       - uses: actions/cache/restore@v4
         with:
           path: |
             signals_state_scalping*.json
             signals_state_young*.json
             practice_account_scalp*.json
+            scalp_learned.json
           key: scalp-state-${{ github.run_id }}
           restore-keys: scalp-state-
       - name: Check every 5 minutes
@@ -42,4 +44,5 @@ jobs:
             signals_state_scalping*.json
             signals_state_young*.json
             practice_account_scalp*.json
+            scalp_learned.json
           key: scalp-state-${{ github.run_id }}

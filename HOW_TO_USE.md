@@ -158,20 +158,31 @@ python -m bot launches news --hours 2              # in a second terminal: flag 
 python -m bot launches report                      # results, incl. news-matched vs everything else
 ```
 
-## Scalping practice alerts (all day)
+## Scalping practice bot (all day, self-tuning)
 
-The **scalp** workflow on GitHub checks 20 coins and stocks every 5 minutes, all day, with the best day-trading rule
-(RSI dip buying on 15-minute charts). Expect about 6 alerts a day. Every alert says **PRACTICE**: in testing this rule
-lost about 31% a year at Coinbase/Fomo fees, so don't use real money with it. Each SELL alert shows a running
-**practice score** after fees, so you can see whether it would have made money. Settings: `alerts.scalp.yaml`,
-markets: `watchlist.scalp.txt`. On your computer: `python -m bot alerts --settings alerts.scalp.yaml`.
+The **scalp** workflow on GitHub runs a fake-money scalper on 20 coins and stocks: it checks every 5 minutes, all day,
+buying RSI dips on **5-minute** charts and aiming for a trade about every 10-15 minutes across the list. Its rule
+(`config.scalp.yaml`) can also sell at a take profit or a stop loss.
+
+**It learns:** every 3 hours it replays the last week of prices with 72 different settings (how deep a dip to buy,
+when to sell, take profit, stop loss), scores each after the 0.6% fee on every buy and sell, and switches to a new one
+only if it also did better on the newest 2 days it never studied. It only picks settings that trade at least 4 times
+an hour (`min_trades_per_hour` in `alerts.scalp.yaml`), so it keeps scalping instead of learning to sit still.
+
+**Report:** instead of a ping for every trade, your phone gets a **Scalp report** every hour it did something: each
+buy and sell with its result, the account, what it's holding, the rule it's using, and anything it just learned.
+
+**Warning:** in testing (last week, 20 markets) every setting lost about 1.2% per trade after fees, because 5-minute
+moves are usually smaller than the fees. At $800 a trade and ~4 trades an hour, expect the $8,000 practice account
+to shrink fast. Practice only: don't copy it with real money. Settings: `alerts.scalp.yaml`, markets:
+`watchlist.scalp.txt`. On your computer: `python -m bot alerts --settings alerts.scalp.yaml`.
 
 ## Practice auto-trading (fake money)
 
 Two fake-money accounts trade **by themselves** on every new BUY and SELL alert, at live prices, after
 0.6% fees: one for your main lists (`alerts.yaml`, $80 to start, $10 per buy) and one for scalping
 (`alerts.scalp.yaml`, $8,000 to start, $800 per buy).
-Each alert then ends with a line like *"Practice account: bought $10 by itself. Account $80.00 ..."*. Change the
+Each alert (or, for scalping, the hourly report) shows the account, like *"Account $80.00 ..."*. Change the
 amounts under `practice_trading:` in those files. Real-money auto-trading (Coinbase only; Fomo has no bot access)
 is a later step, once the practice accounts show it's worth it.
 

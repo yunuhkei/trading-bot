@@ -163,6 +163,12 @@ def explain(cfg: Config, df: pd.DataFrame, stance: str) -> str:
         if stance == "IN":
             return f"RSI {r:.0f}: SELL when it rises above {p.get('high', 55)}" + (" or at the end of the day" if cfg.day_trade else "")
         return f"RSI {r:.0f}: BUY when it drops below {p.get('low', 30)}"
+    if cfg.strategy == "rsi_scalp":
+        r = rsi(close, p.get("period", 7)).iloc[-1]
+        if stance == "IN":
+            extra = "".join(f" or {w} {p[k]:.1%}" for k, w in (("tp", "up"), ("sl", "down")) if p.get(k))
+            return f"RSI {r:.0f}: SELL when it rises above {p.get('high', 60):g}{extra}"
+        return f"RSI {r:.0f}: BUY when it drops below {p.get('low', 30):g}"
     if cfg.strategy == "bollinger":
         mid, lower = bollinger_levels(cfg, df)
         if stance == "IN":
@@ -180,6 +186,7 @@ def bollinger_levels(cfg: Config, df: pd.DataFrame) -> tuple[float, float]:
 
 
 RULE_NAMES = {"trend": "200-day trend filter", "breakout": "20-day breakout", "rsi_revert": "RSI dip buying",
+              "rsi_scalp": "RSI dip scalping (self-tuning)",
               "bollinger": "dip bounce (5-minute chart)"}
 
 
@@ -237,7 +244,7 @@ def notify(target: str, title: str, message: str, buy: bool, tag: str | None = N
     Returns True if it was delivered; logs the reason if not.
     """
     kind, _, rest = target.partition(":") if target.split(":", 1)[0] in ("ntfy", "discord", "telegram") else ("ntfy", "", target)
-    icon = {"newspaper": "📰", "rotating_light": "🚨"}.get(tag, "🟢" if buy else "🔴")
+    icon = {"newspaper": "📰", "rotating_light": "🚨", "bar_chart": "📊"}.get(tag, "🟢" if buy else "🔴")
     try:
         if kind == "ntfy":
             r = requests.post(f"https://ntfy.sh/{rest}", data=message.encode(), timeout=20,
@@ -280,10 +287,13 @@ class PracticeAccount:
         self.cash = saved.get("cash", cash)
         self.positions = saved.get("positions", {})  # market -> {"qty", "cost", "price"}
         self.closed = saved.get("closed", [])        # % result of each finished trade, after fees
+        self.events = saved.get("events", [])        # every buy and sell, for the report
+        self.reported_at = saved.get("reported_at")  # when the last report was sent
 
     def save(self):
         Path(self.path).write_text(json.dumps({"start": self.start, "cash": self.cash, "positions": self.positions,
-                                               "closed": self.closed[-500:]}, indent=2))
+                                               "closed": self.closed[-500:], "events": self.events[-500:],
+                                               "reported_at": self.reported_at}, indent=2))
 
     def value(self) -> float:
         return self.cash + sum(p["qty"] * p["price"] for p in self.positions.values())
@@ -299,6 +309,7 @@ class PracticeAccount:
             return f"Practice account: skipped, only ${self.cash:,.2f} cash left (needs ${self.per_trade:,.0f})."
         self.cash -= self.per_trade
         self.positions[market] = {"qty": self.per_trade * (1 - self.fee) / price, "cost": self.per_trade, "price": price}
+        self.events.append({"t": time.time(), "action": "BUY", "market": market, "price": price})
         return f"Practice account: bought ${self.per_trade:,.0f} by itself. " + self.summary()
 
     def sell(self, market: str, price: float) -> str:
@@ -308,6 +319,8 @@ class PracticeAccount:
         got = pos["qty"] * price * (1 - self.fee)
         self.cash += got
         self.closed.append(got / pos["cost"] - 1)
+        self.events.append({"t": time.time(), "action": "SELL", "market": market, "price": price,
+                            "result": got / pos["cost"] - 1, "profit": got - pos["cost"]})
         return f"Practice account: sold by itself for ${got:,.2f} ({got / pos['cost'] - 1:+.1%} after fees). " + self.summary()
 
     def summary(self) -> str:
@@ -317,7 +330,9 @@ class PracticeAccount:
 
 
 def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json", topic: str | None = None,
-          stake: float | None = None, practice: bool = False, account: PracticeAccount | None = None) -> list[dict]:
+          stake: float | None = None, practice: bool = False, account: PracticeAccount | None = None,
+          quiet: bool = False) -> list[dict]:
+    """Check each market and alert on signal changes. `quiet`: don't ping the phone for each trade (a report does)."""
     state = json.loads(Path(state_path).read_text()) if Path(state_path).exists() else {}
     strategy = build_strategy(cfg.strategy, cfg.strategy_params)
     rows = []
@@ -339,6 +354,8 @@ def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json
         stance = {1: "IN", 0: "OUT", -1: "SHORT"}[now]
         key = f"{cfg.strategy}:{cfg.timeframe}:{market}"
         prev = state.get(key)
+        if prev is None and account and market in account.positions and stance != "IN":
+            account.sell(market, float(df.close.iloc[-1]))   # bought under an older rule: close it so it isn't stuck
         row = {"market": market, "price": float(df.close.iloc[-1]), "stance": stance, "since": since, "note": explain(cfg, df, stance),
                "changed": prev is not None and prev != stance}
         if row["changed"]:
@@ -363,7 +380,7 @@ def check(cfg: Config, markets: list[str], state_path: str = "signals_state.json
                 if note:
                     msg += "\n" + note
             log.warning("ALERT %s: %s", title, msg)
-            if topic:
+            if topic and not quiet:
                 notify(topic, title, msg, buy=stance == "IN")
         state[key] = stance
         if account:
@@ -411,6 +428,28 @@ def read_watchlist(path: str) -> list[str]:
     return [l.split("#", 1)[0].strip() for l in _P(path).read_text().splitlines() if l.split("#", 1)[0].strip()]
 
 
+def send_report(account: PracticeAccount, every_minutes: float, target: str | None, rule: str | None,
+                learned_file: str | None, stake: float, now: float | None = None) -> tuple[str, str] | None:
+    """Every `every_minutes`: send what the practice bot did since the last report (skipped if it did nothing)."""
+    from . import scalp_learn
+
+    now = now or time.time()
+    if account.reported_at is None:
+        account.reported_at = now
+        return None
+    if now - account.reported_at < every_minutes * 60:
+        return None
+    learned = scalp_learn.load(learned_file) if learned_file else {}
+    fresh = learned if learned.get("learned_at", 0) >= account.reported_at else None
+    rep = scalp_learn.report(account, account.reported_at, fresh, rule, stake)
+    account.reported_at = now
+    if rep:
+        log.warning("REPORT %s: %s", *rep)
+        if target:
+            notify(target, rep[0], rep[1], buy=True, tag="bar_chart")
+    return rep
+
+
 def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_override: str | None = None,
                minutes: float | None = None):
     """Check every list in alerts.yaml (each with its own strategy and watchlist) and alert on changes.
@@ -423,17 +462,30 @@ def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_ov
     every = float(settings.get("every_minutes", 60))
     stop_at = time.time() + minutes * 60 if minutes else None
     pt = settings.get("practice_trading") or {}
+    report_every = float(settings.get("report_every_minutes", 0))
     while True:
         print(time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()), flush=True)
         account = PracticeAccount(pt.get("file", "practice_account.json"), float(pt.get("cash", 80)),
                                   float(pt.get("per_trade", 10))) if pt.get("enabled") else None
+        rule, learned_file, stake = None, None, None
         for lst in settings["lists"]:
             cfg = learn.apply(Config.load(lst["config"]))
+            markets = read_watchlist(lst["watchlist"])
+            if lst.get("learn"):
+                from . import scalp_learn
+                cfg.strategy_params, just = scalp_learn.maybe_learn(cfg, markets, lst["learn"], PRACTICE_FEE)
+                if just:
+                    print("\n" + scalp_learn.learned_text(just), flush=True)
+                rule = scalp_learn.settings_text(cfg.strategy_params)
+                learned_file, stake = lst["learn"].get("file", "scalp_learned.json"), lst.get("stake")
             slug = re.sub(r"[^a-z0-9]+", "_", lst["name"].lower()).strip("_")
-            rows = check(cfg, read_watchlist(lst["watchlist"]), f"signals_state_{slug}.json", target, lst.get("stake"),
-                         bool(lst.get("practice")), account if lst.get("practice_account", True) else None)
+            rows = check(cfg, markets, f"signals_state_{slug}.json", target, lst.get("stake"),
+                         bool(lst.get("practice")), account if lst.get("practice_account", True) else None,
+                         quiet=not lst.get("alert_each_trade", True))
             print(f"\n== {lst['name']} ==")
             print(table(rows), flush=True)
+        if account and report_every:
+            send_report(account, report_every, target, rule, learned_file, stake or account.per_trade)
         if account:
             account.save()
             print("\n== Practice auto-trading (fake money) ==\n" + account.summary(), flush=True)

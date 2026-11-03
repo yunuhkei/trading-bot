@@ -1,0 +1,30 @@
+# The scalp PRACTICE bot's rule (alerts.scalp.yaml): RSI dip scalping on 5-minute candles, long only, fake money.
+# Buy when the RSI dips below `low`; sell when it's back above `high`, or up `tp` (take profit), or down `sl` (stop).
+# These are only the starting settings: every 3 hours the bot re-studies the last week and adjusts them itself
+# (bot/scalp_learn.py, saved in scalp_learned.json). In testing it LOST about 1.2% per trade at 0.6% app fees:
+# 5-minute moves are usually smaller than the fees. Practice only.
+exchange: coinbase
+symbol: BTC/USD
+market_type: spot
+timeframe: 5m
+strategy: rsi_scalp
+strategy_params:
+  period: 7
+  low: 35
+  high: 55
+  tp: 0.0
+  sl: 0.015
+allow_short: false
+day_trade: true           # stocks: never hold overnight
+starting_cash: 10000
+fee_pct: 0.006
+slippage_pct: 0.0002
+risk:
+  position_pct: 0.95
+  stop_loss_pct: 0.0
+  take_profit_pct: 0.0
+  max_drawdown_pct: 0.0
+mode: paper
+poll_seconds: 60
+state_file: state.json
+trade_log: trades.csv

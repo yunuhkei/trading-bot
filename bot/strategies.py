@@ -84,6 +84,34 @@ class RSIMeanReversion(Strategy):
         return pd.Series(out, index=df.index)
 
 
+
+class RsiScalp(Strategy):
+    """The scalp practice bot's rule (long only): buy when the RSI dips below `low`; sell when it's back above `high`,
+    or the price is up `tp` from the buy (take profit), or down `sl` (stop loss). tp/sl 0 = off.
+    Its settings are tuned every few hours by bot/scalp_learn.py."""
+
+    name = "rsi_scalp"
+
+    def __init__(self, period: int = 7, low: float = 30, high: float = 60, tp: float = 0.0, sl: float = 0.0):
+        super().__init__(period=period, low=low, high=high, tp=tp, sl=sl)
+        self.period, self.low, self.high, self.tp, self.sl = period, low, high, tp, sl
+
+    @property
+    def warmup(self) -> int:
+        return self.period * 3
+
+    def signals(self, df: pd.DataFrame) -> pd.Series:
+        r, c = rsi(df["close"], self.period).to_numpy(), df["close"].to_numpy()
+        out, pos, entry = [], 0, 0.0
+        for v, px in zip(r, c):
+            if pos == 1 and (v > self.high or (self.tp and px >= entry * (1 + self.tp))
+                             or (self.sl and px <= entry * (1 - self.sl))):
+                pos = 0
+            elif pos == 0 and v < self.low:
+                pos, entry = 1, px
+            out.append(pos)
+        return pd.Series(out, index=df.index)
+
 class Breakout(Strategy):
     """Donchian channel breakout ("turtle" style), both directions, with a trend filter.
 
@@ -346,7 +374,7 @@ class LateDayMomentum(Strategy):
         return pd.Series(out, index=df.index)
 
 
-STRATEGIES = {cls.name: cls for cls in (SMACross, RSIMeanReversion, Breakout, TrendFilter, Momentum,
+STRATEGIES = {cls.name: cls for cls in (SMACross, RSIMeanReversion, RsiScalp, Breakout, TrendFilter, Momentum,
                                         OpeningRange, VWAP, Bollinger, LateDayMomentum, Overnight)}
 
 
