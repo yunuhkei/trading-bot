@@ -1158,3 +1158,23 @@ def test_solbot_benches_a_coin_after_three_losses_in_a_row(tmp_path, monkeypatch
         sb.step(settings, tell)
     assert f"sol:{mint}" not in (tmp_path / "young.txt").read_text()
     assert any(t == "DRY RUN: Solana bot: benched COIN111" or t.startswith("DRY RUN: Solana bot: benched") for t, _ in sent)
+
+
+def test_solbot_checks_the_wallet_key_and_says_what_is_wrong_without_showing_it(tmp_path, monkeypatch):
+    from solders.keypair import Keypair
+    from bot import solbot as sb
+    kp = Keypair()
+    told, state = [], {}
+    monkeypatch.setattr(sb, "balances", lambda a: {sb.USDC: {"uiAmount": 30.0}, "SOL": {"uiAmount": 0.03}})
+    tell = lambda t, m: told.append((t, m))
+    monkeypatch.setenv("SOLANA_BOT_KEY", f"  '{str(kp)}'\n")    # quotes and spaces around it are fine
+    assert sb.check_key(state, 1e9, tell) == str(kp.pubkey())
+    assert told[-1][0] == "✅ Solana bot: wallet key works" and str(kp.pubkey()) in told[-1][1] and "Ready" in told[-1][1]
+    assert str(kp) not in told[-1][1]                           # never shows the key itself
+    for bad, says in (("abandon " * 12, "12-word recovery phrase"), (str(kp.pubkey()), "wallet's address"),
+                      ("x" * 88, "isn't a Solana private key")):
+        monkeypatch.setenv("SOLANA_BOT_KEY", bad)
+        sb.check_key(state, 2e9, tell)
+        assert told[-1][0] == "❌ Solana bot: the wallet key didn't work" and says in told[-1][1]
+    monkeypatch.delenv("SOLANA_BOT_KEY")
+    assert sb.check_key(state, 3e9, tell) is None
