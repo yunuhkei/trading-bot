@@ -294,8 +294,11 @@ $1 if they come true, and the price is the crowd's probability, so the bot only 
 by **10¢+ per contract after Kalshi's fee**:
 
 - **Weather** (daily high temperature in US cities): Kalshi settles on one official weather station per city. The bot
-  reads the National Weather Service forecast and that station's live readings; later in the day part of the answer is
-  already known (the high can't be lower than what was recorded), so its estimate sharpens through the day.
+  averages up to 7 forecasts (the National Weather Service plus the European, GFS, HRRR, National Blend, German and
+  Canadian models, free from Open-Meteo); the more they disagree, the less sure it is. For today it takes the high as
+  whichever is bigger: what the station already recorded (whole °F from the Iowa Environmental Mesonet, like the
+  official report) or the warmest hour the models still expect. It **learns**: every day it grades each city's forecasts
+  against the real high and corrects that city's bias and typical error.
 - **Arbitrage**: if buying YES on every bracket of a set costs less than $1 after fees (or NO on all of them less than
   n-1), it buys the whole set: it wins whatever happens.
 

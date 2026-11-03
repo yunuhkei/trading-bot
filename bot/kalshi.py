@@ -120,26 +120,26 @@ def _ncdf(x: float) -> float:
 
 
 def bracket_prob(m: dict, mu: float, sigma: float, floor_f: float | None = None) -> float:
-    """Chance the day's high (a whole °F) lands in this market's bracket, if the high ~ Normal(mu, sigma) and can't be
-    below `floor_f` (what was already recorded)."""
+    """Chance the official high (a whole °F) lands in this market's bracket. The high is modeled as max(floor, R) with
+    R ~ Normal(mu, sigma): it can't end below what was already recorded (`floor_f`), and R is what the rest of the
+    day brings."""
     st, lo, hi = m.get("strike_type"), m.get("floor_strike"), m.get("cap_strike")
-    a, b = -math.inf, math.inf
     if st == "less":
-        b = hi - 0.5                      # "70 or below" (cap 71): high < 71
+        a, b = -math.inf, hi - 0.5             # "70 or below" (cap 71): high < 71
     elif st == "greater":
-        a = lo + 0.5                      # "79 or above" (floor 78): high > 78
+        a, b = lo + 0.5, math.inf              # "79 or above" (floor 78): high > 78
     elif st == "between":
-        a, b = lo - 0.5, hi + 0.5         # "71 to 72": 71 or 72
+        a, b = lo - 0.5, hi + 0.5              # "71 to 72": 71 or 72
     else:
         return math.nan
-    z = lambda x: _ncdf((x - mu) / sigma) if math.isfinite(x) else (0.0 if x < 0 else 1.0)
-    if floor_f is not None:
-        a = max(a, floor_f)
-        base = 1 - z(floor_f)
-        if base <= 1e-9:
-            return 1.0 if a <= mu <= b else 0.0
-        return max(0.0, z(b) - z(a)) / base if b > a else 0.0
-    return max(0.0, z(b) - z(a))
+
+    def below(x: float) -> float:              # P(high <= x)
+        if not math.isfinite(x):
+            return 0.0 if x < 0 else 1.0
+        if floor_f is not None and x < floor_f:
+            return 0.0
+        return _ncdf((x - mu) / sigma)
+    return max(0.0, below(b) - below(a))
 
 
 def event_day(event_ticker: str) -> date | None:
@@ -163,11 +163,12 @@ def nws_get(url: str, params: dict | None = None) -> dict:
 
 
 def station_info(st: str, cache: dict) -> dict:
-    if st not in cache:
+    if st not in cache or "state" not in cache[st]:
         s = nws_get(f"{NWS}/stations/{st}")
         lon, lat = s["geometry"]["coordinates"]
         pt = nws_get(f"{NWS}/points/{lat:.4f},{lon:.4f}")["properties"]
-        cache[st] = {"tz": s["properties"]["timeZone"], "forecast": pt["forecast"]}
+        cache[st] = {"tz": s["properties"]["timeZone"], "forecast": pt["forecast"], "lat": lat, "lon": lon,
+                     "state": ((pt.get("relativeLocation") or {}).get("properties") or {}).get("state", "")}
     return cache[st]
 
 
@@ -180,6 +181,65 @@ def forecast_highs(info: dict) -> dict[str, int]:
     return out
 
 
+# Weather models from Open-Meteo (free, no key): European, American (GFS, HRRR, National Blend), German, Canadian.
+OPEN_METEO = "https://api.open-meteo.com/v1/forecast"
+MODELS = ["ecmwf_ifs025", "gfs_seamless", "gfs_hrrr", "ncep_nbm_conus", "icon_seamless", "gem_seamless"]
+SAFE_MODELS = ["ecmwf_ifs025", "gfs_seamless", "icon_seamless", "gem_seamless"]
+
+
+def model_forecasts(info: dict) -> dict:
+    """{"daily": {date: {model: high °F}}, "hourly": [[unix time, {model: °F}], ...]} from several weather models."""
+    import requests
+    from zoneinfo import ZoneInfo
+
+    for models in (MODELS, SAFE_MODELS):
+        r = requests.get(OPEN_METEO, params={"latitude": info["lat"], "longitude": info["lon"], "daily": "temperature_2m_max",
+                                             "hourly": "temperature_2m", "temperature_unit": "fahrenheit", "timezone": info["tz"],
+                                             "timeformat": "unixtime", "forecast_days": 3, "models": ",".join(models)}, timeout=30)
+        if r.status_code != 400:                       # 400 = a model it doesn't offer: try the safe list
+            break
+    r.raise_for_status()
+    d, tz = r.json(), ZoneInfo(info["tz"])
+
+    def by_model(block: dict, var: str) -> dict:
+        return {(k[len(var) + 1:] or "best_match") if k != var else "best_match": v for k, v in block.items() if k.startswith(var)}
+    daily = {}
+    for model, vals in by_model(d.get("daily", {}), "temperature_2m_max").items():
+        for t, v in zip(d["daily"]["time"], vals):
+            if v is not None:
+                daily.setdefault(datetime.fromtimestamp(t, tz).date().isoformat(), {})[model] = v
+    hourly = {}
+    for model, vals in by_model(d.get("hourly", {}), "temperature_2m").items():
+        for t, v in zip(d["hourly"]["time"], vals):
+            if v is not None:
+                hourly.setdefault(t, {})[model] = v
+    return {"daily": daily, "hourly": sorted([t, v] for t, v in hourly.items())}
+
+
+IEM = "https://mesonet.agron.iastate.edu/api/1"
+
+
+def iem_today_max(st: str, info: dict) -> tuple[float, str] | None:
+    """(the station's high so far today in °F, its local date) from the Iowa Environmental Mesonet: whole °F like the
+    official climate report, from every reading including the 6-hour highs."""
+    import requests
+
+    r = requests.get(f"{IEM}/currents.json", params={"station": st[1:], "network": f"{info['state']}_ASOS"}, timeout=20)
+    r.raise_for_status()
+    row = (r.json().get("data") or [{}])[0]
+    return (float(row["max_tmpf"]), str(row.get("local_date") or row.get("local_valid", ""))[:10]) if row.get("max_tmpf") is not None else None
+
+
+def iem_day_max(st: str, info: dict, day: str) -> float | None:
+    """The station's high for a finished day (to grade the forecasts)."""
+    import requests
+
+    r = requests.get(f"{IEM}/daily.json", params={"station": st[1:], "network": f"{info['state']}_ASOS", "date": day}, timeout=20)
+    r.raise_for_status()
+    row = (r.json().get("data") or [{}])[0]
+    return float(row["max_tmpf"]) if row.get("max_tmpf") is not None else None
+
+
 def climate_day(day: date, tz: str) -> tuple[datetime, datetime]:
     """The climate report's day: midnight to midnight local STANDARD time (no daylight saving), in UTC."""
     from zoneinfo import ZoneInfo
@@ -190,37 +250,74 @@ def climate_day(day: date, tz: str) -> tuple[datetime, datetime]:
 
 
 def observed_max_f(st: str, start: datetime, end: datetime) -> tuple[float, bool] | None:
-    """(highest reading so far in °F, whether readings are precise to 0.1°C) for the climate day."""
+    """(highest NWS reading so far in °F, whether readings are precise to 0.1°C) for the climate day (backup source)."""
     feats = nws_get(f"{NWS}/stations/{st}/observations", {"start": start.isoformat(), "end": min(end, datetime.now(timezone.utc)).isoformat()})
     vals = [f["properties"]["temperature"]["value"] for f in feats.get("features", [])
             if (f["properties"].get("temperature") or {}).get("value") is not None]
     return (max(vals) * 9 / 5 + 32, any(abs(v - round(v)) > 1e-6 for v in vals)) if vals else None
 
 
-def weather_view(day: date, info: dict, st: str, now: datetime, fc: dict, obs_cache: dict) -> dict | None:
-    """(mu, sigma, floor) for the day's high, or None if it can't tell."""
+PRIOR = {"d1": 2.0, "d0": 1.8}     # typical forecast error (°F) before the bot has graded any: tomorrow, this morning
+
+
+def learned(calib: dict, horizon: str) -> tuple[float, float, int]:
+    """(bias, typical error, graded days) for a station: what its forecasts got wrong before, blended with the prior
+    until there are enough graded days (5 count as much as the prior)."""
+    errs = calib.get(horizon, [])
+    n = len(errs)
+    if not n:
+        return 0.0, PRIOR[horizon], 0
+    bias = sum(errs) / n
+    rmse = math.sqrt(sum(e * e for e in errs) / n)
+    return n / (n + 5) * bias, math.sqrt((n * rmse ** 2 + 5 * PRIOR[horizon] ** 2) / (n + 5)), n
+
+
+def weather_view(day: date, info: dict, st: str, now: datetime, fc: dict, obs_cache: dict,
+                 models: dict | None = None, calib: dict | None = None) -> dict | None:
+    """(mu, sigma, floor, why) for the day's official high: max(already recorded, rest of the day), or None."""
+    from statistics import mean, pstdev
     from zoneinfo import ZoneInfo
 
     start, end = climate_day(day, info["tz"])
     if now >= end:
         return None                                   # the day is over: waiting for the official report
+    d, models, calib = day.isoformat(), models or {}, calib or {}
+    nws = fc.get(d)
+    daily = [v for v in [nws, *models.get("daily", {}).get(d, {}).values()] if v is not None]
+    if now < start:                                    # tomorrow: the forecasts are all there is
+        if not daily:
+            return None
+        bias, err, n = learned(calib, "d1")
+        avg, spread = mean(daily), pstdev(daily) if len(daily) > 1 else 0.0
+        return {"mu": avg + bias, "sigma": max(err, spread), "floor": None, "avg": avg,
+                "why": f"{len(daily)} forecast{'s' if len(daily) > 1 else ''} average {avg:.0f}°" + (f" (spread {spread:.1f}°)" if spread else "")
+                       + (f", corrected {bias:+.1f}° from {n} graded days" if n and abs(bias) >= 0.3 else "")}
+    m, precise = obs_cache.get(st) or (None, False)
+    floor = (m if precise else m - 0.9) if m is not None else None
     local = now.astimezone(ZoneInfo(info["tz"]))
-    f = fc.get(day.isoformat())
-    if now < start:                                    # tomorrow: the forecast is all there is
-        return {"mu": f, "sigma": 2.5, "floor": None, "why": f"forecast high {f}°"} if f is not None else None
-    if st not in obs_cache:
-        obs_cache[st] = observed_max_f(st, start, end)
-    m, precise = obs_cache[st] or (None, False)
-    floor = m - (0.3 if precise else 1.0) if m is not None else None   # whole-°C readings: about ±1°F
     hour = local.hour + local.minute / 60
-    if m is not None and (hour >= 17 or f is None or f <= m):
-        # Late in the day, or the forecast for the rest of the day is no warmer than what was already recorded
-        # (e.g. the high came overnight before a cold front): the high is almost surely in already.
-        return {"mu": m, "sigma": 0.8, "floor": floor, "why": f"{m:.0f}° already recorded and it shouldn't get warmer"}
-    if f is None:
+    # The rest of the day: the warmest hour each model still expects before midnight (standard time).
+    rest = {}
+    for t, temps in models.get("hourly", []):
+        if now.timestamp() <= t < end.timestamp():
+            for model, v in temps.items():
+                rest[model] = max(rest.get(model, -999), v)
+    bias, err, n = learned(calib, "d0")
+    if rest:
+        vals = list(rest.values())
+        mu, spread, src = mean(vals) + bias, pstdev(vals) if len(vals) > 1 else 0.0, f"{len(vals)} models"
+    elif daily and hour < 15:
+        mu, spread, src = mean(daily) + bias, pstdev(daily) if len(daily) > 1 else 0.0, f"{len(daily)} forecast{'s' if len(daily) > 1 else ''}"
+    elif m is not None:
+        mu, spread, src = m - 2.0, 0.0, "late in the day"   # no forecast left: it shouldn't get warmer
+    else:
         return None
-    return {"mu": f, "sigma": max(1.2, 2.5 * (17 - hour) / 12), "floor": floor,
-            "why": f"forecast high {f}°" + (f", {m:.0f}° recorded so far" if m is not None else "")}
+    left = max(0.0, 17 - hour) / 9                    # how much of the warm part of the day is left (1 = all of it)
+    sigma = max(0.8, err * left, spread)
+    why = f"{src}: warmest still to come {mu:.0f}°" if rest or (daily and hour < 15) else src
+    if m is not None:
+        why += f", {m:.0f}° already recorded"
+    return {"mu": mu, "sigma": sigma, "floor": floor, "avg": mean(daily) if daily else None, "why": why}
 
 
 def _f(x) -> float:
@@ -230,11 +327,40 @@ def _f(x) -> float:
         return 0.0
 
 
-def weather_ideas(events: list[dict], now: datetime, settings: dict, stations: dict) -> list[dict]:
+def grade_forecasts(state: dict, now: datetime, limit: int = 10):
+    """Self-learning: for finished days, compare the logged forecasts with the station's real high (IEM) and keep
+    each station's errors, so `learned` can correct its bias and how sure it is."""
+    logs, stations, done = state.setdefault("fc_log", {}), state.get("stations", {}), 0
+    for st, days in logs.items():
+        info = stations.get(st)
+        for d in list(days):
+            if done >= limit or not info:
+                return
+            _, end = climate_day(date.fromisoformat(d), info["tz"])
+            if now < end + timedelta(hours=3):
+                continue
+            try:
+                actual = iem_day_max(st, info, d)
+            except Exception as e:
+                log.warning("grading %s %s failed: %s", st, d, e)
+                continue
+            done += 1
+            if actual is not None:
+                cal = state.setdefault("calib", {}).setdefault(st, {})
+                for horizon, forecast in days[d].items():
+                    cal.setdefault(horizon, []).append(round(actual - forecast, 2))
+                    cal[horizon] = cal[horizon][-40:]
+            days.pop(d)
+
+
+def weather_ideas(events: list[dict], now: datetime, settings: dict, state: dict) -> list[dict]:
     """Trades where the bot's estimate beats the price by more than fees + min_edge."""
+    from zoneinfo import ZoneInfo
+
     min_edge, ideas, obs_cache, fc_cache = float(settings.get("min_edge", 0.10)), [], {}, {}
     max_gap = float(settings.get("max_disagree", 0.30))
     lo_p, hi_p = float(settings.get("min_price", 0.03)), float(settings.get("max_price", 0.97))
+    stations, mcache = state.setdefault("stations", {}), state.setdefault("models", {})
     for e in events:
         day, markets = event_day(e["event_ticker"]), e.get("markets") or []
         st = station_of((markets[0] if markets else {}).get("rules_primary", ""))
@@ -244,12 +370,36 @@ def weather_ideas(events: list[dict], now: datetime, settings: dict, stations: d
             info = station_info(st, stations)
             if st not in fc_cache:
                 fc_cache[st] = forecast_highs(info)
-            view = weather_view(day, info, st, now, fc_cache[st], obs_cache)
+            if now.timestamp() - mcache.get(st, {}).get("t", 0) > 3600:      # models update hourly at most
+                try:
+                    mcache[st] = {"t": now.timestamp(), "data": model_forecasts(info)}
+                except Exception as ex:
+                    log.warning("weather models for %s failed (using NWS only): %s", st, ex)
+                    old = mcache.get(st, {}).get("data") or {}
+                    mcache[st] = {"t": now.timestamp() - 3000, "data": old}          # try again in 10 minutes
+            start, end = climate_day(day, info["tz"])
+            if start <= now < end and st not in obs_cache:
+                got = None
+                try:
+                    iem = iem_today_max(st, info)
+                    local_day = now.astimezone(ZoneInfo(info["tz"])).date().isoformat()
+                    if iem and iem[1] == local_day:
+                        got = (iem[0], True)
+                except Exception as ex:
+                    log.warning("IEM for %s failed: %s", st, ex)
+                obs_cache[st] = got or observed_max_f(st, start, end)
+            view = weather_view(day, info, st, now, fc_cache[st], obs_cache, mcache.get(st, {}).get("data"),
+                                state.get("calib", {}).get(st))
         except Exception as ex:
             log.warning("weather data for %s failed: %s", st, ex)
             continue
         if not view or view["mu"] is None:
             continue
+        # Log the forecast once per horizon (tomorrow / this morning) so the day can be graded when it's over.
+        local_hour = now.astimezone(ZoneInfo(info["tz"])).hour
+        horizon = "d1" if now < start else "d0" if local_hour < 10 else None
+        if horizon and view.get("avg") is not None:
+            state.setdefault("fc_log", {}).setdefault(st, {}).setdefault(day.isoformat(), {}).setdefault(horizon, round(view["avg"], 2))
         for m in markets:
             p = bracket_prob(m, view["mu"], view["sigma"], view["floor"])
             if math.isnan(p):
@@ -377,7 +527,11 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
             state.update(day=day, trades_today=0)
         held_events = {p["event"] for p in positions.values()}
         nowdt = datetime.fromtimestamp(now, timezone.utc)
-        ideas = arb_ideas(events, settings) + weather_ideas(events, nowdt, settings, state.setdefault("stations", {}))
+        try:
+            grade_forecasts(state, nowdt)
+        except Exception as e:
+            log.warning("grading failed: %s", e)
+        ideas = arb_ideas(events, settings) + weather_ideas(events, nowdt, settings, state)
         bought = 0
         for i in ideas:
             if state["trades_today"] >= int(settings.get("max_trades_per_day", 10)) or bought >= int(settings.get("max_trades_per_check", 3)):
@@ -427,8 +581,11 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
                      f"{i['title']}. The bot thinks {i['side'].upper()} has a {i['fair']:.0%} chance ({i['why']}); "
                      f"the market says {i['price']:.0%}. Pays {money(count)} if right.")
         held = sum(p["cost"] for p in positions.values())
+        mc = state.get("models", {})
+        with_models = sum(1 for v in mc.values() if (v.get("data") or {}).get("daily"))
+        graded = sum(len(v.get("d1", [])) + len(v.get("d0", [])) for v in state.get("calib", {}).values())
         return (f"{tag}Kalshi: cash {money(state['cash'])}, {len(positions)} open ({money(held)}), {len(ideas)} ideas, "
-                f"bought {bought}.")
+                f"bought {bought}. Weather models for {with_models}/{len(mc)} cities; {graded} forecasts graded so far.")
     finally:
         state["results"] = state.get("results", [])[-500:]
         path.write_text(json.dumps(state, indent=1, default=str))

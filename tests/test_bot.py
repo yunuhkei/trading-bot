@@ -1434,18 +1434,54 @@ def test_kalshi_bracket_odds_fees_and_dates():
     assert k.bracket_prob(less, 74, 1.0, floor_f=72.0) == 0.0                     # 72°+ already recorded: "70 or below" is dead
 
 
-def test_kalshi_weather_view_knows_when_the_high_is_already_in(monkeypatch):
+def test_kalshi_weather_view_uses_what_was_recorded_the_models_and_the_rest_of_the_day():
     from datetime import date, datetime, timezone
     from bot import kalshi as k
     info = {"tz": "America/Chicago"}
-    afternoon = datetime(2026, 11, 3, 21, 0, tzinfo=timezone.utc)                  # 3 pm in Chicago
-    v = k.weather_view(date(2026, 11, 3), info, "KMDW", afternoon, {"2026-11-03": 59}, {"KMDW": (66.2, True)})
-    assert v["mu"] == 66.2 and v["sigma"] < 1 and "already recorded" in v["why"]  # high came overnight; forecast is lower
-    morning = datetime(2026, 11, 3, 14, 0, tzinfo=timezone.utc)                     # 8 am
+    b = lambda lo, hi: {"strike_type": "between", "floor_strike": lo, "cap_strike": hi}
+    # 3 pm, the high came overnight (66°) and the forecast is only 59°: the answer is basically in
+    afternoon = datetime(2026, 11, 3, 21, 0, tzinfo=timezone.utc)
+    v = k.weather_view(date(2026, 11, 3), info, "KMDW", afternoon, {"2026-11-03": 59}, {"KMDW": (66.0, True)})
+    assert k.bracket_prob(b(65, 66), v["mu"], v["sigma"], v["floor"]) > 0.95 and "66° already recorded" in v["why"]
+    # 8 am: forecast-driven, wide, can't end below what's recorded (whole-°C readings: ~1°F looser)
+    morning = datetime(2026, 11, 3, 14, 0, tzinfo=timezone.utc)
     v = k.weather_view(date(2026, 11, 3), info, "KMDW", morning, {"2026-11-03": 73}, {"KMDW": (60.0, False)})
-    assert v["mu"] == 73 and v["sigma"] > 1.5 and v["floor"] == 59.0
-    v = k.weather_view(date(2026, 11, 4), info, "KMDW", morning, {"2026-11-04": 64}, {})
-    assert v["mu"] == 64 and v["sigma"] == 2.5 and v["floor"] is None             # tomorrow: forecast only
+    assert v["mu"] == 73 and v["sigma"] > 1.5 and abs(v["floor"] - 59.1) < 1e-9
+    # the rest of the day from the models' hourly forecasts
+    hourly = [[afternoon.timestamp() + 3600, {"ecmwf_ifs025": 70.0, "gfs_seamless": 72.0}],
+              [afternoon.timestamp() - 7200, {"ecmwf_ifs025": 99.0}]]          # earlier hours don't count
+    v = k.weather_view(date(2026, 11, 3), info, "KMDW", afternoon, {}, {"KMDW": (66.0, True)}, {"hourly": hourly})
+    assert v["mu"] == 71 and "2 models" in v["why"]
+    # tomorrow: the average of every forecast, as sure as the models agree (or the usual error, if wider)
+    models = {"daily": {"2026-11-04": {"ecmwf_ifs025": 62.0, "gfs_seamless": 66.0}}}
+    v = k.weather_view(date(2026, 11, 4), info, "KMDW", morning, {"2026-11-04": 64}, {}, models)
+    assert v["mu"] == 64 and v["sigma"] == 2.0 and v["floor"] is None and "3 forecasts" in v["why"]
+    # it learned this station runs 2° cold: shifts the forecast up (blended with the prior: 10 days -> 2/3 of it)
+    v = k.weather_view(date(2026, 11, 4), info, "KMDW", morning, {"2026-11-04": 64}, {}, models, {"d1": [2.0] * 10})
+    assert abs(v["mu"] - (64 + 2 * 10 / 15)) < 1e-9 and "corrected" in v["why"]
+
+
+def test_kalshi_grades_its_forecasts_and_reads_the_models(monkeypatch):
+    from datetime import datetime, timezone
+    from bot import kalshi as k
+    state = {"stations": {"KMDW": {"tz": "America/Chicago", "state": "IL"}},
+             "fc_log": {"KMDW": {"2026-11-03": {"d1": 70.0, "d0": 72.5}, "2026-11-05": {"d1": 60.0}}}}
+    monkeypatch.setattr(k, "iem_day_max", lambda st, info, day: 73.0)
+    k.grade_forecasts(state, datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc))
+    assert state["calib"]["KMDW"] == {"d1": [3.0], "d0": [0.5]} and list(state["fc_log"]["KMDW"]) == ["2026-11-05"]
+    bias, err, n = k.learned({"d1": [3.0] * 5}, "d1")
+    assert n == 5 and bias == 1.5 and err > 2.0
+
+    class R:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self):
+            return {"daily": {"time": [1793685600], "temperature_2m_max_ecmwf_ifs025": [73.4], "temperature_2m_max_gfs_seamless": [None]},
+                    "hourly": {"time": [1793700000], "temperature_2m_ecmwf_ifs025": [71.0], "temperature_2m_gfs_seamless": [72.0]}}
+    monkeypatch.setattr("requests.get", lambda *a, **kw: R())
+    got = k.model_forecasts({"lat": 41.8, "lon": -87.8, "tz": "America/Chicago"})
+    assert got["daily"] == {"2026-11-03": {"ecmwf_ifs025": 73.4}}
+    assert got["hourly"] == [[1793700000, {"ecmwf_ifs025": 71.0, "gfs_seamless": 72.0}]]
 
 
 def test_kalshi_practice_buys_an_edge_settles_it_and_finds_arbitrage(tmp_path, monkeypatch):
