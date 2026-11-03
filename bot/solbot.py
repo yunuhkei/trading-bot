@@ -25,6 +25,7 @@ import subprocess
 import time
 from pathlib import Path
 
+import pandas as pd
 import yaml
 
 log = logging.getLogger("solbot")
@@ -33,6 +34,8 @@ USDC_DECIMALS = 6
 STOP_FILE = "solbot_stopped.json"
 MIN_TRADE = 5.0          # dollars: smaller buys are skipped
 MIN_SOL = 0.005          # the wallet needs a little SOL for network fees
+RETRY_SECONDS, RETRY_FOR = 30, 240   # the price feed can lag 1-3 minutes: re-check until the new candle shows up
+stale: list[str] = []    # coins whose just-finished candle wasn't in the feed yet at the last check
 
 
 class TradeError(Exception):
@@ -200,7 +203,7 @@ def signal(market: str, cfg) -> dict:
         if sig[i] == 1 and sig[i - 1] == 0:
             flip = str(df.index[i])
     return {"in": bool(sig[-1] == 1), "fresh_buy": flip if sig[-1] == 1 else None, "name": display_name(market),
-            "candle_price": float(df["close"].iloc[-1])}
+            "candle_price": float(df["close"].iloc[-1]), "last": df.index[-1]}
 
 
 def solana_coins(watchlist: str) -> list[tuple[str, str]]:
@@ -242,7 +245,9 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None) -> s
     from .config import Config
     from .signals import display_name, money
 
+    global stale
     now = now or time.time()
+    stale = []
     mode = settings.get("mode", "off")
     if mode not in ("dry_run", "live"):
         return "Off (mode: off in solbot.yaml)."
@@ -351,6 +356,9 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None) -> s
             except Exception as e:
                 log.warning("%s: no signal: %s", market, e)
                 continue
+            just_closed = pd.Timestamp(now - now % 300 - 300, unit="s", tz="UTC")
+            if s.get("last") is not None and s["last"] < just_closed:
+                stale.append(s["name"])
             price = float(px.get(mint, {}).get("usdPrice") or s["candle_price"])
             if mint in positions:
                 p = positions[mint]
@@ -406,12 +414,20 @@ def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every:
             if target:
                 notify(target, title, msg, buy="SOLD" not in title and "STOP" not in title)
 
-        try:
-            status = step(settings, tell)
-        except Exception as e:
-            status = f"Check failed: {e}"
-            log.warning(status)
-        print(time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()), status, flush=True)
+        first = time.time()
+        while True:
+            try:
+                status = step(settings, tell)
+            except Exception as e:
+                status = f"Check failed: {e}"
+                log.warning(status)
+            print(time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()), status
+                  + (f" (waiting for the new candle: {', '.join(stale)})" if stale else ""), flush=True)
+            # The feed often lags 1-3 minutes: re-check every 30 s until the just-finished candle is in, so a dip is
+            # never caught a whole 5 minutes late (tested on NIO: 1-2 minutes late cost nothing, 5 minutes did).
+            if not (minutes and stale and time.time() + RETRY_SECONDS - first < RETRY_FOR):
+                break
+            time.sleep(RETRY_SECONDS)
         if not minutes:
             return
         wait = every * 60 - time.time() % (every * 60) + 30          # 30 s after the next candle closes

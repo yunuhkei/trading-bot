@@ -1009,3 +1009,17 @@ def test_solbot_signs_only_its_own_slot_and_refuses_someone_elses_swap():
     assert signed.verify_with_results() == [True]
     with pytest.raises(sb.TradeError):
         sb.sign(unsigned, Keypair())
+
+
+def test_solbot_notices_when_the_price_feed_hasnt_got_the_newest_candle(tmp_path, monkeypatch):
+    import pandas as pd
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    now = 1_800_000_130.0                                       # 2:10 into a 5-minute candle
+    closed = pd.Timestamp(now - now % 300 - 300, unit="s", tz="UTC")
+    sig["last"] = closed - pd.Timedelta(minutes=5)              # the feed still ends one candle early
+    sb.step(settings, tell, now=now)
+    assert sb.stale == ["COIN"]
+    sig["last"] = closed                                        # now it has it
+    sb.step(settings, tell, now=now + 30)
+    assert sb.stale == []
