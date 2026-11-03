@@ -1326,5 +1326,13 @@ def test_practice_account_takes_every_signal_with_the_live_strategies_and_report
     sb.step(ps, tell)
     state = json.loads(Path("solbot_state_practice.json").read_text())
     assert [t["action"] for t in state["trades"]] == ["BUY", "SELL"] and state["trades"][0]["usd"] == 30.0
-    title, msg = sb.practice_report(state, state["trades"][-1]["t"] + 60)
-    assert title.startswith("📊 Practice report: 1-0") and "COIN: 1-0" in msg
+    title, msg = sb.practice_report(state, state["trades"][-1]["t"] + 60, 24, {"cash": 26.73, "trades": []})
+    assert title.startswith("📊 Daily report: practice 1-0") and "COIN: 1-0" in msg
+    assert msg.startswith("REAL bot: 0 trades") and "$26.73" in msg
+    # 3 pm in New York, once a day
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    ny = lambda h, m: datetime(2026, 11, 4, h, m, tzinfo=ZoneInfo("America/New_York")).timestamp()
+    assert sb.report_due(ny(14, 59), "15:00") is None
+    assert sb.report_due(ny(15, 0), "15:00") == "2026-11-04"
+    assert sb.report_due(ny(18, 0), "15:00", last_day="2026-11-04") is None

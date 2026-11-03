@@ -836,27 +836,49 @@ def practice_settings(settings: dict) -> dict | None:
             "max_cost": settings.get("max_cost", 0.03)}
 
 
-def practice_report(state: dict, now: float, hours: float = 24) -> tuple[str, str] | None:
-    """The daily practice report: every signal on every coin, as if there were always money for it."""
+def report_due(now: float, at: str = "15:00", tz: str = "America/New_York", last_day: str | None = None) -> str | None:
+    """The local date if the daily report is due (it's past `at` there and none was sent that day), else None."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    local = datetime.fromtimestamp(now, ZoneInfo(tz))
+    h, m = (int(x) for x in str(at).split(":"))
+    day = local.date().isoformat()
+    return day if (local.hour, local.minute) >= (h, m) and last_day != day else None
+
+
+def practice_report(state: dict, now: float, hours: float = 24, live: dict | None = None) -> tuple[str, str] | None:
+    """The daily report: the real bot's trades and money, then the practice account (every signal on every coin, as if
+    there were always money for it), with the record per coin."""
     from .signals import money
 
     sells = [t for t in state.get("trades", []) if t["action"] == "SELL" and now - t["t"] <= hours * 3600]
+    real = [t for t in (live or {}).get("trades", []) if t["action"] == "SELL" and now - t["t"] <= hours * 3600]
+    head = []
+    if live is not None:
+        positions = (live or {}).get("positions", {})
+        cash = float((live or {}).get("cash", 0))
+        held = sum(float(p.get("cost") or 0) for p in positions.values())
+        head.append(f"REAL bot: {len(real)} trades, {sum(t['result'] > 0 for t in real)}-{sum(t['result'] <= 0 for t in real)}, "
+                    f"{sum(t['usd'] * t['result'] / (1 + t['result']) for t in real):+,.2f}. "
+                    f"Account about {money(cash + held)}" + (f" (holding {', '.join(p.get('name') or '?' for p in positions.values())})"
+                                                             if positions else "") + ".")
     if not sells:
-        return None
+        return ("📊 Daily report", "\n".join(head + ["Practice: no finished trades yet."])) if head else None
     by = {}
     for t in sells:
         by.setdefault(t["what"], []).append(t["result"])
     made = sum(t["usd"] * t["result"] / (1 + t["result"]) for t in sells)
     wins = sum(t["result"] > 0 for t in sells)
-    lines = [f"Every signal on every coin, $30 each, pretend money, real prices and fees. Last {hours:.0f} h: "
-             f"{len(sells)} trades, {wins / len(sells):.0%} won, {made:+,.2f} total."]
+    lines = head + [f"PRACTICE (every signal on every coin, $30 each, pretend money, real prices and fees). Last {hours:.0f} h: "
+                    f"{len(sells)} trades, {wins / len(sells):.0%} won, {made:+,.2f} total."]
     for coin, rs in sorted(by.items(), key=lambda kv: -len(kv[1])):
         lines.append(f"• {coin}: {sum(r > 0 for r in rs)}-{sum(r <= 0 for r in rs)}, "
                      f"{sum(rs) / len(rs):+.1%} average")
     all_sells = [t for t in state.get("trades", []) if t["action"] == "SELL"]
     if len(all_sells) > len(sells):
         lines.append(f"Since it started: {len(all_sells)} trades, {sum(t['result'] > 0 for t in all_sells) / len(all_sells):.0%} won.")
-    return f"📊 Practice report: {wins}-{len(sells) - wins}, {money(made) if made >= 0 else '-' + money(-made)}", "\n".join(lines)
+    return f"📊 Daily report: practice {wins}-{len(sells) - wins}, {money(made) if made >= 0 else '-' + money(-made)}", "\n".join(lines)
 
 
 def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every: float = 5):
@@ -889,9 +911,14 @@ def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every:
                     print("   practice:", pstatus, flush=True)
                     pstate_path = Path("solbot_state_practice.json")
                     pstate = json.loads(pstate_path.read_text())
-                    if only is None and time.time() - pstate.get("reported_at", pstate.get("started", 0)) >= 86400:
-                        rep = practice_report(pstate, time.time())
-                        pstate["reported_at"] = time.time()
+                    pr = settings.get("practice") or {}
+                    day = report_due(time.time(), pr.get("report_at", "15:00"), pr.get("timezone", "America/New_York"),
+                                     pstate.get("report_day"))
+                    if only is None and day:
+                        since = pstate.get("reported_at", pstate.get("started", time.time() - 86400))
+                        live_state = json.loads(Path("solbot_state_live.json").read_text()) if Path("solbot_state_live.json").exists() else {}
+                        rep = practice_report(pstate, time.time(), (time.time() - since) / 3600, live_state)
+                        pstate.update(reported_at=time.time(), report_day=day)
                         pstate_path.write_text(json.dumps(pstate, indent=1))
                         if rep:
                             tell(*rep)
