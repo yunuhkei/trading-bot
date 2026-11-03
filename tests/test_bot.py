@@ -1606,3 +1606,33 @@ def test_kalshi_backtest_bias_correction_only_uses_earlier_days_and_seeds_city_p
     bias, err, n = k.learned({}, "d1", "KMDW")
     assert (bias, err, n) == (2.0, 2.0, 10)                        # the live bot starts from the backtest's measurement
     assert k.learned({}, "d1", "KDEN") == (0.0, k.PRIOR["d1"], 0)  # unknown city: the default
+
+
+def test_kalshi_sameday_learns_where_the_official_high_ends_and_trades_it():
+    from datetime import date, timedelta
+    from bot import kalshi_sameday as sd
+    data = {"readings": {"KXXX": {}}, "days": {}}
+    for i in range(40):                                   # 40 days: readings top out at 80 by 3 pm, official is 81
+        day = (date(2026, 10, 1) + timedelta(days=i)).isoformat()
+        start = 1790000000 + i * 86400
+        obs = [[start + h * 3600, 60.0 + 4 * h if h <= 5 else 80.0 - (h - 15) * 1.5 if h >= 15 else 80.0, "ob"]
+               for h in range(0, 24)]
+        data["readings"]["KXXX"][day] = obs
+        markets = [{"ticker": f"E{i}-B79.5", "strike_type": "between", "floor_strike": 79, "cap_strike": 80, "result": "no", "value": "81.00"},
+                   {"ticker": f"E{i}-B81.5", "strike_type": "between", "floor_strike": 81, "cap_strike": 82, "result": "yes", "value": "81.00"}]
+        candles = {f"E{i}-B79.5": [[start + h * 3600, 0.60, 0.58] for h in range(24)],      # the market thinks 80 is it
+                   f"E{i}-B81.5": [[start + h * 3600, 0.35, 0.33] for h in range(24)]}
+        data["days"][f"E{i}"] = {"station": "KXXX", "day": day, "tz": "UTC", "start": start, "end": start + 86400,
+                                 "markets": markets, "candles": candles}
+    snaps = sd.snapshots(data)
+    late = [s for s in snaps if s["hour"] == 17]
+    assert len(late) == 40 and late[0]["floor"] == 80 and late[0]["drop"] == 3.0 and late[0]["official"] == 81
+    model = sd.fit(snaps)
+    m = data["days"]["E0"]["markets"][1]
+    assert sd.chance(model, 17, 3.0, 80.0, m) > 0.9                    # learned: it ends 1° above what's recorded
+    assert sd.chance(model, 17, 3.0, 80.0, m, min_n=50) is None        # not enough days for this hour: no opinion
+    o = sd.simulate(snaps)
+    assert o["trades"] >= 40 and o["profit"] > 0
+    bought = {(t["ticker"].split("-")[1], t["side"]) for t in o["list"]}
+    assert bought == {("B81.5", "yes"), ("B79.5", "no")}               # buys the real bracket and fades the market's pick
+    assert "same-day backtest" in sd.report(data)
