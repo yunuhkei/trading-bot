@@ -34,7 +34,7 @@ SECTIONS = {
     "War": f"{GOOGLE}/search?q=nuclear%20OR%20missile%20OR%20war%20OR%20invasion%20when:1d&{REGION}",
 }
 FRESH_HOURS, REMEMBER_DAYS, SAME_STORY = 6, 3, 0.5
-WORST = 3                   # a headline must score at least this (see SEVERITY) to be sent
+WORST = 4                   # a headline must score at least this (see SEVERITY) to be sent: only the crazy stuff
 RED_OUTLETS = 2             # different outlets that must report a nuclear weapon used before a red alert
 RED_COOLDOWN = 3600         # seconds between red alerts
 RED = "RED|"                # state key prefix for headlines already sent as a red alert

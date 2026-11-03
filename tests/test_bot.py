@@ -745,7 +745,7 @@ def test_news_digest_sends_only_the_worst_headlines_worst_first():
     from bot import headlines
     now = 1_800_000_000.0
     feeds = {"Top": headlines.parse(_rss("Storm hits Florida coast overnight", "Senate passes budget bill",
-                                         "Earthquake kills dozens in Turkey")),
+                                         "Earthquake kills dozens in Turkey", "Stocks plunge as recession fears grow")),
              "World": headlines.parse(_rss("Russia launches missile attack on Kyiv, 12 killed")),
              "Tech": headlines.parse(_rss("Column | Missile attack on my ladder", "Apple unveils new chip")),
              "Crypto": headlines.parse(_rss("Turkey earthquake kills dozens, rescuers search rubble"))}
