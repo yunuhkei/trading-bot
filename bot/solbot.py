@@ -357,8 +357,8 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None) -> s
                 log.warning("%s: no signal: %s", market, e)
                 continue
             just_closed = pd.Timestamp(now - now % 300 - 300, unit="s", tz="UTC")
-            if s.get("last") is not None and s["last"] < just_closed:
-                stale.append(s["name"])
+            if s.get("last") is not None and s["last"] == just_closed - pd.Timedelta(minutes=5):
+                stale.append(s["name"])     # exactly one candle behind: the feed is lagging (older = the coin went quiet)
             price = float(px.get(mint, {}).get("usdPrice") or s["candle_price"])
             if mint in positions:
                 p = positions[mint]

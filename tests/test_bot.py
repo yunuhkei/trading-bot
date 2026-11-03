@@ -1023,3 +1023,6 @@ def test_solbot_notices_when_the_price_feed_hasnt_got_the_newest_candle(tmp_path
     sig["last"] = closed                                        # now it has it
     sb.step(settings, tell, now=now + 30)
     assert sb.stale == []
+    sig["last"] = closed - pd.Timedelta(hours=20)               # a coin nobody trades anymore: don't keep waiting
+    sb.step(settings, tell, now=now + 60)
+    assert sb.stale == []
