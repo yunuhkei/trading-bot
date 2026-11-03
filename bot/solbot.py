@@ -208,6 +208,35 @@ class LiveWallet:
                 "quoted_out": int(o["outAmount"]), "tx": res.get("signature")}
 
 
+class BudgetWallet:
+    """The real wallet, but the bot only uses its own money: `budget` to start, plus or minus what its trades made.
+    Money you add to the wallet (or already had in it) is never traded unless you raise the budget."""
+    live = True
+
+    def __init__(self, wallet, state: dict):
+        self.w, self.state, self.address = wallet, state, wallet.address
+
+    def refresh(self):
+        self.w.refresh()
+
+    def cash(self) -> float:
+        return max(0.0, min(self.state["cash"], self.w.cash()))
+
+    def sol(self) -> float:
+        return self.w.sol()
+
+    def held_raw(self, mint: str) -> int:
+        return self.w.held_raw(mint)
+
+    def swap(self, in_mint: str, out_mint: str, amount_raw: int, max_cost: float | None = None) -> dict:
+        fill = self.w.swap(in_mint, out_mint, amount_raw, max_cost)
+        if in_mint == USDC:
+            self.state["cash"] -= fill["in"] / 10 ** USDC_DECIMALS
+        if out_mint == USDC:
+            self.state["cash"] += fill["out"] / 10 ** USDC_DECIMALS
+        return fill
+
+
 class PaperWallet:
     """Dry run: real Jupiter quotes, pretend money, no trades."""
     live = False
@@ -454,12 +483,31 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                     tell("❌ Solana bot: the wallet key didn't work", f"The SOLANA_BOT_KEY secret is set, but {e}. Nothing was traded.")
                 return f"Wallet key problem: {e}."
             if kp is None:
+                if now - state.get("key_told", 0) > 6 * 3600:
+                    state["key_told"] = now
+                    Path(state_path).write_text(json.dumps(state, indent=1))
+                    tell("Solana bot is LIVE but has no wallet key",
+                         "The SOLANA_BOT_KEY secret isn't reaching it. Add it under the repo's Settings → Secrets and variables → "
+                         "Actions → Repository secrets (not Variables, Codespaces or Dependabot), then ask Claude to restart the bot.")
                 return "No wallet key yet (SOLANA_BOT_KEY secret)."
             wallet = LiveWallet(kp)
         else:
             wallet = PaperWallet(state, float(settings.get("start_cash", 30)))
             if only is None:
                 check_key(state, now, tell)
+    if live:
+        if "cash" not in state:
+            # First live run: wait for the deposit, then take the budget (never more than what's in the wallet).
+            if wallet.cash() < MIN_TRADE:
+                if now - state.get("fund_told", 0) > 6 * 3600:
+                    state["fund_told"] = now
+                    Path(state_path).write_text(json.dumps(state, indent=1))
+                    tell("Solana bot is LIVE: waiting for your deposit",
+                         f"Wallet {wallet.address} has {money(wallet.cash())} USDC and {wallet.sol():.4f} SOL. Send it "
+                         f"{money(float(settings.get('budget', 30)))} of USDC (and ~0.03 SOL) on the Solana network; it starts by itself.")
+                return f"Waiting for USDC in wallet {wallet.address}."
+            state["cash"] = min(wallet.cash(), float(settings.get("budget", 30)))
+        wallet = BudgetWallet(wallet, state)
     positions = state.setdefault("positions", {})
     watchlist = settings.get("watchlist", "watchlist.young.txt")
     coins = solana_coins(watchlist)
@@ -480,7 +528,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         state["started"] = now
         pauses = " and ".join(money(float(x)) for x in settings.get("pause_at") or [])
         tell(f"{tag}Solana bot connected",
-             f"Wallet: {wallet.address}. Cash {money(wallet.cash())} USDC. Trading {len(coins)} young coins"
+             f"Wallet: {wallet.address}. " + (f"Its budget: {money(wallet.cash())} USDC. " if live else f"Cash {money(wallet.cash())} USDC. ") + f"Trading {len(coins)} young coins"
              + (f" and {len(stocks)} stocks" if stocks else "") + f" with the dip-bounce rule, {money(trade_size(settings, wallet.cash()))} a trade."
              + (f" Pauses at {pauses}." if pauses else "") + f" Stops at {money(float(settings.get('stop_below', 0)))}."
              + ("" if live else " Dry run: it will message what it WOULD buy and sell, without trading."))

@@ -1193,3 +1193,41 @@ def test_solbot_still_sells_a_coin_taken_off_the_list_but_never_buys_it_again(tm
     sig.update({"in": False, "fresh_buy": None})
     sb.step(settings, tell)
     assert sent[-1][0].startswith("DRY RUN: SOLD COIN")
+
+
+def test_solbot_live_waits_for_the_deposit_and_only_trades_its_budget(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+
+    class Wallet:
+        live, address = True, "WALLET"
+        def __init__(self, usdc): self.usdc, self.coin = usdc, 0
+        def refresh(self): pass
+        def cash(self): return self.usdc
+        def sol(self): return 0.05
+        def held_raw(self, m): return self.coin
+        def swap(self, i, o, raw, max_cost=None):
+            usd = raw / 1e6 if i == sb.USDC else raw / 1e6 * price[0]
+            if i == sb.USDC:
+                self.usdc -= usd
+                self.coin += int(usd / price[0] * 1e6)
+                return {"in": raw, "out": int(usd / price[0] * 1e6), "quoted_out": 0, "tx": "TX"}
+            self.coin -= raw
+            self.usdc += usd
+            return {"in": raw, "out": int(usd * 1e6), "quoted_out": 0, "tx": "TX"}
+    live = {**settings, "mode": "live", "budget": 30}
+    status = sb.step(live, tell, wallet=Wallet(0.0))           # no deposit yet: waits, doesn't stop
+    assert status.startswith("Waiting for USDC") and not Path(sb.STOP_FILE).exists()
+    assert sent[-1][0] == "Solana bot is LIVE: waiting for your deposit"
+    w = Wallet(500.0)                                           # a wallet with more money than the budget
+    sig.update({"in": True, "fresh_buy": "t1"})
+    sb.step(live, tell, wallet=w)
+    assert "Its budget: $30.00 USDC" in next(m for t, m in sent if t == "Solana bot connected")
+    assert any(t == "BOUGHT $30.00 of COIN" for t, _ in sent) and w.usdc == 470.0
+    state = json.loads(Path("solbot_state_live.json").read_text())
+    assert state["cash"] == 0.0                                 # its own $30 is in the trade; your other $470 is untouched
+    sig.update({"in": True, "fresh_buy": "t2"})
+    price[0] = 1.0
+    n = sum(t.startswith("BOUGHT") for t, _ in sent)
+    sb.step(live, tell, wallet=w)
+    assert sum(t.startswith("BOUGHT") for t, _ in sent) == n    # no budget left: no second buy with your money

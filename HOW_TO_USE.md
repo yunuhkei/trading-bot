@@ -250,7 +250,7 @@ trades it never studied, in at least 80% of reshuffled exams. Your phone hears a
 alerts follow it too. It also learns from its own trades: a coin that loses 3 trades in a row is dropped from the list
 and not picked again for 2 weeks.
 
-**Money** (`solbot.yaml`): $30 a trade until the account (USDC + what it holds) reaches **$100**, where it **pauses**:
+**Money** (`solbot.yaml`): the bot only uses its own **budget** ($30 to start, plus or minus what its trades make), never other money in the wallet, and in live mode it waits until your deposit arrives. $30 a trade until the account (its money + what it holds) reaches **$100**, where it **pauses**:
 sells everything and messages you. Tell Claude to continue: then $50 a trade until **$200** (pauses again), $75 until
 $250, and $100 a trade from $250 up with no more pauses. It **stops** for good if the account falls to $10 or drops 50%
 from its best. Each coin or stock is sold at a 20% loss (stop-loss), and buys are skipped if fees plus price impact

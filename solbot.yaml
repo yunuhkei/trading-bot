@@ -2,9 +2,10 @@
 # Checked every 5 minutes by the "solbot" workflow on GitHub. Every buy and sell (or would-be one) goes to your phone.
 # Setup: a new wallet (e.g. Phantom) with only the money for the bot as USDC on Solana + ~0.03 SOL for network fees;
 # its private key goes in the SOLANA_BOT_KEY GitHub secret (see HOW_TO_USE.md).
-mode: dry_run             # off | dry_run (real quotes, pretend money, no trades) | live (real trades)
+mode: live                # off | dry_run (real quotes, pretend money, no trades) | live (real trades)
 
-# --- Money: account = the wallet's USDC + everything the bot bought ---
+# --- Money: account = the bot's own money (its budget, plus or minus what its trades made) + what it holds ---
+budget: 30                # the bot only ever uses this much of the wallet's USDC (plus its winnings); ask Claude to raise it
 tiers:                    # dollars per trade, by account size
   - {below: 100, per_trade: 30}
   - {below: 200, per_trade: 50}
