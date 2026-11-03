@@ -1,9 +1,9 @@
-"""The scalp practice bot's learning: every few hours it re-studies the last week of 5-minute candles and adjusts itself.
+"""The scalp practice bot's learning: every few hours it re-studies recent candles and adjusts its own settings.
 
 How it learns: it replays its rule (bot/strategies.py RsiScalp) on every market in its watchlist with many different
 settings (how deep a dip to buy, when to sell, take profit, stop loss) and scores each one by what it would have made
-after the practice account's 0.6% fee on each buy and sell. It studies the older part of the week and is graded on the
-newest 2 days, which it never studied. It switches to a new setting only if that setting also did better on those
+after the practice account's 0.6% fee on each buy and sell. It studies the older candles and is graded on the newest
+ones, which it never studied (1-hour candles: 60 days, graded on the newest 15; 5-minute candles: 7 days and 2). It switches to a new setting only if that setting also did better on those
 unseen days (or if the current one trades less often than you asked for). Settings that trade less often than
 `min_trades_per_hour` across the whole watchlist are not picked, so it keeps scalping instead of learning to sit still.
 
@@ -23,16 +23,17 @@ import pandas as pd
 from .strategies import build_strategy
 
 log = logging.getLogger("scalp_learn")
-GRID = {"period": [7, 14], "low": [25, 30, 35], "high": [55, 65], "tp": [0.0, 0.01, 0.02], "sl": [0.0, 0.015]}
-EXAM_DAYS = 2           # the newest days are the exam it never studies
-HISTORY_DAYS = 7        # how far back it studies
+GRID = {"period": [7, 14], "low": [25, 30, 35], "high": [55, 65], "tp": [0.0, 0.01, 0.02, 0.04], "sl": [0.0, 0.015, 0.03]}
+# Per candle size: (days of history it studies, newest days kept back as the exam it never studies).
+WINDOWS = {"5m": (7, 2), "15m": (21, 6), "1h": (60, 15)}
 GRAN = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600}
 
 
-def history(market: str, timeframe: str, days: int = HISTORY_DAYS) -> pd.DataFrame:
+def history(market: str, timeframe: str, days: int | None = None) -> pd.DataFrame:
     """Finished candles for the last `days` days (Coinbase for crypto, Yahoo for stocks)."""
     from .signals import fetch_yahoo, is_crypto
 
+    days = days or WINDOWS.get(timeframe, (7, 2))[0]
     if is_crypto(market):
         from .learn import _coinbase_since
 
@@ -93,7 +94,8 @@ def tune(markets: list[str], current: dict, timeframe: str, fee: float, min_per_
         raise ValueError("no price history to learn from")
     end = max(df.index[-1] for df in hist.values()) + pd.Timedelta(seconds=1)
     start = min(df.index[0] for df in hist.values())
-    cutoff = end - pd.Timedelta(days=EXAM_DAYS)
+    history_days, exam_days = WINDOWS.get(timeframe, (7, 2))
+    cutoff = end - pd.Timedelta(days=exam_days)
     study_h, exam_h = (cutoff - start).total_seconds() / 3600, (end - cutoff).total_seconds() / 3600
     current = {k: current.get(k, GRID[k][0]) for k in GRID}
     combos = [dict(zip(GRID, v)) for v in itertools.product(*GRID.values())]
@@ -111,7 +113,8 @@ def tune(markets: list[str], current: dict, timeframe: str, fee: float, min_per_
     if best["params"] == current:
         reason = "the current settings did best while it studied"
     elif not cur_busy and best["exam"]["per_hour"] >= cur["exam"]["per_hour"]:
-        reason = f"the current settings traded only {cur['exam']['per_hour']:.1f} times an hour lately (you asked for {min_per_hour:g}+)"
+        reason = (f"the current settings traded only {cur['exam']['per_hour'] * 24:.1f} times a day lately "
+                  f"(you asked for {min_per_hour * 24:.3g}+)")
     elif best["exam"]["total"] > cur["exam"]["total"]:
         reason = "it also did better on the newest days it never studied"
     else:
@@ -119,7 +122,8 @@ def tune(markets: list[str], current: dict, timeframe: str, fee: float, min_per_
     changed = reason.startswith(("the current settings traded", "it also did"))
     chosen = best if changed else cur
     return {"learned_at": time.time(), "params": chosen["params"], "changed": changed, "reason": reason,
-            "was": current, "tried": len(combos), "markets": len(hist),
+            "was": current, "tried": len(combos), "markets": len(hist), "timeframe": timeframe,
+            "history_days": history_days, "exam_days": exam_days,
             "exam": chosen["exam"], "exam_was": cur["exam"], "exam_from": str(cutoff.floor("min"))}
 
 
@@ -136,6 +140,8 @@ def maybe_learn(cfg, markets: list[str], opts: dict, fee: float, now: float | No
     now = now or time.time()
     path = opts.get("file", "scalp_learned.json")
     saved = load(path)
+    if saved.get("timeframe") != cfg.timeframe:
+        saved = {}                     # learned on another candle size: start over
     params = {**cfg.strategy_params, **saved.get("params", {})}
     if now - saved.get("learned_at", 0) < float(opts.get("every_hours", 3)) * 3600:
         return params, None
@@ -150,9 +156,10 @@ def maybe_learn(cfg, markets: list[str], opts: dict, fee: float, now: float | No
 
 def learned_text(r: dict) -> str:
     e, w = r["exam"], r["exam_was"]
-    lines = [f"Learning: tried {r['tried']} settings on the last {HISTORY_DAYS} days of {r['markets']} markets.",
+    lines = [f"Learning: tried {r['tried']} settings on the last {r['history_days']} days of {r['markets']} markets "
+             f"({r['timeframe']} candles).",
              ("CHANGED to: " if r["changed"] else "Kept: ") + settings_text(r["params"]) + f" ({r['reason']}).",
-             f"On the newest {EXAM_DAYS} days it never studied: {e['trades']} trades ({e['per_hour']:.1f}/hour), "
+             f"On the newest {r['exam_days']} days it never studied: {e['trades']} trades ({e['per_hour'] * 24:.1f} a day), "
              f"{e['wins']} wins, {e['avg']:+.2%} average after fees"
              + (f" (old settings: {w['trades']} trades, {w['avg']:+.2%} average)." if r["changed"] else ".")]
     return "\n".join(lines)

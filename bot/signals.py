@@ -476,7 +476,7 @@ def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_ov
                 cfg.strategy_params, just = scalp_learn.maybe_learn(cfg, markets, lst["learn"], PRACTICE_FEE)
                 if just:
                     print("\n" + scalp_learn.learned_text(just), flush=True)
-                rule = scalp_learn.settings_text(cfg.strategy_params)
+                rule = scalp_learn.settings_text(cfg.strategy_params) + f" ({cfg.timeframe} candles)"
                 learned_file, stake = lst["learn"].get("file", "scalp_learned.json"), lst.get("stake")
             slug = re.sub(r"[^a-z0-9]+", "_", lst["name"].lower()).strip("_")
             rows = check(cfg, markets, f"signals_state_{slug}.json", target, lst.get("stake"),

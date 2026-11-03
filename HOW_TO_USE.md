@@ -160,21 +160,20 @@ python -m bot launches report                      # results, incl. news-matched
 
 ## Scalping practice bot (all day, self-tuning)
 
-The **scalp** workflow on GitHub runs a fake-money scalper on 20 coins and stocks: it checks every 5 minutes, all day,
-buying RSI dips on **5-minute** charts and aiming for a trade about every 10-15 minutes across the list. Its rule
-(`config.scalp.yaml`) can also sell at a take profit or a stop loss.
+The **scalp** workflow on GitHub runs a fake-money trader on 20 coins and stocks: it checks every 5 minutes, all day,
+buying RSI dips on **1-hour** charts. Its rule (`config.scalp.yaml`) can also sell at a take profit or a stop loss.
 
-**It learns:** every 3 hours it replays the last week of prices with 72 different settings (how deep a dip to buy,
-when to sell, take profit, stop loss), scores each after the 0.6% fee on every buy and sell, and switches to a new one
-only if it also did better on the newest 2 days it never studied. It only picks settings that trade at least 4 times
-an hour (`min_trades_per_hour` in `alerts.scalp.yaml`), so it keeps scalping instead of learning to sit still.
+**It learns:** every 3 hours it replays the last 60 days of prices with 144 different settings (how deep a dip to
+buy, when to sell, take profit, stop loss), scores each after the 0.6% fee on every buy and sell, and switches to a
+new one only if it also did better on the newest 15 days it never studied. It only picks settings that trade at least
+about once a day (`min_trades_per_hour` in `alerts.scalp.yaml`), so it keeps trading instead of learning to sit still.
 
 **Report:** instead of a ping for every trade, your phone gets a **Scalp report** every hour it did something: each
 buy and sell with its result, the account, what it's holding, the rule it's using, and anything it just learned.
 
-**Warning:** in testing (last week, 20 markets) every setting lost about 1.2% per trade after fees, because 5-minute
-moves are usually smaller than the fees. At $800 a trade and ~4 trades an hour, expect the $8,000 practice account
-to shrink fast. Practice only: don't copy it with real money. Settings: `alerts.scalp.yaml`, markets:
+**Warning:** on 5-minute candles every setting lost about 1.2% per trade after fees (small moves, same fees). On
+1-hour candles the best settings were around break-even with 1-2 trades a day, and busier settings still lost about
+1.2% per trade. Practice only: don't copy it with real money. Settings: `alerts.scalp.yaml`, markets:
 `watchlist.scalp.txt`. On your computer: `python -m bot alerts --settings alerts.scalp.yaml`.
 
 ## Practice auto-trading (fake money)

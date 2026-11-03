@@ -1,24 +1,24 @@
-# Scalping PRACTICE bot (fake money): RSI dip scalping on 5-minute candles, checked every 5 minutes, aiming for a
-# trade every 10-15 minutes across the watchlist. It LEARNS: every 3 hours it re-studies the last week of prices and
-# adjusts its own settings (bot/scalp_learn.py). Instead of a ping per trade, your phone gets a report every hour of
-# what it bought and sold, the account, and anything it learned.
-# Warning: in testing (last week, 20 markets) every setting lost about 1.2% per trade after the 0.6% app fee on each
-# buy and sell, because 5-minute moves are usually smaller than the fees. Don't copy it with real money.
+# Scalping PRACTICE bot (fake money): RSI dip trading on 1-hour candles, checked every 5 minutes. It LEARNS: every
+# 3 hours it re-studies the last 60 days of prices and adjusts its own settings (bot/scalp_learn.py). Instead of a
+# ping per trade, your phone gets a report every hour it did something: what it bought and sold, the account, and
+# anything it learned.
+# In testing, 5-minute scalping lost about 1.2% per trade after the 0.6% app fee on each buy and sell; on 1-hour
+# candles the best settings were around break-even with 1-2 trades a day. Don't copy it with real money.
 # On GitHub the "scalp" workflow runs this all day; on your computer: python -m bot alerts --settings alerts.scalp.yaml
 notify:                 # same channel as alerts.yaml (ALERT_TARGET secret or my_alert_channel.txt)
 every_minutes: 5
 report_every_minutes: 60  # the scalp report: what the practice bot did (skipped in an hour it did nothing)
 
 lists:
-  - name: Scalping practice (RSI dip, 5m, self-tuning)
+  - name: Scalping practice (RSI dip, 1h, self-tuning)
     config: config.scalp.yaml
     watchlist: watchlist.scalp.txt
     stake: 800
     practice: true
     alert_each_trade: false          # no ping per trade: the hourly report covers them
     learn:
-      every_hours: 3                 # re-study the last week and adjust the settings this often
-      min_trades_per_hour: 4         # only pick settings that trade at least this often (about every 15 minutes)
+      every_hours: 3                 # re-study the last 60 days and adjust the settings this often
+      min_trades_per_hour: 0.05      # only pick settings that trade at least this often (about once a day)
       file: scalp_learned.json
 
   - name: Young coins (dip bounce, 5m)

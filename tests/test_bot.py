@@ -856,7 +856,8 @@ def test_scalp_learning_picks_settings_that_trade_often_enough(monkeypatch, tmp_
     hist = {f"m{i}": _frame5(100 * np.exp(np.cumsum(rng.normal(0, 0.004, 7 * 288)))) for i in range(4)}
     slow = {"period": 7, "low": 10, "high": 55, "tp": 0.0, "sl": 0.0}
     r = sl.tune(list(hist), slow, "5m", 0.006, min_per_hour=1, hist=hist)
-    assert r["params"]["low"] == 35 and r["changed"] and "times an hour" in r["reason"]
+    assert r["timeframe"] == "5m" and r["history_days"] == 7 and r["exam_days"] == 2
+    assert r["params"]["low"] == 35 and r["changed"] and "times a day" in r["reason"]
     assert "CHANGED to" in sl.learned_text(r)
     # maybe_learn saves it and uses it until it's time to learn again
     monkeypatch.setattr(sl, "tune", lambda *a, **k: {**r, "learned_at": 1e9})
@@ -866,6 +867,11 @@ def test_scalp_learning_picks_settings_that_trade_often_enough(monkeypatch, tmp_
     assert params["low"] == 35 and just
     params, just = sl.maybe_learn(cfg, list(hist), opts, 0.006, now=1e9 + 3600)
     assert params["low"] == 35 and just is None                  # not due yet: keeps what it learned
+    calls = []
+    monkeypatch.setattr(sl, "tune", lambda *a, **k: calls.append(a[2]) or {**r, "timeframe": "1h", "learned_at": 1e9})
+    hourly = Config(strategy="rsi_scalp", timeframe="1h", strategy_params=slow)
+    params, just = sl.maybe_learn(hourly, list(hist), opts, 0.006, now=1e9 + 3600)
+    assert calls == ["1h"] and just                              # learned on 5m candles: relearns for 1h right away
 
 
 def test_scalp_practice_is_quiet_per_trade_and_reports_hourly(tmp_path, monkeypatch):
