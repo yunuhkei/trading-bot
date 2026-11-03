@@ -407,7 +407,7 @@ win:()=>{[523,659,784,1047].forEach((f,i)=>bp(f,.4,'triangle',.07,f*.99,i*.12))}
 horn:()=>{bp(440,.32,'sawtooth',.025,438);bp(554,.32,'sawtooth',.02,551)}};
 function buzz(n){try{navigator.vibrate&&navigator.vibrate(n)}catch(e){}}
 function msg(s,g){const sE=$('score');sE.classList.remove('bump');void sE.offsetWidth;sE.classList.add('bump');const e=$('combo');e.textContent=s;e.classList.toggle('gm',!!g);e.classList.remove('on');void e.offsetWidth;e.classList.add('on')}
-function mk(ty,x,lane,fr){const d=T[ty],b={id:++uid,ty,x,y:y0+lH*(lane+.5),vx:fr*vT,vy:0,rot:0,rv:0,w:lH*d.w,l:lH*d.l,col:d.c[rnd(0,d.c.length)|0],hp:d.hp,mhp:d.hp,m:d.m,fr,loose:0,lane,cop:ty==5,sh:rnd(1,2.5),side:Math.random()<.5?1:-1,arm:0,occ:mkOcc(ty)};B.push(b);return b}
+function mk(ty,x,lane,fr){const d=T[ty],b={id:++uid,ty,x,y:y0+lH*(lane+.5),vx:fr*vT,vy:0,rot:0,rv:0,w:lH*d.w,l:lH*d.l,col:d.c[rnd(0,d.c.length)|0],hp:d.hp,mhp:d.hp,m:d.m,fr,loose:0,lane,cop:ty==5,sh:rnd(1,2.5),side:Math.random()<.5?1:-1,arm:0,occ:mkOcc(ty),dz:DZT[ty][Math.random()*DZT[ty].length|0]};B.push(b);return b}
 const SHIRTS=['#3a6ea5','#6b8e3a','#d9a82a','#7a4a9a','#c25a5a','#2f7d6d','#e8e8e8','#555a63','#e07a2a'],SKINS=['#c98e5e','#8d5a3b','#f0c9a0','#a9744f','#5e3a24','#e3b58a'],HAIRS=['#2a1d14','#6b4423','#c9a24a','#111','#8a8a8a','#a8431f'],PANTS=['#3b4150','#2d3a52','#4a4036','#222'],CAB={sedan:[14,34,.8],muscle:[17,34,.78],hatch:[9,32,.84],bus:[0,0,1],super:[22,38,.72],cop:[14,34,.8],sport:[21,37,.74],suv:[10,36,.84],coupe:[17,33,.76],hyper:[23,37,.68],gt:[14,31,.74],roadster:[17,27,.7],rally:[11,31,.82]};
 function person(cop,seat){const pk=a=>a[Math.random()*a.length|0];return{s:cop?'#2f4f9a':pk(SHIRTS),k:pk(SKINS),h:cop?'#16213f':pk(HAIRS),p:cop?'#1d2a4d':pk(PANTS),seat}}
 function mkOcc(ty){const cop=ty==5,o=[person(cop,0)];if(ty==3){const ks=[0,1,2,3,4,5,6,7,8].sort(()=>Math.random()-.5).slice(0,2+(Math.random()<.5?1:0));ks.forEach(k=>o.push(person(0,1+k+(Math.random()<.5?0:9))))}else if(Math.random()<.3)o.push(person(0,1));return o}
@@ -492,7 +492,9 @@ const ROSTER=[CARS0,
 {id:'h_reaper',n:'Reaper Hyper',ty:9,hp:1.2,need:'startpass',perk:'nitro',col:'#7a1022'},
 {id:'h_wraith',n:'Nightjar GT',ty:10,hp:1.15,need:'startpass',perk:'mag',col:'#4b4f5c'},
 {id:'h_hellfire',n:'Cinder Hyper',ty:9,hp:2.2,top:1.14,bst:1.5,need:'phantom',perk:['regen','nitro','jam','cash'],col:'#2a0d0d'}]];
-const CARBY={};ROSTER.forEach(r=>r.forEach(c=>CARBY[c.id]=c));const nm=id=>(CARBY[id]||{n:id}).n;/* car display name by id: shop text is built from this so names never drift */
+const CARBY={};ROSTER.forEach(r=>r.forEach(c=>CARBY[c.id]=c));
+/* every vehicle on the road wears one of its type's designs (premium garage designs stay garage-only); Car art: Classic ignores them */
+const DZT=(()=>{const m={};ROSTER.forEach(r=>r.forEach(c=>{if(c.need=='phantom')return;(m[c.ty]=m[c.ty]||[]).push(c.id)}));m[3]=['t_bus'];m[5]=['t_cop'];return m})();const nm=id=>(CARBY[id]||{n:id}).n;/* car display name by id: shop text is built from this so names never drift */
 const newProf=m=>({c:0,u:pad7(),paint:'#c2452d',own:['#c2452d'],car:ROSTER[m][0].id,shop:{},revs:0,cb:0,wpk:''});
 if(!SV.E){const leg={};PROF.forEach(k=>leg[k]=SV[k]);leg.u=pad7(leg.u);SV.E=[leg,newProf(1),newProf(2)];SV.g=SV.g||{};if(leg.shop&&leg.shop.noads)SV.g.noads=1}
 SV.g=SV.g||{};SV.E.forEach((o,i)=>{if(!o)SV.E[i]=newProf(i);else o.u=pad7(o.u)});
@@ -1052,17 +1054,19 @@ return SPC[key]=cv2}
 function drawCar(g,b,tm){g.save();g.translate(b.x,b.y);g.rotate(b.rot);const m=DM[T[b.ty].n],l=m[0]*ps,w=m[1]*ps,hl=l/2,hw=w/2,wr=b.wreck;
 if(b.racer&&!wr&&!b.beat){g.fillStyle='rgba(255,60,200,'+(.14+.06*Math.sin(tm*10))+')';g.beginPath();g.arc(0,0,l*.62,0,6.3);g.fill()}
 if(b.cop&&!wr){g.fillStyle=Math.floor(tm*8)%2?'rgba(255,50,40,.3)':'rgba(60,110,255,.3)';g.beginPath();g.arc(0,0,l*.62,0,6.3);g.fill()}
-g.fillStyle='rgba(0,0,0,.28)';g.fillRect(-hl+6,-hw+8,l,w);g.imageSmoothingEnabled=false;g.drawImage(b.dz&&!SV.cl?dspr(b.dz,b.col,wr?1:0):spr(T[b.ty].n,b.col,wr?1:0),-hl,-hw,l,w);
+const nw=b.dz&&!SV.cl,SP=nw?dspr(b.dz,b.col,wr?1:0):spr(T[b.ty].n,b.col,wr?1:0);if(nw){g.globalAlpha=.3;g.drawImage(SP._s,-hl+6,-hw+8,l,w);g.globalAlpha=1}else{g.fillStyle='rgba(0,0,0,.28)';g.fillRect(-hl+6,-hw+8,l,w)}g.imageSmoothingEnabled=false;g.drawImage(SP,-hl,-hw,l,w);
 if(b.cop&&!wr){const f=Math.floor(tm*8)%2;g.fillStyle=f?'#ff2d2d':'#2d6bff';g.fillRect(-ps*2,-hw*.7,ps*4,hw*.7);g.fillStyle=f?'#2d6bff':'#ff2d2d';g.fillRect(-ps*2,0,ps*4,hw*.7)}
-if(b.occ&&!wr){const nn=T[b.ty].n,cb=CAB[nn],C=m[0],Rr=m[1];for(const q of b.occ){let hx,hy;if(nn=='bus'){if(!q.seat){hx=C-7-C/2;hy=-Rr*.2}else{const k=q.seat-1;hx=6+k%9*11+4-C/2;hy=(k>=9?1:-1)*(Rr/2-4.5)}}else{hx=cb[1]-4-C/2;hy=(q.seat?1:-1)*(Rr/2-1)*cb[2]*.45}
+if(b.occ&&!wr){const nn=T[b.ty].n,cb=cabF(b),C=m[0],Rr=m[1];for(const q of b.occ){let hx,hy;if(nn=='bus'){if(!q.seat){hx=C-7-C/2;hy=-Rr*.2}else{const k=q.seat-1;hx=6+k%9*11+4-C/2;hy=(k>=9?1:-1)*(Rr/2-4.5)}}else{hx=cb[1]-4-C/2;hy=(q.seat?1:-1)*(Rr/2-1)*cb[2]*.45}
 const X=hx*ps,Y=hy*ps;g.fillStyle=q.s;g.beginPath();g.ellipse(X-ps*1.6,Y,ps*1.8,ps*3,0,0,6.3);g.fill();g.fillStyle=q.k;g.beginPath();g.arc(X,Y,ps*2.1,0,6.3);g.fill();g.fillStyle=q.h;g.beginPath();g.arc(X-ps*.3,Y,ps*2.1,1.5708,4.7124);g.fill()}}
-if(b.doors&&!wr){const nn=T[b.ty].n,cb=CAB[nn],C=m[0],Rr=m[1];for(const dd of b.doors){const a=nn=='bus'?C-12:cb[1]-6,e=nn=='bus'?C-40:cb[0]+3,hx=(a-C/2)*ps,len=(a-e)*ps,hy=dd.d*(Rr/2-1.5)*ps,op=dd.t<.25?dd.t/.25:dd.t<1?1:Math.max(0,1-(dd.t-1)/.4),th=op*1.25,co=Math.cos(th),si=Math.sin(th);
+if(b.doors&&!wr){const nn=T[b.ty].n,cb=cabF(b),C=m[0],Rr=m[1];for(const dd of b.doors){const a=nn=='bus'?C-12:cb[1]-6,e=nn=='bus'?C-40:cb[0]+3,hx=(a-C/2)*ps,len=(a-e)*ps,hy=dd.d*(Rr/2-1.5)*ps,op=dd.t<.25?dd.t/.25:dd.t<1?1:Math.max(0,1-(dd.t-1)/.4),th=op*1.25,co=Math.cos(th),si=Math.sin(th);
 g.globalAlpha=op;g.fillStyle='#0c0907';g.fillRect(hx-len,hy-dd.d*ps*1.4-ps*1.5,len,ps*3);g.globalAlpha=1;
 g.lineCap='round';g.strokeStyle='#17110d';g.lineWidth=ps*3+2;g.beginPath();g.moveTo(hx,hy);g.lineTo(hx-len*co,hy+dd.d*len*si);g.stroke();g.strokeStyle=b.col;g.lineWidth=ps*2.2;g.stroke();
 g.strokeStyle='#6288a6';g.lineWidth=ps*.9;g.beginPath();g.moveTo(hx-len*.15*co,hy+dd.d*len*.15*si);g.lineTo(hx-len*.8*co,hy+dd.d*len*.8*si);g.stroke()}}
 if(b.arm){g.fillStyle='#8a8d92';for(let k=0;k<b.arm;k++)g.fillRect(hl-ps*2*(3+k),-hw+ps*2,ps*1.6,w-ps*4)}
 const nsc=Math.floor((1-b.hp/b.mhp)*9);g.fillStyle='#0c0907';for(let k=0;k<nsc;k++)g.fillRect((J(b.id||5,k+20)*l*.8)|0,(J(b.id||5,k+40)*w*.7)|0,ps*2,ps*2);
 g.restore()}
+/* cabin of the design a vehicle wears, in the same units as CAB (rear x, front x, width fraction), so passengers and doors line up with the new art */
+const DCB={};function cabF(b){const nn=T[b.ty].n;if(nn=='bus'||!b.dz||SV.cl)return CAB[nn];let k=DCB[b.dz];if(!k){const d=DZN[b.dz],m=DM[nn];if(!d||!d.cb)return CAB[nn];k=DCB[b.dz]=[d.cb[0]+m[0]/2,d.cb[1]+m[0]/2,Math.min(.95,(d.cb[5]+d.cb[6])/m[1])]}return k}
 function pty(bus,ex){const L=[[0,.22],[2,.17],[1,.1],[7,.1],[8,.08],[6,.12],[4,ex],[9,ex*.6],[10,.07],[11,.06],[12,.06],[3,bus?.1:0]];let tot=0;L.forEach(a=>tot+=a[1]);let r=Math.random()*tot;for(const a of L){r-=a[1];if(r<=0)return a[0]}return 0}
 function guy(g,x,y,z,ang,sc,gr,gun){g.save();g.translate(x,y);if(z>2){g.fillStyle='rgba(0,0,0,.3)';g.beginPath();g.ellipse(3,6,12*sc,6*sc,0,0,6.3);g.fill()}g.translate(0,-z*.45);g.rotate(ang);g.scale(sc,sc);g.lineJoin='round';g.strokeStyle='#17110d';g.lineWidth=2;
 g.fillStyle='#a33b2c';g.beginPath();g.moveTo(3,-12);g.lineTo(3,12);g.lineTo(-8,4);g.lineTo(-8,-4);g.closePath();g.fill();g.stroke();
@@ -1267,9 +1271,19 @@ h_wraith:{st:[[-27.3,8.6,7.6],[-25.5,10.1,8],[2.5,10.1,8],[9,9.9,7.2],[19,8.8,6.
 /* Cinder Hyper: wide blunt-nosed flame-livery hypercar, flared arches, double-deck wing, exhaust cannons, ember underglow */
 h_hellfire:{st:[[-28.3,8.4,5.6],[-25,10.4,6.8],[-17,11.1,7.4],[-9,11.1,7.2],[6.5,11.1,7.2],[17,10.8,5.4],[25,9.6,4.6],[28.3,7.6,4.1]],y0:2.2,cr:1.3,
  cb:[-9,6.5,-4,1.5,11.4,8.6,6],rc:'k',wh:{fx:17.8,rx:-17,r:[4.8,5.2],w:[2.6,3.2],hub:'o',hr:.58,cap:'k'},hd:['q','#ffcf5a'],tl:['R','#ff5a1a'],
- f:[['stripe',4,2,-27,27,'o'],['stripe',4,.8,-27,27,'y'],['wing',-26.4,10.2,9,3.6,.7,'k',1],['wing',-26.4,8.6,11.8,3.6,.7,'o',0],['flare','b'],['glow','o'],['bm',-29,-26,2.6,5.4,1.2,3.8,'k'],['bm',-29,-28.4,3,5,1.6,3.4,'o']]}
+ f:[['stripe',4,2,-27,27,'o'],['stripe',4,.8,-27,27,'y'],['wing',-26.4,10.2,9,3.6,.7,'k',1],['wing',-26.4,8.6,11.8,3.6,.7,'o',0],['flare','b'],['glow','o'],['bm',-29,-26,2.6,5.4,1.2,3.8,'k'],['bm',-29,-28.4,3,5,1.6,3.4,'o']]},
+/* ---- road-only designs (no garage car): city bus and police cruiser ---- */
+/* City bus: long flat-roofed coach, dark window band all round, roof air-con units, rear engine hatch */
+t_bus:{st:[[-53.3,10.4,8.6],[-52,11.6,9.4],[-47,11.6,9.6],[47,11.6,9.6],[52,11.6,9.4],[53.3,10.2,8.8]],y0:3,cr:.5,
+ cb:[-51.5,49.5,-50,45.5,15,11.4,8.8],mir:0,wh:{fx:36,rx:-33,r:5.2,w:2.4,hub:'s',hr:.55,cap:'k'},hd:['R'],tl:['r'],
+ f:[['bm',-40,-30,15,16.2,0,3.8,'s'],['bm',-8,2,15,16.2,0,3.8,'s'],['bm',22,32,15,16.2,0,3.8,'s'],['bm',-50,-43,15,15.6,0,7,'d'],['bm',44.6,46.4,15,15.7,0,6.2,'k']]},
+/* Police cruiser: dark saloon, white bonnet and boot bands, roof light bar (the game adds the red / blue flashers), push bar */
+t_cop:{st:[[-23.3,8.4,7],[-22,9.6,7.8],[-16,9.6,8],[-12,9.6,8],[6,9.6,8],[13,9.6,8],[19,9.4,7.8],[23.3,8.4,7.2]],cr:.8,
+ cb:[-12,6,-9.5,2,14.4,9,7.8],rc:'k',wh:{fx:15,rx:-14.5,r:4.1,w:1.9,hub:'s',hr:.7,cap:'k'},hd:['R'],tl:['r'],
+ f:[['stripe',0,5.2,6.5,23,'w'],['stripe',0,5.2,-23,-12.5,'w'],['lbar',-3,6.6,4,'k','r'],['bull','k']]}
 };
 const DSC={},DTH={};
+const TRD={t_bus:{id:'t_bus',ty:3},t_cop:{id:'t_cop',ty:5}},dzc=id=>CARBY[id]||TRD[id];
 function dzBuild(c,col,o){o=o||{};const d=DZN[c.id],m=DM[T[c.ty].n],hl=m[0]/2,hw=m[1]/2,bw=hw-1.4,wr=!!o.wr,B='body',N=hl-.7,
 GL=wr?'#0b0b0b':o.spr?'#2b4863':'#16212e',cc=x=>wr?'#2a2521':x=='b'?col:x=='d'?shx(col,.55):x=='l'?shx(col,1.4):x=='G'?GL:AC[x]||x,
 S=d.st,y0=d.y0||2.6,cr=d.cr==null?1.1:d.cr,
@@ -1339,19 +1353,22 @@ function rast(buf,C,R,P,rgb,kd,tg){let ya=1e9,yb=-1e9;P.forEach(p=>{if(p[1]<ya)y
 for(let y=Math.max(0,Math.ceil(ya-.5));y<=Math.min(R-1,Math.floor(yb-.5));y++){const yc=y+.5;let xa=1e9,xb=-1e9;for(let i=0,n=P.length;i<n;i++){const a=P[i],b=P[(i+1)%n];if((a[1]<=yc&&b[1]>yc)||(b[1]<=yc&&a[1]>yc)){const x=a[0]+(yc-a[1])/(b[1]-a[1])*(b[0]-a[0]);if(x<xa)xa=x;if(x>xb)xb=x}}
 for(let x=Math.max(0,Math.ceil(xa-.5));x<=Math.min(C-1,Math.floor(xb-.5));x++){const j=(y*C+x)*4;buf[j]=rgb[0];buf[j+1]=rgb[1];buf[j+2]=rgb[2];buf[j+3]=255;if(kd)kd[y*C+x]=tg}}}
 const DSV=1;
-function dspr(id,col,wr){const key=id+col+(wr?1:0);if(DSC[key])return DSC[key];
-const c=CARBY[id],m=DM[T[c.ty].n],C=m[0],R=m[1],fs=dzMesh(c,col,{wr:wr,spr:1}).f,buf=new Uint8ClampedArray(C*R*4),kd=new Uint8Array(C*R),up=[];
+function dspr(id,col,wr){const key=wr?id+'~w':id+col;if(DSC[key])return DSC[key];
+const c=dzc(id),m=DM[T[c.ty].n],C=m[0],R=m[1],fs=dzMesh(c,col,{wr:wr,spr:1}).f,buf=new Uint8ClampedArray(C*R*4),kd=new Uint8Array(C*R),up=[];
 fs.forEach(f=>{if(f.n[1]>.04&&f.k!=4){let y=0;f.v.forEach(p=>y+=p[1]);up.push([f.k==3?-20:f.k==1?-9:y/f.v.length,f])}});up.sort((a,b)=>a[0]-b[0]);
 up.forEach(o=>{const f=o[1],lam=Math.max(0,f.n[0]*-.3+f.n[1]*.6+f.n[2]*-.74),k=Math.round((.74+.5*lam)*8)/8;rast(buf,C,R,f.v.map(p=>[p[0]+C/2,p[2]+R/2]),shn(f.col,k),kd,f.k==1?3:f.col=='#2b4863'?2:1)});
 if(!wr)for(let y=0;y<R;y++)for(let x=0;x<C;x++){const p=y*C+x,i=p*4,k=kd[p];if(!buf[i+3])continue;
 if(k==1){const t=(y+.5-R/2)/(R/2),f=Math.round((1.12-.24*(t+1)/2+(Math.abs(t)<.14?.05:0))*8)/8;buf[i]=Math.min(255,buf[i]*f);buf[i+1]=Math.min(255,buf[i+1]*f);buf[i+2]=Math.min(255,buf[i+2]*f)}
 else if(k==2){const g=(x-y)%8==0;buf[i]=g?98:22;buf[i+1]=g?136:33;buf[i+2]=g?166:46}}
-const ol=wr?[12,9,7]:shn(col,.4),tyre=wr?[34,30,27]:[12,12,14],cp=new Uint8ClampedArray(buf);
-for(let y=0;y<R;y++)for(let x=0;x<C;x++){const p=y*C+x,i=p*4;if(!buf[i+3])continue;if(x==0||y==0||x==C-1||y==R-1||!buf[i-1]||!buf[i+7]||!buf[i-C*4+3]||!buf[i+C*4+3]){const o=kd[p]==3?tyre:ol;cp[i]=o[0];cp[i+1]=o[1];cp[i+2]=o[2]}}
+const ol=wr?[12,9,7]:shn(col,.4),tyre=wr?[34,30,27]:[12,12,14],cp=new Uint8ClampedArray(buf),bd=new Uint8Array(C*R);
+for(let y=0;y<R;y++)for(let x=0;x<C;x++){const p=y*C+x,i=p*4;if(!buf[i+3])continue;if(x==0||y==0||x==C-1||y==R-1||!buf[i-1]||!buf[i+7]||!buf[i-C*4+3]||!buf[i+C*4+3]){const o=kd[p]==3?tyre:ol;cp[i]=o[0];cp[i+1]=o[1];cp[i+2]=o[2];bd[p]=1}}
+if(!wr)for(let y=1;y<R-1;y++)for(let x=0;x<C;x++){const p=y*C+x,i=p*4;if(!buf[i+3]||bd[p]||kd[p]!=1)continue;if(bd[p-C]){cp[i]=Math.min(255,cp[i]*1.16+16);cp[i+1]=Math.min(255,cp[i+1]*1.16+16);cp[i+2]=Math.min(255,cp[i+2]*1.16+16)}else if(bd[p+C]){cp[i]*=.84;cp[i+1]*=.84;cp[i+2]*=.84}}/* light from above: bright top edge, shaded bottom edge */
 if(!wr)for(let y=0;y<R;y++){let x0=-1,x1=-1;for(let x=0;x<C;x++)if(cp[(y*C+x)*4+3]){if(x0<0)x0=x;x1=x}if(x0<0)continue;const t=Math.abs(y+.5-R/2)/(R/2-1);
 if(t>.5&&t<.88)for(let d=1;d<=2;d++){let i=(y*C+x1-d)*4;cp[i]=255;cp[i+1]=246;cp[i+2]=176;i=(y*C+x0+d)*4;cp[i]=216;cp[i+1]=48;cp[i+2]=31}}/* head / tail lights, as on the classic sprites */
 if(!wr)fs.forEach(f=>{if(f.k==4&&f.n[1]>.04)rast(cp,C,R,f.v.map(p=>[p[0]+C/2,p[2]+R/2]),shn(f.col,1))});/* design lamps sit on top of the outline and the stock lights */
-const cv=document.createElement('canvas');cv.width=C;cv.height=R;cv.getContext('2d').putImageData(new ImageData(cp,C,R),0,0);return DSC[key]=cv}
+const cv=document.createElement('canvas');cv.width=C;cv.height=R;cv.getContext('2d').putImageData(new ImageData(cp,C,R),0,0);
+const sc=document.createElement('canvas');sc.width=C;sc.height=R;const sg=sc.getContext('2d');sg.drawImage(cv,0,0);sg.globalCompositeOperation='source-in';sg.fillStyle='#000';sg.fillRect(0,0,C,R);cv._s=sc;/* silhouette: the shadow follows the car's shape */
+return DSC[key]=cv}
 /* list / shop thumbnail: the same mesh from a front three-quarter view (cached PNG data URL) */
 function dzThumb(id,col){const key=id+col;if(DTH[key])return DTH[key];
 const c=CARBY[id],fs=dzMesh(c,col,{}).f,yw=.62,pt=.42,cy_=Math.cos(yw),sy_=Math.sin(yw),cp=Math.cos(pt),sp=Math.sin(pt),pj=p=>{const z1=-p[0]*sy_+p[2]*cy_;return[p[0]*cy_+p[2]*sy_,-(p[1]*cp+z1*sp),z1*cp-p[1]*sp]};
@@ -1494,7 +1511,10 @@ function fitOver(){const o=$('over');if(!o||o.classList.contains('hide'))return;
 try{new MutationObserver(()=>fitOver()).observe($('over'),{attributes:true,attributeFilter:['class']})}catch(e){}
 addEventListener('resize',()=>setTimeout(fitOver,60));
 requestAnimationFrame(frame);
-setTimeout(()=>{T.forEach(d=>d.c.forEach(c=>{try{spr(d.n,c,0)}catch(e){}}))},60);showLoad(2800,'',null,true);
+setTimeout(()=>{T.forEach(d=>d.c.forEach(c=>{try{spr(d.n,c,0)}catch(e){}}))},60);
+/* new-art road sprites (every design x its type's colours, plus each wreck) built a few at a time while the loading screen is up */
+(()=>{const q=[];T.forEach((d,ty)=>(DZT[ty]||[]).forEach(id=>{d.c.forEach(c=>q.push([id,c,0]));q.push([id,'#808080',1])}));const pump=()=>{const t0=performance.now();while(q.length&&performance.now()-t0<5){const a=q.shift();try{dspr(a[0],a[1],a[2])}catch(e){}}if(q.length)setTimeout(pump,14)};setTimeout(pump,200)})();
+showLoad(2800,'',null,true);
 })();
 </script>
 <script>
