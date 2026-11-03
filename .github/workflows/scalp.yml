@@ -3,8 +3,10 @@
 # Free on public repositories.
 name: scalp
 on:
-  schedule:
-    - cron: "*/30 * * * *"   # starts a new job if none is running; waits its turn otherwise
+  # Off (Nov 3 2026): both lists in alerts.scalp.yaml are switched off; the Solana bot (solbot.yml) trades the young
+  # coins. To turn it back on, uncomment the schedule below.
+  # schedule:
+  #   - cron: "*/30 * * * *"   # starts a new job if none is running; waits its turn otherwise
   workflow_dispatch:
 concurrency:
   group: scalp

@@ -1,5 +1,6 @@
-# SWITCHED OFF (Nov 3 2026): the scalping practice list below is `enabled: false` because it never showed an edge
-# after fees. The young-coin dip-bounce alerts in this file still run. Set `enabled: true` to bring the scalper back.
+# SWITCHED OFF (Nov 3 2026): both lists below are `enabled: false`. The scalper never showed an edge after fees, and the
+# young-coin alerts are replaced by the Solana bot, which trades that list itself and reports every real trade.
+# The scalp workflow no longer runs on a schedule. To bring a list back: `enabled: true` + the schedule in scalp.yml.
 # Scalping PRACTICE bot (fake money): RSI dip trading on 1-hour candles, checked every 5 minutes. It LEARNS: every
 # 3 hours it re-studies the last 60 days of prices and adjusts its own settings (bot/scalp_learn.py). Instead of a
 # ping per trade, your phone gets a report every hour it did something: what it bought and sold, the account, and
@@ -25,6 +26,7 @@ lists:
       file: scalp_learned.json
 
   - name: Young coins (dip bounce, 5m)
+    enabled: false                   # off: the Solana bot (solbot.yaml) trades this list and reports every real trade
     config: config.young.yaml        # hours-old coins: buy sharp dips, sell at the average, 20% stop-loss
     watchlist: watchlist.young.txt   # coins added after a chart check (sol:<contract address>)
     stake: 30
