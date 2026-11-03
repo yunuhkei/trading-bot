@@ -287,6 +287,25 @@ Know the risks: it checks every 5 minutes, so a crash can go past the 20% stop b
 pulls the money out of the pool (a rug pull), nothing can sell it; coins it finds by itself are strangers (most new
 coins fail); and the wallet key can spend everything in that wallet, so keep only lottery money there.
 
+## The Kalshi bot (weather + arbitrage), practice first
+
+The **kalshi** workflow checks Kalshi every 10 minutes (`bot/kalshi.py`, settings in `kalshi.yaml`). Kalshi contracts pay
+$1 if they come true, and the price is the crowd's probability, so the bot only buys when its own estimate beats the price
+by **10¢+ per contract after Kalshi's fee**:
+
+- **Weather** (daily high temperature in US cities): Kalshi settles on one official weather station per city. The bot
+  reads the National Weather Service forecast and that station's live readings; later in the day part of the answer is
+  already known (the high can't be lower than what was recorded), so its estimate sharpens through the day.
+- **Arbitrage**: if buying YES on every bracket of a set costs less than $1 after fees (or NO on all of them less than
+  n-1), it buys the whole set: it wins whatever happens.
+
+Guard rails: up to $5 a trade and 10 trades a day; no long shots under 10¢ or near-sure things over 97¢; and if the bot
+disagrees with the market by more than 30¢ it assumes the market knows something and skips. It starts in **practice**
+(pretend $100, real prices, settled by Kalshi's real results); every practice trade and result goes to your phone.
+
+Live mode later (after practice shows a real edge): a verified Kalshi account (check it works in Wisconsin), an API key
+from Kalshi's settings saved as the GitHub secrets `KALSHI_KEY_ID` and `KALSHI_PRIVATE_KEY`, and `mode: live`.
+
 ## Check a chart screenshot (PC)
 
 Take a screenshot of a coin or stock in any app (Fomo, Coinbase, Robinhood...) and the bot tells you

@@ -200,6 +200,15 @@ def cmd_solbot(args, cfg):
     run(args.settings, args.minutes)
 
 
+def cmd_kalshi(args, cfg):
+    import logging
+
+    from .kalshi import run
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    run(args.settings)
+
+
 def cmd_markets(args, cfg):
     import ccxt
 
@@ -318,6 +327,8 @@ def main(argv=None):
     sb = sub.add_parser("solbot", help="auto-trade young Solana coins with the dip-bounce rule (settings: solbot.yaml)")
     sb.add_argument("--settings", default="solbot.yaml")
     sb.add_argument("--minutes", type=float, default=None, help="keep checking every 5 minutes for this long")
+    ka = sub.add_parser("kalshi", help="Kalshi bot: weather markets + arbitrage (settings: kalshi.yaml)")
+    ka.add_argument("--settings", default="kalshi.yaml")
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")
     m.add_argument("--search", default="BTC")
 
@@ -354,6 +365,8 @@ def main(argv=None):
         cmd_autotrade(args, cfg)
     elif args.cmd == "solbot":
         cmd_solbot(args, cfg)
+    elif args.cmd == "kalshi":
+        cmd_kalshi(args, cfg)
     elif args.cmd == "learn":
         cmd_learn(args, cfg)
     elif args.cmd == "markets":

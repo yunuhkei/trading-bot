@@ -1418,3 +1418,56 @@ def test_each_coin_gets_the_falling_knife_filter_only_if_it_helps_on_that_coin(m
     with_filter, without = late(8, 0.03), late(10, 0.03) + late(6, -0.05)   # FLOAT-like: the filter skips the losers
     d, c, why = ss.review(df, current, [], max_drop=0.10)
     assert d == "keep" and c["max_drop"] == 0.10
+
+
+def test_kalshi_bracket_odds_fees_and_dates():
+    from bot import kalshi as k
+    assert k.fee(0.50) == 0.02 and k.fee(0.50, 10) == 0.18 and k.fee(0.95) == 0.01
+    assert k.event_day("KXHIGHCHI-26NOV03") == __import__("datetime").date(2026, 11, 3)
+    assert k.station_of("recorded at Chicago (CLIMDW) for Nov 3") == "KMDW" and k.station_of("Toronto") is None
+    between = {"strike_type": "between", "floor_strike": 73, "cap_strike": 74}
+    less = {"strike_type": "less", "cap_strike": 71}
+    more = {"strike_type": "greater", "floor_strike": 78}
+    assert abs(k.bracket_prob(between, 73.5, 1.0) - 0.68) < 0.01                    # 72.5-74.5 around 73.5
+    total = sum(k.bracket_prob({"strike_type": "between", "floor_strike": a, "cap_strike": a + 1}, 74, 2.0) for a in range(71, 78, 2))
+    assert abs(total + k.bracket_prob(less, 74, 2.0) + k.bracket_prob(more, 74, 2.0) - 1) < 1e-9   # brackets add up to 100%
+    assert k.bracket_prob(less, 74, 1.0, floor_f=72.0) == 0.0                     # 72°+ already recorded: "70 or below" is dead
+
+
+def test_kalshi_weather_view_knows_when_the_high_is_already_in(monkeypatch):
+    from datetime import date, datetime, timezone
+    from bot import kalshi as k
+    info = {"tz": "America/Chicago"}
+    afternoon = datetime(2026, 11, 3, 21, 0, tzinfo=timezone.utc)                  # 3 pm in Chicago
+    v = k.weather_view(date(2026, 11, 3), info, "KMDW", afternoon, {"2026-11-03": 59}, {"KMDW": (66.2, True)})
+    assert v["mu"] == 66.2 and v["sigma"] < 1 and "already recorded" in v["why"]  # high came overnight; forecast is lower
+    morning = datetime(2026, 11, 3, 14, 0, tzinfo=timezone.utc)                     # 8 am
+    v = k.weather_view(date(2026, 11, 3), info, "KMDW", morning, {"2026-11-03": 73}, {"KMDW": (60.0, False)})
+    assert v["mu"] == 73 and v["sigma"] > 1.5 and v["floor"] == 59.0
+    v = k.weather_view(date(2026, 11, 4), info, "KMDW", morning, {"2026-11-04": 64}, {})
+    assert v["mu"] == 64 and v["sigma"] == 2.5 and v["floor"] is None             # tomorrow: forecast only
+
+
+def test_kalshi_practice_buys_an_edge_settles_it_and_finds_arbitrage(tmp_path, monkeypatch):
+    from bot import kalshi as k
+    monkeypatch.chdir(tmp_path)
+    ev = {"event_ticker": "KXHIGHCHI-26NOV03", "title": "Highest temperature in Chicago on Nov 3, 2026?", "mutually_exclusive": True,
+          "markets": [{"ticker": "T1", "strike_type": "less", "cap_strike": 73, "yes_sub_title": "72° or below",
+                       "yes_ask_dollars": "0.30", "yes_ask_size_fp": "50", "no_ask_dollars": "0.72", "no_ask_size_fp": "50",
+                       "rules_primary": "(CLIMDW)"},
+                      {"ticker": "T2", "strike_type": "greater", "floor_strike": 72, "yes_sub_title": "73° or above",
+                       "yes_ask_dollars": "0.60", "yes_ask_size_fp": "50", "no_ask_dollars": "0.42", "no_ask_size_fp": "50"}]}
+    arbs = k.arb_ideas([ev], {"arb_margin": 0.02})
+    assert arbs and arbs[0]["side"] == "yes" and abs(arbs[0]["cost"] - 0.94) < 1e-9   # 30 + 60 + fees 4 = 94¢ for a sure $1
+    monkeypatch.setattr(k, "weather_ideas", lambda *a, **kw: [])
+    told = []
+    status = k.step({"mode": "practice", "practice_cash": 100, "max_per_trade": 5}, lambda t, m: told.append((t, m)), events=[ev])
+    assert "bought 1" in status and any("arbitrage" in t for t, _ in told)
+    state = json.loads(Path("kalshi_state_practice.json").read_text())
+    assert set(state["positions"]) == {"T1", "T2"} and state["positions"]["T1"]["count"] == 5
+    monkeypatch.setattr(k, "kget", lambda path, params=None: {"market": {"status": "finalized", "result": "yes" if path.endswith("T2") else "no"}})
+    k.step({"mode": "practice"}, lambda t, m: told.append((t, m)), events=[])
+    state = json.loads(Path("kalshi_state_practice.json").read_text())
+    cost = 5 * 0.90 + k.fee(0.30, 5) + k.fee(0.60, 5)                                     # fees round once per order
+    assert not state["positions"] and abs(state["cash"] - (100 - cost + 5)) < 1e-6 and cost < 4.70   # paid $5 for $4.67
+    assert sum("WON" in t for t, _ in told) == 1 and sum("LOST" in t for t, _ in told) == 1

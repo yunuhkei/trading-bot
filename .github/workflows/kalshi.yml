@@ -1,0 +1,37 @@
+# Kalshi bot (kalshi.yaml): every 10 minutes, settle finished trades and look for weather and arbitrage trades.
+# Practice mode needs nothing; live mode needs the KALSHI_KEY_ID and KALSHI_PRIVATE_KEY secrets.
+name: kalshi
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+concurrency:
+  group: kalshi
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: kalshi_state_*.json
+          key: kalshi-state-${{ github.run_id }}
+          restore-keys: kalshi-state-
+      - name: Check Kalshi
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+          KALSHI_KEY_ID: ${{ secrets.KALSHI_KEY_ID }}
+          KALSHI_PRIVATE_KEY: ${{ secrets.KALSHI_PRIVATE_KEY }}
+        run: python -m bot kalshi
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: kalshi_state_*.json
+          key: kalshi-state-${{ github.run_id }}

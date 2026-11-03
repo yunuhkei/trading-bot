@@ -1,0 +1,12 @@
+# Kalshi bot (bot/kalshi.py): weather markets (daily high temperature in US cities) + arbitrage.
+# Checked every 10 minutes by the "kalshi" workflow. Every trade and result goes to your phone.
+mode: practice            # practice (pretend money, real prices, real results) | live (needs the Kalshi API key) | off
+practice_cash: 100        # the pretend starting money
+max_per_trade: 5          # dollars per trade (or per whole set, for arbitrage)
+max_trades_per_day: 10
+max_trades_per_check: 3
+min_edge: 0.10            # only buy when the bot's chance beats the price by 10¢+ per contract after fees
+min_price: 0.10           # skip long shots under 10¢ (markets overprice them; the model's tails are the least sure)
+max_price: 0.97           # skip 98-99¢ contracts (fees eat the profit)
+max_disagree: 0.30        # if the bot's chance is 30¢+ above the price, assume the market knows something and skip
+arb_margin: 0.02          # arbitrage: the set must pay at least 2¢ more than it costs, after fees
