@@ -243,6 +243,13 @@ wallet** (Fomo has no bot access), swapping through Jupiter (what most Solana ap
   during US market hours, and only when the xStock's price is within 1% of the real stock's.
 - Not the meme coins on your other lists: dip bounce didn't make money on them even with no fees.
 
+**It learns** (`bot/solbot_learn.py`): every day for coins (the last week of every coin it watched in the last 2 weeks,
+including the ones that died) and every week for stocks (daily prices since 2019), it re-tests the dip-bounce
+settings (how long an average, how deep a dip) and switches only if a new setting also made more money on the newest
+trades it never studied, in at least 80% of reshuffled exams. Your phone hears about any change, and the young-coin
+alerts follow it too. It also learns from its own trades: a coin that loses 3 trades in a row is dropped from the list
+and not picked again for 2 weeks.
+
 **Money** (`solbot.yaml`): $30 a trade until the account (USDC + what it holds) reaches **$100**, where it **pauses**:
 sells everything and messages you. Tell Claude to continue: then $50 a trade until **$200** (pauses again), $75 until
 $250, and $100 a trade from $250 up with no more pauses. It **stops** for good if the account falls to $10 or drops 50%

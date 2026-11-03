@@ -463,12 +463,21 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         got = fill["out"] / 10 ** USDC_DECIMALS
         result = got / p["cost"] - 1 if p.get("cost") else 0.0
         positions.pop(mint)
+        if p.get("kind", "coin") == "coin":     # learning from its own trades: bench a coin that keeps losing
+            res = state.setdefault("coin_results", {}).setdefault(mint, [])
+            res.append(result)
+            n = int(settings.get("bench_after_losses", 3))
+            if n and len(res) >= n and all(r <= 0 for r in res[-n:]):
+                state.setdefault("benched", {})[mint] = now
+                to_bench.append((p.get("market") or f"sol:{mint}", n))
         state.setdefault("trades", []).append({"t": now, "action": "SELL", "what": name, "usd": got, "result": result, "tx": fill["tx"]})
         tell(f"{tag}SOLD {name} for {money(got)} ({result:+.1%})",
              f"{why}. Bought for {money(p['cost'])}, sold for {money(got)} after fees: {got - p['cost']:+,.2f}. "
              f"Account now about {money(value(wallet, positions, px))}."
              + (f"\nhttps://solscan.io/tx/{fill['tx']}" if fill.get("tx") else ""))
         return True
+
+    to_bench: list[tuple[str, int]] = []
 
     def buy(mint: str, kind: str, market: str, name: str, why: str, account: float):
         usd = min(trade_size(settings, account), wallet.cash())
@@ -543,7 +552,8 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
             new = []
             if settings.get("find_coins", True) and room > 0:
                 try:
-                    new = find_coins(settings, {mint for _, mint in coins}, room)
+                    benched = {m for m, t in state.get("benched", {}).items() if now - t < 14 * 86400}
+                    new = find_coins(settings, {mint for _, mint in coins} | benched, room)
                 except Exception as e:
                     log.warning("coin search failed: %s", e)
             if dead or new:
@@ -559,10 +569,23 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                 coins = solana_coins(watchlist)
                 kinds.update({mint: ("coin", m) for m, mint in coins})
                 px.update(prices([mint for _, mint in coins if mint not in px]))
+        stop_loss = float(settings.get("stop_loss", 0.2))
+        if only is None and settings.get("learn", True):
+            from . import solbot_learn
+            seen = state.setdefault("seen_coins", {})
+            seen.update({m: now for m, _ in coins})
+            for m in [m for m, t in seen.items() if now - t > 14 * 86400]:
+                seen.pop(m)
+            for kind, markets, hours in (("coin", list(seen), settings.get("learn_coins_every_hours", 24)),
+                                         ("stock", [t for t, _ in stocks], settings.get("learn_stocks_every_hours", 168))):
+                try:
+                    solbot_learn.maybe_learn(kind, markets, float(hours), stop_loss, tell, tag, now)
+                except Exception as e:
+                    log.warning("learning (%s) failed: %s", kind, e)
         if (done := limits()):
             return done
-        stop_loss = float(settings.get("stop_loss", 0.2))
-        cfg = Config.load(settings.get("strategy_config", "config.young.yaml"))
+        from .solbot_learn import apply as learned
+        cfg = learned("coin", Config.load(settings.get("strategy_config", "config.young.yaml")))
         just_closed = pd.Timestamp(now - now % 300 - 300, unit="s", tz="UTC")
         for market, mint in coins:
             if only is not None and market not in only:
@@ -587,7 +610,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                 state.setdefault("last_buy", {})[mint] = s["fresh_buy"]
                 buy(mint, "coin", market, s["name"], "Dip-bounce signal on the 5-minute chart", value(wallet, positions, px))
         if stocks:
-            scfg = Config.load(settings.get("stock_strategy_config", "config.stockdip.yaml"))
+            scfg = learned("stock", Config.load(settings.get("stock_strategy_config", "config.stockdip.yaml")))
             gap_limit = float(settings.get("max_price_gap", 0.01))
             for ticker, mint in stocks:
                 try:
@@ -617,6 +640,12 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                     state.setdefault("last_buy", {})[mint] = s["fresh_buy"]
                     buy(mint, "stock", ticker, s["name"], f"{ticker} closed in a sharp dip below its 20-day average",
                         value(wallet, positions, px))
+        if to_bench:
+            edit_watchlist(watchlist, [m for m, _ in to_bench], [])
+            commit([watchlist], "Solana bot: benched " + ", ".join(display_name(m) for m, _ in to_bench))
+            for m, n in to_bench:
+                tell(f"{tag}Solana bot: benched {display_name(m)}",
+                     f"It lost {n} trades in a row on this coin, so it dropped it from the list (and won't pick it again for 2 weeks).")
         wallet.refresh()
         if (done := limits()):
             return done

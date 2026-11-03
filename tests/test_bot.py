@@ -928,7 +928,7 @@ def _solbot_fakes(monkeypatch, tmp_path, price):
     settings = {"mode": "dry_run", "tiers": [{"below": 100, "per_trade": 30}, {"below": 200, "per_trade": 50}, {"per_trade": 100}],
                 "pause_at": [100, 200], "stop_loss": 0.2, "stop_below": 10, "stop_drawdown": 0.5, "max_cost": 0.03,
                 "start_cash": 30, "watchlist": str(tmp_path / "young.txt"), "strategy_config": str(root / "config.young.yaml"),
-                "stock_strategy_config": str(root / "config.stockdip.yaml")}
+                "stock_strategy_config": str(root / "config.stockdip.yaml"), "learn": False}
     return sb, mint, sig, settings, (lambda t, m: sent.append((t, m))), sent
 
 
@@ -1099,3 +1099,62 @@ def test_solbot_notices_when_the_price_feed_hasnt_got_the_newest_candle(tmp_path
     sig["last"] = closed - pd.Timedelta(hours=20)               # a coin nobody trades anymore: don't keep waiting
     sb.step(settings, tell, now=now + 60)
     assert sb.stale == []
+
+
+def _fake_trades(monkeypatch, by_width):
+    """Make the learner's replay return set trades per setting: width -> (study results, exam results)."""
+    from bot import solbot_learn as sl
+    t0 = pd.Timestamp("2026-10-01", tz="UTC")
+
+    def replay(df, params, fee, stop_loss=0.2):
+        study, exam = by_width[params["width"]]
+        return [(t0 + pd.Timedelta(hours=i), r) for i, r in enumerate(study)] + \
+               [(t0 + pd.Timedelta(days=30, hours=i), r) for i, r in enumerate(exam)]
+    monkeypatch.setattr(sl, "replay", replay)
+    monkeypatch.setattr(sl, "GRIDS", {"coin": {"period": [20], "width": [2.0, 3.0]}})
+    monkeypatch.setattr(sl, "MIN_EXAM_TRADES", {"coin": 10})
+    return sl
+
+
+def test_solbot_learning_adopts_a_setting_only_if_it_wins_on_unseen_trades(monkeypatch):
+    rng = np.random.default_rng(0)
+    sl = _fake_trades(monkeypatch, {2.0: (list(rng.normal(-0.01, 0.02, 70)), list(rng.normal(-0.01, 0.02, 30))),
+                                    3.0: (list(rng.normal(0.02, 0.02, 70)), list(rng.normal(0.02, 0.02, 30)))})
+    r = sl.tune("coin", {"m": None}, {"period": 20, "width": 2.0})
+    assert r["changed"] and r["params"] == {"period": 20, "width": 3.0} and r["exam_best"]["avg"] > 0
+    # studied better, but worse on the newest trades: keeps the current setting
+    sl = _fake_trades(monkeypatch, {2.0: (list(rng.normal(-0.01, 0.02, 70)), list(rng.normal(0.02, 0.02, 30))),
+                                    3.0: (list(rng.normal(0.02, 0.02, 70)), list(rng.normal(-0.01, 0.02, 30)))})
+    r = sl.tune("coin", {"m": None}, {"period": 20, "width": 2.0})
+    assert not r["changed"] and r["params"]["width"] == 2.0 and "did not beat" in r["reason"]
+
+
+def test_solbot_learning_saves_tells_you_and_waits_a_day(tmp_path, monkeypatch):
+    rng = np.random.default_rng(1)
+    sl = _fake_trades(monkeypatch, {2.0: (list(rng.normal(-0.01, 0.02, 70)), list(rng.normal(-0.01, 0.02, 30))),
+                                    3.0: (list(rng.normal(0.02, 0.02, 70)), list(rng.normal(0.02, 0.02, 30)))})
+    monkeypatch.setattr(sl, "MODELS", tmp_path)
+    told = []
+    hist = lambda m: pd.DataFrame({"close": np.ones(100), "low": np.ones(100)})
+    r = sl.maybe_learn("coin", ["sol:A"], 24, 0.2, lambda t, m: told.append((t, m)), now=1e9, history=hist)
+    assert r["changed"] and sl.current("coin") == {"period": 20, "width": 3.0}
+    assert told and "new settings for young coins" in told[0][0] and "was: buy when the price drops 2x" in told[0][1]
+    assert sl.maybe_learn("coin", ["sol:A"], 24, 0.2, lambda t, m: told.append((t, m)), now=1e9 + 3600, history=hist) is None
+    from bot import learn
+    from bot.config import Config
+    cfg = learn.apply(Config(strategy="bollinger", timeframe="5m", strategy_params={"period": 20, "width": 2.0}))
+    assert cfg.strategy_params["width"] == 3.0                  # the young-coin alerts follow what it learned
+
+
+def test_solbot_benches_a_coin_after_three_losses_in_a_row(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    for k in range(3):
+        price[0] = 1.0
+        sig.update({"in": True, "fresh_buy": f"t{k}"})
+        sb.step(settings, tell)
+        price[0] = 0.98                                         # small loss, back at the average
+        sig.update({"in": False, "fresh_buy": None})
+        sb.step(settings, tell)
+    assert f"sol:{mint}" not in (tmp_path / "young.txt").read_text()
+    assert any(t == "DRY RUN: Solana bot: benched COIN111" or t.startswith("DRY RUN: Solana bot: benched") for t, _ in sent)

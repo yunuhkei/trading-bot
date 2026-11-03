@@ -130,6 +130,9 @@ def apply(cfg: Config) -> Config:
     """Use the settings the bot learned for this strategy, if it adopted any."""
     if cfg.strategy in GRIDS:
         cfg.strategy_params = {**cfg.strategy_params, **current_params(cfg.strategy)}
+    elif cfg.strategy == "bollinger":       # dip bounce: what the Solana bot learned (young coins / stocks)
+        from . import solbot_learn
+        solbot_learn.apply("coin" if cfg.timeframe in ("1m", "5m", "15m") else "stock", cfg)
     return cfg
 
 
