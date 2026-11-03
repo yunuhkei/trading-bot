@@ -477,7 +477,8 @@ def test_alerts_runs_every_saved_list_with_its_own_strategy(tmp_path, monkeypatc
     (tmp_path / "m.yaml").write_text("timeframe: 1d\nstrategy: breakout\nstrategy_params: {entry: 20, exit: 10, trend: 0}\n")
     (tmp_path / "alerts.yaml").write_text(
         f"notify: ntfy:x\nlists:\n  - {{name: Main, config: {tmp_path}/t.yaml, watchlist: {tmp_path}/w1.txt}}\n"
-        f"  - {{name: Memes, config: {tmp_path}/m.yaml, watchlist: {tmp_path}/w2.txt, stake: 30}}\n")
+        f"  - {{name: Memes, config: {tmp_path}/m.yaml, watchlist: {tmp_path}/w2.txt, stake: 30}}\n"
+        f"  - {{name: Off, config: {tmp_path}/m.yaml, watchlist: {tmp_path}/w2.txt, enabled: false}}\n")
     seen = []
     monkeypatch.setattr(sg, "check", lambda cfg, markets, state, topic, stake, practice=False, account=None, quiet=False: seen.append((cfg.strategy, markets, stake)) or [])
     monkeypatch.chdir(tmp_path)

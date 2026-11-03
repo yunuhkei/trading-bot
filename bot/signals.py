@@ -469,6 +469,8 @@ def run_alerts(settings_path: str = "alerts.yaml", once: bool = False, notify_ov
                                   float(pt.get("per_trade", 10))) if pt.get("enabled") else None
         rule, learned_file, stake = None, None, None
         for lst in settings["lists"]:
+            if lst.get("enabled") is False:     # switched off in the settings file
+                continue
             cfg = learn.apply(Config.load(lst["config"]))
             markets = read_watchlist(lst["watchlist"])
             if lst.get("learn"):

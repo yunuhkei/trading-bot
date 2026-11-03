@@ -160,6 +160,9 @@ python -m bot launches report                      # results, incl. news-matched
 
 ## Scalping practice bot (all day, self-tuning)
 
+**Switched off (Nov 3 2026):** it never showed an edge after fees. To bring it back, set `enabled: true` on the
+scalping list and under `practice_trading:` in `alerts.scalp.yaml`. The young-coin alerts keep running either way.
+
 The **scalp** workflow on GitHub runs a fake-money trader on 20 coins and stocks: it checks every 5 minutes, all day,
 buying RSI dips on **1-hour** charts. Its rule (`config.scalp.yaml`) can also sell at a take profit or a stop loss.
 

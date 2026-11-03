@@ -1,3 +1,5 @@
+# SWITCHED OFF (Nov 3 2026): the scalping practice list below is `enabled: false` because it never showed an edge
+# after fees. The young-coin dip-bounce alerts in this file still run. Set `enabled: true` to bring the scalper back.
 # Scalping PRACTICE bot (fake money): RSI dip trading on 1-hour candles, checked every 5 minutes. It LEARNS: every
 # 3 hours it re-studies the last 60 days of prices and adjusts its own settings (bot/scalp_learn.py). Instead of a
 # ping per trade, your phone gets a report every hour it did something: what it bought and sold, the account, and
@@ -11,6 +13,7 @@ report_every_minutes: 60  # the scalp report: what the practice bot did (skipped
 
 lists:
   - name: Scalping practice (RSI dip, 1h, self-tuning)
+    enabled: false                   # switched off: no edge after fees in testing (see the top of this file)
     config: config.scalp.yaml
     watchlist: watchlist.scalp.txt
     stake: 800
@@ -29,7 +32,7 @@ lists:
 
 # Practice auto-trading for the scalping list: its own fake-money account (see alerts.yaml).
 practice_trading:
-  enabled: true
+  enabled: false        # off together with the scalping list above
   cash: 8000            # room for 10 trades open at once
   per_trade: 800
   file: practice_account_scalp_800.json
