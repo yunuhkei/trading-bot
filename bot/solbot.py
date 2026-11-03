@@ -477,14 +477,14 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
             try:
                 kp = keypair()
             except KeyProblem as e:
-                if now - state.get("key_told", 0) > 3600:
-                    state["key_told"] = now
+                if state.get("badkey_note") != str(e) or now - state.get("badkey_told", 0) > 3600:
+                    state.update(badkey_note=str(e), badkey_told=now)
                     Path(state_path).write_text(json.dumps(state, indent=1))
                     tell("❌ Solana bot: the wallet key didn't work", f"The SOLANA_BOT_KEY secret is set, but {e}. Nothing was traded.")
                 return f"Wallet key problem: {e}."
             if kp is None:
-                if now - state.get("key_told", 0) > 6 * 3600:
-                    state["key_told"] = now
+                if now - state.get("nokey_told", 0) > 6 * 3600:
+                    state["nokey_told"] = now
                     Path(state_path).write_text(json.dumps(state, indent=1))
                     tell("Solana bot is LIVE but has no wallet key",
                          "The SOLANA_BOT_KEY secret isn't reaching it. Add it under the repo's Settings → Secrets and variables → "
