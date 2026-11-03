@@ -645,7 +645,10 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         from .solbot_learn import apply as learned
         cfg = learned("coin", Config.load(settings.get("strategy_config", "config.young.yaml")))
         just_closed = pd.Timestamp(now - now % 300 - 300, unit="s", tz="UTC")
-        for market, mint in coins:
+        listed = {mint for _, mint in coins}
+        held_off_list = [(p.get("market") or f"sol:{m}", m) for m, p in positions.items()
+                         if p.get("kind", "coin") == "coin" and m not in listed]   # taken off the list: still sold by the rule
+        for market, mint in coins + held_off_list:
             if only is not None and market not in only:
                 continue
             try:
@@ -664,7 +667,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                 elif not s["in"]:
                     sell(mint, "The price is back at its average (the rule's exit)")
                 continue
-            if s["fresh_buy"] and state.get("last_buy", {}).get(mint) != s["fresh_buy"]:
+            if mint in listed and s["fresh_buy"] and state.get("last_buy", {}).get(mint) != s["fresh_buy"]:
                 state.setdefault("last_buy", {})[mint] = s["fresh_buy"]
                 buy(mint, "coin", market, s["name"], "Dip-bounce signal on the 5-minute chart", value(wallet, positions, px))
         if stocks:

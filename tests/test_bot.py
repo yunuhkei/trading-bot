@@ -1178,3 +1178,18 @@ def test_solbot_checks_the_wallet_key_and_says_what_is_wrong_without_showing_it(
         assert told[-1][0] == "❌ Solana bot: the wallet key didn't work" and says in told[-1][1]
     monkeypatch.delenv("SOLANA_BOT_KEY")
     assert sb.check_key(state, 3e9, tell) is None
+
+
+def test_solbot_still_sells_a_coin_taken_off_the_list_but_never_buys_it_again(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    sig.update({"in": True, "fresh_buy": "t1"})
+    sb.step(settings, tell)
+    assert sent[-1][0] == "DRY RUN: BOUGHT $30.00 of COIN"
+    (tmp_path / "young.txt").write_text("")                    # taken off the list while holding it
+    sig.update({"in": True, "fresh_buy": "t2"})
+    sb.step(settings, tell)
+    assert sum(t.startswith("DRY RUN: BOUGHT") for t, _ in sent) == 1   # off the list: no new buys
+    sig.update({"in": False, "fresh_buy": None})
+    sb.step(settings, tell)
+    assert sent[-1][0].startswith("DRY RUN: SOLD COIN")

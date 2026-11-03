@@ -21,12 +21,12 @@ start_cash: 30            # dry run only: the pretend starting money
 learn: true               # re-test the dip-bounce settings on recent prices; adopt better ones only if they win on unseen days
 learn_coins_every_hours: 24
 learn_stocks_every_hours: 168
-bench_after_losses: 3     # a coin that loses this many trades in a row is dropped (and not picked again for 2 weeks)
+bench_after_losses: 0     # off during the 2-week NIO test. 3 = drop a coin after 3 losses in a row (not picked again for 2 weeks)
 
 # --- Young Solana coins (5-minute chart) ---
 watchlist: watchlist.young.txt       # the same list as your young-coin alerts
 strategy_config: config.young.yaml
-find_coins: true          # every few hours, search for new coins like NIO and add them to the list
+find_coins: false         # LOCKED TO NIO for a 2-week test (Nov 3-17 2026). true = search for new coins like NIO
 scan_every_hours: 2
 max_coins: 6              # most coins on the list at once
 coin_filters:             # what a new coin must look like (NIO had: 13 days old, $125k pool, $1M traded, rising)
@@ -40,6 +40,6 @@ dead_below_liquidity: 20000      # a coin with less than this in its pool...
 dead_below_volume_24h: 20000     # ...or less than this traded in a day is dying: sell it and drop it from the list
 
 # --- Stocks (verified xStocks on Solana, daily chart, US market hours only) ---
-stocks: true
+stocks: false             # off during the 2-week NIO test. true = also trade xStocks
 stock_strategy_config: config.stockdip.yaml
 max_price_gap: 0.01       # only trade when the xStock's price is within 1% of the real stock's
