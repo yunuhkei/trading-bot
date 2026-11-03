@@ -1303,3 +1303,28 @@ def test_solbot_never_benches_a_pinned_coin(tmp_path, monkeypatch):
         sig.update({"in": False, "fresh_buy": None})
         sb.step({**settings, "bench_after_losses": 3, "pinned": [f"sol:{mint}"]}, tell)
     assert f"sol:{mint}" in (tmp_path / "young.txt").read_text() and not any("benched" in t for t, _ in sent)
+
+
+def test_practice_account_takes_every_signal_with_the_live_strategies_and_reports_daily(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    live = {**settings, "mode": "live", "practice": {"enabled": True, "cash": 300, "per_trade": 30}}
+    ps = sb.practice_settings(live)
+    assert ps["mode"] == "practice" and ps["tiers"] == [{"per_trade": 30.0}] and not ps["pause_at"]
+    assert sb.practice_settings({**live, "mode": "dry_run"}) is None
+    rsi = {"label": "RSI dip", "strategy": "rsi_scalp", "params": {"period": 7, "low": 25, "high": 65, "tp": 0.0, "sl": 0.0}}
+    Path("solbot_state_live.json").write_text(json.dumps({"strats": {mint: rsi}}))
+    used = []
+    monkeypatch.setattr(sb, "signal", lambda market, cfg: used.append(cfg.strategy) or dict(sig))
+    called = []
+    monkeypatch.setattr(sb, "find_coins", lambda *a: called.append(1) or [])
+    sig.update({"in": True, "fresh_buy": "t1"})
+    sb.step(ps, tell)
+    assert used == ["rsi_scalp"] and not called                        # live bot's strategy; never searches or edits the list
+    price[0] = 1.05
+    sig.update({"in": False, "fresh_buy": None})
+    sb.step(ps, tell)
+    state = json.loads(Path("solbot_state_practice.json").read_text())
+    assert [t["action"] for t in state["trades"]] == ["BUY", "SELL"] and state["trades"][0]["usd"] == 30.0
+    title, msg = sb.practice_report(state, state["trades"][-1]["t"] + 60)
+    assert title.startswith("📊 Practice report: 1-0") and "COIN: 1-0" in msg

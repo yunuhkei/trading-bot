@@ -18,6 +18,13 @@ stop_loss: 0.20           # sell a coin or stock if it's down this much from the
 max_cost: 0.03            # skip a buy if fees + price impact would be more than this (3%)
 start_cash: 30            # dry run only: the pretend starting money
 
+# --- Practice account next to the live bot: same coins and strategies, pretend money, takes EVERY signal ---
+practice:                 # so there's data on every coin even while the real budget can only hold one trade at a time
+  enabled: true
+  cash: 300               # enough for 10 trades at once
+  per_trade: 30
+                          # no ping per pretend trade: one "Practice report" a day with the record per coin
+
 # --- Learning (bot/solbot_learn.py) ---
 learn: true               # re-test the dip-bounce settings on recent prices; adopt better ones only if they win on unseen days
 learn_coins_every_hours: 24

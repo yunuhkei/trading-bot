@@ -470,16 +470,17 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
     now = now or time.time()
     stale = []
     mode = settings.get("mode", "off")
-    if mode not in ("dry_run", "live"):
+    if mode not in ("dry_run", "live", "practice"):
         return "Off (mode: off in solbot.yaml)."
     live = mode == "live"
+    practice = mode == "practice"     # the quiet practice account next to the live bot: takes every signal, pretend money
     if live and Path(STOP_FILE).exists():
         return f"Stopped: {json.loads(Path(STOP_FILE).read_text()).get('reason')}. Delete {STOP_FILE} to start again."
     state_path = f"solbot_state_{mode}.json"
     state = json.loads(Path(state_path).read_text()) if Path(state_path).exists() else {}
     if state.get("stopped"):
         return f"Dry run stopped: {state['stopped']}."
-    tag = "" if live else "DRY RUN: "
+    tag = "" if live else "PRACTICE: " if practice else "DRY RUN: "
     if wallet is None:
         if live:
             try:
@@ -501,7 +502,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
             wallet = LiveWallet(kp)
         else:
             wallet = PaperWallet(state, float(settings.get("start_cash", 30)))
-            if only is None:
+            if only is None and not practice:
                 check_key(state, now, tell)
     if live:
         if "cash" not in state:
@@ -653,7 +654,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         return None
 
     try:
-        if only is None and now - state.get("scanned_at", 0) >= float(settings.get("scan_every_hours", 2)) * 3600:
+        if only is None and not practice and now - state.get("scanned_at", 0) >= float(settings.get("scan_every_hours", 2)) * 3600:
             state["scanned_at"] = now
             dead, info = [], dex_info([mint for _, mint in coins])
             for m, mint in coins:
@@ -690,7 +691,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                 kinds.update({mint: ("coin", m) for m, mint in coins})
                 px.update(prices([mint for _, mint in coins if mint not in px]))
         stop_loss = float(settings.get("stop_loss", 0.2))
-        if only is None and settings.get("learn", True):
+        if only is None and not practice and settings.get("learn", True):
             from . import solbot_learn
             seen = state.setdefault("seen_coins", {})
             seen.update({m: now for m, _ in coins})
@@ -707,9 +708,14 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         from .solbot_learn import apply as learned
         cfg = learned("coin", Config.load(settings.get("strategy_config", "config.young.yaml")))
         strats = state.setdefault("strats", {})
+        if practice:                  # same strategies (and sit-outs) as the live bot, read from its notes
+            try:
+                strats = json.loads(Path("solbot_state_live.json").read_text()).get("strats", {})
+            except (OSError, ValueError):
+                strats = {}
         default = {"label": "dip bounce", "strategy": cfg.strategy, "params": dict(cfg.strategy_params)}
         mwr = float(settings.get("min_win_rate", 0.81))
-        if only is None:
+        if only is None and not practice:
             from .solbot_learn import coin_history
             from .solbot_strats import describe, review
             for market, mint in coins:
@@ -820,10 +826,44 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         Path(state_path).write_text(json.dumps(state, indent=1))
 
 
+def practice_settings(settings: dict) -> dict | None:
+    """Settings for the practice account next to the live bot, or None if it's off."""
+    pr = settings.get("practice") or {}
+    if settings.get("mode") != "live" or not pr.get("enabled"):
+        return None
+    return {**settings, "mode": "practice", "start_cash": float(pr.get("cash", 300)),
+            "tiers": [{"per_trade": float(pr.get("per_trade", 30))}], "pause_at": [], "stop_below": 0, "stop_drawdown": 0,
+            "max_cost": settings.get("max_cost", 0.03)}
+
+
+def practice_report(state: dict, now: float, hours: float = 24) -> tuple[str, str] | None:
+    """The daily practice report: every signal on every coin, as if there were always money for it."""
+    from .signals import money
+
+    sells = [t for t in state.get("trades", []) if t["action"] == "SELL" and now - t["t"] <= hours * 3600]
+    if not sells:
+        return None
+    by = {}
+    for t in sells:
+        by.setdefault(t["what"], []).append(t["result"])
+    made = sum(t["usd"] * t["result"] / (1 + t["result"]) for t in sells)
+    wins = sum(t["result"] > 0 for t in sells)
+    lines = [f"Every signal on every coin, $30 each, pretend money, real prices and fees. Last {hours:.0f} h: "
+             f"{len(sells)} trades, {wins / len(sells):.0%} won, {made:+,.2f} total."]
+    for coin, rs in sorted(by.items(), key=lambda kv: -len(kv[1])):
+        lines.append(f"• {coin}: {sum(r > 0 for r in rs)}-{sum(r <= 0 for r in rs)}, "
+                     f"{sum(rs) / len(rs):+.1%} average")
+    all_sells = [t for t in state.get("trades", []) if t["action"] == "SELL"]
+    if len(all_sells) > len(sells):
+        lines.append(f"Since it started: {len(all_sells)} trades, {sum(t['result'] > 0 for t in all_sells) / len(all_sells):.0%} won.")
+    return f"📊 Practice report: {wins}-{len(sells) - wins}, {money(made) if made >= 0 else '-' + money(-made)}", "\n".join(lines)
+
+
 def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every: float = 5):
     """Check every `every` minutes (just after each 5-minute candle closes) until `minutes` have passed."""
     from .signals import alert_target, display_name, notify
 
+    global stale
     stop_at = time.time() + minutes * 60 if minutes else None
     while True:
         settings = load_settings(settings_path)      # re-read each time, so switching to live takes effect
@@ -841,6 +881,23 @@ def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every:
             except Exception as e:
                 status = f"Check failed: {e}"
                 log.warning(status)
+            live_stale = list(stale)
+            ps = practice_settings(settings)
+            if ps:                      # the practice account: same coins and strategies, every signal, no pings per trade
+                try:
+                    pstatus = step(ps, lambda t, m: log.warning("PRACTICE %s: %s", t, m), only=only)
+                    print("   practice:", pstatus, flush=True)
+                    pstate_path = Path("solbot_state_practice.json")
+                    pstate = json.loads(pstate_path.read_text())
+                    if only is None and time.time() - pstate.get("reported_at", pstate.get("started", 0)) >= 86400:
+                        rep = practice_report(pstate, time.time())
+                        pstate["reported_at"] = time.time()
+                        pstate_path.write_text(json.dumps(pstate, indent=1))
+                        if rep:
+                            tell(*rep)
+                except Exception as e:
+                    log.warning("practice check failed: %s", e)
+            stale = sorted(set(live_stale + stale))
             print(time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()), status
                   + (f" (waiting for the new candle: {', '.join(display_name(m) for m in stale)})" if stale else ""), flush=True)
             # The feed often lags 1-3 minutes: re-check those coins every 30 s until the just-finished candle is in, so a
