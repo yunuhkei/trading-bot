@@ -112,16 +112,65 @@ def sign(tx_b64: str, kp) -> str:
     return base64.b64encode(bytes(VersionedTransaction.populate(raw.message, sigs))).decode()
 
 
+class KeyProblem(Exception):
+    pass
+
+
 def keypair():
-    """The bot's wallet from the SOLANA_BOT_KEY secret (Phantom's base58 private key, or a [..] byte list)."""
+    """The bot's wallet from the SOLANA_BOT_KEY secret (Phantom's base58 private key, or a [..] byte list).
+    None if there's no key; KeyProblem (saying what's wrong, never the key itself) if it can't be read."""
     from solders.keypair import Keypair
 
-    key = os.environ.get("SOLANA_BOT_KEY", "").strip()
+    key = os.environ.get("SOLANA_BOT_KEY", "").strip().strip("'\"").strip()
     if not key:
         return None
-    if key.startswith("["):
-        return Keypair.from_bytes(bytes(json.loads(key)))
-    return Keypair.from_base58_string(key)
+    if len(key.split()) >= 12:
+        raise KeyProblem("it looks like the 12-word recovery phrase. Use the private key instead: one long string "
+                         "(Phantom: Settings → Manage Accounts → the bot's account → Show Private Key)")
+    if " " in key or "\n" in key:
+        raise KeyProblem("it has spaces or line breaks in it. Copy it again and paste it with nothing else")
+    try:
+        if key.startswith("["):
+            return Keypair.from_bytes(bytes(json.loads(key)))
+        if 32 <= len(key) <= 44:
+            raise KeyProblem("it looks like the wallet's address (the public one you send money to). The private key "
+                             "is longer: about 88 letters and numbers")
+        return Keypair.from_base58_string(key)
+    except KeyProblem:
+        raise
+    except Exception:
+        raise KeyProblem(f"it isn't a Solana private key ({len(key)} characters; Phantom's is about 88 letters and "
+                         "numbers, no spaces or quotes). Copy it again from Phantom → Show Private Key")
+
+
+def check_key(state: dict, now: float, tell) -> str | None:
+    """Dry run: if a wallet key is set, check it works and tell your phone the wallet's address and money (never the
+    key). Re-tells when the money in it changes, so you also see when your deposit arrives."""
+    try:
+        kp = keypair()
+    except KeyProblem as e:
+        if state.get("key_note") != str(e) or now - state.get("key_told", 0) > 86400:
+            state.update(key_note=str(e), key_told=now)
+            tell("❌ Solana bot: the wallet key didn't work", f"The SOLANA_BOT_KEY secret is set, but {e}. Then replace the secret on GitHub.")
+        return None
+    if kp is None:
+        return None
+    address = str(kp.pubkey())
+    try:
+        bal = balances(address)
+    except Exception as e:
+        log.warning("balance check failed: %s", e)
+        return address
+    usdc = float((bal.get(USDC) or {}).get("uiAmount") or 0)
+    sol = float((bal.get("SOL") or {}).get("uiAmount") or 0)
+    note = f"{address}|{usdc:.2f}|{sol:.3f}"
+    if state.get("key_note") != note and now - state.get("key_told", 0) > 600:
+        state.update(key_note=note, key_told=now)
+        todo = [x for x, missing in (("send it USDC on Solana", usdc < MIN_TRADE), ("send it about 0.03 SOL for fees", sol < MIN_SOL)) if missing]
+        tell("✅ Solana bot: wallet key works",
+             f"Wallet {address}: ${usdc:,.2f} USDC and {sol:.4f} SOL. Check this address matches your bot account in Phantom. "
+             + (f"Still to do: {' and '.join(todo)}." if todo else "Ready: tell Claude \"go live\" when you are."))
+    return address
 
 
 # ---- Wallets: the real one, and a pretend one for dry runs ----
@@ -396,12 +445,21 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
     tag = "" if live else "DRY RUN: "
     if wallet is None:
         if live:
-            kp = keypair()
+            try:
+                kp = keypair()
+            except KeyProblem as e:
+                if now - state.get("key_told", 0) > 3600:
+                    state["key_told"] = now
+                    Path(state_path).write_text(json.dumps(state, indent=1))
+                    tell("❌ Solana bot: the wallet key didn't work", f"The SOLANA_BOT_KEY secret is set, but {e}. Nothing was traded.")
+                return f"Wallet key problem: {e}."
             if kp is None:
                 return "No wallet key yet (SOLANA_BOT_KEY secret)."
             wallet = LiveWallet(kp)
         else:
             wallet = PaperWallet(state, float(settings.get("start_cash", 30)))
+            if only is None:
+                check_key(state, now, tell)
     positions = state.setdefault("positions", {})
     watchlist = settings.get("watchlist", "watchlist.young.txt")
     coins = solana_coins(watchlist)
