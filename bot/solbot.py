@@ -689,7 +689,8 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         positions[mint] = {"market": market, "kind": kind, "name": name, "raw": fill["out"], "decimals": dec,
                            "entry": spent / tokens if tokens else float(px.get(mint, {}).get("usdPrice") or 0),
                            "cost": spent, "bought_at": now,
-                           **({"strategy": strat["strategy"], "params": strat["params"], "label": strat.get("label")} if strat else {})}
+                           **({"strategy": strat["strategy"], "params": strat["params"], "label": strat.get("label"),
+                               "max_drop": strat.get("max_drop")} if strat else {})}
         if kind == "coin":
             try:
                 positions[mint]["liq_max"] = (dex_info([mint]).get(mint) or {}).get("liq")
@@ -829,7 +830,8 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
             from .solbot_strats import describe, review
             for market, mint in coins:
                 st = strats.get(mint)
-                if st and now - st.get("reviewed_at", 0) < float(settings.get("review_every_hours", 2)) * 3600:
+                if st and ("max_drop" in st or st.get("sitting_out")) and \
+                        now - st.get("reviewed_at", 0) < float(settings.get("review_every_hours", 2)) * 3600:
                     continue
                 current = None if (st or {}).get("sitting_out") else (st or default)
                 try:
@@ -841,7 +843,11 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                     continue
                 name = cname(market)
                 if decision == "keep":
-                    strats[mint] = {**current, "reviewed_at": now, "since": (st or {}).get("since", now)}
+                    if ("max_drop" in (st or {}) and st["max_drop"] != choice.get("max_drop")) or \
+                            ("max_drop" not in (st or {}) and not choice.get("max_drop")):
+                        tell(f"{tag}Solana bot: {name} falling-knife filter {'on' if choice.get('max_drop') else 'off'}",
+                             f"{why[0].upper() + why[1:]}.")
+                    strats[mint] = {**choice, "reviewed_at": now, "since": (st or {}).get("since", now)}
                 elif decision == "switch":
                     strats[mint] = {**choice, "since": now, "reviewed_at": now}
                     state.setdefault("coin_results", {})[mint] = []       # judge the new strategy on its own trades
@@ -867,7 +873,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                 market_note = "" if market_ok else f"SOL is down {ch:.1%} in the last hour"
             except Exception as e:
                 log.warning("SOL check failed: %s", e)
-        max_drop = settings.get("max_drop_6h", 0.10)
+        default_drop = settings.get("max_drop_6h", 0.10)
         listed = {mint for _, mint in coins}
         held_off_list = [(p.get("market") or f"sol:{m}", m) for m, p in positions.items()
                          if p.get("kind", "coin") == "coin" and m not in listed]   # taken off the list: still sold by the rule
@@ -880,7 +886,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                 continue
             ccfg = replace(cfg, strategy=st.get("strategy", cfg.strategy), strategy_params=dict(st.get("params", cfg.strategy_params)))
             try:
-                s = signal(market, ccfg, max_drop)
+                s = signal(market, ccfg, st.get("max_drop", default_drop))
             except Exception as e:
                 log.warning("%s: no signal: %s", market, e)
                 continue

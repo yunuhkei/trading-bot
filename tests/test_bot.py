@@ -1403,3 +1403,18 @@ def test_solbot_guard_sells_at_the_stop_within_seconds_and_on_a_pool_money_drop(
     liq[0] = 6e5
     sb.step(settings, tell, guard=True)
     assert "possible rug pull" in sent[-1][1] and sent[-1][0].startswith("DRY RUN: SOLD")
+
+
+def test_each_coin_gets_the_falling_knife_filter_only_if_it_helps_on_that_coin(monkeypatch):
+    from bot import solbot_strats as ss
+    df = pd.DataFrame({"close": np.ones(400), "low": np.ones(400)},
+                      index=pd.date_range("2026-11-01", periods=400, freq="30min", tz="UTC"))
+    late = lambda n, r: [(df.index[-1] - pd.Timedelta(hours=i + 1), r) for i in range(n)]
+    with_filter, without = late(4, 0.02), late(10, 0.03)           # NIO-like: skipping falling dips throws away winners
+    monkeypatch.setattr(ss, "replay", lambda d, st, p, fee=0.01, stop_loss=0.2, max_drop=None: with_filter if max_drop else without)
+    current = {"label": "dip bounce", "strategy": "bollinger", "params": {"period": 20, "width": 2.0}}
+    d, c, why = ss.review(df, current, [], max_drop=0.10)
+    assert d == "keep" and c["max_drop"] is None and "10 trades" in why
+    with_filter, without = late(8, 0.03), late(10, 0.03) + late(6, -0.05)   # FLOAT-like: the filter skips the losers
+    d, c, why = ss.review(df, current, [], max_drop=0.10)
+    assert d == "keep" and c["max_drop"] == 0.10

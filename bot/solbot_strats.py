@@ -73,13 +73,15 @@ def choose(df: pd.DataFrame, min_win_rate: float = 0.81, stop_loss: float = 0.2,
     for label, strategy, grid in CANDIDATES:
         for values in itertools.product(*grid.values()):
             params = dict(zip(grid, values))
-            if exclude and (strategy, params) == exclude:
-                continue
-            trades = replay(df, strategy, params, stop_loss=stop_loss, max_drop=max_drop)
-            study = _stats([r for t, r in trades if t < cutoff])
-            if study["trades"] >= MIN_STUDY and study["won"] >= min_study_win and study["avg"] > 0:
-                ranked.append({"label": label, "strategy": strategy, "params": params, "study": study,
-                               "exam": _stats([r for t, r in trades if t >= cutoff]), "exam_from": str(cutoff)})
+            for knife in ([None, max_drop] if max_drop else [None]):     # the falling-knife filter on and off
+                if exclude and (strategy, params) == exclude[:2] and (len(exclude) < 3 or exclude[2] == knife):
+                    continue
+                trades = replay(df, strategy, params, stop_loss=stop_loss, max_drop=knife)
+                study = _stats([r for t, r in trades if t < cutoff])
+                if study["trades"] >= MIN_STUDY and study["won"] >= min_study_win and study["avg"] > 0:
+                    ranked.append({"label": label, "strategy": strategy, "params": params, "max_drop": knife,
+                                   "study": study, "exam": _stats([r for t, r in trades if t >= cutoff]),
+                                   "exam_from": str(cutoff)})
     for c in sorted(ranked, key=lambda c: -c["study"]["total"])[:top]:
         e = c["exam"]
         if e["trades"] >= MIN_EXAM and e["won"] >= min_win_rate and e["avg"] > 0:
@@ -97,6 +99,7 @@ def describe(c: dict) -> str:
     else:
         rule = f"buy {p['width']:g}x its usual swing below the {p['period']}-candle average, sell back at the average"
     e = c["exam"]
+    rule += "; skips falling knives" if c.get("max_drop") else "; also buys dips in a falling coin (works on this one)"
     return (f"{c['label']} ({rule}). On the newest days it never studied: {e['trades']} trades, {e['won']:.0%} won, "
             f"{e['avg']:+.1%} average after fees")
 
@@ -118,7 +121,10 @@ def review(df: pd.DataFrame, current: dict | None, live: list[float], min_win_ra
     coin (5+) didn't fall below `min_win_rate`. Otherwise it switches to the strategy that passes the full test in
     choose(), or sits the coin out if none does."""
     if current:
-        r = recent(df, current["strategy"], current["params"], stop_loss=stop_loss, max_drop=max_drop)
+        variants = [current.get("max_drop")] if "max_drop" in current else [None, max_drop] if max_drop else [None]
+        tried = {k: recent(df, current["strategy"], current["params"], stop_loss=stop_loss, max_drop=k) for k in variants}
+        knife = max(tried, key=lambda k: (tried[k]["won"] >= min_win_rate and tried[k]["avg"] > 0, tried[k]["total"]))
+        current, r = {**current, "max_drop": knife}, tried[knife]
         mine = np.array(live[-8:])
         own_ok = len(mine) < 5 or (mine > 0).mean() >= min_win_rate
         if own_ok and r["trades"] < MIN_EXAM:
@@ -132,9 +138,11 @@ def review(df: pd.DataFrame, current: dict | None, live: list[float], min_win_ra
     else:
         why, own_ok = "no strategy yet", True
     # If the bot's own trades with it lost, it's out even if the replay still looks fine (real fills beat replays).
-    c = choose(df, min_win_rate, stop_loss, exclude=None if own_ok or not current else (current["strategy"], current["params"]),
+    c = choose(df, min_win_rate, stop_loss,
+               exclude=None if own_ok or not current else (current["strategy"], current["params"], current.get("max_drop")),
                max_drop=max_drop)
-    if c and current and c["strategy"] == current["strategy"] and c["params"] == current["params"]:
+    if c and current and c["strategy"] == current["strategy"] and c["params"] == current["params"] \
+            and c.get("max_drop") == current.get("max_drop"):
         return "keep", current, why
     if c:
         return "switch", c, why
