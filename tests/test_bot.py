@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -899,3 +902,110 @@ def test_scalp_practice_is_quiet_per_trade_and_reports_hourly(tmp_path, monkeypa
     again = sg.PracticeAccount(str(tmp_path / "acct.json"))
     assert len(again.events) == 2 and again.reported_at == acct.reported_at
     assert sg.send_report(again, 60, "t", "my rule", None, 800, now=again.reported_at + 7200) is None   # nothing new
+
+
+def _solbot_fakes(monkeypatch, tmp_path, price):
+    """A pretend market for the Solana bot: one coin, a price we control, Jupiter quotes at that price minus 1%."""
+    from bot import solbot as sb
+    monkeypatch.chdir(tmp_path)
+    mint = "COIN111"
+    sig = {"in": False, "fresh_buy": None, "name": "COIN", "candle_price": price[0]}
+    monkeypatch.setattr(sb, "solana_coins", lambda wl: [(f"sol:{mint}", mint)])
+    monkeypatch.setattr(sb, "signal", lambda market, cfg: dict(sig))
+    monkeypatch.setattr(sb, "prices", lambda mints: {mint: {"usdPrice": price[0], "decimals": 6}})
+
+    def order(i, o, raw, taker=None):
+        usd_in = raw / 1e6 * (1 if i == sb.USDC else price[0])
+        out = usd_in * 0.99 / (price[0] if o == mint else 1)
+        return {"inAmount": str(raw), "outAmount": str(int(out * 1e6)), "inUsdValue": usd_in, "outUsdValue": usd_in * 0.99,
+                "requestId": "r", "transaction": None}
+    monkeypatch.setattr(sb, "order", order)
+    sent = []
+    settings = {"mode": "dry_run", "per_trade": 30, "stop_loss": 0.2, "stop_below": 10, "stop_above": 100,
+                "max_cost": 0.03, "start_cash": 30, "strategy_config": str(Path(__file__).parent.parent / "config.young.yaml")}
+    return sb, mint, sig, settings, (lambda t, m: sent.append((t, m))), sent
+
+
+def test_solbot_dry_run_buys_fresh_dips_sells_at_the_average_and_never_rebuys_the_same_signal(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    sb.step(settings, tell)
+    assert sent[0][0].startswith("DRY RUN: Solana bot connected")
+    sig.update({"in": True, "fresh_buy": "2026-11-03 10:00"})
+    sb.step(settings, tell)
+    assert sent[-1][0] == "DRY RUN: BOUGHT $30.00 of COIN"
+    state = json.loads(Path("solbot_state_dry_run.json").read_text())
+    assert state["paper_cash"] == 0 and abs(state["positions"][mint]["cost"] - 30) < 1e-9
+    n = len(sent)
+    sb.step(settings, tell)                                     # same signal: no second buy
+    assert len(sent) == n
+    price[0] = 1.10
+    sig.update({"in": False, "fresh_buy": None})
+    status = sb.step(settings, tell)
+    assert sent[-1][0].startswith("DRY RUN: SOLD COIN for $32.") and "holding nothing" in status
+    state = json.loads(Path("solbot_state_dry_run.json").read_text())
+    assert 32 < state["paper_cash"] < 33 and not state["positions"]
+
+
+def test_solbot_stop_loss_and_account_limits(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    sig.update({"in": True, "fresh_buy": "t1"})
+    sb.step(settings, tell)
+    price[0] = 0.75                                             # down 25%: the 20% stop-loss sells it
+    sb.step(settings, tell)
+    assert any(t.startswith("DRY RUN: SOLD") and "Stop-loss" in m for t, m in sent)
+    sig.update({"fresh_buy": "t2"})                             # a new dip: buys again with what's left
+    sb.step(settings, tell)
+    price[0] = 0.30                                             # account falls below $10: sell all and stop
+    status = sb.step(settings, tell)
+    assert status.startswith("Stopped") and sent[-1][0] == "DRY RUN: Solana bot STOPPED: loss limit"
+    assert sb.step(settings, tell).startswith("Dry run stopped earlier")
+    # The goal: account at $100+ sells everything and stops
+    Path("solbot_state_dry_run.json").unlink()
+    sent.clear()
+    price[0] = 1.0
+    sig.update({"fresh_buy": "t3"})
+    sb.step({**settings, "start_cash": 90}, tell)
+    price[0] = 1.5
+    sig.update({"in": True, "fresh_buy": "t3"})
+    status = sb.step({**settings, "start_cash": 90}, tell)
+    assert status.startswith("Stopped") and sent[-1][0] == "DRY RUN: Solana bot STOPPED: goal reached"
+
+
+def test_solbot_skips_expensive_swaps_and_live_stop_writes_the_stop_file(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    sig.update({"in": True, "fresh_buy": "t1"})
+    sb.step({**settings, "max_cost": 0.005}, tell)              # 1% cost > 0.5% limit
+    assert sent[-1][0] == "DRY RUN: Solana bot: didn't buy COIN" and "skipped" in sent[-1][1]
+
+    class FakeLive:
+        live, address = True, "WALLET"
+        def __init__(self): self.usdc, self.coin = 5.0, 0
+        def refresh(self): pass
+        def cash(self): return self.usdc
+        def sol(self): return 0.05
+        def held_raw(self, m): return self.coin
+        def swap(self, i, o, raw, max_cost=None): raise AssertionError("nothing to trade")
+    status = sb.step({**settings, "mode": "live"}, tell, wallet=FakeLive())
+    assert status.startswith("Stopped") and json.loads(Path(sb.STOP_FILE).read_text())["account"] == 5.0
+    assert sb.step({**settings, "mode": "live"}, tell, wallet=FakeLive()).startswith("Stopped earlier")
+    assert sb.step({**settings, "mode": "off"}, tell).startswith("Off")
+
+
+def test_solbot_signs_only_its_own_slot_and_refuses_someone_elses_swap():
+    import base64
+    from solders.hash import Hash
+    from solders.keypair import Keypair
+    from solders.message import MessageV0
+    from solders.signature import Signature
+    from solders.transaction import VersionedTransaction
+    from bot import solbot as sb
+    kp = Keypair()
+    msg = MessageV0.try_compile(kp.pubkey(), [], [], Hash.default())
+    unsigned = base64.b64encode(bytes(VersionedTransaction.populate(msg, [Signature.default()]))).decode()
+    signed = VersionedTransaction.from_bytes(base64.b64decode(sb.sign(unsigned, kp)))
+    assert signed.verify_with_results() == [True]
+    with pytest.raises(sb.TradeError):
+        sb.sign(unsigned, Keypair())

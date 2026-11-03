@@ -191,6 +191,15 @@ def cmd_autotrade(args, cfg):
     print(run(args.settings))
 
 
+def cmd_solbot(args, cfg):
+    import logging
+
+    from .solbot import run
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    run(args.settings, args.minutes)
+
+
 def cmd_markets(args, cfg):
     import ccxt
 
@@ -306,6 +315,9 @@ def main(argv=None):
     at = sub.add_parser("autotrade", help="trade on Coinbase for you with the trend rule (settings: autotrade.yaml)")
     at.add_argument("--settings", default="autotrade.yaml")
 
+    sb = sub.add_parser("solbot", help="auto-trade young Solana coins with the dip-bounce rule (settings: solbot.yaml)")
+    sb.add_argument("--settings", default="solbot.yaml")
+    sb.add_argument("--minutes", type=float, default=None, help="keep checking every 5 minutes for this long")
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")
     m.add_argument("--search", default="BTC")
 
@@ -340,6 +352,8 @@ def main(argv=None):
         cmd_signals(args, cfg)
     elif args.cmd == "autotrade":
         cmd_autotrade(args, cfg)
+    elif args.cmd == "solbot":
+        cmd_solbot(args, cfg)
     elif args.cmd == "learn":
         cmd_learn(args, cfg)
     elif args.cmd == "markets":

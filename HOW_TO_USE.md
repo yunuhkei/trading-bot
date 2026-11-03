@@ -230,6 +230,31 @@ It starts in **dry run**: your phone gets "Auto-trader connected" and then "DRY 
 match the alerts for a few days, ask Claude to switch it to live. In live mode it refuses a key that can transfer
 money, and if it ever loses its notes on what it bought, it stops instead of guessing.
 
+## Auto-trading young Solana coins (NIO and other Fomo coins)
+
+The **solbot** workflow trades the coins in `watchlist.young.txt` for you with the **dip-bounce** rule (the same rule
+as your young-coin alerts), every 5 minutes, all day. Fomo has no bot access, so the bot uses **its own wallet** and
+swaps through Jupiter (what most Solana apps use behind the scenes). Settings are in `solbot.yaml`:
+`per_trade` ($30), `stop_loss` (sell a coin down 20%), `stop_below` / `stop_above` (if the account, USDC plus its
+coins, falls to $10 or reaches $100, it sells everything and **stops**), `max_cost` (skip a buy if fees plus price
+impact are over 3%), and `mode`.
+
+Setup (one time, about 5 minutes):
+1. In **Phantom** (or another Solana wallet) create a **new account just for the bot**. Never use your main wallet.
+2. Send it **$30 of USDC on Solana** plus about **0.03 SOL** (~$3) for network fees.
+3. Export that account's **private key** (Phantom: Settings → Manage Accounts → the bot's account → Show Private Key).
+4. In GitHub add a repository secret (Settings → Secrets and variables → Actions → New repository secret):
+   `SOLANA_BOT_KEY` = the private key. It's never written into the code or shown in logs.
+
+It starts in **dry run**: your phone gets "DRY RUN: BOUGHT ..." and "DRY RUN: SOLD ..." messages using real prices
+and fees but pretend money. When you're happy, ask Claude to switch `mode` to `live`. Every real buy and sell is sent
+to your phone with a Solscan link. If it stops at a limit, it saves `solbot_stopped.json`; delete it (or ask Claude)
+to start again.
+
+Know the risks: it checks every 5 minutes, so a crash can go past the 20% stop before it sells; if a coin's team
+pulls the money out of the pool (a rug pull), nothing can sell it; and the wallet key can spend everything in that
+wallet, so keep only lottery money there.
+
 ## Check a chart screenshot (PC)
 
 Take a screenshot of a coin or stock in any app (Fomo, Coinbase, Robinhood...) and the bot tells you

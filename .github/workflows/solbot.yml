@@ -1,0 +1,44 @@
+# Solana auto-trader (solbot.yaml): one long job that checks every 5 minutes for almost 6 hours, then the next one
+# takes over, so it runs all day. Needs the SOLANA_BOT_KEY secret (the bot's own wallet) for live mode.
+# Remembers its trades between jobs; if it stops at a limit it saves solbot_stopped.json to the repo.
+name: solbot
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # starts a new job if none is running; waits its turn otherwise
+  workflow_dispatch:
+concurrency:
+  group: solbot
+  cancel-in-progress: false
+permissions:
+  contents: write            # only to save solbot_stopped.json when it stops
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: solbot_state_*.json
+          key: solbot-state-${{ github.run_id }}
+          restore-keys: solbot-state-
+      - name: Trade every 5 minutes
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+          SOLANA_BOT_KEY: ${{ secrets.SOLANA_BOT_KEY }}
+          JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}
+          SOLBOT_COMMIT_STOP: "1"
+        # Pull new commits every 5 minutes, so settings changes (like switching to live) and new coins apply right away.
+        run: |
+          (while sleep 300; do git pull -q --ff-only origin main || true; done) &
+          python -m bot solbot --minutes 340
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: solbot_state_*.json
+          key: solbot-state-${{ github.run_id }}

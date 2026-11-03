@@ -16,3 +16,4 @@ practice_account*.json
 autotrade_state_*.json
 news_headlines_state.json
 scalp_learned.json
+solbot_state_*.json

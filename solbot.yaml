@@ -1,0 +1,13 @@
+# Solana auto-trader (bot/solbot.py): trades the coins in watchlist.young.txt (NIO, ...) with the dip-bounce rule,
+# from a wallet that belongs to the bot alone. Checked every 5 minutes by the "solbot" workflow on GitHub.
+# Setup: a new wallet (e.g. Phantom) with only the money for the bot as USDC on Solana + ~0.03 SOL for network fees;
+# its private key goes in the SOLANA_BOT_KEY GitHub secret. Every buy and sell (or would-be one) goes to your phone.
+mode: dry_run             # off | dry_run (real quotes, pretend money, no trades) | live (real trades)
+watchlist: watchlist.young.txt
+strategy_config: config.young.yaml   # the dip-bounce rule on 5-minute candles (same as your young-coin alerts)
+per_trade: 30             # dollars of USDC per buy (or what's left, if less)
+stop_loss: 0.20           # sell a coin if it's down this much from the buy
+stop_below: 10            # account (USDC + its coins) at or below this: sell everything and stop
+stop_above: 100           # account at or above this: sell everything and stop (goal reached)
+max_cost: 0.03            # skip a buy if fees + price impact would be more than this (3%)
+start_cash: 30            # dry run only: the pretend starting money
