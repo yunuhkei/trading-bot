@@ -735,15 +735,20 @@ def test_autotrade_dry_run_places_no_orders(tmp_path, monkeypatch):
     assert status.startswith("DRY RUN:")
 
 
-def test_news_digest_mixes_sections_skips_repeats_and_columns():
+def _rss(*titles, outlet="Outlet"):
+    return "<rss><channel>" + "".join(
+        f"<item><title>{t} - {outlet}</title><source>{outlet}</source><pubDate>Fri, 15 Jan 2027 08:00:00 GMT</pubDate></item>"
+        for t in titles) + "</channel></rss>"
+
+
+def test_news_digest_sends_only_the_worst_headlines_worst_first():
     from bot import headlines
     now = 1_800_000_000.0
-    rss = lambda *titles: "<rss><channel>" + "".join(
-        f"<item><title>{t} - Outlet</title><source>Outlet</source><pubDate>Fri, 15 Jan 2027 08:00:00 GMT</pubDate></item>"
-        for t in titles) + "</channel></rss>"
-    feeds = {"Top": headlines.parse(rss("Storm hits Florida coast overnight", "Senate passes budget bill")),
-             "Tech": headlines.parse(rss("Column | My neighbor keeps borrowing my ladder", "Apple unveils new chip")),
-             "Crypto": headlines.parse(rss("Florida coast storm hits overnight, thousands without power"))}
+    feeds = {"Top": headlines.parse(_rss("Storm hits Florida coast overnight", "Senate passes budget bill",
+                                         "Earthquake kills dozens in Turkey")),
+             "World": headlines.parse(_rss("Russia launches missile attack on Kyiv, 12 killed")),
+             "Tech": headlines.parse(_rss("Column | Missile attack on my ladder", "Apple unveils new chip")),
+             "Crypto": headlines.parse(_rss("Turkey earthquake kills dozens, rescuers search rubble"))}
     for items in feeds.values():
         for i in items:
             i["published"] = now - 3600
@@ -751,6 +756,52 @@ def test_news_digest_mixes_sections_skips_repeats_and_columns():
     assert len(feeds["Tech"]) == 1                                   # the advice column is dropped
     chosen = headlines.pick(feeds, sent=[], most=5, now=now)
     titles = [c["title"] for c in chosen]
-    assert titles[:2] == ["Storm hits Florida coast overnight", "Apple unveils new chip"]   # sections take turns
-    assert "Florida coast storm hits overnight, thousands without power" not in titles      # same story, other outlet
+    assert titles == ["Russia launches missile attack on Kyiv, 12 killed", "Earthquake kills dozens in Turkey"]
     assert headlines.pick(feeds, sent=titles, most=5, now=now) == []                        # nothing sent twice
+
+
+def test_red_alert_only_for_a_nuclear_weapon_actually_used():
+    from bot import headlines
+    for t in ["Russia launches nuclear strike on Ukraine", "Nuclear bomb dropped on city, officials say",
+              "Nuclear explosion reported near Kyiv", "Nuke dropped from plane over port city"]:
+        assert headlines.nuclear_used(t), t
+    for t in ["Putin threatens nuclear strike", "Fears of nuclear war grow", "Could a nuclear attack happen?",
+              "Iran nuclear talks resume", "North Korea conducts nuclear test", "US strikes Iran nuclear sites",
+              "Drone hits Zaporizhzhia nuclear plant", "Hiroshima marks anniversary of atomic bomb",
+              "Kremlin denies plans for nuclear strike"]:
+        assert not headlines.nuclear_used(t), t
+
+
+def test_red_alert_needs_two_outlets_is_urgent_and_waits_an_hour(tmp_path, monkeypatch):
+    from bot import headlines, signals
+    feeds = {"Top": _rss("Russia launches nuclear strike on Ukraine", outlet="Reuters"),
+             "World": _rss("Nuclear explosion reported near Kyiv", outlet="AP")}
+    one_outlet = {"Top": feeds["Top"], "World": _rss("Senate passes budget bill")}
+    serve = {}
+
+    class Resp:
+        def __init__(self, text): self.text = text
+        def raise_for_status(self): pass
+
+    monkeypatch.setattr(headlines, "SECTIONS", {"Top": "top", "World": "world"})
+    monkeypatch.setattr(headlines.requests, "get", lambda url, **kw: Resp(serve[url]))
+    monkeypatch.setattr(headlines.email.utils, "parsedate_to_datetime",
+                        lambda _: __import__("datetime").datetime.fromtimestamp(headlines.time.time() - 600))
+    sent = []
+    monkeypatch.setattr(signals, "notify", lambda target, title, msg, **kw: sent.append((title, kw)) or True)
+    state = str(tmp_path / "state.json")
+
+    serve.update({"top": one_outlet["Top"], "world": one_outlet["World"]})
+    headlines.run("ntfy:x", state)
+    assert not any(t.startswith("RED ALERT") for t, _ in sent)               # one outlet is not enough
+
+    sent.clear()
+    serve.update({"top": feeds["Top"], "world": feeds["World"]})
+    headlines.run("ntfy:x", state)
+    red = [(t, kw) for t, kw in sent if t.startswith("RED ALERT")]
+    assert len(red) == 1 and red[0][1]["priority"] == "urgent"
+
+    sent.clear()
+    serve["world"] = _rss("Second nuclear bomb dropped on Odesa", outlet="BBC")
+    headlines.run("ntfy:x", state)
+    assert not any(t.startswith("RED ALERT") for t, _ in sent)               # within the hour: no second red alert

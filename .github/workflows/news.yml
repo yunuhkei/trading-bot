@@ -1,5 +1,6 @@
 # Every 10 minutes: meme coin IDEAS from the news (never buy signals, see bot/news_ideas.py), plus a digest of up to 5
-# new top headlines on any topic (bot/headlines.py).
+# of the WORST new headlines (war, attacks, disasters, crashes) and an urgent RED ALERT if a nuclear weapon is reported
+# used by at least 2 outlets (bot/headlines.py).
 # Sends at most 3 new ideas per check and never the same coin twice in a week.
 name: news
 on:

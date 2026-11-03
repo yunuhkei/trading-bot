@@ -283,7 +283,7 @@ def main(argv=None):
     ni.add_argument("--max", type=int, default=3, help="most new ideas to send at once")
     ni.add_argument("--every", type=float, metavar="MINUTES", help="keep checking every N minutes (e.g. 10)")
     ni.add_argument("--headlines", type=int, default=0, metavar="N",
-                    help="also send a digest of up to N new top headlines (any topic), e.g. 5")
+                    help="also send a digest of up to N of the worst new headlines, plus a red alert if a nuke is used, e.g. 5")
 
     sg = sub.add_parser("signals", help="BUY/SELL signals for a watchlist, with optional phone alerts (never trades)")
     sg.add_argument("--markets", default="BTC-USD,ETH-USD,SOL-USD,SPY,QQQ,GLD",
