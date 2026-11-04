@@ -1909,3 +1909,14 @@ def test_smart_wallet_search_reads_the_bottom_then_each_big_buyers_own_history(m
     assert ("SMART" in looked_up and "BOT" in looked_up) and not any(w == "BOT" and d < 0 for _, w, d in trades)
     smart = sw.smart_on_pump(trades, df, p)
     assert set(smart) == {"SMART"} and smart["SMART"]["x"] > 3
+
+
+def test_kalshi_shows_what_each_open_bet_would_sell_for_now():
+    from bot import kalshi as k
+    acct = {"positions": {"T1": {"title": "NYC 70-71", "side": "yes", "price": 0.60, "count": 8, "cost": 4.94},
+                          "T2": {"title": "Houston 77-78", "side": "yes", "price": 0.61, "count": 7, "cost": 4.39}}}
+    cache = {"T1": {"yes_bid_dollars": "0.75"}, "T2": {"yes_bid_dollars": "0.40"}}
+    m = k.marks(acct, cache)
+    assert m[0]["title"] == "NYC 70-71" and abs(m[0]["now"] - (8 * 0.75 - k.fee(0.75, 8))) < 1e-9 and m[0]["change"] > 0.15
+    assert m[1]["change"] < -0.35
+    assert k.marks({"positions": {"T3": {"title": "x", "side": "no", "price": 0.9, "count": 5, "cost": 4.6}}}, {}) == []

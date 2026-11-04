@@ -704,6 +704,20 @@ def trade(acct: dict, ideas: list[dict], settings: dict, tell, tag: str, now: fl
     return bought
 
 
+def marks(acct: dict, cache: dict) -> list[dict]:
+    """Each open bet with what it would sell for right now (the best bid for its side, after the selling fee)."""
+    out = []
+    for ticker, p in (acct.get("positions") or {}).items():
+        m = cache.get(ticker)
+        if not m:
+            continue                                     # couldn't read its market this time
+        bid = _f(m.get(f"{p['side']}_bid_dollars"))
+        now = p["count"] * bid - fee(bid, p["count"]) if bid > 0 else 0.0
+        out.append({"title": p["title"], "side": p["side"], "price": p["price"], "bid": bid, "cost": p["cost"], "now": now,
+                    "change": now / p["cost"] - 1 if p["cost"] else 0.0})
+    return sorted(out, key=lambda x: -x["change"])
+
+
 def scoreboard(state: dict, strats: dict) -> tuple[str, str]:
     """Each strategy's record: settled trades, wins, profit, and open bets."""
     lines, best = [], None
@@ -793,10 +807,16 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
             state["report_day"] = due
             tell(*scoreboard(state, strats))
         held = sum(p["cost"] for p in state.get("positions", {}).values())
+        open_now = marks(state, cache)
+        for x in open_now:
+            log.warning("open bet: %s %s at %.0fc, bid now %.0fc: $%.2f -> $%.2f if sold now (%+.0f%%)", x["title"],
+                        x["side"].upper(), x["price"] * 100, x["bid"] * 100, x["cost"], x["now"], x["change"] * 100)
+        worth = sum(x["now"] for x in open_now)
         mc = state.get("models", {})
         with_models = sum(1 for v in mc.values() if (v.get("data") or {}).get("daily"))
         graded = sum(len(v.get("d1", [])) + len(v.get("d0", [])) for v in state.get("calib", {}).values())
-        return (f"{tag}Kalshi: cash {money(state['cash'])}, {len(state.get('positions', {}))} open ({money(held)}), "
+        return (f"{tag}Kalshi: cash {money(state['cash'])}, {len(state.get('positions', {}))} open ({money(held)}"
+                + (f", worth {money(worth)} if sold now" if open_now else "") + "), "
                 f"bought {bought}; other strategies bought {' '.join(summary)}. Weather models for {with_models}/{len(mc)} "
                 f"cities; {graded} forecasts graded so far.")
     finally:
