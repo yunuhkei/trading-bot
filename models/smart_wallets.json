@@ -1,25 +1,105 @@
 {
- "updated": 1793812630.5468519,
+ "updated": 1793816956.5582526,
  "level": "the biggest winners (few won on 2+ coins)",
- "wallets": {},
+ "wallets": {
+  "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2": {
+   "coins": [
+    "NIO"
+   ],
+   "profit": 263.37,
+   "wins": [
+    {
+     "coin": "NIO",
+     "bought_usd": 382.43,
+     "x": 1.69,
+     "profit": 263.37
+    }
+   ]
+  },
+  "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ": {
+   "coins": [
+    "PEAK"
+   ],
+   "profit": 198.44,
+   "wins": [
+    {
+     "coin": "PEAK",
+     "bought_usd": 93.2,
+     "x": 3.13,
+     "profit": 198.44
+    }
+   ]
+  },
+  "CVLLaoAu3QWCfRuWUp4P29AJ9QpBu25ziThJsuq7BWJT": {
+   "coins": [
+    "PEAK"
+   ],
+   "profit": 170.13,
+   "wins": [
+    {
+     "coin": "PEAK",
+     "bought_usd": 107.24,
+     "x": 2.59,
+     "profit": 170.13
+    }
+   ]
+  },
+  "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh": {
+   "coins": [
+    "PEAK"
+   ],
+   "profit": 131.28,
+   "wins": [
+    {
+     "coin": "PEAK",
+     "bought_usd": 88.9,
+     "x": 2.48,
+     "profit": 131.28
+    }
+   ]
+  },
+  "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp": {
+   "coins": [
+    "RICO"
+   ],
+   "profit": 102.08,
+   "wins": [
+    {
+     "coin": "RICO",
+     "bought_usd": 184.35,
+     "x": 2.22,
+     "profit": 102.08
+    }
+   ]
+  }
+ },
  "pumps": [
   {
    "coin": "NIO",
    "mint": "7SL2VnfYsChvog5oQY9Nmtqu1wceaMiQzWoqoLQpump",
    "gain": 1.29,
-   "skipped": "no swaps read"
+   "low_t": 1793748900.0,
+   "high_t": 1793764800.0,
+   "swaps": 40,
+   "smart": 1
   },
   {
    "coin": "AudaCity",
    "mint": "DKYcjobF7HPtL9RyQBRdeRQ2iWvizpfbgWwPWNXdpump",
    "gain": 2.05,
-   "skipped": "no swaps read"
+   "low_t": 1793580000.0,
+   "high_t": 1793730600.0,
+   "swaps": 107,
+   "smart": 2
   },
   {
    "coin": "RAM",
    "mint": "6QUHcqYuiPRHxhnYZoygewXtNQr9kUrhc9Tmwgtbpump",
    "gain": 1.05,
-   "skipped": "no swaps read"
+   "low_t": 1793788500.0,
+   "high_t": 1793800500.0,
+   "swaps": 235,
+   "smart": 0
   },
   {
    "coin": "BTC",
@@ -30,8 +110,11 @@
   {
    "coin": "FLOAT",
    "mint": "Bv1a7cEj5aRnJQhMw4kRQqAFesMSd5LwcDnUzq52BMmr",
-   "gain": 12.41,
-   "skipped": "no swaps read"
+   "gain": 1.05,
+   "low_t": 1793743500.0,
+   "high_t": 1793814000.0,
+   "swaps": 75,
+   "smart": 0
   },
   {
    "coin": "CHOO",
@@ -49,19 +132,37 @@
    "coin": "PEAK",
    "mint": "APLPiTjBWzwfZ5U1TBeqLF9XJ7dV7XKGe7j4BZhkDray",
    "gain": 3.55,
-   "skipped": "no swaps read"
+   "low_t": 1793739300.0,
+   "high_t": 1793797200.0,
+   "swaps": 140,
+   "smart": 5
   },
   {
    "coin": "RICO",
    "mint": "8kuQg3WivDtL85VEdw2jEmSXjYt6EEeYBATJ4DtQpump",
    "gain": 2.5,
-   "skipped": "no swaps read"
+   "low_t": 1793744400.0,
+   "high_t": 1793805000.0,
+   "swaps": 462,
+   "smart": 10
+  },
+  {
+   "coin": "JEANPHIL",
+   "mint": "GTBxUiw6wJdmmkCGZgRHLyYxqu1vG4KtRpeox6yDpump",
+   "gain": 1.1,
+   "low_t": 1793646600.0,
+   "high_t": 1793812800.0,
+   "swaps": 46,
+   "smart": 0
   },
   {
    "coin": "DOPE",
    "mint": "33jENUQnjoitkMFpvNJcSHyLAHFWJuHwT6E3E8CNpump",
    "gain": 1.1,
-   "skipped": "no swaps read"
+   "low_t": 1793673900.0,
+   "high_t": 1793807100.0,
+   "swaps": 47,
+   "smart": 2
   }
  ],
  "coins_checked": [
@@ -81,13 +182,13 @@
   "GTR",
   "RICO",
   "SI",
-  "DOPE",
   "JEANPHIL",
+  "DOPE",
   "GLITCH",
   "baton"
  ],
  "calls": {
-  "pages": 1875,
-  "tx": 0
+  "pages": 1999,
+  "tx": 18222
  }
 }
