@@ -1928,13 +1928,21 @@ def test_imagine_picks_the_next_script_writes_timed_captions_and_a_caption_to_po
             "episodes": [{"id": "a", "title": "Imagine A", "tags": "#x", "scenes": [{"say": "One. Would you? Comment.", "image": "{char} waving"}]},
                          {"id": "b", "title": "Imagine B", "scenes": []}]}
     assert im.next_episode(data, {"done": ["a"]})["id"] == "b" and im.next_episode(data, {"done": ["a", "b"]}) is None
-    assert im.image_prompt(data, data["episodes"][0]["scenes"][0]) == "a guy in a red hoodie waving, 3D"
-    words = [(0.0, 0.3, "Imagine"), (0.4, 0.2, "you"), (0.7, 0.3, "wake"), (1.1, 0.2, "up"), (1.4, 0.5, "tomorrow")]
+    assert im.image_prompt(data, data["episodes"][0]["scenes"][0]) == "3D: a guy in a red hoodie waving"
+    spoken = [(0.0, 0.3, "Imagine"), (0.4, 0.2, "you"), (0.7, 0.3, "wake"), (1.1, 0.2, "up"), (1.4, 0.5, "tomorrow"),
+              (2.0, 0.2, "and"), (2.3, 0.2, "the"), (2.6, 0.3, "sun"), (3.0, 0.3, "never"), (3.4, 0.3, "rises")]
+    words = im.mark_pauses(spoken, "Imagine you wake up tomorrow, and the sun never rises.")
+    assert words[4][3] and not words[3][3]                                   # a comma after "tomorrow"
+    groups = [" ".join(w[2] for w in g) for g in im.chunks(words)]
+    assert groups == ["Imagine you", "wake up tomorrow", "and the sun", "never rises"]     # breaks at the comma
+    jump = im.mark_pauses([(i, 0.2, w) for i, w in enumerate("You jump into the hole".split())], "You jump into the hole")
+    assert [" ".join(w[2] for w in g) for g in im.chunks(jump)] == ["You jump", "into the hole"]   # never ends on "into"
     im.captions(words, tmp_path / "s.ass")
     ass = (tmp_path / "s.ass").read_text()
     cues = [l for l in ass.splitlines() if l.startswith("Dialogue: 0,")]
-    assert cues[0].endswith("IMAGINE YOU") and cues[0].startswith("Dialogue: 0,0:00:00.00,0:00:00.70")   # 2 long-word cue
+    assert cues[0].endswith("IMAGINE YOU") and cues[0].startswith("Dialogue: 0,0:00:00.00,0:00:00.70")
     assert cues[1].endswith("WAKE UP TOMORROW") and "AI animated" in ass
+    assert len(im.mark_pauses(spoken, "too few words")[0]) == 4            # words that don't line up: no pauses known
     assert im.post_caption(data["episodes"][0]).startswith("Imagine A... One. Would you?") and "#aianimated" in im.post_caption(data["episodes"][0])
 
 
@@ -1957,3 +1965,40 @@ def test_imagine_renders_a_vertical_video_even_without_pictures(tmp_path, monkey
     info = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height", "-of", "csv=p=0",
                            str(out)], capture_output=True, text=True).stdout
     assert "video,1080,1920" in info and "audio" in info and 2.0 < im.duration(out) < 3.5
+
+
+def test_imagine_publishes_the_video_and_pings_the_phone_with_the_link(tmp_path, monkeypatch):
+    from bot import imagine as im
+    calls = []
+
+    class R:
+        def __init__(self, code=200, body=None):
+            self.status_code, self._b, self.ok, self.text = code, body or {}, code < 400, ""
+        def json(self):
+            return self._b
+    def fake(method):
+        def f(url, **kw):
+            calls.append((method, url, kw))
+            if method == "get":
+                return R(404)
+            if "uploads" in url:
+                return R(201, {"browser_download_url": "https://github.com/o/r/releases/download/videos/x.mp4"})
+            if url.endswith("/releases"):
+                return R(201, {"upload_url": "https://uploads.github.com/repos/o/r/releases/1/assets{?name,label}", "assets": []})
+            return R(200)
+        return f
+    for m in ("get", "post", "delete"):
+        monkeypatch.setattr("requests." + m, fake(m))
+    video = tmp_path / "x.mp4"
+    video.write_bytes(b"fake")
+    assert im.publish(video) is None                                    # no token: nothing uploaded
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    link = im.publish(video)
+    assert link.endswith("/videos/x.mp4") and any("uploads.github.com" in c[1] and c[2]["params"] == {"name": "x.mp4"} for c in calls)
+    monkeypatch.setenv("ALERT_TARGET", "ntfy:topic123")
+    ep = {"id": "x", "title": "Imagine X", "tags": "#a", "scenes": [{"say": "Would you? Comment.", "image": ""}]}
+    assert im.send(link, ep)
+    ping = calls[-1]
+    assert ping[1] == "https://ntfy.sh/topic123" and ping[2]["headers"]["Click"] == link and b"Caption to paste" in ping[2]["data"]
+    assert not im.send(None, ep)

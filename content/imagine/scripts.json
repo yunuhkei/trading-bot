@@ -1,115 +1,382 @@
 {
- "style": "3D animated movie still, Pixar-style, cinematic lighting, vibrant colors, highly detailed, vertical 9:16 composition, no text, no watermark",
- "character": "a friendly cartoon young man with short curly dark hair and a red hoodie",
+ "style": "Pixar-style 3D animated movie still, cute stylized cartoon characters, soft cinematic lighting, vibrant colors, vertical composition, no text",
+ "character": "the same cartoon young man with short curly black hair, brown eyes and a bright red hoodie",
  "episodes": [
-  {"id": "sun-never-rises", "title": "Imagine the sun never rose again", "tags": "#imagine #whatif #space #science",
+  {
+   "id": "sun-never-rises",
+   "title": "Imagine the sun never rose again",
+   "tags": "#imagine #whatif #space #science",
    "scenes": [
-    {"say": "Imagine you wake up tomorrow, and the sun never rises.", "image": "{char} looking out a bedroom window at a pitch-black morning sky, alarm clock showing 7 AM"},
-    {"say": "At first it's kind of cool. Stars in the middle of the day. But plants stop making food the moment the light is gone.", "image": "{char} in a dark city street at noon, stars filling the sky, streetlights on, people staring up"},
-    {"say": "Scientists estimate that within about a week, the surface drops below zero degrees Fahrenheit.", "image": "{char} wrapped in blankets, frost spreading across a window, breath visible"},
-    {"say": "Within a year, it's around minus one hundred. The oceans freeze over on top.", "image": "a frozen ocean surface under a black starry sky, {char} standing on the ice holding a flashlight"},
-    {"say": "But deep down, under the ice, the water stays liquid for a very long time, heated by the Earth itself.", "image": "cross-section view of a frozen ocean with glowing warm water and deep sea creatures far below"},
-    {"say": "And around volcanic vents at the bottom of the sea, life that never needed the sun keeps going.", "image": "glowing hydrothermal vents on the dark sea floor surrounded by tube worms and shrimp"},
-    {"say": "So here's the question. Would you move to the bottom of the ocean to survive? Tell me in the comments.", "image": "{char} inside a glowing underwater glass dome base on the sea floor, waving"}
-   ]},
-  {"id": "hole-through-earth", "title": "Imagine you jumped into a hole through the Earth", "tags": "#imagine #whatif #physics #earth",
+    {
+     "say": "Imagine you wake up tomorrow, and the sun never rises.",
+     "image": "{char} looking out a bedroom window at a pitch-black morning sky, alarm clock showing 7 AM"
+    },
+    {
+     "say": "At first it's kind of cool. Stars in the middle of the day. But plants stop making food the moment the light is gone.",
+     "image": "{char} in a dark city street at noon, stars filling the sky, streetlights on, people staring up"
+    },
+    {
+     "say": "Scientists estimate that within about a week, the surface drops below zero degrees Fahrenheit.",
+     "image": "{char} wrapped in blankets, frost spreading across a window, breath visible"
+    },
+    {
+     "say": "Within a year, it's around minus one hundred. The oceans freeze over on top.",
+     "image": "a frozen ocean surface under a black starry sky, {char} standing on the ice holding a flashlight"
+    },
+    {
+     "say": "But deep down, under the ice, the water stays liquid for a very long time, heated by the Earth itself.",
+     "image": "cross-section view of a frozen ocean with glowing warm water and deep sea creatures far below"
+    },
+    {
+     "say": "And around volcanic vents at the bottom of the sea, life that never needed the sun keeps going.",
+     "image": "glowing hydrothermal vents on the dark sea floor surrounded by tube worms and shrimp"
+    },
+    {
+     "say": "So here's the question. Would you move to the bottom of the ocean to survive? Tell me in the comments.",
+     "image": "{char} inside a glowing underwater glass dome base on the sea floor, waving"
+    }
+   ]
+  },
+  {
+   "id": "hole-through-earth",
+   "title": "Imagine you jumped into a hole through the Earth",
+   "tags": "#imagine #whatif #physics #earth",
    "scenes": [
-    {"say": "Imagine you jump into a hole that goes straight through the Earth.", "image": "{char} standing at the edge of a perfectly round giant hole in a grassy field, peeking in"},
-    {"say": "You fall faster and faster. Thousands of miles down, you'd pass the core, which is about as hot as the surface of the sun.", "image": "{char} falling down a glowing tunnel toward a blazing orange-white core"},
-    {"say": "But let's say your suit somehow survives.", "image": "{char} in a shiny heat-proof suit falling through a tunnel of glowing rock"},
-    {"say": "After about forty two minutes, you'd pop out on the other side of the planet, slowing down, and stopping right at the top.", "image": "{char} popping out of a hole on a beach on the other side of the world, surprised"},
-    {"say": "And then you'd fall right back in. Back and forth, forever, like a yo-yo through the planet.", "image": "{char} falling back down the hole, waving goodbye to surprised tourists"},
-    {"say": "Unless someone grabs you at the top. So who are you calling to catch you? Comment below.", "image": "{char} reaching up out of the hole as a friend grabs their hand, sunny sky"}
-   ]},
-  {"id": "year-on-mars", "title": "Imagine you lived on Mars for a year", "tags": "#imagine #mars #space #whatif",
+    {
+     "say": "Imagine you jump into a hole that goes straight through the Earth.",
+     "image": "{char} standing at the edge of a perfectly round giant hole in a grassy field, peeking in"
+    },
+    {
+     "say": "You fall faster and faster. Thousands of miles down, you'd pass the core, which is about as hot as the surface of the sun.",
+     "image": "{char} falling down a glowing tunnel toward a blazing orange-white core"
+    },
+    {
+     "say": "But let's say your suit somehow survives.",
+     "image": "{char} in a shiny heat-proof suit falling through a tunnel of glowing rock"
+    },
+    {
+     "say": "After about forty two minutes, you'd pop out on the other side of the planet, slowing down, and stopping right at the top.",
+     "image": "{char} popping out of a hole on a beach on the other side of the world, surprised"
+    },
+    {
+     "say": "And then you'd fall right back in. Back and forth, forever, like a yo-yo through the planet.",
+     "image": "{char} falling back down the hole, waving goodbye to surprised tourists"
+    },
+    {
+     "say": "Unless someone grabs you at the top. So who are you calling to catch you? Comment below.",
+     "image": "{char} reaching up out of the hole as a friend grabs their hand, sunny sky"
+    }
+   ]
+  },
+  {
+   "id": "year-on-mars",
+   "title": "Imagine you lived on Mars for a year",
+   "tags": "#imagine #mars #space #whatif",
    "scenes": [
-    {"say": "Imagine you move to Mars for one year. Bad news. A year on Mars is six hundred eighty seven days.", "image": "{char} stepping out of a rocket onto red Martian dust, calendar floating with many pages"},
-    {"say": "Good news. Gravity is only about thirty eight percent of Earth's, so you can jump almost three times higher.", "image": "{char} in a spacesuit leaping very high over a red rock, laughing"},
-    {"say": "The average temperature is around minus eighty degrees, so you're never leaving the suit.", "image": "{char} in a spacesuit with frost on the visor, thermometer showing very cold"},
-    {"say": "Some dust storms get so big, they cover the entire planet for weeks.", "image": "a giant orange dust storm swallowing a small Mars base with glowing windows"},
-    {"say": "But the sunsets are blue. Real, glowing blue sunsets, every single evening.", "image": "{char} sitting on a red hill watching a beautiful blue sunset on Mars"},
-    {"say": "Six hundred eighty seven days, no pizza, blue sunsets. Would you go? Yes or no in the comments.", "image": "{char} inside a cozy Mars habitat looking out the window at a blue sunset, holding a ration pack"}
-   ]},
-  {"id": "never-sleep", "title": "Imagine you never slept again", "tags": "#imagine #sleep #brain #whatif",
+    {
+     "say": "Imagine you move to Mars for one year. Bad news. A year on Mars is six hundred eighty seven days.",
+     "image": "{char} stepping out of a rocket onto red Martian dust, calendar floating with many pages"
+    },
+    {
+     "say": "Good news. Gravity is only about thirty eight percent of Earth's, so you can jump almost three times higher.",
+     "image": "{char} in a spacesuit leaping very high over a red rock, laughing"
+    },
+    {
+     "say": "The average temperature is around minus eighty degrees, so you're never leaving the suit.",
+     "image": "{char} in a spacesuit with frost on the visor, thermometer showing very cold"
+    },
+    {
+     "say": "Some dust storms get so big, they cover the entire planet for weeks.",
+     "image": "a giant orange dust storm swallowing a small Mars base with glowing windows"
+    },
+    {
+     "say": "But the sunsets are blue. Real, glowing blue sunsets, every single evening.",
+     "image": "{char} sitting on a red hill watching a beautiful blue sunset on Mars"
+    },
+    {
+     "say": "Six hundred eighty seven days, no pizza, blue sunsets. Would you go? Yes or no in the comments.",
+     "image": "{char} inside a cozy Mars habitat looking out the window at a blue sunset, holding a ration pack"
+    }
+   ]
+  },
+  {
+   "id": "never-sleep",
+   "title": "Imagine you never slept again",
+   "tags": "#imagine #sleep #brain #whatif",
    "scenes": [
-    {"say": "Imagine you decide to never sleep again.", "image": "{char} standing in a bedroom at night, pushing the bed away, energy drink in hand"},
-    {"say": "After twenty four hours awake, your brain works about like someone who's legally drunk.", "image": "{char} trying to pour cereal and missing the bowl, sunrise in the window"},
-    {"say": "Then come microsleeps. Your brain shuts off for a few seconds without you even noticing.", "image": "{char} sitting at a desk with eyes half closed, tiny dream bubbles popping around their head"},
-    {"say": "Around day three, a lot of people start seeing things that aren't there.", "image": "{char} in a hallway seeing friendly glowing shapes and floating jellyfish that aren't real"},
-    {"say": "The longest anyone has officially stayed awake? About eleven days, back in 1964.", "image": "a retro 1960s room with a calendar showing day 11 and a tired teenager surrounded by scientists"},
-    {"say": "Your brain needs sleep to clean itself out. So, how long do you think you'd last? Comment your guess.", "image": "{char} finally asleep, smiling, on a giant fluffy cloud bed"}
-   ]},
-  {"id": "ant-size", "title": "Imagine you shrank to the size of an ant", "tags": "#imagine #whatif #tiny #science",
+    {
+     "say": "Imagine you decide to never sleep again.",
+     "image": "{char} standing in a bedroom at night, pushing the bed away, energy drink in hand"
+    },
+    {
+     "say": "After twenty four hours awake, your brain works about like someone who's legally drunk.",
+     "image": "{char} trying to pour cereal and missing the bowl, sunrise in the window"
+    },
+    {
+     "say": "Then come microsleeps. Your brain shuts off for a few seconds without you even noticing.",
+     "image": "{char} sitting at a desk with eyes half closed, tiny dream bubbles popping around their head"
+    },
+    {
+     "say": "Around day three, a lot of people start seeing things that aren't there.",
+     "image": "{char} in a hallway seeing friendly glowing shapes and floating jellyfish that aren't real"
+    },
+    {
+     "say": "The longest anyone has officially stayed awake? About eleven days, back in 1964.",
+     "image": "a retro 1960s room with a calendar showing day 11 and a tired teenager surrounded by scientists"
+    },
+    {
+     "say": "Your brain needs sleep to clean itself out. So, how long do you think you'd last? Comment your guess.",
+     "image": "{char} finally asleep, smiling, on a giant fluffy cloud bed"
+    }
+   ]
+  },
+  {
+   "id": "ant-size",
+   "title": "Imagine you shrank to the size of an ant",
+   "tags": "#imagine #whatif #tiny #science",
    "scenes": [
-    {"say": "Imagine you wake up the size of an ant.", "image": "{char} tiny, standing on a giant bedroom carpet next to an enormous sneaker"},
-    {"say": "You could fall off a skyscraper and walk away, because tiny things barely speed up in the air.", "image": "{char} tiny, floating gently down past a tall building, relaxed"},
-    {"say": "But a drop of water would be a problem. At your size, it's sticky, like jelly, and hard to escape.", "image": "{char} tiny, stuck inside a giant water droplet on a leaf, pushing against it"},
-    {"say": "You'd lose heat really fast, so a cool breeze would feel like a blizzard.", "image": "{char} tiny, shivering behind a pebble as a breeze blows leaves like a storm"},
-    {"say": "And every spider in the house would suddenly be the size of a dinosaur.", "image": "{char} tiny, hiding behind a crumb while a huge cartoon spider looms nearby"},
-    {"say": "You can bring one thing to survive the house. What is it? Comment below.", "image": "{char} tiny, standing on a kitchen table holding a bottle cap like a shield"}
-   ]},
-  {"id": "mariana-trench", "title": "Imagine you swam to the bottom of the ocean", "tags": "#imagine #ocean #deepsea #whatif",
+    {
+     "say": "Imagine you wake up the size of an ant.",
+     "image": "{char} tiny, standing on a giant bedroom carpet next to an enormous sneaker"
+    },
+    {
+     "say": "You could fall off a skyscraper and walk away, because tiny things barely speed up in the air.",
+     "image": "{char} tiny, floating gently down past a tall building, relaxed"
+    },
+    {
+     "say": "But a drop of water would be a problem. At your size, it's sticky, like jelly, and hard to escape.",
+     "image": "{char} tiny, stuck inside a giant water droplet on a leaf, pushing against it"
+    },
+    {
+     "say": "You'd lose heat really fast, so a cool breeze would feel like a blizzard.",
+     "image": "{char} tiny, shivering behind a pebble as a breeze blows leaves like a storm"
+    },
+    {
+     "say": "And every spider in the house would suddenly be the size of a dinosaur.",
+     "image": "{char} tiny, hiding behind a crumb while a huge cartoon spider looms nearby"
+    },
+    {
+     "say": "You can bring one thing to survive the house. What is it? Comment below.",
+     "image": "{char} tiny, standing on a kitchen table holding a bottle cap like a shield"
+    }
+   ]
+  },
+  {
+   "id": "mariana-trench",
+   "title": "Imagine you swam to the bottom of the ocean",
+   "tags": "#imagine #ocean #deepsea #whatif",
    "scenes": [
-    {"say": "Imagine you dive to the deepest spot in the ocean, the Mariana Trench.", "image": "{char} in a submarine window looking down into a dark blue abyss"},
-    {"say": "It's about thirty six thousand feet down. You could drop Mount Everest in, and it still wouldn't reach the top.", "image": "Mount Everest sinking into a deep ocean trench, small submarine next to it for scale"},
-    {"say": "Down there, the pressure is more than a thousand times what you feel at the surface.", "image": "a tough deep-sea submarine creaking under pressure, bubbles and dark water"},
-    {"say": "It's totally dark. The only light comes from creatures that make their own.", "image": "glowing bioluminescent jellyfish and anglerfish around a submarine in pitch black water"},
-    {"say": "Only twelve people have walked on the Moon. Only a few dozen have ever reached the very bottom of the trench.", "image": "{char} in a submarine on the trench floor planting a tiny flag in the silt"},
-    {"say": "Would you take the trip? Down to the bottom, alone, in a tiny sub? Comment yes or no.", "image": "{char} inside a cozy tiny submarine, lit by glowing creatures outside the window"}
-   ]},
-  {"id": "speed-of-light", "title": "Imagine you could travel at the speed of light", "tags": "#imagine #space #physics #whatif",
+    {
+     "say": "Imagine you dive to the deepest spot in the ocean, the Mariana Trench.",
+     "image": "{char} in a submarine window looking down into a dark blue abyss"
+    },
+    {
+     "say": "It's about thirty six thousand feet down. You could drop Mount Everest in, and it still wouldn't reach the top.",
+     "image": "Mount Everest sinking into a deep ocean trench, small submarine next to it for scale"
+    },
+    {
+     "say": "Down there, the pressure is more than a thousand times what you feel at the surface.",
+     "image": "a tough deep-sea submarine creaking under pressure, bubbles and dark water"
+    },
+    {
+     "say": "It's totally dark. The only light comes from creatures that make their own.",
+     "image": "glowing bioluminescent jellyfish and anglerfish around a submarine in pitch black water"
+    },
+    {
+     "say": "Only twelve people have walked on the Moon. Only a few dozen have ever reached the very bottom of the trench.",
+     "image": "{char} in a submarine on the trench floor planting a tiny flag in the silt"
+    },
+    {
+     "say": "Would you take the trip? Down to the bottom, alone, in a tiny sub? Comment yes or no.",
+     "image": "{char} inside a cozy tiny submarine, lit by glowing creatures outside the window"
+    }
+   ]
+  },
+  {
+   "id": "speed-of-light",
+   "title": "Imagine you could travel at the speed of light",
+   "tags": "#imagine #space #physics #whatif",
    "scenes": [
-    {"say": "Imagine you could fly at the speed of light.", "image": "{char} in a sleek spaceship cockpit with stars stretching into lines"},
-    {"say": "You'd reach the Moon in about one point three seconds.", "image": "the Moon rushing toward a spaceship window, {char} amazed"},
-    {"say": "Sunlight takes about eight minutes to get here. You'd make that trip in the same eight minutes.", "image": "a spaceship racing toward a giant glowing sun, {char} wearing sunglasses"},
-    {"say": "But here's the weird part. The closer you get to light speed, the slower time moves for you compared to everyone back home.", "image": "{char} waving from a ship while clocks on Earth spin fast and calendars fly"},
-    {"say": "Take a long trip, come back, and your friends could be way older than you.", "image": "{char} stepping off a spaceship, greeted by elderly versions of their friends"},
-    {"say": "Would you take a trip if it meant coming back to a different century? Comment below.", "image": "{char} standing in a futuristic city of the year 3000 looking around confused"}
-   ]},
-  {"id": "dinosaur-age", "title": "Imagine you went back to the age of dinosaurs", "tags": "#imagine #dinosaurs #history #whatif",
+    {
+     "say": "Imagine you could fly at the speed of light.",
+     "image": "{char} in a sleek spaceship cockpit with stars stretching into lines"
+    },
+    {
+     "say": "You'd reach the Moon in about one point three seconds.",
+     "image": "the Moon rushing toward a spaceship window, {char} amazed"
+    },
+    {
+     "say": "Sunlight takes about eight minutes to get here. You'd make that trip in the same eight minutes.",
+     "image": "a spaceship racing toward a giant glowing sun, {char} wearing sunglasses"
+    },
+    {
+     "say": "But here's the weird part. The closer you get to light speed, the slower time moves for you compared to everyone back home.",
+     "image": "{char} waving from a ship while clocks on Earth spin fast and calendars fly"
+    },
+    {
+     "say": "Take a long trip, come back, and your friends could be way older than you.",
+     "image": "{char} stepping off a spaceship, greeted by elderly versions of their friends"
+    },
+    {
+     "say": "Would you take a trip if it meant coming back to a different century? Comment below.",
+     "image": "{char} standing in a futuristic city of the year 3000 looking around confused"
+    }
+   ]
+  },
+  {
+   "id": "dinosaur-age",
+   "title": "Imagine you went back to the age of dinosaurs",
+   "tags": "#imagine #dinosaurs #history #whatif",
    "scenes": [
-    {"say": "Imagine you time travel back to the age of dinosaurs.", "image": "{char} stepping out of a glowing time machine into a prehistoric jungle with volcanoes"},
-    {"say": "Pick the wrong time, and there's no T. rex. Because the dinosaurs lived for over a hundred and sixty million years.", "image": "{char} looking at a giant timeline scroll with many different dinosaurs"},
-    {"say": "In fact, T. rex lived closer in time to you than to the Stegosaurus.", "image": "{char} standing between a T. rex and a Stegosaurus with a big gap between them"},
-    {"say": "The air would smell different, and you'd barely see any grass. It didn't spread across the land until much later.", "image": "{char} walking through ferns and strange plants, no grass, giant dragonflies flying"},
-    {"say": "And every shadow in the trees could be something hungry.", "image": "{char} hiding behind a giant fern as a large dinosaur shadow passes"},
-    {"say": "You get one day there. Which dinosaur are you trying to see? Comment it.", "image": "{char} taking a selfie with a friendly long-neck dinosaur in the background"}
-   ]},
-  {"id": "space-no-suit", "title": "Imagine you went to space without a suit", "tags": "#imagine #space #science #whatif",
+    {
+     "say": "Imagine you time travel back to the age of dinosaurs.",
+     "image": "{char} stepping out of a glowing time machine into a prehistoric jungle with volcanoes"
+    },
+    {
+     "say": "Pick the wrong time, and there's no T. rex. Because the dinosaurs lived for over a hundred and sixty million years.",
+     "image": "{char} looking at a giant timeline scroll with many different dinosaurs"
+    },
+    {
+     "say": "In fact, T. rex lived closer in time to you than to the Stegosaurus.",
+     "image": "{char} standing between a T. rex and a Stegosaurus with a big gap between them"
+    },
+    {
+     "say": "The air would smell different, and you'd barely see any grass. It didn't spread across the land until much later.",
+     "image": "{char} walking through ferns and strange plants, no grass, giant dragonflies flying"
+    },
+    {
+     "say": "And every shadow in the trees could be something hungry.",
+     "image": "{char} hiding behind a giant fern as a large dinosaur shadow passes"
+    },
+    {
+     "say": "You get one day there. Which dinosaur are you trying to see? Comment it.",
+     "image": "{char} taking a selfie with a friendly long-neck dinosaur in the background"
+    }
+   ]
+  },
+  {
+   "id": "space-no-suit",
+   "title": "Imagine you went to space without a suit",
+   "tags": "#imagine #space #science #whatif",
    "scenes": [
-    {"say": "Imagine you step out into space without a suit.", "image": "{char} floating outside a space station in a red hoodie, no helmet, Earth below"},
-    {"say": "First, the good news. You would not explode. That's just a movie thing.", "image": "{char} floating, puzzled, with a crossed-out movie explosion poster nearby"},
-    {"say": "But the air rushes out of your lungs, so never hold your breath.", "image": "{char} exhaling a cloud of air into space, eyes wide"},
-    {"say": "The water on your tongue would start to boil, even though it's freezing out there.", "image": "close up of {char} with tiny bubbles floating from their mouth in space"},
-    {"say": "In about fifteen seconds, you'd pass out. Rescue fast, and you might still make it.", "image": "two astronauts pulling {char} back into an airlock urgently"},
-    {"say": "Fifteen seconds in space. Would you risk it for the view? Comment below.", "image": "{char} safe inside the station, looking out a window at a stunning Earth view"}
-   ]},
-  {"id": "ten-feet-tall", "title": "Imagine you grew to ten feet tall", "tags": "#imagine #human #body #whatif",
+    {
+     "say": "Imagine you step out into space without a suit.",
+     "image": "{char} floating outside a space station in a red hoodie, no helmet, Earth below"
+    },
+    {
+     "say": "First, the good news. You would not explode. That's just a movie thing.",
+     "image": "{char} floating, puzzled, with a crossed-out movie explosion poster nearby"
+    },
+    {
+     "say": "But the air rushes out of your lungs, so never hold your breath.",
+     "image": "{char} exhaling a cloud of air into space, eyes wide"
+    },
+    {
+     "say": "The water on your tongue would start to boil, even though it's freezing out there.",
+     "image": "close up of {char} with tiny bubbles floating from their mouth in space"
+    },
+    {
+     "say": "In about fifteen seconds, you'd pass out. Rescue fast, and you might still make it.",
+     "image": "two astronauts pulling {char} back into an airlock urgently"
+    },
+    {
+     "say": "Fifteen seconds in space. Would you risk it for the view? Comment below.",
+     "image": "{char} safe inside the station, looking out a window at a stunning Earth view"
+    }
+   ]
+  },
+  {
+   "id": "ten-feet-tall",
+   "title": "Imagine you grew to ten feet tall",
+   "tags": "#imagine #human #body #whatif",
    "scenes": [
-    {"say": "Imagine you wake up ten feet tall.", "image": "{char} ducking under a ceiling in a small apartment, very tall"},
-    {"say": "The tallest person ever recorded was eight feet eleven inches. You'd beat him by a foot.", "image": "{char} standing next to a measuring wall with a mark at 8 feet 11 inches"},
-    {"say": "Your heart would have to work way harder to push blood all the way up to your head.", "image": "a cartoon heart pumping hard with sweat drops, inside a tall silhouette"},
-    {"say": "Your bones would carry much more weight with every step, and your knees would feel it.", "image": "{char} very tall, walking carefully with knee braces, people staring"},
-    {"say": "No car would fit. No bed would fit. Basketball, though, you'd be unstoppable.", "image": "{char} very tall, dunking a basketball without jumping, crowd cheering"},
-    {"say": "Ten feet tall for a week. Yes or no? Comment below.", "image": "{char} very tall, sitting on the roof of a house to watch a sunset"}
-   ]},
-  {"id": "last-person", "title": "Imagine you were the last person on Earth", "tags": "#imagine #whatif #future #story",
+    {
+     "say": "Imagine you wake up ten feet tall.",
+     "image": "{char} ducking under a ceiling in a small apartment, very tall"
+    },
+    {
+     "say": "The tallest person ever recorded was eight feet eleven inches. You'd beat him by a foot.",
+     "image": "{char} standing next to a measuring wall with a mark at 8 feet 11 inches"
+    },
+    {
+     "say": "Your heart would have to work way harder to push blood all the way up to your head.",
+     "image": "a cartoon heart pumping hard with sweat drops, inside a tall silhouette"
+    },
+    {
+     "say": "Your bones would carry much more weight with every step, and your knees would feel it.",
+     "image": "{char} very tall, walking carefully with knee braces, people staring"
+    },
+    {
+     "say": "No car would fit. No bed would fit. Basketball, though, you'd be unstoppable.",
+     "image": "{char} very tall, dunking a basketball without jumping, crowd cheering"
+    },
+    {
+     "say": "Ten feet tall for a week. Yes or no? Comment below.",
+     "image": "{char} very tall, sitting on the roof of a house to watch a sunset"
+    }
+   ]
+  },
+  {
+   "id": "last-person",
+   "title": "Imagine you were the last person on Earth",
+   "tags": "#imagine #whatif #future #story",
    "scenes": [
-    {"say": "Imagine you wake up, and every other person on Earth is gone.", "image": "{char} standing in the middle of an empty Times Square in the morning"},
-    {"say": "The power goes first. Without anyone running them, most power plants shut down within hours to days.", "image": "{char} watching a city skyline as lights flicker off block by block"},
-    {"say": "Pets and zoo animals start wandering the streets.", "image": "{char} on an empty street as a zebra and a group of dogs walk past"},
-    {"say": "Within a few years, grass and trees crack through the roads.", "image": "{char} walking on a road overgrown with grass and small trees between cars"},
-    {"say": "And you'd have every store, every house, every car, all to yourself.", "image": "{char} sitting alone in a giant empty stadium with a mountain of snacks"},
-    {"say": "Then, one night, you see a light turn on across the city. Do you go find it? Comment.", "image": "{char} on a rooftop at night staring at one lit window far across a dark city"}
-   ]},
-  {"id": "medieval-life", "title": "Imagine you lived in medieval times", "tags": "#imagine #history #medieval #whatif",
+    {
+     "say": "Imagine you wake up, and every other person on Earth is gone.",
+     "image": "{char} standing in the middle of an empty Times Square in the morning"
+    },
+    {
+     "say": "The power goes first. Without anyone running them, most power plants shut down within hours to days.",
+     "image": "{char} watching a city skyline as lights flicker off block by block"
+    },
+    {
+     "say": "Pets and zoo animals start wandering the streets.",
+     "image": "{char} on an empty street as a zebra and a group of dogs walk past"
+    },
+    {
+     "say": "Within a few years, grass and trees crack through the roads.",
+     "image": "{char} walking on a road overgrown with grass and small trees between cars"
+    },
+    {
+     "say": "And you'd have every store, every house, every car, all to yourself.",
+     "image": "{char} sitting alone in a giant empty stadium with a mountain of snacks"
+    },
+    {
+     "say": "Then, one night, you see a light turn on across the city. Do you go find it? Comment.",
+     "image": "{char} on a rooftop at night staring at one lit window far across a dark city"
+    }
+   ]
+  },
+  {
+   "id": "medieval-life",
+   "title": "Imagine you lived in medieval times",
+   "tags": "#imagine #history #medieval #whatif",
    "scenes": [
-    {"say": "Imagine you wake up in the year twelve hundred.", "image": "{char} waking up on a straw bed in a medieval cottage, chickens nearby"},
-    {"say": "Breakfast is dark bread, and maybe a cup of weak ale.", "image": "{char} at a wooden table with a loaf of bread and a wooden mug, confused"},
-    {"say": "You'd probably be a farmer, working from sunrise to sunset.", "image": "{char} plowing a field with an ox under a big sunrise"},
-    {"say": "No soap like ours, no doctors like ours, and a small cut could turn serious.", "image": "{char} looking worried as a medieval doctor approaches with leeches"},
-    {"say": "But you'd also have more holidays than you'd think, with feasts, games, and festivals.", "image": "{char} dancing at a medieval village festival with music and banners"},
-    {"say": "One year in twelve hundred, or one year with no phone today. Which one? Comment.", "image": "{char} standing between a medieval castle and a modern city, choosing"}
-   ]}
+    {
+     "say": "Imagine you wake up in the year twelve hundred.",
+     "image": "{char} waking up on a straw bed in a medieval cottage, chickens nearby"
+    },
+    {
+     "say": "Breakfast is dark bread, and maybe a cup of weak ale.",
+     "image": "{char} at a wooden table with a loaf of bread and a wooden mug, confused"
+    },
+    {
+     "say": "You'd probably be a farmer, working from sunrise to sunset.",
+     "image": "{char} plowing a field with an ox under a big sunrise"
+    },
+    {
+     "say": "No soap like ours, no doctors like ours, and a small cut could turn serious.",
+     "image": "{char} looking worried as a medieval doctor approaches with leeches"
+    },
+    {
+     "say": "But you'd also have more holidays than you'd think, with feasts, games, and festivals.",
+     "image": "{char} dancing at a medieval village festival with music and banners"
+    },
+    {
+     "say": "One year in twelve hundred, or one year with no phone today. Which one? Comment.",
+     "image": "{char} standing between a medieval castle and a modern city, choosing"
+    }
+   ]
+  }
  ]
 }

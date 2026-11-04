@@ -8,7 +8,8 @@ For the next episode in content/imagine/scripts.json that hasn't been made yet:
    be made, that scene gets a clean colored title card instead, so the video is never lost.
 3. Motion: each picture slowly zooms and pans for exactly as long as its lines take.
 4. Captions: big, bold, 2-3 words at a time, timed to the voice, plus a small "AI animated" label.
-5. The finished 1080x1920 MP4 goes to your phone (ntfy, the ALERT_TARGET secret) with a ready-to-paste caption.
+5. The finished 1080x1920 MP4 is uploaded to the repo's public "videos" release, and your phone gets a ping (ntfy, the
+   ALERT_TARGET secret) with the download link and a ready-to-paste caption.
 
 Run: python -m bot imagine (the imagine workflow does it every morning). Post it yourself: TikTok, Reels, Shorts.
 """
@@ -29,7 +30,7 @@ from pathlib import Path
 
 log = logging.getLogger("imagine")
 SCRIPTS = Path("content/imagine/scripts.json")
-STATE = Path("content/imagine/state.json")
+STATE = Path("content/imagine/made.json")
 OUT = Path("content/imagine/out")
 W, H, FPS = 1080, 1920, 30
 VOICE = "en-US-AndrewNeural"
@@ -52,7 +53,8 @@ def next_episode(data: dict, st: dict) -> dict | None:
 
 
 def image_prompt(data: dict, scene: dict) -> str:
-    return scene["image"].replace("{char}", data["character"]) + ", " + data["style"]
+    """The style first (image models weigh the start most), then the scene with the main character in it."""
+    return data["style"] + ": " + scene["image"].replace("{char}", data["character"])
 
 
 # ---- voice -----------------------------------------------------------------------------------------------------------
@@ -167,7 +169,8 @@ def motion_clip(img: Path, seconds: float, out: Path, k: int):
     zin = k % 2 == 0
     z = f"min(1+0.10*on/{frames},1.10)" if zin else f"max(1.10-0.10*on/{frames},1.0)"
     drift = ["iw/2-(iw/zoom/2)", f"(iw-iw/zoom)*on/{frames}", f"(iw-iw/zoom)*(1-on/{frames})"][k % 3]
-    vf = (f"scale={W * 2}:{H * 2}:force_original_aspect_ratio=increase,crop={W * 2}:{H * 2},"
+    vf = (f"crop=iw:ih*0.93:0:0,"                 # the free image tier's corner watermark sits in the bottom 7%
+          f"scale={W * 2}:{H * 2}:force_original_aspect_ratio=increase,crop={W * 2}:{H * 2},"
           f"zoompan=z='{z}':x='{drift}':y='ih/2-(ih/zoom/2)':d={frames}:s={W}x{H}:fps={FPS},format=yuv420p")
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-loop", "1", "-i", str(img), "-vf", vf, "-frames:v", str(frames),
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", str(out)], check=True)
@@ -179,7 +182,41 @@ def _ass_time(t: float) -> str:
     return f"{int(h)}:{int(m):02d}:{s:05.2f}"
 
 
-def captions(words: list[tuple[float, float, str]], out: Path, label: str = "AI animated"):
+STOP = {"the", "a", "an", "to", "of", "and", "or", "but", "in", "on", "at", "for", "with", "by", "that", "your", "so",
+        "as", "from", "into", "than"}
+
+
+def chunks(words: list[tuple]) -> list[list[tuple]]:
+    """Caption groups of 1-3 words: a group ends at a pause (a word with punctuation after it, when known), is 2 words
+    when the first is long, and never ends on a small word like "the" or "to" (it moves to the next group)."""
+    out, cur = [], []
+    for k, w in enumerate(words):
+        cur.append(w)
+        size = 2 if len(cur[0][2]) > 6 else 3
+        pause = len(w) > 3 and w[3]
+        last = k == len(words) - 1
+        if pause or len(cur) >= size or last:
+            if not pause and not last and len(cur) > 1 and cur[-1][2].lower() in STOP:
+                carry = cur.pop()
+                out.append(cur)
+                cur = [carry]
+            else:
+                out.append(cur)
+                cur = []
+    if cur:
+        out.append(cur)
+    return out
+
+
+def mark_pauses(words: list[tuple[float, float, str]], text: str) -> list[tuple]:
+    """Add 'a pause follows' to each spoken word, from the script's punctuation (if the words line up)."""
+    tokens = text.split()
+    if len(tokens) != len(words):
+        return [(*w, False) for w in words]
+    return [(*w, t[-1] in ".,?!;:") for w, t in zip(words, tokens)]
+
+
+def captions(words: list[tuple], out: Path, label: str = "AI animated"):
     """ASS subtitles: big bold words, 2-3 at a time, timed to the voice, plus a small corner label."""
     head = ("[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 0\n\n[V4+ Styles]\n"
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, "
@@ -188,15 +225,12 @@ def captions(words: list[tuple[float, float, str]], out: Path, label: str = "AI 
             f"Style: Cap,{FONT},96,&H00FFFFFF,&H0000FFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,3,5,60,60,0,1\n"
             f"Style: Tag,{FONT},34,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,3,0,9,40,40,60,1\n\n"
             "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
-    lines, i = [], 0
-    while i < len(words):
-        n = 2 if len(words[i][2]) > 6 else 3
-        chunk = words[i:i + n]
+    lines, groups = [], chunks(words)
+    for gi, chunk in enumerate(groups):
         start = chunk[0][0]
-        end = words[i + n][0] if i + n < len(words) else chunk[-1][0] + chunk[-1][1] + 0.3
-        text = " ".join(w for _, _, w in chunk).upper().replace("{", "(").replace("}", ")")
+        end = groups[gi + 1][0][0] if gi + 1 < len(groups) else chunk[-1][0] + chunk[-1][1] + 0.3
+        text = " ".join(w[2] for w in chunk).upper().replace("{", "(").replace("}", ")")
         lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Cap,,0,0,0,,{{\\pos(540,1180)}}{text}")
-        i += n
     total = (words[-1][0] + words[-1][1] + 1) if words else 1
     lines.append(f"Dialogue: 1,{_ass_time(0)},{_ass_time(total + 5)},Tag,,0,0,0,,{label}")
     out.write_text(head + "\n".join(lines) + "\n")
@@ -206,13 +240,13 @@ def render(data: dict, ep: dict, workdir: Path, images=ai_image) -> Path:
     """The finished MP4 for one episode (see the module notes)."""
     workdir.mkdir(parents=True, exist_ok=True)
     clips, audios, all_words, t, made = [], [], [], 0.0, 0
-    seed = int(hashlib.md5(ep["id"].encode()).hexdigest(), 16) % 100000
+    seed = int(hashlib.md5(ep["id"].encode()).hexdigest(), 16) % 100000    # one seed for every scene: steadier look
     for k, sc in enumerate(ep["scenes"]):
         mp3 = workdir / f"a{k}.mp3"
         words = say(sc["say"], mp3)
         secs = duration(mp3) + GAP
         img = workdir / f"i{k}.jpg"
-        if images(image_prompt(data, sc), img, seed + k):
+        if images(image_prompt(data, sc), img, seed):
             made += 1
         else:
             title_card(ep["title"], img, seed + k)
@@ -220,7 +254,7 @@ def render(data: dict, ep: dict, workdir: Path, images=ai_image) -> Path:
         motion_clip(img, secs, clip, k)
         clips.append(clip)
         audios.append((mp3, secs))
-        all_words += [(t + s, d, w) for s, d, w in words]
+        all_words += [(t + w[0], *w[1:]) for w in mark_pauses(words, sc["say"])]
         t += secs
     (workdir / "clips.txt").write_text("".join(f"file '{c.name}'\n" for c in clips))
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", "clips.txt", "-c", "copy",
@@ -250,21 +284,50 @@ def post_caption(ep: dict) -> str:
     return f"{ep['title']}... {ep['scenes'][-1]['say'].split('?')[0]}? {ep.get('tags', '')} #aianimated"
 
 
-def send(path: Path, ep: dict) -> bool:
-    """The video to your phone (an ntfy attachment, with the caption to paste)."""
+def publish(path: Path) -> str | None:
+    """Upload the video to the repo's public "videos" release (on GitHub: GITHUB_TOKEN); returns its download link."""
+    import requests
+
+    token, repo = os.environ.get("GITHUB_TOKEN", "").strip(), os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if not token or not repo:
+        return None
+    api, h = f"https://api.github.com/repos/{repo}", {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+    r = requests.get(f"{api}/releases/tags/videos", headers=h, timeout=30)
+    if r.status_code == 404:
+        r = requests.post(f"{api}/releases", headers=h, timeout=30, json={
+            "tag_name": "videos", "name": "Imagine videos", "body": "Made every morning by bot/imagine.py: download one and post it."})
+    if not r.ok:
+        log.warning("release: HTTP %s %s", r.status_code, r.text[:200])
+        return None
+    rel = r.json()
+    for a in rel.get("assets", []):
+        if a["name"] == path.name:
+            requests.delete(f"{api}/releases/assets/{a['id']}", headers=h, timeout=30)
+    up = rel["upload_url"].split("{")[0]
+    r = requests.post(up, params={"name": path.name}, headers={**h, "Content-Type": "video/mp4"}, data=path.read_bytes(),
+                      timeout=300)
+    if not r.ok:
+        log.warning("upload: HTTP %s %s", r.status_code, r.text[:200])
+        return None
+    return r.json().get("browser_download_url")
+
+
+def send(link: str | None, ep: dict) -> bool:
+    """Ping your phone (ntfy) with the download link and the caption to paste."""
     import requests
 
     from .signals import alert_target
 
     target = alert_target() or ""
     kind, _, rest = target.partition(":") if target.split(":", 1)[0] in ("ntfy", "discord", "telegram") else ("ntfy", "", target)
-    if not target or kind != "ntfy":
-        log.warning("no ntfy target: video saved at %s only", path)
+    if not target or kind != "ntfy" or not link:
+        log.warning("not sent (no ntfy target or no link)")
         return False
-    r = requests.put(f"https://ntfy.sh/{rest}", data=path.read_bytes(), timeout=120, headers={
-        "Filename": path.name, "Title": f"New video ready: {ep['title']}"[:200].encode("latin-1", "ignore").decode("latin-1"),
-        "Message": ("Tap to download, then post to TikTok, Reels and Shorts. Caption: " + post_caption(ep))
-        .encode("latin-1", "ignore").decode("latin-1"), "Tags": "clapper"})
+    clean = lambda x: x.encode("latin-1", "ignore").decode("latin-1")
+    r = requests.post(f"https://ntfy.sh/{rest}", timeout=60, data=("Tap to download, then post it to TikTok, Reels and "
+                      "Shorts. Caption to paste: " + post_caption(ep)).encode(),
+                      headers={"Title": clean(f"New video ready: {ep['title']}")[:200], "Click": link, "Attach": link,
+                               "Filename": f"{ep['id']}.mp4", "Tags": "clapper"})
     if not r.ok:
         log.warning("ntfy: HTTP %s %s", r.status_code, r.text[:200])
     return r.ok
@@ -280,10 +343,12 @@ def run(dry: bool = False):
         return
     with tempfile.TemporaryDirectory() as tmp:
         final = render(data, ep, Path(tmp))
-    sent = False if dry else send(final, ep)
+    link = None if dry else publish(final)
+    sent = send(link, ep) if link else False
     st.setdefault("done", []).append(ep["id"])
-    st.setdefault("made", []).append({"id": ep["id"], "t": time.time(), "sent": sent})
+    st.setdefault("made", []).append({"id": ep["id"], "t": time.time(), "sent": sent, "link": link})
     STATE.write_text(json.dumps(st, indent=1))
     commit([str(STATE)], f"Imagine: made {ep['id']}")
-    print(f"Made {final} ({final.stat().st_size / 1e6:.1f} MB); sent to phone: {sent}. Caption: {post_caption(ep)}",
+    print(f"Made {final} ({final.stat().st_size / 1e6:.1f} MB); link: {link}; phone pinged: {sent}. "
+          f"Caption: {post_caption(ep)}",
           flush=True)

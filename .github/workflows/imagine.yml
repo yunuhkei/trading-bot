@@ -7,7 +7,7 @@ on:
     - cron: "41 12 * * *"    # 6:41 am Milwaukee time (standard time)
   workflow_dispatch:
 permissions:
-  contents: write            # remembers which scripts are made (content/imagine/state.json)
+  contents: write            # remembers which scripts are made (content/imagine/made.json), publishes the video
 jobs:
   make:
     runs-on: ubuntu-latest
@@ -24,6 +24,7 @@ jobs:
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
           POLLINATIONS_KEY: ${{ secrets.POLLINATIONS_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    # uploads the video to the repo's public "videos" release
           SOLBOT_COMMIT: "1"
         run: python -m bot imagine
       - uses: actions/upload-artifact@v4
