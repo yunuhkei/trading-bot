@@ -300,11 +300,11 @@ removes a coin from the list (that's the live bot's job).
 
 **Copying smart wallets** (needs the free `HELIUS_API_KEY` secret from helius.dev):
 - The **smart-wallets** workflow (every Monday, or by hand: Actions → smart-wallets → Run workflow) looks for big runs
-  (the price at least doubled) on young coins, reads every swap around each run's bottom and top straight from the
-  blockchain, and keeps the wallets that **bought near the bottom and sold near the top for 1.5x+ on 2+ different
-  coins** (bots with dozens of swaps are skipped; so are trades signed by someone else, which can't be copied). The
-  list is saved in `models/smart_wallets.json`. To stay inside the free plan it reads at most 8 coins' most recent run
-  and skips coins too busy to read in full.
+  (the price at least doubled) on young coins, reads the swaps at each run's bottom straight from the blockchain, then
+  each big bottom buyer's own trades around the top, and keeps the wallets that **bought near the bottom and sold near
+  the top for 1.5x+ on 2+ different coins** (bots with thousands of trades are skipped; so are trades signed by someone
+  else, which can't be copied). The list is saved in `models/smart_wallets.json`. To stay inside the free plan it
+  reads at most 8 coins' most recent run (busy pumps have 10,000s of bot swaps, so it samples the bottom).
 - The **copytrade** workflow watches those wallets **live** and copies them about **2-5 seconds** behind: a smart wallet
   buys → it pretend-buys $30 (rug check and a $20k+ pool first); the wallet sells → it sells; plus the 20% stop and a
   48-hour limit. Pretend money for now (`solbot.yaml` `copytrade:`); its trades ping silently, and you get a normal

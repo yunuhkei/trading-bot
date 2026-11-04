@@ -4,9 +4,9 @@ several different coins. They're what the copy-trader (bot/copytrade.py) follows
 How it works (python -m bot smart-wallets; the smart-wallets workflow runs it every week with the HELIUS_API_KEY secret):
 1. For each coin (the Solana bot's list plus busy young coins it can find), it looks at the last ~7 days of 5-minute
    candles for pumps (the price at least doubled within 2 days) and takes the most recent one from the last 4 days.
-2. It reads every swap in that coin's main pool around the bottom (2 h before to 2 h after) and around the top (4 h
-   either side), straight from the blockchain (Helius RPC; the public RPC is too slow), and works out, per wallet, what
-   it bought and sold and at what price.
+2. It reads the swaps in the coin's main pool at the bottom (15 min before to 45 min after the low), straight from the
+   blockchain (Helius RPC; the public RPC is too slow), then each of the biggest bottom buyers' own swaps of the coin
+   around the top (4 h either side), and works out what each bought and sold and at what price.
 3. A wallet is "smart" on a pump if it bought $25+ near the bottom and sold at least 30% of that near the top for 1.5x+
    its buy price. Wallets with 40+ swaps in those windows are bots (sandwiching, market making) and are skipped.
 4. The list keeps wallets that did it on 2+ different coins (or, if too few, the ones that made the most), ranked by
@@ -27,13 +27,14 @@ PUBLIC_RPC = "https://api.mainnet-beta.solana.com"
 OUT = Path("models/smart_wallets.json")
 SOL_MINT = "So11111111111111111111111111111111111111112"
 USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-BUY_WINDOW = (2 * 3600, 2 * 3600)      # seconds before / after the bottom
+BUY_WINDOW = (15 * 60, 45 * 60)        # seconds before / after the bottom
 SELL_WINDOW = (4 * 3600, 4 * 3600)     # seconds before / after the top
 MIN_BUY_USD, MIN_SOLD_SHARE, MIN_GAIN, MAX_SWAPS = 25.0, 0.30, 1.5, 40
-# The free Helius plan has 1M credits a month: a run reads at most MAX_TX transactions per pump (a coin busier than that
-# around its pump is skipped: bots, and we'd only see a sliver of each wallet's trades), MAX_COINS coins, and only pumps
-# from the last RECENT_DAYS days (older ones need too many pages of history).
-MAX_TX, MAX_COINS, RECENT_DAYS = 2500, 8, 4
+# The free Helius plan has 1M credits a month. Busy coins have 10,000s of (mostly bot) swaps around a pump, so it reads
+# only the swaps at the bottom (up to MAX_TX, an even sample if more), then looks up each of the MAX_CANDIDATES biggest
+# bottom buyers' OWN history around the top (up to SELL_READS transactions in all): a wallet's history is tiny next to
+# the coin's. MAX_COINS coins a run, pumps from the last RECENT_DAYS days.
+MAX_TX, MAX_CANDIDATES, SELL_READS, MAX_COINS, RECENT_DAYS = 2000, 200, 3000, 8, 4
 CALLS = {"pages": 0, "tx": 0}
 
 
@@ -175,19 +176,11 @@ def smart_on_pump(trades: list[tuple[float, str, float]], df: pd.DataFrame, pump
     return out
 
 
-def coin_trades(mint: str, pool: str, pump: dict, cap: int = MAX_TX) -> list[tuple[float, str, float]] | None:
-    """(time, wallet, token change) of the swaps in the pool around this pump's bottom and top; None if there are more
-    than `cap` (too busy to read them all on the free plan)."""
-    since = pump["low_t"] - BUY_WINDOW[0]
-    sigs = signatures(pool, since)
-    want = [(s, t) for s, t in sigs if pump["low_t"] - BUY_WINDOW[0] <= t <= pump["low_t"] + BUY_WINDOW[1]
-            or pump["high_t"] - SELL_WINDOW[0] <= t <= pump["high_t"] + SELL_WINDOW[1]]
-    if len(want) > cap:
-        log.warning("%d swaps around this pump: too busy, skipped", len(want))
-        return None
+def read_swaps(sigs: list[tuple[str, float]], mint: str) -> list[tuple[float, str, float]]:
+    """(time, wallet, token change) for these transactions (self-signed swaps of `mint` only)."""
     out = []
-    for k in range(0, len(want), 50):
-        chunk = want[k:k + 50]
+    for k in range(0, len(sigs), 50):
+        chunk = sigs[k:k + 50]
         txs = rpc_batch([("getTransaction", [s, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 1}])
                          for s, _ in chunk])
         CALLS["tx"] += len(chunk)
@@ -196,6 +189,39 @@ def coin_trades(mint: str, pool: str, pump: dict, cap: int = MAX_TX) -> list[tup
             if sw:
                 out.append((t, sw[0], sw[1]))
     return out
+
+
+def pump_trades(mint: str, pool: str, pump: dict, df: pd.DataFrame) -> list[tuple[float, str, float]]:
+    """(time, wallet, token change): the swaps at this pump's bottom, plus the biggest bottom buyers' own swaps of the
+    coin around its top (see MAX_TX)."""
+    b0, b1 = pump["low_t"] - BUY_WINDOW[0], pump["low_t"] + BUY_WINDOW[1]
+    s0, s1 = pump["high_t"] - SELL_WINDOW[0], pump["high_t"] + SELL_WINDOW[1]
+    bottom = [(s, t) for s, t in signatures(pool, b0) if b0 <= t <= b1]
+    if len(bottom) > MAX_TX:
+        step = len(bottom) / MAX_TX
+        bottom = [bottom[int(i * step)] for i in range(MAX_TX)]
+    trades = read_swaps(bottom, mint)
+    spent: dict[str, float] = {}
+    for t, w, d in trades:
+        p = price_at(df, t)
+        if d > 0 and p:
+            spent[w] = spent.get(w, 0.0) + d * p
+    buyers = [w for w, usd in sorted(spent.items(), key=lambda kv: -kv[1]) if usd >= MIN_BUY_USD][:MAX_CANDIDATES]
+    reads = 0
+    for w in buyers:
+        if reads >= SELL_READS:
+            break
+        try:
+            mine = signatures(w, s0, max_pages=3)
+        except Exception as e:
+            log.warning("wallet %s: %s", w[:6], e)
+            continue
+        if len(mine) >= 3000:                            # thousands of transactions in a few days: a bot
+            continue
+        near_top = [(sg, t) for sg, t in mine if s0 <= t <= s1][: MAX_SWAPS + 1]
+        reads += len(near_top)
+        trades += read_swaps(near_top, mint)
+    return trades
 
 
 def main_pool(mint: str) -> str | None:
@@ -226,13 +252,13 @@ def find(coins: list[tuple[str, str]], history=None, min_coins: int = 2, keep: i
             continue
         for p in sorted(found, key=lambda p: -p["low_t"])[:1]:     # its most recent big run
             try:
-                trades = coin_trades(mint, pool, p)
+                trades = pump_trades(mint, pool, p, df) if pool else None
             except Exception as e:
                 log.warning("%s pump: %s", name, e)
-                continue
-            if trades is None:
-                seen_pumps.append({"coin": name, "mint": mint, "gain": round(p["gain"], 2), "skipped": "too busy"})
-                print(f"{name}: +{p['gain']:.0%} run, too busy to read on the free plan (skipped)", flush=True)
+                trades = None
+            if not trades:
+                seen_pumps.append({"coin": name, "mint": mint, "gain": round(p["gain"], 2), "skipped": "no swaps read"})
+                print(f"{name}: +{p['gain']:.0%} run, couldn't read its swaps (skipped)", flush=True)
                 continue
             read += 1
             smart = smart_on_pump(trades, df, p)

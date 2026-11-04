@@ -1786,21 +1786,21 @@ def test_smart_wallet_list_keeps_wallets_that_won_on_several_coins(monkeypatch):
     monkeypatch.setattr(sw, "main_pool", lambda mint: "POOL" + mint)
     wins = {"A": ["W1", "W2"], "B": ["W1", "W3"], "C": ["W1", "W2"]}
 
-    def fake_trades(mint, pool, p, cap=sw.MAX_TX):
+    def fake_trades(mint, pool, p, df):
         if mint == "BUSY":
-            return None
+            return []
         out = []
         for w in wins.get(mint, []):
             out += [(p["low_t"] + 300, w, 100.0), (p["high_t"] - 300, w, -100.0)]
         return out
-    monkeypatch.setattr(sw, "coin_trades", fake_trades)
+    monkeypatch.setattr(sw, "pump_trades", fake_trades)
     res = sw.find([("A", "A"), ("B", "B"), ("C", "C"), ("BUSY", "BUSY")], history=lambda mint: df)
     assert list(res["wallets"]) == ["W1", "W2", "W3"]                     # 3 coins, 2 coins, 1 coin
     assert res["level"].startswith("the biggest winners")                  # under 5 repeat winners: the top earners too
     assert res["wallets"]["W1"]["coins"] == ["A", "B", "C"] and res["wallets"]["W1"]["profit"] > 400
     strict = sw.find([("A", "A"), ("B", "B"), ("C", "C")], history=lambda mint: df, min_coins=3)
     assert strict["level"].startswith("the biggest winners") and list(strict["wallets"])[0] == "W1"
-    assert any(p.get("skipped") == "too busy" for p in res["pumps"])
+    assert any(p.get("skipped") == "no swaps read" for p in res["pumps"])
 
 
 def test_copytrader_copies_a_smart_buy_alerts_on_two_wallets_and_sells_when_the_wallet_sells(tmp_path, monkeypatch):
@@ -1884,3 +1884,28 @@ def test_copytrader_listens_live_and_hands_each_smart_wallet_transaction_over(tm
         return seen
     seen = asyncio.run(main())
     assert subscribed == ["W1", "W2"] and seen == [("W2", "SIG2")]         # failed transactions are ignored
+
+
+def test_smart_wallet_search_reads_the_bottom_then_each_big_buyers_own_history(monkeypatch):
+    from bot import smart_wallets as sw
+    idx = pd.date_range("2026-11-01", periods=600, freq="5min", tz="UTC")
+    close = np.r_[np.ones(200), np.full(50, 0.5), np.linspace(0.5, 2.0, 200), np.full(150, 1.8)]
+    df = pd.DataFrame({"open": close, "high": close, "low": close, "close": close, "volume": 1.0}, index=idx)
+    p = sw.pumps(df)[0]
+    lo, hi = p["low_t"], p["high_t"]
+    txs = {"B1": _tx("SMART", [("SMART", "COIN", 0, 100)]), "B2": _tx("BOT", [("BOT", "COIN", 0, 500)]),
+           "B3": _tx("SMALL", [("SMALL", "COIN", 0, 10)]), "S1": _tx("SMART", [("SMART", "COIN", 100, 20)])}
+    hist = {"POOL": [("B1", lo + 60), ("B2", lo + 120), ("B3", lo + 180), ("OLD", lo - 7200)],
+            "SMART": [("S1", hi - 600)], "BOT": [(f"X{i}", hi) for i in range(3000)], "SMALL": []}
+    looked_up = []
+
+    def fake_sigs(address, since, max_pages=300):
+        looked_up.append(address)
+        return [(s, t) for s, t in hist.get(address, []) if t >= since]
+    monkeypatch.setattr(sw, "signatures", fake_sigs)
+    monkeypatch.setattr(sw, "rpc_batch", lambda calls, url=None: [txs.get(c[1][0]) for c in calls])
+    trades = sw.pump_trades("COIN", "POOL", p, df)
+    assert "SMALL" not in looked_up                                       # a $5 buy isn't worth a lookup
+    assert ("SMART" in looked_up and "BOT" in looked_up) and not any(w == "BOT" and d < 0 for _, w, d in trades)
+    smart = sw.smart_on_pump(trades, df, p)
+    assert set(smart) == {"SMART"} and smart["SMART"]["x"] > 3
