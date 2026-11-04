@@ -4,3 +4,4 @@
 sol:7SL2VnfYsChvog5oQY9Nmtqu1wceaMiQzWoqoLQpump   # NIO, Fomo
 sol:Bv1a7cEj5aRnJQhMw4kRQqAFesMSd5LwcDnUzq52BMmr   # FLOAT (FLOAT), found by the Solana bot Nov 03: $427k pool, $2,595k traded in 24 h
 sol:DKYcjobF7HPtL9RyQBRdeRQ2iWvizpfbgWwPWNXdpump   # AudaCity (DacityCoin), found by the Solana bot Nov 03: $191k pool, $912k traded in 24 h
+sol:APLPiTjBWzwfZ5U1TBeqLF9XJ7dV7XKGe7j4BZhkDray   # Peak (PEAK), found by the Solana bot Nov 04: $87k pool, $607k traded in 24 h
