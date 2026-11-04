@@ -114,24 +114,32 @@ def recent(df: pd.DataFrame, strategy: str, params: dict, days: float = 3, stop_
 def review(df: pd.DataFrame, current: dict | None, live: list[float], min_win_rate: float = 0.81,
            stop_loss: float = 0.2, max_drop: float | None = None) -> tuple[str, dict | None, str]:
     """Is the coin's strategy still working? Returns (decision, strategy to use or None, why) where decision is
-    "keep", "switch" or "sit out".
+    "keep", "switch" or "sit out". Each time, the strategy is re-tested with the falling-knife filter on and off, and
+    the version that did better on the last 3 days is kept.
 
     The current strategy is kept while it keeps winning: on the last 3 days at least `min_win_rate` of its trades won
     and they made money (or it barely traded: no evidence it stopped), and the bot's own last trades with it on this
     coin (5+) didn't fall below `min_win_rate`. Otherwise it switches to the strategy that passes the full test in
     choose(), or sits the coin out if none does."""
     if current:
-        variants = [current.get("max_drop")] if "max_drop" in current else [None, max_drop] if max_drop else [None]
+        # Every review re-tests the strategy with the falling-knife filter on AND off and keeps the version that did
+        # better lately (the one it uses now first, so a tie keeps it).
+        variants = [current.get("max_drop")] + [k for k in ([None, max_drop] if max_drop else [None])
+                                                if k != current.get("max_drop")]
         tried = {k: recent(df, current["strategy"], current["params"], stop_loss=stop_loss, max_drop=k) for k in variants}
         knife = max(tried, key=lambda k: (tried[k]["won"] >= min_win_rate and tried[k]["avg"] > 0, tried[k]["total"]))
+        was = current.get("max_drop")
         current, r = {**current, "max_drop": knife}, tried[knife]
         mine = np.array(live[-8:])
         own_ok = len(mine) < 5 or (mine > 0).mean() >= min_win_rate
         if own_ok and r["trades"] < MIN_EXAM:
             return "keep", current, f"{current['label']} barely traded lately ({r['trades']} trades in 3 days): keeping it"
         if own_ok and r["won"] >= min_win_rate and r["avg"] > 0:
+            other = [k for k in tried if k != knife]
+            vs = (f" (filter {'off' if knife else 'on'}: {tried[other[0]]['trades']} trades, {tried[other[0]]['won']:.0%} won, "
+                  f"{tried[other[0]]['total']:+.0%} total)") if other and knife != was else ""
             return "keep", current, (f"{current['label']} is still working: last 3 days {r['trades']} trades, "
-                                     f"{r['won']:.0%} won, {r['avg']:+.1%} average")
+                                     f"{r['won']:.0%} won, {r['avg']:+.1%} average, {r['total']:+.0%} total" + vs)
         why = (f"{current['label']} stopped working: " + (
             f"the bot's own last {len(mine)} trades won only {(mine > 0).mean():.0%}" if not own_ok
             else f"last 3 days {r['trades']} trades, {r['won']:.0%} won, {r['avg']:+.1%} average"))

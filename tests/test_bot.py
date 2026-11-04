@@ -1418,6 +1418,14 @@ def test_each_coin_gets_the_falling_knife_filter_only_if_it_helps_on_that_coin(m
     with_filter, without = late(8, 0.03), late(10, 0.03) + late(6, -0.05)   # FLOAT-like: the filter skips the losers
     d, c, why = ss.review(df, current, [], max_drop=0.10)
     assert d == "keep" and c["max_drop"] == 0.10
+    # once it chose "off", later reviews still re-test "on": a crash the filter would have skipped flips it back
+    current = {**current, "max_drop": None}
+    with_filter, without = late(5, 0.06), late(9, 0.04) + [(df.index[-1] - pd.Timedelta(hours=2), -0.216)]   # NIO, Nov 3
+    d, c, why = ss.review(df, current, [], max_drop=0.10)
+    assert d == "keep" and c["max_drop"] == 0.10 and "filter off: 10 trades" in why
+    with_filter, without = late(5, 0.03), late(5, 0.03)                    # a tie keeps what it uses now
+    d, c, why = ss.review(df, current, [], max_drop=0.10)
+    assert c["max_drop"] is None and "filter on:" not in why
 
 
 def test_kalshi_bracket_odds_fees_and_dates():
