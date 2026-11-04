@@ -237,8 +237,9 @@ The **solbot** workflow buys dips for you with the **dip-bounce** rule, every 5 
 wallet** (Fomo has no bot access), swapping through Jupiter (what most Solana apps use behind the scenes):
 
 - **Young Solana coins** (`watchlist.young.txt`, e.g. NIO) on the 5-minute chart. Every 2 hours it **drops dying
-  coins** (under $20k in the pool or under $20k traded a day) and **searches for new coins like NIO** (2-21 days old,
-  $50k+ pool, $250k+ traded a day, rising), up to 6 on the list. Your young-coin alerts use the same list.
+  coins** (under $20k in the pool or under $20k traded a day) and **searches for new coins** that are **2-8 weeks old**
+  ($50k+ pool, $100k+ traded a day, rising), up to 6 on the list: on 28 coins, dip-buying lost on coins under 2 weeks
+  old and made money on older ones that were still trading. Your young-coin alerts use the same list.
 - **Stocks** as verified **xStocks** on Solana (NVDAx = Nvidia, SPYx = S&P 500...) on the daily chart: Apple, Amazon,
   Google, Intel, McDonald's, Meta, Microsoft, Nvidia, Palantir, Tesla, SPY and QQQ (the ones it was tested on). Only
   during US market hours, and only when the xStock's price is within 1% of the real stock's.

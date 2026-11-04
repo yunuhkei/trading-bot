@@ -65,11 +65,11 @@ strategy_config: config.young.yaml
 find_coins: true          # every few hours, search for new coins like NIO; add one only if a strategy wins 81%+ on it
 scan_every_hours: 2
 max_coins: 6              # most coins on the list at once
-coin_filters:             # what a new coin must look like (NIO had: 13 days old, $125k pool, $1M traded, rising)
-  min_age_hours: 48        # brand-new coins are the most likely to be rug pulls
-  max_age_days: 21
-  min_liquidity: 50000
-  min_volume_24h: 250000
+coin_filters:             # what a new coin must look like
+  min_age_hours: 336       # 2+ weeks old: on 28 coins, dips in coins under 2 weeks lost for all 3 strategies (-0.5 to -1.2%
+  max_age_days: 60         # a trade), coins 2+ weeks made +0.6% (4+ weeks: +1.2 to +2.3%); most meme coins are dead by then,
+  min_liquidity: 50000     # so the ones still trading are calmer
+  min_volume_24h: 100000   # older coins trade less than brand-new ones
   min_mcap: 250000
   max_mcap: 50000000
 dead_below_liquidity: 20000      # a coin with less than this in its pool...
