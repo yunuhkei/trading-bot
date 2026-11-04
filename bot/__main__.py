@@ -224,10 +224,10 @@ def cmd_kalshi_backtest(args, cfg):
 def cmd_smart_wallets(args, cfg):
     import logging
 
-    from .smart_wallets import run
+    from .smart_wallets import rescore, run
 
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
-    run(args.settings)
+    rescore() if args.rescore else run(args.settings)
 
 
 def cmd_copytrade(args, cfg):
@@ -373,7 +373,9 @@ def main(argv=None):
     kb.add_argument("--sameday", action="store_true", help="same-day trading: collect readings + day-of prices, then test")
     sw = sub.add_parser("smart-wallets", help="find wallets that bought bottoms and sold tops on several young coins")
     sw.add_argument("--settings", default="solbot.yaml")
-    ct = sub.add_parser("copytrade", help="copy the smart wallets live, seconds behind, with pretend money")
+    sw.add_argument("--rescore", action="store_true", help="only re-score the saved wallets' full records (approved list)")
+    ct = sub.add_parser("copytrade", help="copy the smart wallets live, seconds behind (pretend money, and real money "
+                                          "for the approved wallets)")
     ct.add_argument("--settings", default="solbot.yaml")
     ct.add_argument("--minutes", type=float, default=340)
     im = sub.add_parser("imagine", help="make the next 'Imagine if you...' video and send it to your phone")

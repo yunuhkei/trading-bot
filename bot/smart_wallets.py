@@ -11,6 +11,10 @@ How it works (python -m bot smart-wallets; the smart-wallets workflow runs it ev
    its buy price. Wallets with 40+ swaps in those windows are bots (sandwiching, market making) and are skipped.
 4. The list keeps wallets that did it on 2+ different coins (or, if too few, the ones that made the most), ranked by
    coins then profit, and saves it to models/smart_wallets.json.
+5. Then each top candidate's whole record (up to 4 months, 900 transactions) is scored as if copied, after 2% costs a
+   trade: only wallets with 20+ trades on 5+ coins, +1% or more a trade on average, wins 1.2x+ their losses, holding
+   2+ minutes, and profitable in 60%+ of their weeks are "approved" for real-money copying. (The best wallets win
+   less than half their trades: what matters is how much bigger the wins are than the losses.)
 """
 from __future__ import annotations
 
@@ -233,7 +237,7 @@ def main_pool(mint: str) -> str | None:
 
 
 def find(coins: list[tuple[str, str]], history=None, min_coins: int = 2, keep: int = 30, budget_s: float = 4 * 3600,
-         max_coins: int = MAX_COINS, recent_days: float = RECENT_DAYS) -> dict:
+         max_coins: int = MAX_COINS, recent_days: float = RECENT_DAYS, record=None) -> dict:
     """The smart wallets across these coins [(name, mint)]: see the module notes."""
     from .solbot_learn import coin_history
 
@@ -273,13 +277,16 @@ def find(coins: list[tuple[str, str]], history=None, min_coins: int = 2, keep: i
                 rec["profit"] = round(rec["profit"] + r["profit"], 2)
                 rec["wins"].append({"coin": name, **r})
     ranked = sorted(wallets.items(), key=lambda kv: (-len(kv[1]["coins"]), -kv[1]["profit"]))
+    good, stats = approve([w for w, _ in ranked[:40]], record=record) if record else ([], {})
     best = [(w, r) for w, r in ranked if len(r["coins"]) >= min_coins][:keep]
     level = f"{min_coins}+ coins"
     if len(best) < 5:                                        # too few repeat winners: the biggest one-time winners
         best = [(w, r) for w, r in ranked if r["profit"] >= 100][:keep] or best
         level = "the biggest winners (few won on 2+ coins)"
-    return {"updated": time.time(), "level": level, "wallets": dict(best), "pumps": seen_pumps,
-            "coins_checked": [n for n, _ in coins], "calls": dict(CALLS)}
+    keep_too = {w: wallets[w] for w in good if w not in dict(best)}      # approved ones are always watched
+    return {"updated": time.time(), "level": level, "wallets": {**dict(best), **keep_too}, "pumps": seen_pumps,
+            "coins_checked": [n for n, _ in coins], "calls": dict(CALLS), "approved": good, "copy_stats": stats,
+            "scored_at": time.time()}
 
 
 def coins_to_check(settings: dict, n: int = 20) -> list[tuple[str, str]]:
@@ -309,12 +316,13 @@ def run(settings_path: str = "solbot.yaml"):
 
     if not os.environ.get("HELIUS_API_KEY"):
         print("No HELIUS_API_KEY secret: using the slow public RPC (expect rate limits).", flush=True)
-    res = find(coins_to_check(load_settings(settings_path)))
+    res = find(coins_to_check(load_settings(settings_path)), record=copy_record)
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(json.dumps(res, indent=1))
     commit([str(OUT)], f"Smart wallets: {len(res['wallets'])} found")
     top = list(res["wallets"].items())[:5]
     text = (f"Checked {len(res['coins_checked'])} coins, {len(res['pumps'])} big runs ({res['calls']['tx']:,} swaps read). "
+            f"Approved for real-money copying (their whole record passes): {len(res['approved'])}. "
             f"Following {len(res['wallets'])} "
             f"wallets ({res['level']}). Top: " + "; ".join(
                 f"{w[:4]}…{w[-4:]} won on {', '.join(r['coins'])} (+${r['profit']:,.0f})" for w, r in top))
@@ -322,3 +330,141 @@ def run(settings_path: str = "solbot.yaml"):
     target = alert_target()
     if target and res["wallets"]:
         notify(target, f"🧠 Smart wallets: following {len(res['wallets'])}", text[:3500], buy=True, tag="bar_chart")
+
+
+# ---- Scoring a wallet's whole trading record (is it worth copying?) ----------------------------------------------------
+
+COPY_COST = 0.02                 # what copying loses per round trip: fees, price impact, being a few seconds late
+RULES = {"min_trades": 20, "min_coins": 5, "min_avg": 0.01, "min_profit_factor": 1.2, "min_hold_min": 2.0,
+         "min_good_weeks": 0.6}
+
+
+def wallet_trade(tx: dict | None, wallet: str) -> dict | None:
+    """One self-signed swap: {"t", "mint", "tokens" (+ bought / - sold), "sol", "usdc" (what it paid or got)}."""
+    from .copytrade import QUOTES
+
+    if not tx or (tx.get("meta") or {}).get("err"):
+        return None
+    keys = tx["transaction"]["message"]["accountKeys"]
+    pubs = [k["pubkey"] if isinstance(k, dict) else k for k in keys]
+    if not any(isinstance(k, dict) and k.get("signer") and k.get("pubkey") == wallet for k in keys):
+        return None
+    meta, i = tx["meta"], pubs.index(wallet)
+    sol = (meta["postBalances"][i] - meta["preBalances"][i] + (meta.get("fee", 0) if i == 0 else 0)) / 1e9
+    tok: dict[str, float] = {}
+    for rows, sign in ((meta.get("preTokenBalances"), -1), (meta.get("postTokenBalances"), 1)):
+        for b in rows or []:
+            if b.get("owner") == wallet:
+                tok[b["mint"]] = tok.get(b["mint"], 0.0) + sign * float(b["uiTokenAmount"].get("uiAmount") or 0)
+    sol += tok.pop(SOL_MINT, 0.0)
+    usdc = tok.pop(USDC, 0.0)
+    coins = {m: d for m, d in tok.items() if abs(d) > 0 and m not in QUOTES}
+    if len(coins) != 1 or (abs(sol) <= 0.001 and abs(usdc) <= 0.1):
+        return None
+    m, d = next(iter(coins.items()))
+    return {"t": float(tx.get("blockTime") or 0), "mint": m, "tokens": d, "sol": sol, "usdc": usdc}
+
+
+def round_trips(trades: list[dict]) -> list[tuple]:
+    """(buy time, sell time, return, mint) for every bought-then-sold lot, first in first out, in what it paid with."""
+    out, books = [], {}
+    for x in sorted(trades, key=lambda x: x["t"]):
+        q, amt = ("sol", x["sol"]) if abs(x["sol"]) > 0.001 else ("usdc", x["usdc"])
+        book = books.setdefault((x["mint"], q), [])
+        dust = 1e-4 if q == "sol" else 0.01                # a trade worth less than a cent is leftover dust, not a trade
+        if x["tokens"] > 0 and amt < 0:
+            book.append([x["tokens"], -amt, x["t"], x["tokens"]])
+        elif x["tokens"] < 0 and amt > 0:
+            left, sold = -x["tokens"], -x["tokens"]
+            while left > sold * 1e-9 and book:
+                lot = book[0]
+                take = min(lot[0], left)
+                cost = lot[1] * take / lot[0]
+                got = amt * take / sold
+                if cost >= dust:
+                    out.append((lot[2], x["t"], got / cost - 1, x["mint"]))
+                lot[0] -= take
+                lot[1] -= cost
+                left -= take
+                if lot[0] <= lot[3] * 1e-6:                  # what's left of the buy is dust: done with it
+                    book.pop(0)
+    return out
+
+
+def score(trips: list[tuple], cost: float = COPY_COST) -> dict:
+    """What copying these round trips would have made, after `cost` each."""
+    import numpy as np
+
+    if not trips:
+        return {"trades": 0}
+    net = np.array([r for _, _, r, _ in trips]) - cost
+    wins, losses = net[net > 0], net[net <= 0]
+    weeks: dict[int, float] = {}
+    for (t0, _, _, _), r in zip(trips, net):
+        weeks[int(t0 // (7 * 86400))] = weeks.get(int(t0 // (7 * 86400)), 0.0) + r
+    return {"trades": int(len(net)), "coins": len({m for *_, m in trips}), "won": float((net > 0).mean()),
+            "avg": float(net.mean()), "avg_win": float(wins.mean()) if len(wins) else 0.0,
+            "avg_loss": float(losses.mean()) if len(losses) else 0.0,
+            "profit_factor": float(wins.sum() / -losses.sum()) if len(losses) and losses.sum() < 0 else 99.0,
+            "hold_min": float(np.median([(b - a) / 60 for a, b, _, _ in trips])),
+            "weeks": len(weeks), "good_weeks": float(np.mean([v > 0 for v in weeks.values()])),
+            "days": float((max(b for _, b, _, _ in trips) - min(a for a, _, _, _ in trips)) / 86400)}
+
+
+def passes(s: dict, rules: dict = RULES) -> tuple[bool, str]:
+    """Is this record good enough to copy with real money? (ok, why not)"""
+    checks = [(s.get("trades", 0) >= rules["min_trades"], f"only {s.get('trades', 0)} finished trades"),
+              (s.get("coins", 0) >= rules["min_coins"], f"only {s.get('coins', 0)} coins"),
+              (s.get("avg", -1) >= rules["min_avg"], f"copying averaged {s.get('avg', 0):+.1%} a trade"),
+              (s.get("profit_factor", 0) >= rules["min_profit_factor"], f"wins only {s.get('profit_factor', 0):.2f}x its losses"),
+              (s.get("hold_min", 0) >= rules["min_hold_min"], f"holds {s.get('hold_min', 0):.1f} min (too fast to copy)"),
+              (s.get("weeks", 0) < 2 or s.get("good_weeks", 0) >= rules["min_good_weeks"],
+               f"made money in only {s.get('good_weeks', 0):.0%} of its weeks")]
+    bad = [why for ok, why in checks if not ok]
+    return (not bad, "; ".join(bad) if bad else "passes")
+
+
+def copy_record(wallet: str, days: float = 120, cap: int = 900) -> dict:
+    """The wallet's trades over the last `days` (at most `cap` transactions read), scored as if copied."""
+    sigs = signatures(wallet, time.time() - days * 86400, max_pages=4)[:cap]
+    trades = []
+    for k in range(0, len(sigs), 50):
+        chunk = sigs[k:k + 50]
+        CALLS["tx"] += len(chunk)
+        for (s, t), tx in zip(chunk, rpc_batch([("getTransaction", [s, {"encoding": "jsonParsed",
+                                                "maxSupportedTransactionVersion": 1}]) for s, _ in chunk])):
+            x = wallet_trade(tx, wallet)
+            if x:
+                trades.append(x)
+    return score(round_trips(trades))
+
+
+def approve(wallets: list[str], record=copy_record) -> tuple[list[str], dict]:
+    """(the wallets that pass, best first, by total copied profit; every wallet's record and verdict)"""
+    stats = {}
+    for w in wallets:
+        try:
+            s = record(w)
+        except Exception as e:
+            log.warning("record %s: %s", w[:6], e)
+            continue
+        ok, why = passes(s)
+        stats[w] = {**s, "approved": ok, "why": why}
+    good = sorted((w for w, s in stats.items() if s["approved"]), key=lambda w: -stats[w]["avg"] * stats[w]["trades"])
+    return good, stats
+
+
+def rescore(path: Path = OUT) -> dict:
+    """Score the saved wallets' records again and update which ones are approved for real money."""
+    from .solbot import commit
+
+    data = json.loads(path.read_text())
+    cands = list(dict.fromkeys(list(data.get("wallets", {})) + list(data.get("approved", []))))
+    good, stats = approve(cands)
+    data.update(approved=good, copy_stats=stats, scored_at=time.time())
+    path.write_text(json.dumps(data, indent=1))
+    commit([str(path)], f"Smart wallets: {len(good)} approved for copying")
+    for w, s in stats.items():
+        print(f"{w[:4]}...{w[-4:]}: {s.get('trades', 0)} trades, {s.get('coins', 0)} coins, avg {s.get('avg', 0):+.1%}, "
+              f"won {s.get('won', 0):.0%} -> {'APPROVED' if s['approved'] else s['why']}", flush=True)
+    return data

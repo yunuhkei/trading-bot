@@ -309,8 +309,18 @@ removes a coin from the list (that's the live bot's job).
   buys → it pretend-buys $30 (rug check and a $20k+ pool first); the wallet sells → it sells; plus the 20% stop and a
   48-hour limit. Pretend money for now (`solbot.yaml` `copytrade:`); its trades ping silently, and you get a normal
   ping when 2+ smart wallets buy the same coin within 6 hours. Weekly report Thursdays at 3 pm.
+- **Approved for real money:** the finder also reads each wallet's last ~4 months of trades and scores them as if we
+  had copied every one (2% off each for fees and being late). A wallet is approved only with 20+ finished trades on 5+
+  coins, +1% or more a trade on average, wins at least 1.2x its losses, holds 2+ minutes (we can't copy faster than
+  that) and made money in 60%+ of its weeks. Re-score by hand: `python -m bot smart-wallets --rescore`.
+- **Real money** (`solbot.yaml` `copytrade: live:`): the same copier also trades the bot's real wallet
+  (`SOLANA_BOT_KEY`), but only for the approved wallets: $6 a trade, at most 2 coins at once, skips a buy that would
+  cost over 3% in fees, the same 20% stop and 48-hour limit. Its trades ping out loud ("COPY LIVE"). It stops buying
+  when the account is under $3 (refill the wallet with USDC and it starts again), stops copying a wallet whose last 4
+  real copies all lost, and closes the empty coin accounts after each sell to get their ~$0.30 deposit back.
+  Turn it off with `live: enabled: false`.
 - Know the limits: some "smart" wallets are insiders or bots that sell to the people copying them, and we're always a
-  few seconds behind and pay a little more. That's why it practices first.
+  few seconds behind and pay a little more. A good past record doesn't promise the next trade.
 
 Know the risks: it checks every 5 minutes, so a crash can go past the 20% stop before it sells; if a coin's team
 pulls the money out of the pool (a rug pull), nothing can sell it; coins it finds by itself are strangers (most new

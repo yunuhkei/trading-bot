@@ -90,3 +90,11 @@ copytrade:                # needs the HELIUS_API_KEY secret
   min_liquidity: 20000    # don't copy into a coin with less than this in its pool (plus the rug check)
   stop_loss: 0.20
   max_hold_hours: 48      # sell after this long even if the wallet hasn't
+  live:                   # REAL money from the bot's wallet (SOLANA_BOT_KEY), same rules as above plus these
+    enabled: true
+    budget: 0             # 0 = trade whatever USDC is in the wallet (a refill counts right away)
+    per_trade: 6          # dollars a trade
+    max_open: 2           # coins held at once
+    max_cost: 0.03        # skip a buy that would cost more than 3% in fees + price impact
+    stop_below: 3         # stop buying when the account is under $3 (still sells what it holds)
+    drop_after_losses: 4  # stop copying a wallet whose last 4 real copies all lost

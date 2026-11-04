@@ -2002,3 +2002,172 @@ def test_imagine_publishes_the_video_and_pings_the_phone_with_the_link(tmp_path,
     ping = calls[-1]
     assert ping[1] == "https://ntfy.sh/topic123" and ping[2]["headers"]["Click"] == link and b"Caption to paste" in ping[2]["data"]
     assert not im.send(None, ep)
+
+
+def _swap_tx(wallet, t, mint, tokens, sol, before=0.0):
+    """A wallet's own swap of SOL for `tokens` of `mint` (+ bought, - sold), as getTransaction returns it."""
+    return {"blockTime": t, "transaction": {"message": {"accountKeys": [{"pubkey": wallet, "signer": True},
+                                                                         {"pubkey": "POOL", "signer": False}]}},
+            "meta": {"err": None, "fee": 5000, "preBalances": [10_000_000_000, 0],
+                     "postBalances": [10_000_000_000 + int(sol * 1e9) - 5000, 0],
+                     "preTokenBalances": [{"mint": mint, "owner": wallet, "uiTokenAmount": {"uiAmount": before}}],
+                     "postTokenBalances": [{"mint": mint, "owner": wallet, "uiTokenAmount": {"uiAmount": before + tokens}}]}}
+
+
+def test_wallet_records_are_scored_as_if_copied_and_only_good_ones_are_approved():
+    from bot import smart_wallets as sw
+    x = sw.wallet_trade(_swap_tx("W", 0, "COIN", 1000, -1.0), "W")
+    assert x["mint"] == "COIN" and x["tokens"] == 1000 and abs(x["sol"] + 1.0) < 1e-9     # the fee doesn't count
+    assert sw.wallet_trade(_swap_tx("W", 0, "COIN", 1000, -1.0), "SOMEONE_ELSE") is None     # not its own swap
+    trades = [sw.wallet_trade(_swap_tx("W", t, "COIN", n, s, b), "W")
+              for t, n, s, b in [(0, 1000, -1.0, 0), (100, 1000, -2.0, 1000), (200, -1500, 3.0, 2000), (300, -500, 0.5, 500)]]
+    trips = sw.round_trips(trades)                         # first in, first out
+    assert [(a, b, round(r, 6)) for a, b, r, _ in trips] == [(0, 200, 1.0), (100, 200, 0.0), (100, 300, -0.5)]
+    s = sw.score(trips, cost=0.02)
+    assert s["trades"] == 3 and abs(s["won"] - 1 / 3) < 1e-9 and abs(s["profit_factor"] - 0.98 / 0.54) < 1e-9
+    ok, why = sw.passes(s)
+    assert not ok and "only 3 finished trades" in why and "only 1 coins" in why
+    good = {"trades": 30, "coins": 6, "avg": 0.02, "profit_factor": 1.5, "hold_min": 10, "weeks": 4, "good_weeks": 0.75}
+    assert sw.passes(good) == (True, "passes")
+    assert not sw.passes({**good, "hold_min": 0.5})[0]                                   # too fast to copy
+    approved, stats = sw.approve(["A", "B", "C"], record=lambda w: {**good, "avg": 0.05} if w == "B" else good if w == "A" else s)
+    assert approved == ["B", "A"] and not stats["C"]["approved"]
+
+
+class _FakeLiveWallet:
+    live, address = True, "BOTWALLET1111111111"
+
+    def __init__(self, usd, price):
+        self.usd, self.price, self.held, self.fail_sell, self.refreshed = usd, price, {}, False, 0
+
+    def refresh(self):
+        self.refreshed += 1
+
+    def cash(self):
+        return self.usd
+
+    def held_raw(self, mint):
+        return self.held.get(mint, 0)
+
+    def swap(self, i, o, raw, max_cost=None):
+        from bot.solbot import USDC, TradeError
+        if i == USDC:
+            self.usd -= raw / 1e6
+            self.held[o] = int(raw / self.price[0])
+            return {"in": raw, "out": self.held[o], "tx": "BUYTX"}
+        if self.fail_sell:
+            raise TradeError("network")
+        got = self.held.pop(i) * self.price[0]
+        self.usd += got / 1e6
+        return {"in": raw, "out": int(got), "tx": "SELLTX"}
+
+
+def test_real_money_copier_follows_only_approved_wallets_with_small_trades_and_drops_losers(tmp_path, monkeypatch):
+    import json
+    import time
+    from bot import copytrade as ct
+    from bot import solbot as sb
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "smart_wallets.json").write_text(json.dumps({"wallets": {"W1": {}, "W2": {}, "W3": {}},
+                                                                        "approved": ["W1", "W2"]}))
+    price = [1.0]
+    monkeypatch.setattr(sb, "dex_info", lambda mints: {m: {"liq": 50_000, "vol24": 1e5, "symbol": m} for m in mints})
+    monkeypatch.setattr(sb, "safety_check", lambda mint, *a: (True, "ok"))
+    monkeypatch.setattr(sb, "prices", lambda mints: {m: {"usdPrice": price[0], "decimals": 6} for m in mints})
+    w = _FakeLiveWallet(13.64, price)
+    loud = []
+    c = ct.Copier({"copytrade": {"live": {"drop_after_losses": 2}}}, lambda t, m: loud.append(t), live=True, wallet=w)
+    assert c.wallets == ["W1", "W2"] and c.path == ct.STATE_LIVE
+    c.on_swap("W1", "AAA", 100)
+    c.on_swap("W2", "BBB", 100)
+    c.on_swap("W1", "CCC", 100)                                       # 2 open already: skipped
+    assert set(c.positions) == {"AAA", "BBB"} and loud[0] == "COPY LIVE: BOUGHT $6.00 of AAA" and w.refreshed >= 2
+    assert abs(w.usd - 1.64) < 1e-9
+    price[0] = 0.5
+    w.fail_sell = True
+    c.on_swap("W1", "AAA", -100)                                      # the sell fails: kept and tried again
+    assert c.positions["AAA"]["pending"] and not any("SOLD" in t for t in loud)
+    w.fail_sell = False
+    c.check_positions()                                               # AAA's retry, and BBB's -50% stop-loss
+    assert not c.positions and sum("COPY LIVE: SOLD" in t for t in loud) == 2
+    assert c.state["by_wallet"] == {"W1": [-0.5], "W2": [-0.5]} and not c.state.get("dropped")
+    price[0] = 1.0
+    c.on_swap("W1", "DDD", 100)
+    price[0] = 0.5
+    c.on_swap("W1", "DDD", -100)                                      # W1's 2nd loss in a row: dropped
+    assert "W1" in c.state["dropped"] and loud[-1].startswith("COPY LIVE: stopped copying W1")
+    price[0] = 1.0
+    c.on_swap("W1", "EEE", 100)
+    assert not c.positions                                            # dropped wallets aren't copied
+    w.usd = 2.0
+    c.on_swap("W2", "FFF", 100)                                       # under $3: stops buying, one ping
+    c.on_swap("W2", "GGG", 100)
+    assert not c.positions and sum("paused" in t for t in loud) == 1
+    c.save()
+    state = json.loads((tmp_path / "copytrade_state_live.json").read_text())
+    lines = ct.report_lines(state, time.time() + 60, 24, c.value(), live=True)
+    assert lines[0].startswith("COPY LIVE") and "3 trades" in lines[0] and "$2.00" in lines[0]
+    assert not (tmp_path / "copytrade_state.json").exists()           # the practice account's file is separate
+
+
+def test_one_listener_feeds_the_practice_and_the_real_money_copier(tmp_path, monkeypatch):
+    import json
+    from bot import copytrade as ct
+    from bot import smart_wallets as sw
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "smart_wallets.json").write_text(json.dumps({"wallets": {"W1": {}, "W2": {}}, "approved": ["W1", "W9"]}))
+    practice = ct.Copier({}, lambda t, m: None)
+    real = ct.Copier({}, lambda t, m: None, live=True, wallet=_FakeLiveWallet(10, [1.0]))
+    practice.others.append(real)
+    assert practice.watched() == ["W1", "W2", "W9"]
+    monkeypatch.setattr(sw, "rpc", lambda method, params: {"tx": params[0]})
+    monkeypatch.setattr(ct, "wallet_swaps", lambda tx, w: [("COIN", 5.0)])
+    got = []
+    practice.on_swap = lambda w, m, ch, sig: got.append(("practice", w))
+
+    def boom(w, m, ch, sig):
+        got.append(("real", w))
+        raise RuntimeError("one account's problem doesn't stop the other")
+    real.on_swap = boom
+    for wallet in ("W1", "W2", "W9"):
+        practice.handle(wallet, "SIG")
+    assert got == [("practice", "W1"), ("real", "W1"), ("practice", "W2"), ("real", "W9")]
+    practice.save()
+    assert (tmp_path / "copytrade_state.json").exists() and (tmp_path / "copytrade_state_live.json").exists()
+
+
+def test_empty_token_accounts_are_closed_to_get_the_deposit_back():
+    import base64
+    from solders.keypair import Keypair
+    from solders.transaction import Transaction
+    from bot import solbot as sb
+    kp = Keypair()
+    ids = {k: str(Keypair().pubkey()) for k in ("usdc", "coin", "full", "ice", "t22")}
+
+    def acct(key, mint, amount, state="initialized"):
+        return {"pubkey": ids[key], "account": {"data": {"parsed": {"info": {
+            "mint": mint, "state": state, "tokenAmount": {"amount": amount}}}}}}
+    accounts = {sb.TOKEN_PROGRAMS[0]: [acct("usdc", sb.USDC, "0"), acct("coin", "COIN", "0"), acct("full", "FULL", "5"),
+                                       acct("ice", "ICE", "0", "frozen")],
+                sb.TOKEN_PROGRAMS[1]: [acct("t22", "T22", "0")]}
+    sent = []
+
+    def rpc(method, params):
+        if method == "getTokenAccountsByOwner":
+            assert params[0] == str(kp.pubkey())
+            return {"value": accounts[params[1]["programId"]]}
+        if method == "getLatestBlockhash":
+            return {"value": {"blockhash": "11111111111111111111111111111111"}}
+        assert method == "sendTransaction"
+        sent.append(Transaction.from_bytes(base64.b64decode(params[0])))
+        return "SIG"
+    assert sb.close_empty_accounts(kp, rpc=rpc) == 2                   # never USDC, a coin it still holds, or a frozen one
+    assert len(sent) == 2
+    for tx, key in zip(sent, ("coin", "t22")):
+        keys = [str(k) for k in tx.message.account_keys]
+        ix = tx.message.instructions[0]
+        assert len(tx.message.instructions) == 1 and bytes(ix.data) == bytes([9])
+        assert keys[ix.accounts[0]] == ids[key] and keys[0] == str(kp.pubkey())   # deposit goes back to the wallet
+    sent[0].verify()                                                  # signed by the bot's wallet

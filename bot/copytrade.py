@@ -27,6 +27,11 @@ QUOTES = {"So11111111111111111111111111111111111111112", "EPjFWdd5AufqSSqeM2qN1x
 DEFAULTS = {"enabled": True, "cash": 300, "per_trade": 30, "follow": 30, "alert_wallets": 2, "min_liquidity": 20_000,
             "stop_loss": 0.20, "max_hold_hours": 48, "max_reads_per_wallet_hour": 60, "max_reads_per_day": 1500,
             "report_at": "15:00", "report_days": ["Thursday"], "timezone": "America/Chicago"}
+# Real money (solbot.yaml copytrade: live:): only the wallets the finder approved (their whole record passes), small
+# trades, few at once. budget 0 = whatever USDC is in the bot's wallet (refills count right away).
+LIVE = {"enabled": False, "budget": 0, "per_trade": 6, "max_open": 2, "max_cost": 0.03, "stop_below": 3.0,
+        "drop_after_losses": 4}
+STATE_LIVE = Path("copytrade_state_live.json")
 
 
 def ws_url() -> str | None:
@@ -51,22 +56,48 @@ def wallet_swaps(tx: dict | None, wallet: str) -> list[tuple[str, float]]:
 
 
 class Copier:
-    def __init__(self, settings: dict, tell, quiet_tell=None, now=time.time):
-        from .solbot import PaperWallet
+    """One account copying the smart wallets: pretend money (every wallet on the list) or, with live=True, the bot's
+    real wallet (only the approved wallets, see LIVE)."""
 
-        self.cfg = {**DEFAULTS, **(settings.get("copytrade") or {})}
-        self.tell, self.quiet, self.now = tell, quiet_tell or tell, now
-        self.state = json.loads(STATE.read_text()) if STATE.exists() else {}
+    def __init__(self, settings: dict, tell, quiet_tell=None, now=time.time, live: bool = False, wallet=None):
+        from .solbot import BudgetWallet, PaperWallet
+
+        base = {**DEFAULTS, **(settings.get("copytrade") or {})}
+        self.live, self.cfg = live, ({**base, **LIVE, **(base.get("live") or {})} if live else base)
+        self.path = STATE_LIVE if live else STATE
+        self.tag = "COPY LIVE: " if live else "COPY PRACTICE: "
+        self.tell, self.now = tell, now
+        self.quiet = tell if live else (quiet_tell or tell)            # real-money trades always ping out loud
+        self.state = json.loads(self.path.read_text()) if self.path.exists() else {}
         self.state.setdefault("started", self.now())
         self.positions = self.state.setdefault("positions", {})
-        self.wallet = PaperWallet(self.state, float(self.cfg["cash"]))
+        self.kp = None
         data = json.loads(WALLETS.read_text()) if WALLETS.exists() else {}
-        self.wallets = list((data.get("wallets") or {}))[: int(self.cfg["follow"])]
+        if live:
+            if wallet is None:
+                from .solbot import LiveWallet, keypair
+
+                self.kp = keypair()
+                if self.kp is None:
+                    raise RuntimeError("no wallet key (the SOLANA_BOT_KEY secret)")
+                wallet = LiveWallet(self.kp)
+            budget = float(self.cfg.get("budget") or 0)
+            if budget:
+                self.state.setdefault("cash", min(wallet.cash(), budget))
+                wallet = BudgetWallet(wallet, self.state)
+            self.wallet = wallet
+            self.wallets = list(data.get("approved") or [])
+        else:
+            self.wallet = PaperWallet(self.state, float(self.cfg["cash"]))
+            self.wallets = list((data.get("wallets") or {}))[: int(self.cfg["follow"])]
+        self.others: list[Copier] = []                                  # other accounts fed by the same listener
         self.reads: dict[str, list[float]] = {}
 
     def save(self):
         self.state["trades"] = self.state.get("trades", [])[-500:]
-        STATE.write_text(json.dumps(self.state, indent=1))
+        self.path.write_text(json.dumps(self.state, indent=1))
+        for o in self.others:
+            o.save()
 
     def can_read(self, wallet: str) -> bool:
         """Credit guard (the free plan): at most `max_reads_per_wallet_hour` per wallet and `max_reads_per_day` total."""
@@ -99,7 +130,7 @@ class Copier:
                 log.warning("%s: no DEX info: %s", mint, e)
             name = (info or {}).get("symbol") or mint[:6]
             told = self.state.setdefault("alerted", {})
-            if len(buyers) >= int(self.cfg["alert_wallets"]) and now - told.get(mint, 0) > 6 * 3600:
+            if not self.live and len(buyers) >= int(self.cfg["alert_wallets"]) and now - told.get(mint, 0) > 6 * 3600:
                 told[mint] = now
                 self.tell(f"🧠 {len(buyers)} smart wallets just bought {name}",
                           f"{len(buyers)} of the wallets that bought bottoms and sold tops on other coins bought {name} in the "
@@ -109,6 +140,22 @@ class Copier:
                 if wallet not in self.positions[mint]["wallets"]:
                     self.positions[mint]["wallets"].append(wallet)
                 return
+            if self.live:
+                if (self.state.get("dropped") or {}).get(wallet) or len(self.positions) >= int(self.cfg["max_open"]):
+                    return
+                try:
+                    self.wallet.refresh()                # the real balance now (refills count right away)
+                except Exception as e:
+                    log.warning("balance: %s", e)
+                    return
+                if self.value() < float(self.cfg["stop_below"]):
+                    if not self.state.get("low_told"):
+                        self.state["low_told"] = now
+                        self.tell(f"{self.tag}paused: the account is under {money(float(self.cfg['stop_below']))}",
+                                  f"It's about {money(self.value())}, so it stops buying (anything it holds is still sold "
+                                  f"when the wallet sells or at the stop). Refill the wallet with USDC and it starts again.")
+                    return
+                self.state.pop("low_told", None)
             usd = min(float(self.cfg["per_trade"]), self.wallet.cash())
             if usd < 5 or not info or info.get("liq", 0) < float(self.cfg["min_liquidity"]):
                 return
@@ -117,19 +164,22 @@ class Copier:
                 log.warning("copy %s skipped: %s", name, why)
                 return
             try:
-                fill = self.wallet.swap(USDC, mint, int(usd * 10 ** USDC_DECIMALS), 0.05)
+                fill = self.wallet.swap(USDC, mint, int(usd * 10 ** USDC_DECIMALS), float(self.cfg.get("max_cost", 0.05)))
                 dec = int((prices([mint]).get(mint) or {}).get("decimals") or 6)
             except Exception as e:
                 log.warning("copy %s failed: %s", name, e)
                 return
+            spent = fill.get("in", usd * 10 ** USDC_DECIMALS) / 10 ** USDC_DECIMALS
             tokens = fill["out"] / 10 ** dec
-            self.positions[mint] = {"name": name, "raw": fill["out"], "decimals": dec, "cost": usd,
-                                    "entry": usd / tokens if tokens else 0, "t": now, "wallets": [wallet], "sig": sig}
-            self.state.setdefault("trades", []).append({"t": now, "action": "BUY", "what": name, "usd": usd, "wallet": wallet})
-            self.quiet(f"COPY PRACTICE: BOUGHT {money(usd)} of {name}",
-                       f"Smart wallet {wallet[:4]}…{wallet[-4:]} just bought it (seconds ago); copied with pretend money. "
-                       f"Sells when that wallet sells, at -{float(self.cfg['stop_loss']):.0%}, or after "
-                       f"{float(self.cfg['max_hold_hours']):g} h.")
+            self.positions[mint] = {"name": name, "raw": fill["out"], "decimals": dec, "cost": spent,
+                                    "entry": spent / tokens if tokens else 0, "t": now, "wallets": [wallet], "sig": sig}
+            self.state.setdefault("trades", []).append({"t": now, "action": "BUY", "what": name, "usd": spent,
+                                                        "wallet": wallet, "tx": fill.get("tx")})
+            self.quiet(f"{self.tag}BOUGHT {money(spent)} of {name}",
+                       f"Smart wallet {wallet[:4]}…{wallet[-4:]} just bought it (seconds ago); copied with "
+                       f"{'REAL' if self.live else 'pretend'} money. Sells when that wallet sells, at "
+                       f"-{float(self.cfg['stop_loss']):.0%}, or after {float(self.cfg['max_hold_hours']):g} h."
+                       + (f"\nhttps://solscan.io/tx/{fill['tx']}" if fill.get("tx") else ""))
         elif mint in self.positions and wallet in self.positions[mint]["wallets"]:
             self.sell(mint, f"smart wallet {wallet[:4]}…{wallet[-4:]} sold it")
 
@@ -138,20 +188,62 @@ class Copier:
         from .signals import money
 
         p = self.positions[mint]
+        if self.live:
+            try:
+                self.wallet.refresh()
+                raw = self.wallet.held_raw(mint)
+            except Exception as e:
+                log.warning("balance: %s", e)
+                p["pending"] = why
+                return False
+            if raw <= 0 and self.now() - p["t"] < 600:   # just bought: the balance may not show it yet
+                p["pending"] = why
+                return False
+        else:
+            raw = int(p["raw"])
+        if raw <= 0:                                     # nothing left in the wallet (sold by hand): forget it
+            self.positions.pop(mint)
+            self.tell(f"{self.tag}{p['name']} is gone from the wallet", "It wasn't sold by the bot, so it stops tracking it.")
+            return True
         try:
-            fill = self.wallet.swap(mint, USDC, int(p["raw"]))
+            fill = self.wallet.swap(mint, USDC, int(raw))
         except Exception as e:
             log.warning("sell %s failed: %s", p["name"], e)
+            p["pending"] = why                           # tried again every minute
             return False
         got = fill["out"] / 10 ** USDC_DECIMALS
         result = got / p["cost"] - 1 if p["cost"] else 0.0
         self.positions.pop(mint)
         self.state.setdefault("trades", []).append({"t": self.now(), "action": "SELL", "what": p["name"], "usd": got,
-                                                    "result": result, "wallets": p["wallets"]})
-        self.quiet(f"COPY PRACTICE: SOLD {p['name']} for {money(got)} ({result:+.1%})",
+                                                    "result": result, "wallets": p["wallets"], "tx": fill.get("tx")})
+        self.quiet(f"{self.tag}SOLD {p['name']} for {money(got)} ({result:+.1%})",
                    f"{why[0].upper() + why[1:]}. Bought for {money(p['cost'])}, {got - p['cost']:+,.2f} after fees. "
-                   f"Pretend account about {money(self.value())}.")
+                   f"{'Account' if self.live else 'Pretend account'} about {money(self.value())}."
+                   + (f"\nhttps://solscan.io/tx/{fill['tx']}" if fill.get("tx") else ""))
+        if self.live:
+            self.judge(p["wallets"], result)
+            if self.kp is not None:
+                try:
+                    from .solbot import close_empty_accounts
+
+                    close_empty_accounts(self.kp)        # get the coin's ~0.002 SOL account deposit back
+                except Exception as e:
+                    log.warning("closing empty accounts: %s", e)
         return True
+
+    def judge(self, wallets: list[str], result: float):
+        """Real-money record per copied wallet: one whose last `drop_after_losses` copies all lost is dropped."""
+        from .signals import money
+
+        n = int(self.cfg.get("drop_after_losses") or 0)
+        for w in wallets:
+            res = self.state.setdefault("by_wallet", {}).setdefault(w, [])
+            res.append(result)
+            if n and len(res) >= n and all(r <= 0 for r in res[-n:]) and not self.state.setdefault("dropped", {}).get(w):
+                self.state["dropped"][w] = self.now()
+                self.tell(f"{self.tag}stopped copying {w[:4]}…{w[-4:]}",
+                          f"Its last {n} copied trades all lost (total {sum(res[-n:]):+.0%}), so real money stops following "
+                          f"it. The finder re-checks every wallet on Mondays.")
 
     def value(self) -> float:
         return self.wallet.cash() + sum(p["cost"] for p in self.positions.values())
@@ -169,6 +261,9 @@ class Copier:
             return
         now = self.now()
         for mint, p in list(self.positions.items()):
+            if p.get("pending"):                         # a sell that failed: try again
+                self.sell(mint, p["pending"])
+                continue
             price = float((px.get(mint) or {}).get("usdPrice") or 0)
             if price and p["entry"] and price <= p["entry"] * (1 - float(self.cfg["stop_loss"])):
                 self.sell(mint, f"stop-loss: down {price / p['entry'] - 1:.0%} from the buy")
@@ -179,8 +274,8 @@ class Copier:
         """A smart wallet's new transaction: read it and copy any buy or sell."""
         from .smart_wallets import rpc
 
-        if not self.can_read(wallet):
-            return
+        if not self.can_read(wallet) and not any(c.live and wallet in c.wallets for c in self.copiers()):
+            return                                       # over the free plan's budget (never for a real-money wallet)
         tx = None
         for _ in range(3):                               # just confirmed: may need a moment to be readable
             try:
@@ -191,8 +286,27 @@ class Copier:
             if tx:
                 break
             time.sleep(0.7)
-        for mint, change in wallet_swaps(tx, wallet):
-            self.on_swap(wallet, mint, change, sig)
+        swaps = wallet_swaps(tx, wallet)
+        for c in self.copiers():
+            if wallet in c.wallets:
+                for mint, change in swaps:
+                    try:
+                        c.on_swap(wallet, mint, change, sig)
+                    except Exception as e:
+                        log.warning("%scopy of %s: %s", c.tag, mint[:6], e)
+
+    def copiers(self) -> list["Copier"]:
+        return [self, *self.others]
+
+    def watched(self) -> list[str]:
+        return list(dict.fromkeys(w for c in self.copiers() for w in c.wallets))
+
+    def check_all(self):
+        for c in self.copiers():
+            try:
+                c.check_positions()
+            except Exception as e:
+                log.warning("%schecking positions: %s", c.tag, e)
 
     async def listen(self, seconds: float):
         """Watch every smart wallet live for `seconds` (reconnects if the connection drops)."""
@@ -205,11 +319,12 @@ class Copier:
                 async with aiohttp.ClientSession() as sess:
                     async with sess.ws_connect(url, heartbeat=30) as ws:
                         subs, pending = {}, {}
-                        for i, w in enumerate(self.wallets, 1):
+                        watch = self.watched()
+                        for i, w in enumerate(watch, 1):
                             pending[i] = w
                             await ws.send_json({"jsonrpc": "2.0", "id": i, "method": "logsSubscribe",
                                                 "params": [{"mentions": [w]}, {"commitment": "confirmed"}]})
-                        print(f"Watching {len(self.wallets)} smart wallets live.", flush=True)
+                        print(f"Watching {len(watch)} smart wallets live.", flush=True)
                         last = time.time()
                         while time.time() < end:
                             try:
@@ -229,7 +344,7 @@ class Copier:
                                         if w and not v.get("err"):
                                             await loop.run_in_executor(None, self.handle, w, v["signature"])
                             if time.time() - last > 60:
-                                await loop.run_in_executor(None, self.check_positions)
+                                await loop.run_in_executor(None, self.check_all)
                                 self.save()
                                 last = time.time()
             except Exception as e:
@@ -238,25 +353,27 @@ class Copier:
         self.save()
 
 
-def report_lines(state: dict, now: float, hours: float) -> list[str]:
+def report_lines(state: dict, now: float, hours: float, value: float | None = None, live: bool = False) -> list[str]:
     """For the Thursday report."""
     from .signals import money
 
     sells = [t for t in state.get("trades", []) if t["action"] == "SELL"]
     recent = [t for t in sells if now - t["t"] <= hours * 3600]
     made = lambda ts: sum(t["usd"] * t["result"] / (1 + t["result"]) for t in ts)
-    value = float(state.get("paper_cash", 0)) + sum(p["cost"] for p in state.get("positions", {}).values())
+    if value is None:
+        value = float(state.get("paper_cash", 0)) + sum(p["cost"] for p in state.get("positions", {}).values())
+    head = ("COPY LIVE (approved wallets only; REAL money)" if live
+            else "COPY PRACTICE (follows the smart wallets; pretend money)")
     if not sells:
-        return [f"COPY PRACTICE (follows the smart wallets; pretend money): no finished trades yet, holding "
-                f"{len(state.get('positions', {}))}, account about {money(value)}."]
-    return [f"COPY PRACTICE (follows the smart wallets; pretend money): last {hours:.0f} h {len(recent)} trades, "
+        return [f"{head}: no finished trades yet, holding {len(state.get('positions', {}))}, account about {money(value)}."]
+    return [f"{head}: last {hours:.0f} h {len(recent)} trades, "
             f"{sum(t['result'] > 0 for t in recent)}-{sum(t['result'] <= 0 for t in recent)}, {made(recent):+,.2f}. "
             f"Since it started: {len(sells)} trades, {sum(t['result'] > 0 for t in sells) / len(sells):.0%} won, "
             f"{made(sells):+,.2f}; account about {money(value)}."]
 
 
 def run(settings_path: str = "solbot.yaml", minutes: float = 340):
-    from .signals import alert_target, notify
+    from .signals import alert_target, money, notify
     from .solbot import load_settings, report_due
 
     settings = load_settings(settings_path)
@@ -275,7 +392,23 @@ def run(settings_path: str = "solbot.yaml", minutes: float = 340):
             notify(target, title, msg, buy="SOLD" not in title or "(+" in title, priority=priority)
 
     c = Copier(settings, tell, lambda t, m: tell(t, m, "low"))
-    if not c.wallets:
+    live_cfg = {**LIVE, **(cfg.get("live") or {})}
+    if live_cfg.get("enabled"):
+        try:
+            real = Copier(settings, tell, live=True)
+            c.others.append(real)
+            if "announced" not in real.state:
+                real.state["announced"] = time.time()
+                who = ", ".join(f"{w[:4]}…{w[-4:]}" for w in real.wallets) or "none yet"
+                tell("💸 Copy trading with REAL money started",
+                     f"Copies only the approved wallets ({who}): {money(float(real.cfg['per_trade']))} a trade, at most "
+                     f"{real.cfg['max_open']} at once, sells when they sell, at -{float(real.cfg['stop_loss']):.0%} or after "
+                     f"{float(real.cfg['max_hold_hours']):g} h. Stops buying under {money(float(real.cfg['stop_below']))}; "
+                     f"wallet {real.wallet.address[:4]}…{real.wallet.address[-4:]} has about {money(real.wallet.cash())}.")
+        except Exception as e:
+            log.warning("real-money copying is off: %s", e)
+            print(f"Real-money copying is off: {e}")
+    if not c.watched():
         print("No smart wallets yet (run the smart-wallets workflow first).")
         return
     if "announced" not in c.state:
@@ -291,5 +424,8 @@ def run(settings_path: str = "solbot.yaml", minutes: float = 340):
         if day:
             since = c.state.get("reported_at", c.state["started"])
             c.state.update(report_day=day, reported_at=time.time())
-            tell("📊 Copy practice: weekly report", "\n".join(report_lines(c.state, time.time(), (time.time() - since) / 3600)))
+            lines = report_lines(c.state, time.time(), (time.time() - since) / 3600)
+            for o in c.others:
+                lines += report_lines(o.state, time.time(), (time.time() - since) / 3600, o.value(), live=o.live)
+            tell("📊 Copy trading: weekly report", "\n".join(lines))
         c.save()

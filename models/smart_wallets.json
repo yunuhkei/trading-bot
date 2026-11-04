@@ -190,5 +190,76 @@
  "calls": {
   "pages": 1999,
   "tx": 18222
- }
+ },
+ "approved": [
+  "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp"
+ ],
+ "copy_stats": {
+  "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2": {
+   "trades": 117,
+   "coins": 37,
+   "won": 0.3333333333333333,
+   "avg": -0.015196713037807215,
+   "avg_win": 0.683498192632174,
+   "avg_loss": -0.36454416587279787,
+   "profit_factor": 0.9374696629635136,
+   "hold_min": 27.116666666666667,
+   "weeks": 1,
+   "good_weeks": 0.0,
+   "days": 4.839918981481482,
+   "approved": false,
+   "why": "copying averaged -1.5% a trade; wins only 0.94x its losses"
+  },
+  "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ": {
+   "trades": 10,
+   "coins": 4,
+   "won": 0.6,
+   "avg": 0.06216670579935939,
+   "avg_win": 0.2737284826780938,
+   "avg_loss": -0.2551759595187422,
+   "profit_factor": 1.6090572356091537,
+   "hold_min": 7335.766666666666,
+   "weeks": 2,
+   "good_weeks": 0.5,
+   "days": 7.157997685185185,
+   "approved": false,
+   "why": "only 10 finished trades; only 4 coins; made money in only 50% of its weeks"
+  },
+  "CVLLaoAu3QWCfRuWUp4P29AJ9QpBu25ziThJsuq7BWJT": {
+   "trades": 0,
+   "approved": false,
+   "why": "only 0 finished trades; only 0 coins; copying averaged +0.0% a trade; wins only 0.00x its losses; holds 0.0 min (too fast to copy)"
+  },
+  "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh": {
+   "trades": 34,
+   "coins": 1,
+   "won": 0.47058823529411764,
+   "avg": 0.3946670968611303,
+   "avg_win": 1.1170930464509556,
+   "avg_loss": -0.24748930277427028,
+   "profit_factor": 4.012179862783654,
+   "hold_min": 674.7,
+   "weeks": 2,
+   "good_weeks": 0.5,
+   "days": 6.856921296296297,
+   "approved": false,
+   "why": "only 1 coins; made money in only 50% of its weeks"
+  },
+  "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp": {
+   "trades": 302,
+   "coins": 38,
+   "won": 0.44039735099337746,
+   "avg": 0.020882941361551156,
+   "avg_win": 0.21021752283901263,
+   "avg_loss": -0.12812001329230904,
+   "profit_factor": 1.291269447692377,
+   "hold_min": 60.0,
+   "weeks": 1,
+   "good_weeks": 1.0,
+   "days": 3.3419444444444446,
+   "approved": true,
+   "why": "passes"
+  }
+ },
+ "scored_at": 1793830018.1501756
 }

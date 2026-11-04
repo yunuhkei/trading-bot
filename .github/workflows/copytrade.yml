@@ -1,6 +1,6 @@
 # Copy-trader (bot/copytrade.py): watches the smart wallets (models/smart_wallets.json) live and copies their buys and
-# sells within seconds, with pretend money (solbot.yaml copytrade:). One long job of almost 6 hours, then the next one
-# takes over. Needs the HELIUS_API_KEY secret.
+# sells within seconds: pretend money for all of them, and real money (the SOLANA_BOT_KEY wallet) for the approved ones
+# (solbot.yaml copytrade:). One long job of almost 6 hours, then the next one takes over. Needs the HELIUS_API_KEY secret.
 name: copytrade
 on:
   schedule:
@@ -25,11 +25,17 @@ jobs:
           path: copytrade_state.json
           key: copytrade-state-${{ github.run_id }}
           restore-keys: copytrade-state-
+      - uses: actions/cache/restore@v4
+        with:
+          path: copytrade_state_live.json
+          key: copytrade-live-${{ github.run_id }}
+          restore-keys: copytrade-live-
       - name: Copy the smart wallets
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
           HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
           JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}
+          SOLANA_BOT_KEY: ${{ secrets.SOLANA_BOT_KEY }}
         # Pull new commits every 5 minutes (a new smart-wallet list applies on the next 30-minute round).
         run: |
           (while sleep 300; do git pull -q --ff-only origin main || true; done) &
@@ -39,3 +45,8 @@ jobs:
         with:
           path: copytrade_state.json
           key: copytrade-state-${{ github.run_id }}
+      - uses: actions/cache/save@v4
+        if: always() && hashFiles('copytrade_state_live.json') != ''
+        with:
+          path: copytrade_state_live.json
+          key: copytrade-live-${{ github.run_id }}

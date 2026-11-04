@@ -177,6 +177,48 @@ def check_key(state: dict, now: float, tell) -> str | None:
 
 # ---- Wallets: the real one, and a pretend one for dry runs ----
 
+TOKEN_PROGRAMS = ("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
+SOL_MINT = "So11111111111111111111111111111111111111112"
+
+
+def close_empty_accounts(kp, keep: tuple = (USDC, SOL_MINT), rpc=None) -> int:
+    """Close the wallet's empty token accounts to get their deposit back (about 0.002 SOL each: Solana charges it to
+    open an account for every new coin bought). Never USDC or SOL's. Returns how many it closed."""
+    from solders.hash import Hash
+    from solders.instruction import AccountMeta, Instruction
+    from solders.message import Message
+    from solders.pubkey import Pubkey
+    from solders.transaction import Transaction
+
+    if rpc is None:
+        from .smart_wallets import rpc
+    owner, closed = kp.pubkey(), 0
+    for prog in TOKEN_PROGRAMS:
+        try:
+            res = rpc("getTokenAccountsByOwner", [str(owner), {"programId": prog}, {"encoding": "jsonParsed"}])
+        except Exception as e:
+            log.warning("token accounts: %s", e)
+            continue
+        empty = []
+        for a in (res or {}).get("value", []):
+            info = a["account"]["data"]["parsed"]["info"]
+            if info["tokenAmount"]["amount"] == "0" and info["mint"] not in keep and info.get("state") != "frozen":
+                empty.append(a["pubkey"])
+        for k in range(0, len(empty), 8):                    # 8 closes fit easily in one transaction
+            batch = empty[k:k + 8]
+            ixs = [Instruction(Pubkey.from_string(prog), bytes([9]),    # SPL Token instruction 9 = CloseAccount
+                               [AccountMeta(Pubkey.from_string(acc), False, True), AccountMeta(owner, False, True),
+                                AccountMeta(owner, True, False)]) for acc in batch]
+            try:
+                bh = Hash.from_string(rpc("getLatestBlockhash", [{"commitment": "confirmed"}])["value"]["blockhash"])
+                tx = Transaction([kp], Message.new_with_blockhash(ixs, owner, bh), bh)
+                rpc("sendTransaction", [base64.b64encode(bytes(tx)).decode(), {"encoding": "base64"}])
+                closed += len(batch)
+            except Exception as e:
+                log.warning("closing %d empty accounts failed: %s", len(batch), e)
+    return closed
+
+
 class LiveWallet:
     live = True
 
