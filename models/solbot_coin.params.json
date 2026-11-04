@@ -1,32 +1,32 @@
 {
  "kind": "coin",
- "learned_at": 1793710862.5268524,
+ "learned_at": 1793797530.0038905,
  "params": {
   "period": 20,
   "width": 2.0
  },
  "changed": false,
- "reason": "the setting that studied best did not beat the current one on the newest trades",
+ "reason": "only 23 trades on the newest days: too few to judge",
  "was": {
   "period": 20,
   "width": 2.0
  },
  "best": {
   "period": 15,
-  "width": 1.5
+  "width": 2.5
  },
  "tried": 12,
- "markets": 3,
- "exam_from": "2026-11-01 02:25:00+00:00",
+ "markets": 4,
+ "exam_from": "2026-11-02 03:20:00+00:00",
  "exam_current": {
-  "trades": 26,
-  "won": 0.6923076923076923,
-  "avg": 0.016708407853262185
+  "trades": 36,
+  "won": 0.5,
+  "avg": -0.03291349648778353
  },
  "exam_best": {
-  "trades": 59,
-  "won": 0.576271186440678,
-  "avg": 0.005146452311063935
+  "trades": 23,
+  "won": 0.6086956521739131,
+  "avg": 0.016114134142161406
  },
- "sure": 0.431
+ "sure": 0.9665
 }
