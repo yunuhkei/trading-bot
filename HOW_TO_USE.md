@@ -257,6 +257,10 @@ or freeze coins, it taxes transfers, it's flagged as dangerous, or one wallet ow
 5-minute checks it watches what it holds **every 30 seconds**: it sells at the 20% stop-loss within seconds, and sells at
 once if a coin's pool loses 30% of its money (often the start of a rug pull). It doesn't buy **falling knives** (coins
 down 10%+ in 6 hours; in testing this doubled the profit per trade) or while **SOL is crashing** (down 3%+ in an hour).
+And it only buys a dip in a coin that's in a **strong uptrend: up 20%+ over the last 24 hours** (`min_up_24h`). On 21
+young coins, dips bought in falling or barely-rising coins lost money; RSI dips in coins up 20%+ won ~78% and made money
+in both halves of the week. It would have skipped 4 of the bot's first 5 real trades. The practice account still takes
+every signal, so the Thursday report shows whether the rule really helps.
 
 **It learns** (`bot/solbot_learn.py`): every day for coins (the last week of every coin it watched in the last 2 weeks,
 including the ones that died) and every week for stocks (daily prices since 2019), it re-tests the dip-bounce

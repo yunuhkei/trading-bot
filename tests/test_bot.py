@@ -1710,3 +1710,34 @@ def test_sharp_drop_account_trades_the_same_coins_with_its_own_rule_and_never_to
     assert not Path("solbot_state_practice.json").exists()    # its own account
     title, msg = sb.practice_report({"trades": []}, state["trades"][-1]["t"] + 60, 24, {"cash": 20, "trades": []}, state)
     assert "SHARP-DROP PRACTICE" in msg and "1 trades, 0-1" in msg and "0% won" in msg
+
+
+def test_live_bot_only_buys_dips_in_coins_up_20_percent_over_24h_and_practice_still_takes_every_signal(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    settings = {**settings, "min_up_24h": 0.20}
+    sb.step(settings, tell)
+    sig.update({"in": True, "fresh_buy": "t1", "up_24h": -0.41})          # NIO on Nov 4: still crashing
+    sb.step(settings, tell)
+    assert not any("BOUGHT" in t for t, _ in sent)
+    sig.update({"fresh_buy": "t2", "up_24h": None})                       # not 24 h of candles yet: can't tell, skip
+    sb.step(settings, tell)
+    assert not any("BOUGHT" in t for t, _ in sent)
+    sig.update({"fresh_buy": "t3", "up_24h": 0.35})                       # a strong uptrend: buys
+    sb.step(settings, tell)
+    assert any(t.startswith("DRY RUN: BOUGHT") for t, _ in sent)
+    live = {**settings, "mode": "live", "practice": {"enabled": True}, "flush": {"enabled": True}}
+    assert sb.practice_settings(live)["min_up_24h"] == 0 and sb.flush_settings(live)["min_up_24h"] == 0
+
+
+def test_signal_reports_how_much_the_coin_moved_over_24h(monkeypatch):
+    from bot import solbot as sb
+    from bot.config import Config
+    df = pd.DataFrame({"close": np.r_[np.ones(11), np.linspace(1, 1.5, 289)]}, index=pd.date_range("2026-11-03", periods=300, freq="5min"))
+    df = df.assign(open=df.close, high=df.close, low=df.close, volume=1.0)
+    monkeypatch.setattr("bot.signals.fetch_onchain_candles", lambda market, tf: df)
+    cfg = Config.load(str(Path(__file__).parent.parent / "config.young.yaml"))
+    s = sb.signal("sol:COIN111", cfg)
+    assert abs(s["up_24h"] - 0.5) < 1e-9                                  # 1.00 -> 1.50 over the last 288 candles
+    monkeypatch.setattr("bot.signals.fetch_onchain_candles", lambda market, tf: df.iloc[-100:])
+    assert sb.signal("sol:COIN111", cfg)["up_24h"] is None                # under 24 h of candles

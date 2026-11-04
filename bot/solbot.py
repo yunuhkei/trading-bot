@@ -289,8 +289,10 @@ def signal(market: str, cfg, max_drop: float | None = None) -> dict:
         if sig[i] == 1 and sig[i - 1] == 0:
             flip = str(df.index[i])
     knife = falling(df, max_drop)
+    c = df["close"]
     return {"in": bool(sig[-1] == 1), "fresh_buy": flip if sig[-1] == 1 and not knife else None, "falling": knife,
-            "name": display_name(market), "candle_price": float(df["close"].iloc[-1]), "last": df.index[-1]}
+            "name": display_name(market), "candle_price": float(c.iloc[-1]), "last": df.index[-1],
+            "up_24h": float(c.iloc[-1] / c.iloc[-289] - 1) if len(c) > 288 else None}   # 288 five-minute candles = 24 h
 
 
 def watch_names(watchlist: str) -> dict[str, str]:
@@ -910,6 +912,11 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
                 if not market_ok:
                     log.warning("%s: skipped a buy: %s", s["name"], market_note)
                     continue
+                need = float(settings.get("min_up_24h") or 0)
+                if need and (s.get("up_24h") is None or s["up_24h"] < need):
+                    log.warning("%s: skipped a buy: up %s over 24 h, needs %+.0f%% (only buys dips in coins in a strong "
+                                "uptrend)", s["name"], "?" if s.get("up_24h") is None else f"{s['up_24h']:+.0%}", need * 100)
+                    continue
                 ok, why = safe(mint, state, now, settings)
                 if not ok:
                     if now - state.setdefault("unsafe_told", {}).get(mint, 0) > 86400:
@@ -975,7 +982,7 @@ def practice_settings(settings: dict) -> dict | None:
         return None
     return {**settings, "mode": "practice", "start_cash": float(pr.get("cash", 300)),
             "tiers": [{"per_trade": float(pr.get("per_trade", 30))}], "pause_at": [], "stop_below": 0, "stop_drawdown": 0,
-            "max_cost": settings.get("max_cost", 0.03), "bench_after_losses": 0}
+            "max_cost": settings.get("max_cost", 0.03), "bench_after_losses": 0, "min_up_24h": 0}
 
 
 def flush_settings(settings: dict) -> dict | None:
@@ -985,7 +992,7 @@ def flush_settings(settings: dict) -> dict | None:
         return None
     return {**settings, "mode": "flush", "start_cash": float(fl.get("cash", 300)),
             "tiers": [{"per_trade": float(fl.get("per_trade", 30))}], "pause_at": [], "stop_below": 0, "stop_drawdown": 0,
-            "max_cost": settings.get("max_cost", 0.03), "bench_after_losses": 0, "market_drop_1h": 0}
+            "max_cost": settings.get("max_cost", 0.03), "bench_after_losses": 0, "market_drop_1h": 0, "min_up_24h": 0}
 
 
 def flush_strategy(settings: dict) -> dict:

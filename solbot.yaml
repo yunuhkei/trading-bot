@@ -24,6 +24,9 @@ liquidity_drop: 0.30      # sell a coin at once if its pool loses 30% of its mon
 guard_seconds: 30         # check the stop-loss and pool money of what it holds every 30 seconds
 max_drop_6h: 0.10         # no buys while a coin is a falling knife (down 10%+ in 6 hours): doubled profit per trade in testing
 market_drop_1h: 0.03      # no coin buys while SOL itself is down 3%+ in the last hour
+min_up_24h: 0.20          # only buy a dip if the coin is up 20%+ over the last 24 h (a strong uptrend): on 21 young coins,
+                          # dips bought in falling or barely-rising coins lost; it would have skipped 4 of the first 5 real
+                          # trades. The practice account still takes every signal, so the Thursday report compares both.
 start_cash: 30            # dry run only: the pretend starting money
 
 # --- Practice account next to the live bot: same coins and strategies, pretend money, takes EVERY signal ---
