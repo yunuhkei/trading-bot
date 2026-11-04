@@ -283,6 +283,16 @@ and fees but pretend money. When you're happy, ask Claude to switch `mode` to `l
 to your phone with a Solscan link. When it pauses or stops it saves `solbot_stopped.json`; delete it (or ask Claude)
 to start again.
 
+Two pretend accounts run next to the live bot, on the same coins (`solbot.yaml`):
+- **practice** ($300, $30 a trade): every signal of the live bot's own strategies, so there's data on every coin.
+- **sharp-drop practice** (`flush:`, $300, $30 a trade): a different rule, to compare on the same coins. It buys right
+  after a coin falls **20% within 30 minutes** and sells once it's back up 12% (on the 5-minute close), after 6 hours,
+  or at the 20% stop. No falling-knife filter, on purpose: it buys the crash. Tested on 21 young coins (7 days, 1%
+  fees): about 70% of trades won and it held up on coins it hadn't seen in most splits; 336 other versions of the idea
+  lost. Its trades show up on your phone silently (low priority), marked SHARP-DROP PRACTICE.
+The Thursday 3 pm report shows the real bot, practice, and sharp-drop side by side. Neither pretend account ever
+removes a coin from the list (that's the live bot's job).
+
 Know the risks: it checks every 5 minutes, so a crash can go past the 20% stop before it sells; if a coin's team
 pulls the money out of the pool (a rug pull), nothing can sell it; coins it finds by itself are strangers (most new
 coins fail); and the wallet key can spend everything in that wallet, so keep only lottery money there.

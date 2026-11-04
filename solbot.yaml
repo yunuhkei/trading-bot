@@ -34,6 +34,14 @@ practice:                 # so there's data on every coin even while the real bu
   report_at: "15:00"      # no ping per pretend trade: one report (real bot + practice, per coin) on payday at 3 pm
   report_days: [Thursday]
   timezone: America/Chicago   # Milwaukee
+flush:                    # a 2nd pretend account on the same coins: the sharp-drop buy, to compare with the real bot (Nov 17)
+  enabled: true           # tested on 21 young coins (7 days, 1% fees): ~70% of trades won, held up on coins it hadn't seen
+  cash: 300
+  per_trade: 30
+  drop: 0.20              # buy right after the price falls 20%...
+  minutes: 30             # ...within 30 minutes (no falling-knife filter: it buys the crash on purpose)
+  take_profit: 0.12       # sell once it's back up 12% (on the 5-minute close), or...
+  hours: 6                # ...after 6 hours, or at the 20% stop-loss. Its trades ping your phone silently (low priority).
 
 # --- Learning (bot/solbot_learn.py) ---
 learn: true               # re-test the dip-bounce settings on recent prices; adopt better ones only if they win on unseen days

@@ -542,10 +542,12 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
     now = now or time.time()
     stale = []
     mode = settings.get("mode", "off")
-    if mode not in ("dry_run", "live", "practice"):
+    if mode not in ("dry_run", "live", "practice", "flush"):
         return "Off (mode: off in solbot.yaml)."
     live = mode == "live"
-    practice = mode == "practice"     # the quiet practice account next to the live bot: takes every signal, pretend money
+    # The pretend accounts next to the live bot: "practice" takes every signal of the live bot's strategies; "flush"
+    # trades the same coins with the sharp-drop buy instead (to compare the two on the same coins).
+    practice = mode in ("practice", "flush")
     if live and Path(STOP_FILE).exists():
         return f"Stopped: {json.loads(Path(STOP_FILE).read_text()).get('reason')}. Delete {STOP_FILE} to start again."
     state_path = f"solbot_state_{mode}.json"
@@ -556,7 +558,7 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         if not state.get("positions") or "started" not in state:
             return "guard: nothing held"
         only = set()                  # guard: just watch what it holds (no searching, learning or new buys)
-    tag = "" if live else "PRACTICE: " if practice else "DRY RUN: "
+    tag = "" if live else "SHARP-DROP PRACTICE: " if mode == "flush" else "PRACTICE: " if practice else "DRY RUN: "
     if wallet is None:
         if live:
             try:
@@ -818,12 +820,14 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
         from .solbot_learn import apply as learned
         cfg = learned("coin", Config.load(settings.get("strategy_config", "config.young.yaml")))
         strats = state.setdefault("strats", {})
-        if practice:                  # same strategies (and sit-outs) as the live bot, read from its notes
+        if mode == "practice":        # same strategies (and sit-outs) as the live bot, read from its notes
             try:
                 strats = json.loads(Path("solbot_state_live.json").read_text()).get("strats", {})
             except (OSError, ValueError):
                 strats = {}
         default = {"label": "dip bounce", "strategy": cfg.strategy, "params": dict(cfg.strategy_params)}
+        if mode == "flush":           # every coin: the sharp-drop buy, no falling-knife filter (it buys the crash)
+            strats, default = {}, flush_strategy(settings)
         mwr = float(settings.get("min_win_rate", 0.81))
         if only is None and not practice:
             from .solbot_learn import coin_history
@@ -964,13 +968,34 @@ def step(settings: dict, tell=print, wallet=None, now: float | None = None, only
 
 
 def practice_settings(settings: dict) -> dict | None:
-    """Settings for the practice account next to the live bot, or None if it's off."""
+    """Settings for the practice account next to the live bot, or None if it's off. (A pretend account never benches
+    coins: the watch list belongs to the live bot.)"""
     pr = settings.get("practice") or {}
     if settings.get("mode") != "live" or not pr.get("enabled"):
         return None
     return {**settings, "mode": "practice", "start_cash": float(pr.get("cash", 300)),
             "tiers": [{"per_trade": float(pr.get("per_trade", 30))}], "pause_at": [], "stop_below": 0, "stop_drawdown": 0,
-            "max_cost": settings.get("max_cost", 0.03)}
+            "max_cost": settings.get("max_cost", 0.03), "bench_after_losses": 0}
+
+
+def flush_settings(settings: dict) -> dict | None:
+    """Settings for the sharp-drop pretend account (solbot.yaml `flush:`), or None if it's off."""
+    fl = settings.get("flush") or {}
+    if settings.get("mode") != "live" or not fl.get("enabled"):
+        return None
+    return {**settings, "mode": "flush", "start_cash": float(fl.get("cash", 300)),
+            "tiers": [{"per_trade": float(fl.get("per_trade", 30))}], "pause_at": [], "stop_below": 0, "stop_drawdown": 0,
+            "max_cost": settings.get("max_cost", 0.03), "bench_after_losses": 0, "market_drop_1h": 0}
+
+
+def flush_strategy(settings: dict) -> dict:
+    """The sharp-drop buy's rule from solbot.yaml `flush:` (5-minute candles)."""
+    fl = settings.get("flush") or {}
+    drop, minutes = float(fl.get("drop", 0.20)), int(fl.get("minutes", 30))
+    tp, hours = float(fl.get("take_profit", 0.12)), float(fl.get("hours", 6))
+    return {"label": f"sharp-drop buy (-{drop:.0%} in {minutes} min, sell +{tp:.0%} or after {hours:g} h)",
+            "strategy": "flush", "params": {"n": max(1, minutes // 5), "drop": drop, "tp": tp, "hold": int(hours * 12)},
+            "max_drop": None}
 
 
 def report_due(now: float, at: str = "15:00", tz: str = "America/Chicago", last_day: str | None = None,
@@ -988,9 +1013,30 @@ def report_due(now: float, at: str = "15:00", tz: str = "America/Chicago", last_
     return day if (local.hour, local.minute) >= (h, m) and last_day != day else None
 
 
-def practice_report(state: dict, now: float, hours: float = 24, live: dict | None = None) -> tuple[str, str] | None:
+def flush_lines(fstate: dict | None, now: float, hours: float) -> list[str]:
+    """The sharp-drop pretend account's part of the report: this period, and since it started."""
+    from .signals import money
+
+    if fstate is None:
+        return []
+    sells = [t for t in fstate.get("trades", []) if t["action"] == "SELL"]
+    recent = [t for t in sells if now - t["t"] <= hours * 3600]
+    made = lambda ts: sum(t["usd"] * t["result"] / (1 + t["result"]) for t in ts)
+    value = float(fstate.get("cash", 0)) + sum(float(p.get("cost") or 0) for p in fstate.get("positions", {}).values())
+    if not sells:
+        return [f"SHARP-DROP PRACTICE (buys -20% crashes, sells +12% or after 6 h; pretend money): no finished trades yet"
+                + (f", holding {len(fstate.get('positions', {}))}" if fstate.get("positions") else "") + "."]
+    out = [f"SHARP-DROP PRACTICE (same coins, buys -20% crashes; pretend money): last {hours:.0f} h {len(recent)} trades, "
+           f"{sum(t['result'] > 0 for t in recent)}-{sum(t['result'] <= 0 for t in recent)}, {made(recent):+,.2f}. "
+           f"Since it started: {len(sells)} trades, {sum(t['result'] > 0 for t in sells) / len(sells):.0%} won, "
+           f"{made(sells):+,.2f}; account about {money(value)}."]
+    return out
+
+
+def practice_report(state: dict, now: float, hours: float = 24, live: dict | None = None,
+                    flush: dict | None = None) -> tuple[str, str] | None:
     """The daily report: the real bot's trades and money, then the practice account (every signal on every coin, as if
-    there were always money for it), with the record per coin."""
+    there were always money for it), with the record per coin, then the sharp-drop pretend account."""
     from .signals import money
 
     sells = [t for t in state.get("trades", []) if t["action"] == "SELL" and now - t["t"] <= hours * 3600]
@@ -1005,7 +1051,8 @@ def practice_report(state: dict, now: float, hours: float = 24, live: dict | Non
                     f"Account about {money(cash + held)}" + (f" (holding {', '.join(p.get('name') or '?' for p in positions.values())})"
                                                              if positions else "") + ".")
     if not sells:
-        return ("📊 Daily report", "\n".join(head + ["Practice: no finished trades yet."])) if head else None
+        rest = ["Practice: no finished trades yet."] + flush_lines(flush, now, hours)
+        return ("📊 Daily report", "\n".join(head + rest)) if head or flush is not None else None
     by = {}
     for t in sells:
         by.setdefault(t["what"], []).append(t["result"])
@@ -1019,6 +1066,7 @@ def practice_report(state: dict, now: float, hours: float = 24, live: dict | Non
     all_sells = [t for t in state.get("trades", []) if t["action"] == "SELL"]
     if len(all_sells) > len(sells):
         lines.append(f"Since it started: {len(all_sells)} trades, {sum(t['result'] > 0 for t in all_sells) / len(all_sells):.0%} won.")
+    lines += flush_lines(flush, now, hours)
     return f"📊 Daily report: practice {wins}-{len(sells) - wins}, {money(made) if made >= 0 else '-' + money(-made)}", "\n".join(lines)
 
 
@@ -1037,6 +1085,12 @@ def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every:
             if target:
                 notify(target, title, msg, buy=not any(w in title for w in ("SOLD", "STOP", "dropped", "didn't")))
 
+        def quiet_tell(title, msg):     # the sharp-drop account's pretend trades: on your phone, but silent
+            log.warning("SHARP-DROP %s: %s", title, msg)
+            target = alert_target()
+            if target and ("BOUGHT" in title or "SOLD" in title):
+                notify(target, title, msg, buy="SOLD" not in title or "(+" in title, priority="low")
+
         first, only = time.time(), None
         while True:
             try:
@@ -1045,7 +1099,7 @@ def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every:
                 status = f"Check failed: {e}"
                 log.warning(status)
             live_stale = list(stale)
-            ps = practice_settings(settings)
+            ps, fs = practice_settings(settings), flush_settings(settings)
             if ps:                      # the practice account: same coins and strategies, every signal, no pings per trade
                 try:
                     pstatus = step(ps, lambda t, m: log.warning("PRACTICE %s: %s", t, m), only=only)
@@ -1058,13 +1112,20 @@ def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every:
                     if only is None and day:
                         since = pstate.get("reported_at", pstate.get("started", time.time() - 86400))
                         live_state = json.loads(Path("solbot_state_live.json").read_text()) if Path("solbot_state_live.json").exists() else {}
-                        rep = practice_report(pstate, time.time(), (time.time() - since) / 3600, live_state)
+                        fpath = Path("solbot_state_flush.json")
+                        fstate = json.loads(fpath.read_text()) if fs and fpath.exists() else None
+                        rep = practice_report(pstate, time.time(), (time.time() - since) / 3600, live_state, fstate)
                         pstate.update(reported_at=time.time(), report_day=day)
                         pstate_path.write_text(json.dumps(pstate, indent=1))
                         if rep:
                             tell(*rep)
                 except Exception as e:
                     log.warning("practice check failed: %s", e)
+            if fs:                      # the sharp-drop pretend account: same coins, its own rule, quiet pings
+                try:
+                    print("   sharp-drop:", step(fs, quiet_tell, only=only), flush=True)
+                except Exception as e:
+                    log.warning("sharp-drop check failed: %s", e)
             stale = sorted(set(live_stale + stale))
             print(time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()), status
                   + (f" (waiting for the new candle: {', '.join(display_name(m) for m in stale)})" if stale else ""), flush=True)
@@ -1084,7 +1145,8 @@ def run(settings_path: str = "solbot.yaml", minutes: float | None = None, every:
         next_check, every_s = time.time() + wait, float(settings.get("guard_seconds", 30))
         while time.time() + every_s < next_check:
             time.sleep(every_s)
-            for gs, gtell in ((settings, tell), (practice_settings(settings), lambda t, m: log.warning("PRACTICE %s: %s", t, m))):
+            for gs, gtell in ((settings, tell), (practice_settings(settings), lambda t, m: log.warning("PRACTICE %s: %s", t, m)),
+                              (flush_settings(settings), quiet_tell)):
                 if gs:
                     try:
                         step(gs, gtell, guard=True)

@@ -1667,3 +1667,46 @@ def test_kalshi_new_strategy_lineup_restarts_practice_accounts_and_says_so(tmp_p
     assert len(told) == 1 and "Market favorites" in told[0][1] and "E. Fade long shots" in told[0][1]
     k.step({"mode": "practice", "practice_cash": 100}, lambda t, m: told.append((t, m)), events=[])
     assert len(told) == 1                                                              # said once
+
+
+def test_sharp_drop_rule_buys_the_flush_and_sells_on_the_bounce_or_after_its_time():
+    from bot.strategies import build_strategy
+    close = [1.0] * 10 + [0.95, 0.90, 0.85, 0.79, 0.78] + [0.80] * 3 + [0.90]
+    high = list(close)
+    df = pd.DataFrame({"close": close, "high": high, "low": close}, index=pd.date_range("2026-11-03", periods=len(close), freq="5min"))
+    s = build_strategy("flush", {"n": 6, "drop": 0.20, "tp": 0.12, "hold": 72}).signals(df).tolist()
+    assert s[13] == 1 and sum(s[:13]) == 0                    # -21% within 6 candles: in at 0.79
+    assert s[17] == 1 and s[18] == 0                          # back to 0.90 (+14%): out
+    flat = pd.DataFrame({"close": [1.0] * 10 + [0.79] + [0.80] * 6, "high": [1.0] * 10 + [0.79] + [0.80] * 6,
+                         "low": [0.79] * 17}, index=pd.date_range("2026-11-03", periods=17, freq="5min"))
+    t = build_strategy("flush", {"n": 6, "drop": 0.20, "tp": 0.12, "hold": 4}).signals(flat).tolist()
+    assert t[10:14] == [1, 1, 1, 1] and t[14] == 0            # no bounce: out after its 4 candles
+
+
+def test_sharp_drop_account_trades_the_same_coins_with_its_own_rule_and_never_touches_the_list(tmp_path, monkeypatch):
+    price = [1.0]
+    sb, mint, sig, settings, tell, sent = _solbot_fakes(monkeypatch, tmp_path, price)
+    live = {**settings, "mode": "live", "flush": {"enabled": True, "cash": 300, "per_trade": 30, "drop": 0.2, "minutes": 30,
+                                                 "take_profit": 0.12, "hours": 6}, "max_drop_6h": 0.10, "market_drop_1h": 0.03,
+            "bench_after_losses": 1}
+    fs = sb.flush_settings(live)
+    assert fs["mode"] == "flush" and fs["tiers"] == [{"per_trade": 30.0}] and fs["bench_after_losses"] == 0 and not fs["market_drop_1h"]
+    assert sb.flush_settings({**live, "mode": "dry_run"}) is None and sb.flush_settings({**live, "flush": {}}) is None
+    assert sb.practice_settings({**live, "practice": {"enabled": True}})["bench_after_losses"] == 0
+    Path("solbot_state_live.json").write_text(json.dumps({"strats": {mint: {"label": "dip bounce", "strategy": "bollinger",
+                                                                           "params": {"period": 20, "width": 2.0}}}}))
+    used = []
+    monkeypatch.setattr(sb, "signal", lambda market, cfg, max_drop=None: used.append((cfg.strategy, cfg.strategy_params, max_drop)) or dict(sig))
+    sig.update({"in": True, "fresh_buy": "t1"})
+    sb.step(fs, tell)
+    assert used[0] == ("flush", {"n": 6, "drop": 0.2, "tp": 0.12, "hold": 72}, None)    # its own rule, no falling-knife filter
+    assert any(t.startswith("SHARP-DROP PRACTICE: BOUGHT $30.00 of COIN") for t, _ in sent)
+    price[0] = 0.9
+    sig.update({"in": False, "fresh_buy": None})
+    sb.step(fs, tell)                                         # a loss, and bench_after_losses was 1 in the live settings...
+    state = json.loads(Path("solbot_state_flush.json").read_text())
+    assert [t["action"] for t in state["trades"]] == ["BUY", "SELL"] and state["trades"][1]["result"] < 0
+    assert mint in Path(settings["watchlist"]).read_text()    # ...but a pretend account never removes a coin
+    assert not Path("solbot_state_practice.json").exists()    # its own account
+    title, msg = sb.practice_report({"trades": []}, state["trades"][-1]["t"] + 60, 24, {"cash": 20, "trades": []}, state)
+    assert "SHARP-DROP PRACTICE" in msg and "1 trades, 0-1" in msg and "0% won" in msg
