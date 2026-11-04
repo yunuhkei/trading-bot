@@ -79,3 +79,14 @@ dead_below_volume_24h: 20000     # ...or less than this traded in a day is dying
 stocks: false             # off for now. true = also trade xStocks
 stock_strategy_config: config.stockdip.yaml
 max_price_gap: 0.01       # only trade when the xStock's price is within 1% of the real stock's
+
+# --- Copy-trading the smart wallets (bot/smart_wallets.py finds them weekly; bot/copytrade.py follows them live) ---
+copytrade:                # needs the HELIUS_API_KEY secret
+  enabled: true
+  cash: 300               # pretend money for now
+  per_trade: 30
+  follow: 30              # how many of the best smart wallets to watch
+  alert_wallets: 2        # a normal ping when this many different smart wallets buy the same coin within 6 h
+  min_liquidity: 20000    # don't copy into a coin with less than this in its pool (plus the rug check)
+  stop_loss: 0.20
+  max_hold_hours: 48      # sell after this long even if the wallet hasn't

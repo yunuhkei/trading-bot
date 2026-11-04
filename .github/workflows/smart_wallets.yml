@@ -1,0 +1,27 @@
+# Smart-wallet finder (bot/smart_wallets.py): once a week (and by hand: Actions -> smart-wallets -> Run workflow) it
+# finds wallets that bought the bottom and sold the top of big runs on several young coins, and saves the list to
+# models/smart_wallets.json for the copy-trader. Needs the HELIUS_API_KEY secret (free plan: about 100k credits a run).
+name: smart-wallets
+on:
+  schedule:
+    - cron: "17 9 * * 1"     # Mondays, 3:17 am Milwaukee time
+  workflow_dispatch:
+permissions:
+  contents: write            # saves models/smart_wallets.json
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Find smart wallets
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+          SOLBOT_COMMIT: "1"   # save the list to the repo
+        run: python -m bot smart-wallets

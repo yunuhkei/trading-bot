@@ -221,6 +221,24 @@ def cmd_kalshi_backtest(args, cfg):
         run(args.days)
 
 
+def cmd_smart_wallets(args, cfg):
+    import logging
+
+    from .smart_wallets import run
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    run(args.settings)
+
+
+def cmd_copytrade(args, cfg):
+    import logging
+
+    from .copytrade import run
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    run(args.settings, args.minutes)
+
+
 def cmd_markets(args, cfg):
     import ccxt
 
@@ -344,6 +362,11 @@ def main(argv=None):
     kb = sub.add_parser("kalshi-backtest", help="test the Kalshi weather strategies on settled markets")
     kb.add_argument("--days", type=int, default=14)
     kb.add_argument("--sameday", action="store_true", help="same-day trading: collect readings + day-of prices, then test")
+    sw = sub.add_parser("smart-wallets", help="find wallets that bought bottoms and sold tops on several young coins")
+    sw.add_argument("--settings", default="solbot.yaml")
+    ct = sub.add_parser("copytrade", help="copy the smart wallets live, seconds behind, with pretend money")
+    ct.add_argument("--settings", default="solbot.yaml")
+    ct.add_argument("--minutes", type=float, default=340)
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")
     m.add_argument("--search", default="BTC")
 
@@ -384,6 +407,10 @@ def main(argv=None):
         cmd_kalshi(args, cfg)
     elif args.cmd == "kalshi-backtest":
         cmd_kalshi_backtest(args, cfg)
+    elif args.cmd == "smart-wallets":
+        cmd_smart_wallets(args, cfg)
+    elif args.cmd == "copytrade":
+        cmd_copytrade(args, cfg)
     elif args.cmd == "learn":
         cmd_learn(args, cfg)
     elif args.cmd == "markets":

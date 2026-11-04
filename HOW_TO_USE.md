@@ -298,6 +298,20 @@ Two pretend accounts run next to the live bot, on the same coins (`solbot.yaml`)
 The Thursday 3 pm report shows the real bot, practice, and sharp-drop side by side. Neither pretend account ever
 removes a coin from the list (that's the live bot's job).
 
+**Copying smart wallets** (needs the free `HELIUS_API_KEY` secret from helius.dev):
+- The **smart-wallets** workflow (every Monday, or by hand: Actions → smart-wallets → Run workflow) looks for big runs
+  (the price at least doubled) on young coins, reads every swap around each run's bottom and top straight from the
+  blockchain, and keeps the wallets that **bought near the bottom and sold near the top for 1.5x+ on 2+ different
+  coins** (bots with dozens of swaps are skipped; so are trades signed by someone else, which can't be copied). The
+  list is saved in `models/smart_wallets.json`. To stay inside the free plan it reads at most 8 coins' most recent run
+  and skips coins too busy to read in full.
+- The **copytrade** workflow watches those wallets **live** and copies them about **2-5 seconds** behind: a smart wallet
+  buys → it pretend-buys $30 (rug check and a $20k+ pool first); the wallet sells → it sells; plus the 20% stop and a
+  48-hour limit. Pretend money for now (`solbot.yaml` `copytrade:`); its trades ping silently, and you get a normal
+  ping when 2+ smart wallets buy the same coin within 6 hours. Weekly report Thursdays at 3 pm.
+- Know the limits: some "smart" wallets are insiders or bots that sell to the people copying them, and we're always a
+  few seconds behind and pay a little more. That's why it practices first.
+
 Know the risks: it checks every 5 minutes, so a crash can go past the 20% stop before it sells; if a coin's team
 pulls the money out of the pool (a rug pull), nothing can sell it; coins it finds by itself are strangers (most new
 coins fail); and the wallet key can spend everything in that wallet, so keep only lottery money there.

@@ -1741,3 +1741,146 @@ def test_signal_reports_how_much_the_coin_moved_over_24h(monkeypatch):
     assert abs(s["up_24h"] - 0.5) < 1e-9                                  # 1.00 -> 1.50 over the last 288 candles
     monkeypatch.setattr("bot.signals.fetch_onchain_candles", lambda market, tf: df.iloc[-100:])
     assert sb.signal("sol:COIN111", cfg)["up_24h"] is None                # under 24 h of candles
+
+
+def _tx(signer, changes, err=None, other_signer=None):
+    """A minimal parsed Solana transaction: `changes` = [(owner, mint, before, after)]."""
+    keys = [{"pubkey": other_signer or signer, "signer": True}, {"pubkey": "POOL", "signer": False}]
+    pre = [{"accountIndex": i, "mint": m, "owner": o, "uiTokenAmount": {"uiAmount": a}} for i, (o, m, a, _) in enumerate(changes)]
+    post = [{"accountIndex": i, "mint": m, "owner": o, "uiTokenAmount": {"uiAmount": b}} for i, (o, m, _, b) in enumerate(changes)]
+    return {"transaction": {"message": {"accountKeys": keys}}, "meta": {"err": err, "preTokenBalances": pre, "postTokenBalances": post}}
+
+
+def test_smart_wallets_read_who_bought_and_sold_and_find_bottom_buyers_who_sold_the_top():
+    from bot import smart_wallets as sw
+    from bot import copytrade as ct
+    usdc = sw.USDC
+    buy = _tx("ALICE", [("ALICE", "COIN", 0, 1000), ("POOL", "COIN", 5000, 4000), ("ALICE", usdc, 50, 40)])
+    assert sw.swap_of(buy, "COIN") == ("ALICE", 1000)
+    assert sw.swap_of(_tx("RELAY", [("BOB", "COIN", 0, 10)]), "COIN") is None                  # signed by someone else
+    assert sw.swap_of(_tx("ALICE", [("ALICE", "COIN", 0, 10)], err={"x": 1}), "COIN") is None   # failed
+    assert ct.wallet_swaps(buy, "ALICE") == [("COIN", 1000)]                                  # what it paid with doesn't count
+    assert ct.wallet_swaps(_tx("RELAY", [("ALICE", "COIN", 0, 10)]), "ALICE") == []
+    # a pump: 1.0 for a day, down to 0.5, then up to 2.0
+    idx = pd.date_range("2026-11-01", periods=600, freq="5min", tz="UTC")
+    close = np.r_[np.ones(200), np.full(50, 0.5), np.linspace(0.5, 2.0, 200), np.full(150, 1.8)]
+    df = pd.DataFrame({"open": close, "high": close, "low": close, "close": close, "volume": 1.0}, index=idx)
+    ps = sw.pumps(df)
+    assert len(ps) == 1 and abs(ps[0]["gain"] - 3.0) < 1e-9 and ps[0]["low"] == 0.5 and ps[0]["high"] == 2.0
+    p = ps[0]
+    lo, hi = p["low_t"], p["high_t"]
+    trades = [(lo + 600, "SMART", 100.0), (hi - 600, "SMART", -80.0),           # bought $50 at 0.5, sold 80 at ~2.0
+              (lo + 600, "LATE", 100.0), (hi + 6 * 3600, "LATE", -100.0),       # sold outside the top window: unknown
+              (hi - 600, "TOPBUYER", 100.0), (hi - 300, "TOPBUYER", -100.0),    # bought near the top: not a bottom buy
+              (lo + 60, "TINY", 1.0), (hi - 60, "TINY", -1.0)]                  # $0.50: too small to count
+    trades += [(lo + i, "BOT", 10.0 if i % 2 else -10.0) for i in range(1, 60)] + [(lo + 61, "BOT", 100.0), (hi, "BOT", -100.0)]
+    smart = sw.smart_on_pump(trades, df, p)
+    assert set(smart) == {"SMART"} and smart["SMART"]["x"] >= 3.5 and smart["SMART"]["profit"] > 100
+
+
+def test_smart_wallet_list_keeps_wallets_that_won_on_several_coins(monkeypatch):
+    from bot import smart_wallets as sw
+    idx = pd.date_range(pd.Timestamp.now(tz="UTC").floor("5min") - pd.Timedelta(hours=40), periods=480, freq="5min")
+    close = np.r_[np.full(100, 0.5), np.linspace(0.5, 2.0, 200), np.full(180, 1.9)]
+    df = pd.DataFrame({"open": close, "high": close, "low": close, "close": close, "volume": 1.0}, index=idx)
+    monkeypatch.setattr(sw, "main_pool", lambda mint: "POOL" + mint)
+    wins = {"A": ["W1", "W2"], "B": ["W1", "W3"], "C": ["W1", "W2"]}
+
+    def fake_trades(mint, pool, p, cap=sw.MAX_TX):
+        if mint == "BUSY":
+            return None
+        out = []
+        for w in wins.get(mint, []):
+            out += [(p["low_t"] + 300, w, 100.0), (p["high_t"] - 300, w, -100.0)]
+        return out
+    monkeypatch.setattr(sw, "coin_trades", fake_trades)
+    res = sw.find([("A", "A"), ("B", "B"), ("C", "C"), ("BUSY", "BUSY")], history=lambda mint: df)
+    assert list(res["wallets"]) == ["W1", "W2", "W3"]                     # 3 coins, 2 coins, 1 coin
+    assert res["level"].startswith("the biggest winners")                  # under 5 repeat winners: the top earners too
+    assert res["wallets"]["W1"]["coins"] == ["A", "B", "C"] and res["wallets"]["W1"]["profit"] > 400
+    strict = sw.find([("A", "A"), ("B", "B"), ("C", "C")], history=lambda mint: df, min_coins=3)
+    assert strict["level"].startswith("the biggest winners") and list(strict["wallets"])[0] == "W1"
+    assert any(p.get("skipped") == "too busy" for p in res["pumps"])
+
+
+def test_copytrader_copies_a_smart_buy_alerts_on_two_wallets_and_sells_when_the_wallet_sells(tmp_path, monkeypatch):
+    import json
+    import time
+    from bot import copytrade as ct
+    from bot import solbot as sb
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "smart_wallets.json").write_text(json.dumps({"wallets": {"W1": {}, "W2": {}}}))
+    price = [1.0]
+    monkeypatch.setattr(sb, "dex_info", lambda mints: {m: {"liq": 50_000, "vol24": 1e5, "symbol": "COIN"} for m in mints})
+    monkeypatch.setattr(sb, "safety_check", lambda mint, *a: (True, "ok"))
+    monkeypatch.setattr(sb, "prices", lambda mints: {m: {"usdPrice": price[0], "decimals": 6} for m in mints})
+
+    def order(i, o, raw, taker=None):
+        usd = raw / 1e6 * (1 if i == sb.USDC else price[0])
+        return {"inAmount": str(raw), "outAmount": str(int(usd * 0.99 / (1 if o == sb.USDC else price[0]) * 1e6)),
+                "inUsdValue": usd, "outUsdValue": usd * 0.99}
+    monkeypatch.setattr(sb, "order", order)
+    loud, quiet = [], []
+    c = ct.Copier({"copytrade": {"cash": 300, "per_trade": 30}}, lambda t, m: loud.append(t), lambda t, m: quiet.append(t))
+    assert c.wallets == ["W1", "W2"]
+    c.on_swap("W1", "COIN", 1000)
+    assert "COIN" in c.positions and quiet[-1].startswith("COPY PRACTICE: BOUGHT $30.00 of COIN") and not loud
+    c.on_swap("W2", "COIN", 500)                                   # a 2nd smart wallet buys the same coin
+    assert loud and loud[0].startswith("🧠 2 smart wallets just bought COIN") and len(c.positions) == 1
+    price[0] = 1.5
+    c.on_swap("W1", "COIN", -1000)                                 # the wallet it copied sells: so does the bot
+    assert "COIN" not in c.positions and "SOLD COIN" in quiet[-1] and "(+" in quiet[-1]
+    c.on_swap("W1", "DUD", 10)
+    price[0] = 0.7
+    c.check_positions()                                            # -30%: the stop-loss
+    assert "DUD" not in c.positions and c.state["trades"][-1]["action"] == "SELL" and c.state["trades"][-1]["result"] < -0.4
+    c.save()
+    lines = ct.report_lines(json.loads((tmp_path / "copytrade_state.json").read_text()), time.time() + 60, 24)
+    assert "COPY PRACTICE" in lines[0] and "2 trades" in lines[0]
+    for _ in range(int(c.cfg["max_reads_per_wallet_hour"])):
+        assert c.can_read("W1")
+    assert not c.can_read("W1") and c.can_read("W2")              # the free plan's credit guard
+
+
+def test_copytrader_listens_live_and_hands_each_smart_wallet_transaction_over(tmp_path, monkeypatch):
+    import asyncio
+    import json
+    from aiohttp import web
+    from bot import copytrade as ct
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "smart_wallets.json").write_text(json.dumps({"wallets": {"W1": {}, "W2": {}}}))
+    subscribed = []
+
+    async def ws_handler(request):                                  # a pretend Helius
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        async for msg in ws:
+            j = json.loads(msg.data)
+            subscribed.append(j["params"][0]["mentions"][0])
+            await ws.send_json({"jsonrpc": "2.0", "id": j["id"], "result": 100 + j["id"]})
+            if len(subscribed) == 2:
+                await ws.send_json({"jsonrpc": "2.0", "method": "logsNotification", "params": {"subscription": 102,
+                                    "result": {"value": {"signature": "SIG2", "err": None, "logs": []}}}})
+                await ws.send_json({"jsonrpc": "2.0", "method": "logsNotification", "params": {"subscription": 101,
+                                    "result": {"value": {"signature": "BAD", "err": {"x": 1}, "logs": []}}}})
+        return ws
+
+    async def main():
+        app = web.Application()
+        app.router.add_get("/", ws_handler)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "127.0.0.1", 0)
+        await site.start()
+        port = site._server.sockets[0].getsockname()[1]
+        monkeypatch.setattr(ct, "ws_url", lambda: f"http://127.0.0.1:{port}/")
+        c = ct.Copier({}, lambda t, m: None)
+        seen = []
+        c.handle = lambda w, sig: seen.append((w, sig))
+        await c.listen(1.5)
+        await runner.cleanup()
+        return seen
+    seen = asyncio.run(main())
+    assert subscribed == ["W1", "W2"] and seen == [("W2", "SIG2")]         # failed transactions are ignored
