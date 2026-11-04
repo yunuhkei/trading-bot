@@ -1,0 +1,93 @@
+{
+ "updated": 1793811612.4936292,
+ "level": "the biggest winners (few won on 2+ coins)",
+ "wallets": {},
+ "pumps": [
+  {
+   "coin": "NIO",
+   "mint": "7SL2VnfYsChvog5oQY9Nmtqu1wceaMiQzWoqoLQpump",
+   "gain": 1.29,
+   "skipped": "too busy"
+  },
+  {
+   "coin": "AudaCity",
+   "mint": "DKYcjobF7HPtL9RyQBRdeRQ2iWvizpfbgWwPWNXdpump",
+   "gain": 2.05,
+   "skipped": "too busy"
+  },
+  {
+   "coin": "RAM",
+   "mint": "6QUHcqYuiPRHxhnYZoygewXtNQr9kUrhc9Tmwgtbpump",
+   "gain": 1.05,
+   "skipped": "too busy"
+  },
+  {
+   "coin": "BTC",
+   "mint": "C5xph2yL6gMdxmuLGxJBkGpmuDFfyi5fqkBNhvL6pump",
+   "gain": 1.59,
+   "skipped": "too busy"
+  },
+  {
+   "coin": "CHOO",
+   "mint": "EJAxERvKU4kEVXn3NarjvRtgaMaJyP9ZuMeKA7JJpump",
+   "gain": 5.89,
+   "skipped": "too busy"
+  },
+  {
+   "coin": "FLOAT",
+   "mint": "Bv1a7cEj5aRnJQhMw4kRQqAFesMSd5LwcDnUzq52BMmr",
+   "gain": 12.41,
+   "skipped": "too busy"
+  },
+  {
+   "coin": "MAMESUKE",
+   "mint": "SCGBBnSwnekytGFHgyeHHxPMiN7xDxsWFGg9JgFSTNK",
+   "gain": 74.42,
+   "skipped": "too busy"
+  },
+  {
+   "coin": "PEAK",
+   "mint": "APLPiTjBWzwfZ5U1TBeqLF9XJ7dV7XKGe7j4BZhkDray",
+   "gain": 3.55,
+   "skipped": "too busy"
+  },
+  {
+   "coin": "RICO",
+   "mint": "8kuQg3WivDtL85VEdw2jEmSXjYt6EEeYBATJ4DtQpump",
+   "gain": 2.5,
+   "skipped": "too busy"
+  },
+  {
+   "coin": "DOPE",
+   "mint": "33jENUQnjoitkMFpvNJcSHyLAHFWJuHwT6E3E8CNpump",
+   "gain": 1.1,
+   "skipped": "too busy"
+  }
+ ],
+ "coins_checked": [
+  "NIO",
+  "AudaCity",
+  "DJT",
+  "AMD",
+  "RAM",
+  "BTC",
+  "POLYMARKET",
+  "CHOO",
+  "FLOAT",
+  "Dacity",
+  "GTA6",
+  "MAMESUKE",
+  "ZCAT",
+  "PEAK",
+  "RICO",
+  "GTR",
+  "SI",
+  "DOPE",
+  "JEANPHIL",
+  "GLITCH"
+ ],
+ "calls": {
+  "pages": 1935,
+  "tx": 0
+ }
+}
