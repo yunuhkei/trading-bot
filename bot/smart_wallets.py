@@ -43,10 +43,22 @@ def rpc_url() -> str:
     return f"https://mainnet.helius-rpc.com/?api-key={key}" if key else PUBLIC_RPC
 
 
+RATE = 8.0                              # requests a second (the free Helius plan allows 10)
+_last = [0.0]
+
+
+def _pace():
+    wait = _last[0] + 1 / RATE - time.time()
+    if wait > 0:
+        time.sleep(wait)
+    _last[0] = time.time()
+
+
 def rpc(method: str, params: list, url: str | None = None):
     import requests
 
     for attempt in range(6):
+        _pace()
         r = requests.post(url or rpc_url(), json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params}, timeout=60)
         if r.status_code == 429 or r.status_code >= 500:
             time.sleep(1.5 * (attempt + 1))
@@ -59,21 +71,9 @@ def rpc(method: str, params: list, url: str | None = None):
 
 
 def rpc_batch(calls: list[tuple[str, list]], url: str | None = None) -> list:
-    """Several RPC calls in one request (results in order; None for any that failed)."""
-    import requests
-
-    body = [{"jsonrpc": "2.0", "id": i, "method": m, "params": p} for i, (m, p) in enumerate(calls)]
-    for attempt in range(6):
-        r = requests.post(url or rpc_url(), json=body, timeout=120)
-        if r.status_code == 429 or r.status_code >= 500:
-            time.sleep(2 * (attempt + 1))
-            continue
-        j = r.json()
-        if isinstance(j, dict):                          # the endpoint doesn't take batches: one by one
-            return [_try(lambda m=m, p=p: rpc(m, p, url)) for m, p in calls]
-        by_id = {x.get("id"): x.get("result") for x in j}
-        return [by_id.get(i) for i in range(len(calls))]
-    raise RuntimeError("batch: rate limited")
+    """Several RPC calls, one at a time at RATE a second (the free plan rejects batches: every call in one counts
+    against its 10 a second). None for any that failed."""
+    return [_try(lambda m=m, p=p: rpc(m, p, url)) for m, p in calls]
 
 
 def _try(f):
