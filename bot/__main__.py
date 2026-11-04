@@ -239,6 +239,15 @@ def cmd_copytrade(args, cfg):
     run(args.settings, args.minutes)
 
 
+def cmd_imagine(args, cfg):
+    import logging
+
+    from .imagine import run
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    run(dry=args.dry)
+
+
 def cmd_markets(args, cfg):
     import ccxt
 
@@ -367,6 +376,8 @@ def main(argv=None):
     ct = sub.add_parser("copytrade", help="copy the smart wallets live, seconds behind, with pretend money")
     ct.add_argument("--settings", default="solbot.yaml")
     ct.add_argument("--minutes", type=float, default=340)
+    im = sub.add_parser("imagine", help="make the next 'Imagine if you...' video and send it to your phone")
+    im.add_argument("--dry", action="store_true", help="make it but don't send it")
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")
     m.add_argument("--search", default="BTC")
 
@@ -411,6 +422,8 @@ def main(argv=None):
         cmd_smart_wallets(args, cfg)
     elif args.cmd == "copytrade":
         cmd_copytrade(args, cfg)
+    elif args.cmd == "imagine":
+        cmd_imagine(args, cfg)
     elif args.cmd == "learn":
         cmd_learn(args, cfg)
     elif args.cmd == "markets":

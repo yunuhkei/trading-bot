@@ -382,3 +382,20 @@ nohup python -m bot -c config.trend.yaml paper >> bot.log 2>&1 &
 ```
 Check on it any time with `tail bot.log`. **GUIDE.md** covers going from practice to real money,
 which these tests suggest you shouldn't rush into.
+
+## "Imagine if you..." videos (automatic)
+
+Every morning at 6:41 am the **imagine** workflow makes the next video from `content/imagine/scripts.json` and sends
+it to your phone (ntfy) with a caption to paste. Tap the notification to download it, then post it to TikTok,
+Instagram Reels and YouTube Shorts (add a trending sound if you like). Make one now: Actions → imagine → Run workflow.
+
+How each video is made (all free): every scene is read by a free neural AI voice; each scene gets an AI picture
+(Pollinations, one every 45 seconds free; add a `POLLINATIONS_KEY` secret later for faster, unlimited pictures) in the
+same 3D-animated style with the same main character (a guy in a red hoodie = "you"); each picture slowly zooms and
+pans; big bold captions pop on word by word; an "AI animated" label sits in the corner. If a picture can't be made,
+that scene gets a colored title card so the video still comes out.
+
+Rules it follows (YouTube pays for "using AI to visualize a unique character and narrative you invented", not for
+mass-produced templates): every script is original, with real facts and a question at the end; no copied characters,
+clips or music. Add more scripts to the file (same format) or ask Claude for the next batch. Upgrades for later: real
+AI video motion (a paid video tool) and auto-posting (needs TikTok/YouTube API approval).

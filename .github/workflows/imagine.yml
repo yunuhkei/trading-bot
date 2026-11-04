@@ -1,0 +1,34 @@
+# "Imagine if you..." video machine (bot/imagine.py): every morning it makes the next video in
+# content/imagine/scripts.json (free AI voice, free AI pictures, motion, captions) and sends it to your phone through
+# ntfy, with a caption to paste. Run it by hand too: Actions -> imagine -> Run workflow.
+name: imagine
+on:
+  schedule:
+    - cron: "41 12 * * *"    # 6:41 am Milwaukee time (standard time)
+  workflow_dispatch:
+permissions:
+  contents: write            # remembers which scripts are made (content/imagine/state.json)
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: sudo apt-get install -y -q ffmpeg fonts-dejavu-core > /dev/null
+      - run: pip install -r requirements.txt
+      - name: Make today's video
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+          POLLINATIONS_KEY: ${{ secrets.POLLINATIONS_KEY }}
+          SOLBOT_COMMIT: "1"
+        run: python -m bot imagine
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: imagine-video
+          path: content/imagine/out/*.mp4
+          retention-days: 14

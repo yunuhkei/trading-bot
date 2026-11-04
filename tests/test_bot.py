@@ -1920,3 +1920,40 @@ def test_kalshi_shows_what_each_open_bet_would_sell_for_now():
     assert m[0]["title"] == "NYC 70-71" and abs(m[0]["now"] - (8 * 0.75 - k.fee(0.75, 8))) < 1e-9 and m[0]["change"] > 0.15
     assert m[1]["change"] < -0.35
     assert k.marks({"positions": {"T3": {"title": "x", "side": "no", "price": 0.9, "count": 5, "cost": 4.6}}}, {}) == []
+
+
+def test_imagine_picks_the_next_script_writes_timed_captions_and_a_caption_to_post(tmp_path, monkeypatch):
+    from bot import imagine as im
+    data = {"style": "3D", "character": "a guy in a red hoodie",
+            "episodes": [{"id": "a", "title": "Imagine A", "tags": "#x", "scenes": [{"say": "One. Would you? Comment.", "image": "{char} waving"}]},
+                         {"id": "b", "title": "Imagine B", "scenes": []}]}
+    assert im.next_episode(data, {"done": ["a"]})["id"] == "b" and im.next_episode(data, {"done": ["a", "b"]}) is None
+    assert im.image_prompt(data, data["episodes"][0]["scenes"][0]) == "a guy in a red hoodie waving, 3D"
+    words = [(0.0, 0.3, "Imagine"), (0.4, 0.2, "you"), (0.7, 0.3, "wake"), (1.1, 0.2, "up"), (1.4, 0.5, "tomorrow")]
+    im.captions(words, tmp_path / "s.ass")
+    ass = (tmp_path / "s.ass").read_text()
+    cues = [l for l in ass.splitlines() if l.startswith("Dialogue: 0,")]
+    assert cues[0].endswith("IMAGINE YOU") and cues[0].startswith("Dialogue: 0,0:00:00.00,0:00:00.70")   # 2 long-word cue
+    assert cues[1].endswith("WAKE UP TOMORROW") and "AI animated" in ass
+    assert im.post_caption(data["episodes"][0]).startswith("Imagine A... One. Would you?") and "#aianimated" in im.post_caption(data["episodes"][0])
+
+
+def test_imagine_renders_a_vertical_video_even_without_pictures(tmp_path, monkeypatch):
+    import shutil
+    import subprocess
+    from bot import imagine as im
+    if not shutil.which("ffmpeg"):
+        pytest.skip("needs ffmpeg")
+    monkeypatch.chdir(tmp_path)
+
+    def fake_say(text, out, voice=im.VOICE):                      # 1 s of silence instead of the voice service
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", "1",
+                        "-c:a", "libmp3lame", str(out)], check=True)
+        return [(0.1, 0.3, w) for w in text.split()[:2]]
+    monkeypatch.setattr(im, "say", fake_say)
+    data = {"style": "3D", "character": "x", "episodes": [{"id": "t", "title": "Imagine T", "scenes": [
+        {"say": "Imagine this.", "image": "a"}, {"say": "Then that.", "image": "b"}]}]}
+    out = im.render(data, data["episodes"][0], tmp_path / "w", images=lambda p, o, s: False)
+    info = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height", "-of", "csv=p=0",
+                           str(out)], capture_output=True, text=True).stdout
+    assert "video,1080,1920" in info and "audio" in info and 2.0 < im.duration(out) < 3.5

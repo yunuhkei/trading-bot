@@ -18,3 +18,5 @@ news_headlines_state.json
 scalp_learned.json
 solbot_state_*.json
 kalshi_state_*.json
+
+content/imagine/out/
