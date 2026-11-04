@@ -3,8 +3,9 @@
 # ntfy, with a caption to paste. Run it by hand too: Actions -> imagine -> Run workflow.
 name: imagine
 on:
-  schedule:
-    - cron: "41 12 * * *"    # 6:41 am Milwaukee time (standard time)
+  # Paused: Joaquin is looking at dedicated AI video tools. To turn the daily video back on, restore:
+  # schedule:
+  #   - cron: "41 12 * * *"    # 6:41 am Milwaukee time (standard time)
   workflow_dispatch:
 permissions:
   contents: write            # remembers which scripts are made (content/imagine/made.json), publishes the video
