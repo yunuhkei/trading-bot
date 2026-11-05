@@ -238,6 +238,13 @@ def cmd_copytrade(args, cfg):
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
     if args.status:
         print(status_text())
+        if args.trades:
+            import json as _json
+            from pathlib import Path as _P
+
+            from .copytrade import STATE, trade_rows
+            for row in trade_rows(_json.loads(_P(STATE).read_text())) if _P(STATE).exists() else []:
+                print("TRADE " + _json.dumps(row))
         return
     run(args.settings, args.minutes)
 
@@ -382,6 +389,7 @@ def main(argv=None):
     ct.add_argument("--settings", default="solbot.yaml")
     ct.add_argument("--minutes", type=float, default=340)
     ct.add_argument("--status", action="store_true", help="print both accounts' saved records and exit (no trading)")
+    ct.add_argument("--trades", action="store_true", help="with --status: also list every finished practice trade")
     im = sub.add_parser("imagine", help="make the next 'Imagine if you...' video and send it to your phone")
     im.add_argument("--dry", action="store_true", help="make it but don't send it")
     m = sub.add_parser("markets", help="list the exchange's symbols (find futures for shorting)")

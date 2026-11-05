@@ -27,4 +27,4 @@ jobs:
       - name: Show the records
         env:
           SOLANA_BOT_KEY: ${{ secrets.SOLANA_BOT_KEY }}
-        run: python -m bot copytrade --status
+        run: python -m bot copytrade --status --trades

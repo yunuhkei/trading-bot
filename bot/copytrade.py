@@ -446,6 +446,19 @@ def time_of_day_lines(state: dict, tz: str = "America/Chicago") -> list[str]:
     return lines
 
 
+def trade_rows(state: dict) -> list[dict]:
+    """Every finished trade with its buy time: [{bought, sold, what, cost, result, wallets}]."""
+    open_buys, rows = {}, []
+    for t in state.get("trades", []):
+        if t["action"] == "BUY":
+            open_buys[t["what"]] = t
+        elif t["action"] == "SELL" and t["what"] in open_buys:
+            b = open_buys.pop(t["what"])
+            rows.append({"bought": b["t"], "sold": t["t"], "what": t["what"], "cost": b.get("usd"), "result": t["result"],
+                         "wallets": t.get("wallets") or []})
+    return rows
+
+
 def status_text(now: float | None = None) -> str:
     """Both accounts' saved records (no trading, no keys needed): results, open coins, and anything stopping real money."""
     import datetime
