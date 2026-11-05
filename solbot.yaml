@@ -98,3 +98,5 @@ copytrade:                # needs the HELIUS_API_KEY secret
     max_cost: 0.03        # skip a buy that would cost more than 3% in fees + price impact
     stop_below: 3         # stop buying when the account is under $3 (still sells what it holds)
     drop_after_losses: 4  # stop copying a wallet whose last 4 real copies all lost
+    forgive:              # wallets to copy again after a drop (each is forgiven once, with a clean record)
+      - 71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp

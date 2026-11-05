@@ -87,6 +87,16 @@ class Copier:
                 wallet = BudgetWallet(wallet, self.state)
             self.wallet = wallet
             self.wallets = list(data.get("approved") or [])
+            # forgive: wallets you put back after a drop. Each one is forgiven once, with a clean record; a later drop sticks.
+            for w in list(self.cfg.get("forgive") or []):
+                dropped, forgiven = self.state.setdefault("dropped", {}), self.state.setdefault("forgiven", {})
+                if w in dropped and w not in forgiven:
+                    dropped.pop(w)
+                    forgiven[w] = self.now()
+                    self.state.setdefault("by_wallet", {})[w] = []
+                    tell(f"{self.tag}copying {w[:4]}…{w[-4:]} again",
+                         f"You put this wallet back after it was dropped, so real money follows it again, starting from a "
+                         f"clean record. If its next {self.cfg.get('drop_after_losses')} copies all lose, it's dropped again.")
         else:
             self.wallet = PaperWallet(self.state, float(self.cfg["cash"]))
             self.wallets = list((data.get("wallets") or {}))[: int(self.cfg["follow"])]

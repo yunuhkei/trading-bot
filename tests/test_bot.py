@@ -2171,3 +2171,26 @@ def test_empty_token_accounts_are_closed_to_get_the_deposit_back():
         assert len(tx.message.instructions) == 1 and bytes(ix.data) == bytes([9])
         assert keys[ix.accounts[0]] == ids[key] and keys[0] == str(kp.pubkey())   # deposit goes back to the wallet
     sent[0].verify()                                                  # signed by the bot's wallet
+
+
+def test_copytrade_forgive_puts_a_dropped_wallet_back_once(tmp_path, monkeypatch):
+    import json
+    import bot.copytrade as ct
+    monkeypatch.chdir(tmp_path)
+    w = "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp"
+    ct.WALLETS.parent.mkdir(parents=True, exist_ok=True)
+    ct.WALLETS.write_text(json.dumps({"wallets": {w: {}}, "approved": [w]}))
+    ct.STATE_LIVE.write_text(json.dumps({"dropped": {w: 1.0}, "by_wallet": {w: [-0.01, -0.02, -0.03, -0.04]}}))
+
+    class Wallet:
+        def cash(self):
+            return 20.0
+
+    told = []
+    settings = {"copytrade": {"live": {"enabled": True, "forgive": [w]}}}
+    c = ct.Copier(settings, lambda t, m, *a: told.append(t), live=True, wallet=Wallet())
+    assert w not in c.state["dropped"] and c.state["by_wallet"][w] == [] and any("again" in t for t in told)
+    c.state["dropped"][w] = 2.0                       # dropped again later: stays dropped
+    c.save()
+    c2 = ct.Copier(settings, lambda t, m, *a: told.append(t), live=True, wallet=Wallet())
+    assert w in c2.state["dropped"]
