@@ -99,6 +99,6 @@ copytrade:                # needs the HELIUS_API_KEY secret
     max_cost: 0.03        # skip a buy that would cost more than 3% in fees + price impact
     stop_below: 70        # if its money (coins at today's prices) is $70 or less: sell everything and stop
     drop_after_losses: 0  # off: keep copying through losing streaks; only the $70 stop stops it
-    trade_hours:          # off for now. [11, 17] = real money only buys 11 am-5 pm Milwaukee time (decide after 2-3 weeks)
+    trade_hours: [11, 23] # real money only BUYS 11 am-11 pm Milwaukee time (midday + evening); it still sells any time
     forgive:              # wallets to copy again after a drop (each is forgiven once, with a clean record)
       - 71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp
