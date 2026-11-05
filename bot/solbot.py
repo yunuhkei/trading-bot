@@ -1071,7 +1071,8 @@ def flush_lines(fstate: dict | None, now: float, hours: float) -> list[str]:
     sells = [t for t in fstate.get("trades", []) if t["action"] == "SELL"]
     recent = [t for t in sells if now - t["t"] <= hours * 3600]
     made = lambda ts: sum(t["usd"] * t["result"] / (1 + t["result"]) for t in ts)
-    value = float(fstate.get("cash", 0)) + sum(float(p.get("cost") or 0) for p in fstate.get("positions", {}).values())
+    cash = fstate.get("paper_cash", fstate.get("cash", 0))          # the pretend wallet keeps its money as paper_cash
+    value = float(cash) + sum(float(p.get("cost") or 0) for p in fstate.get("positions", {}).values())
     if not sells:
         return [f"SHARP-DROP PRACTICE (buys -20% crashes, sells +12% or after 6 h; pretend money): no finished trades yet"
                 + (f", holding {len(fstate.get('positions', {}))}" if fstate.get("positions") else "") + "."]
