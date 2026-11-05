@@ -1,6 +1,6 @@
 {
  "strategy": "breakout",
- "trained_at": "2026-11-03 10:25 UTC",
+ "trained_at": "2026-11-05 10:34 UTC",
  "features": [
   "mom_5",
   "mom_20",
