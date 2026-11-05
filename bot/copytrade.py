@@ -391,6 +391,31 @@ def report_lines(state: dict, now: float, hours: float, value: float | None = No
             f"{made(sells):+,.2f}; account about {money(value)}."]
 
 
+def time_of_day_lines(state: dict, tz: str = "America/Chicago") -> list[str]:
+    """Finished trades grouped by when they were BOUGHT (local time): does the time of day matter?"""
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    zone, bought, groups = ZoneInfo(tz), {}, {}
+    names = (("overnight (11pm-5am)", 23, 5), ("morning (5-11am)", 5, 11), ("midday (11am-5pm)", 11, 17), ("evening (5-11pm)", 17, 23))
+    for t in state.get("trades", []):
+        if t["action"] == "BUY":
+            bought[t["what"]] = t["t"]
+        elif t["action"] == "SELL" and t["what"] in bought:
+            h = datetime.datetime.fromtimestamp(bought.pop(t["what"]), zone).hour
+            for name, start, end in names:
+                if (start <= h < end) if start < end else (h >= start or h < end):
+                    groups.setdefault(name, []).append(t)
+    lines = []
+    for name, _, _ in names:
+        g = groups.get(name, [])
+        if g:
+            made = sum(t["usd"] * t["result"] / (1 + t["result"]) for t in g)
+            lines.append(f"  bought {name}: {len(g)} trades, {sum(t['result'] > 0 for t in g)} won, "
+                         f"avg {sum(t['result'] for t in g) / len(g):+.1%}, {made:+,.2f}")
+    return lines
+
+
 def status_text(now: float | None = None) -> str:
     """Both accounts' saved records (no trading, no keys needed): results, open coins, and anything stopping real money."""
     import datetime
@@ -426,7 +451,12 @@ def status_text(now: float | None = None) -> str:
                 change = price / pos["entry"] - 1
                 line += f", now {change:+.1%} (worth about ${pos['cost'] * (1 + change):.2f})"
             out.append(line)
+        out += time_of_day_lines(st)
         if live:
+            if st.get("budget_set"):
+                since = [t for t in st.get("trades", []) if t["action"] == "SELL" and t["t"] >= st["budget_set"]]
+                out.append(f"  since the ${float(st.get('budget', 0)):,.0f} budget ({when(st['budget_set'])}): {len(since)} trades, "
+                           f"{sum(t['result'] > 0 for t in since)} won, {sum(t['usd'] * t['result'] / (1 + t['result']) for t in since):+,.2f}")
             for w, t in (st.get("dropped") or {}).items():
                 out.append(f"  DROPPED wallet {w[:4]}…{w[-4:]} at {when(t) if isinstance(t, (int, float)) else t}")
             if st.get("low_told"):
