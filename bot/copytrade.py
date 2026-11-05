@@ -402,7 +402,8 @@ def status_text(now: float | None = None) -> str:
             out.append(f"{'COPY LIVE' if live else 'COPY PRACTICE'}: no saved record.")
             continue
         st = json.loads(path.read_text())
-        out += report_lines(st, now, (now - st.get("started", now)) / 3600, live=live)
+        own = (float(st["cash"]) + sum(p["cost"] for p in st.get("positions", {}).values())) if live and "cash" in st else None
+        out += report_lines(st, now, (now - st.get("started", now)) / 3600, own, live=live)
         when = lambda t: datetime.datetime.fromtimestamp(t, datetime.timezone.utc).strftime("%b %d %H:%M UTC")
         held = st.get("positions", {})
         prices = {}
