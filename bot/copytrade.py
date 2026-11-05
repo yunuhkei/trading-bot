@@ -95,7 +95,9 @@ class Copier:
                          f"coins it holds are still sold by the usual rules. Until your USDC arrives it just waits.")
                 wallet = BudgetWallet(wallet, self.state)
             self.wallet = wallet
-            self.wallets = list(data.get("approved") or [])
+            # follow_all: copy every wallet practice copies; otherwise only the ones the finder approved
+            self.wallets = (list((data.get("wallets") or {}))[: int(self.cfg["follow"])] if self.cfg.get("follow_all")
+                            else list(data.get("approved") or []))
             # forgive: wallets you put back after a drop. Each one is forgiven once, with a clean record; a later drop sticks.
             for w in list(self.cfg.get("forgive") or []):
                 dropped, forgiven = self.state.setdefault("dropped", {}), self.state.setdefault("forgiven", {})

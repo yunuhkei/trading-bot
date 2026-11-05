@@ -94,6 +94,7 @@ copytrade:                # needs the HELIUS_API_KEY secret
     enabled: true
     budget: 100           # its own $100 (plus or minus what it makes); other money in the wallet is never used
     per_trade: 10         # dollars a trade (about 10% of the $100, like practice's $30 of $300)
+    follow_all: true      # copy every wallet practice copies (not only the finder's approved ones)
     max_open: 10          # coins held at once: the same room as practice ($300 / $30 = 10; here $100 / $10 = 10)
     max_cost: 0.03        # skip a buy that would cost more than 3% in fees + price impact
     stop_below: 70        # if its money (coins at today's prices) is $70 or less: sell everything and stop

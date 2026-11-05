@@ -2266,3 +2266,23 @@ def test_copytrade_live_stops_at_market_value_and_ignores_drops_when_off(tmp_pat
     assert c.state["halted"] and sold and any("STOPPED at $60.00" in t for t in told)
     hour = __import__("datetime").datetime.fromtimestamp(1_800_000_000.0, __import__("zoneinfo").ZoneInfo("America/Chicago")).hour
     assert c.in_trade_hours() == (11 <= hour < 17)
+
+
+def test_copytrade_live_can_follow_every_practice_wallet(tmp_path, monkeypatch):
+    import json
+    import bot.copytrade as ct
+    monkeypatch.chdir(tmp_path)
+    ct.WALLETS.parent.mkdir(parents=True, exist_ok=True)
+    ct.WALLETS.write_text(json.dumps({"wallets": {"A": {}, "B": {}, "C": {}}, "approved": ["C"]}))
+
+    class Wallet:
+        address = "Bot1111111111111111111111111111111111111111"
+
+        def cash(self):
+            return 100.0
+
+    base = {"enabled": True, "budget": 100}
+    only = ct.Copier({"copytrade": {"live": base}}, lambda *a: None, live=True, wallet=Wallet())
+    every = ct.Copier({"copytrade": {"live": {**base, "follow_all": True}}}, lambda *a: None, live=True, wallet=Wallet())
+    practice = ct.Copier({"copytrade": {}}, lambda *a: None)
+    assert only.wallets == ["C"] and every.wallets == practice.wallets == ["A", "B", "C"]
