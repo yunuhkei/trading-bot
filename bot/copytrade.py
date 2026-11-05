@@ -83,7 +83,16 @@ class Copier:
                 wallet = LiveWallet(self.kp)
             budget = float(self.cfg.get("budget") or 0)
             if budget:
-                self.state.setdefault("cash", min(wallet.cash(), budget))
+                # Its own money: `budget` to start, plus or minus what its trades make. A new or changed budget restarts
+                # that ledger (minus what's already in coins), so other money in the wallet is never touched.
+                if self.state.get("budget") != budget:
+                    held = sum(p["cost"] for p in self.state.get("positions", {}).values())
+                    self.state.update(budget=budget, cash=budget - held, budget_set=self.now())
+                    self.state.pop("low_told", None)
+                    tell(f"{self.tag}budget set to ${budget:,.0f}",
+                         f"Real-money copying now uses only its own ${budget:,.0f} (plus or minus what it makes), never other "
+                         f"money in the wallet. It stops buying if that falls under ${float(self.cfg['stop_below']):,.0f}; "
+                         f"coins it holds are still sold by the usual rules. Until your USDC arrives it just waits.")
                 wallet = BudgetWallet(wallet, self.state)
             self.wallet = wallet
             self.wallets = list(data.get("approved") or [])

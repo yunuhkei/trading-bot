@@ -92,11 +92,11 @@ copytrade:                # needs the HELIUS_API_KEY secret
   max_hold_hours: 48      # sell after this long even if the wallet hasn't
   live:                   # REAL money from the bot's wallet (SOLANA_BOT_KEY), same rules as above plus these
     enabled: true
-    budget: 0             # 0 = trade whatever USDC is in the wallet (a refill counts right away)
+    budget: 100           # its own $100 (plus or minus what it makes); other money in the wallet is never used
     per_trade: 6          # dollars a trade
     max_open: 2           # coins held at once
     max_cost: 0.03        # skip a buy that would cost more than 3% in fees + price impact
-    stop_below: 3         # stop buying when the account is under $3 (still sells what it holds)
+    stop_below: 70        # stop buying when its $100 has fallen under $70 (still sells what it holds)
     drop_after_losses: 4  # stop copying a wallet whose last 4 real copies all lost
     forgive:              # wallets to copy again after a drop (each is forgiven once, with a clean record)
       - 71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp

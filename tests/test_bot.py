@@ -2194,3 +2194,29 @@ def test_copytrade_forgive_puts_a_dropped_wallet_back_once(tmp_path, monkeypatch
     c.save()
     c2 = ct.Copier(settings, lambda t, m, *a: told.append(t), live=True, wallet=Wallet())
     assert w in c2.state["dropped"]
+
+
+def test_copytrade_live_budget_is_its_own_money_and_stops_under_the_limit(tmp_path, monkeypatch):
+    import json
+    import bot.copytrade as ct
+    monkeypatch.chdir(tmp_path)
+    w = "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp"
+    ct.WALLETS.parent.mkdir(parents=True, exist_ok=True)
+    ct.WALLETS.write_text(json.dumps({"wallets": {w: {}}, "approved": [w]}))
+
+    class Wallet:                                     # the shared wallet holds $113.64 (another bot's $13.64 too)
+        address = "Bot1111111111111111111111111111111111111111"
+
+        def cash(self):
+            return 113.64
+
+    told = []
+    settings = {"copytrade": {"live": {"enabled": True, "budget": 100, "stop_below": 70}}}
+    c = ct.Copier(settings, lambda t, m, *a: told.append(t), live=True, wallet=Wallet())
+    assert c.wallet.cash() == 100 and c.value() == 100 and any("budget set to $100" in t for t in told)
+    c.state["cash"] = 65.0                            # lost $35 of it
+    assert c.value() < float(c.cfg["stop_below"])
+    c.save()
+    told.clear()
+    c2 = ct.Copier(settings, lambda t, m, *a: told.append(t), live=True, wallet=Wallet())
+    assert c2.wallet.cash() == 65.0 and not told      # same budget: the ledger carries on, no reset
