@@ -395,8 +395,27 @@ def status_text(now: float | None = None) -> str:
         st = json.loads(path.read_text())
         out += report_lines(st, now, (now - st.get("started", now)) / 3600, live=live)
         when = lambda t: datetime.datetime.fromtimestamp(t, datetime.timezone.utc).strftime("%b %d %H:%M UTC")
-        for mint, pos in st.get("positions", {}).items():
-            out.append(f"  holding {pos.get('name', mint[:6])}: cost ${pos.get('cost', 0):.2f}, bought {when(pos.get('t', now))}")
+        held = st.get("positions", {})
+        prices = {}
+        if held:
+            try:
+                import requests
+
+                r = requests.get("https://api.dexscreener.com/tokens/v1/solana/" + ",".join(list(held)[:30]), timeout=30)
+                for pair in r.json() or []:
+                    mint = pair["baseToken"]["address"]
+                    liq = (pair.get("liquidity") or {}).get("usd") or 0
+                    if mint not in prices or liq > prices[mint][1]:
+                        prices[mint] = (float(pair.get("priceUsd") or 0), liq)
+            except Exception as e:
+                out.append(f"  (couldn't get prices now: {str(e)[:60]})")
+        for mint, pos in held.items():
+            line = f"  holding {pos.get('name', mint[:6])}: cost ${pos.get('cost', 0):.2f}, bought {when(pos.get('t', now))}"
+            price = prices.get(mint, (0, 0))[0]
+            if price and pos.get("entry"):
+                change = price / pos["entry"] - 1
+                line += f", now {change:+.1%} (worth about ${pos['cost'] * (1 + change):.2f})"
+            out.append(line)
         if live:
             for w, t in (st.get("dropped") or {}).items():
                 out.append(f"  DROPPED wallet {w[:4]}…{w[-4:]} at {when(t) if isinstance(t, (int, float)) else t}")
