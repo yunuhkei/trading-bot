@@ -372,6 +372,32 @@ def report_lines(state: dict, now: float, hours: float, value: float | None = No
             f"{made(sells):+,.2f}; account about {money(value)}."]
 
 
+def status_text(now: float | None = None) -> str:
+    """Both accounts' saved records (no trading, no keys needed): results, open coins, and anything stopping real money."""
+    import datetime
+
+    now = now or time.time()
+    out = []
+    for path, live in ((STATE, False), (STATE_LIVE, True)):
+        if not path.exists():
+            out.append(f"{'COPY LIVE' if live else 'COPY PRACTICE'}: no saved record.")
+            continue
+        st = json.loads(path.read_text())
+        out += report_lines(st, now, (now - st.get("started", now)) / 3600, live=live)
+        when = lambda t: datetime.datetime.fromtimestamp(t, datetime.timezone.utc).strftime("%b %d %H:%M UTC")
+        for mint, pos in st.get("positions", {}).items():
+            out.append(f"  holding {pos.get('name', mint[:6])}: cost ${pos.get('cost', 0):.2f}, bought {when(pos.get('t', now))}")
+        if live:
+            for w, t in (st.get("dropped") or {}).items():
+                out.append(f"  DROPPED wallet {w[:4]}…{w[-4:]} at {when(t) if isinstance(t, (int, float)) else t}")
+            if st.get("low_told"):
+                out.append(f"  PAUSED for low balance since {when(st['low_told'])}")
+            sells = [t for t in st.get("trades", []) if t["action"] == "SELL"]
+            for t in sells[-8:]:
+                out.append(f"  sold {t.get('what')}: {t.get('result', 0):+.1%} on ${t.get('usd', 0):.2f} ({when(t['t'])})")
+    return "\n".join(out)
+
+
 def run(settings_path: str = "solbot.yaml", minutes: float = 340):
     from .signals import alert_target, money, notify
     from .solbot import load_settings, report_due
