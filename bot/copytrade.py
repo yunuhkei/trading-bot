@@ -480,6 +480,14 @@ def status_text(now: float | None = None) -> str:
                 line += f", now {change:+.1%} (worth about ${pos['cost'] * (1 + change):.2f})"
             out.append(line)
         out += time_of_day_lines(st)
+        by_wallet = {}
+        for t in st.get("trades", []):
+            if t["action"] == "SELL":
+                for w in t.get("wallets") or ["?"]:
+                    by_wallet.setdefault(w, []).append(t)
+        for w, ts in sorted(by_wallet.items(), key=lambda kv: -sum(t["usd"] * t["result"] / (1 + t["result"]) for t in kv[1])):
+            made = sum(t["usd"] * t["result"] / (1 + t["result"]) for t in ts)
+            out.append(f"  copying {w[:4]}…{w[-4:]}: {len(ts)} trades, {sum(t['result'] > 0 for t in ts)} won, {made:+,.2f}")
         if live:
             if st.get("budget_set"):
                 since = [t for t in st.get("trades", []) if t["action"] == "SELL" and t["t"] >= st["budget_set"]]
