@@ -2233,3 +2233,36 @@ def test_autotrade_practice_needs_no_key_and_trades_pretend_money(tmp_path, monk
     holds["BTC-USD"] = False
     at.run(exchange=ex, tell=tell)
     assert any(t.startswith("PRACTICE: SOLD BTC-USD") for t in sent) and not ex.orders
+
+
+def test_copytrade_live_stops_at_market_value_and_ignores_drops_when_off(tmp_path, monkeypatch):
+    import json
+    import bot.copytrade as ct
+    import bot.solbot as sb
+    monkeypatch.chdir(tmp_path)
+    w = "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp"
+    ct.WALLETS.parent.mkdir(parents=True, exist_ok=True)
+    ct.WALLETS.write_text(json.dumps({"wallets": {w: {}}, "approved": [w]}))
+
+    class Wallet:
+        address = "Bot1111111111111111111111111111111111111111"
+
+        def cash(self):
+            return 500.0
+
+    told = []
+    settings = {"copytrade": {"live": {"enabled": True, "budget": 100, "stop_below": 70, "drop_after_losses": 0,
+                                       "trade_hours": [11, 17]}}}
+    c = ct.Copier(settings, lambda t, m, *a: told.append(t), live=True, wallet=Wallet(), now=lambda: 1_800_000_000.0)
+    c.state["dropped"] = {w: 1.0}
+    assert not int(c.cfg["drop_after_losses"])                       # drops are ignored while the rule is off
+    c.state["cash"] = 40.0                                           # $40 cash + a coin bought for $40, now worth $20
+    c.positions["MINT"] = {"name": "X", "raw": 10_000_000, "decimals": 6, "cost": 40.0, "entry": 4.0, "t": 1_800_000_000.0,
+                           "wallets": [w]}
+    sold = []
+    monkeypatch.setattr(sb, "prices", lambda mints: {"MINT": {"usdPrice": 2.0}})
+    monkeypatch.setattr(ct.Copier, "sell", lambda self, mint, why: sold.append((mint, why)) or self.positions.pop(mint) or True)
+    c.check_positions()                                              # $40 + $20 = $60, under the $70 stop
+    assert c.state["halted"] and sold and any("STOPPED at $60.00" in t for t in told)
+    hour = __import__("datetime").datetime.fromtimestamp(1_800_000_000.0, __import__("zoneinfo").ZoneInfo("America/Chicago")).hour
+    assert c.in_trade_hours() == (11 <= hour < 17)

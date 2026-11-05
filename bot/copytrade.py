@@ -160,7 +160,9 @@ class Copier:
                     self.positions[mint]["wallets"].append(wallet)
                 return
             if self.live:
-                if (self.state.get("dropped") or {}).get(wallet) or len(self.positions) >= int(self.cfg["max_open"]):
+                dropping = int(self.cfg.get("drop_after_losses") or 0)
+                if (self.state.get("halted") or (dropping and (self.state.get("dropped") or {}).get(wallet))
+                        or len(self.positions) >= int(self.cfg["max_open"]) or not self.in_trade_hours()):
                     return
                 try:
                     self.wallet.refresh()                # the real balance now (refills count right away)
@@ -267,6 +269,17 @@ class Copier:
     def value(self) -> float:
         return self.wallet.cash() + sum(p["cost"] for p in self.positions.values())
 
+    def in_trade_hours(self) -> bool:
+        """trade_hours: [start, end] in local hours (e.g. [11, 17] = 11 am to 5 pm) limits when real money buys."""
+        hours = self.cfg.get("trade_hours")
+        if not hours:
+            return True
+        import datetime
+        from zoneinfo import ZoneInfo
+
+        h = datetime.datetime.fromtimestamp(self.now(), ZoneInfo(str(self.cfg.get("timezone") or "America/Chicago"))).hour
+        return int(hours[0]) <= h < int(hours[1])
+
     def check_positions(self):
         """Every minute: the stop-loss and the time limit."""
         from .solbot import prices
@@ -279,6 +292,21 @@ class Copier:
             log.warning("prices: %s", e)
             return
         now = self.now()
+        if self.live and not self.state.get("halted") and float(self.cfg.get("stop_below") or 0):
+            worth = self.wallet.cash() + sum(
+                p["raw"] / 10 ** p["decimals"] * float((px.get(m) or {}).get("usdPrice") or 0) if (px.get(m) or {}).get("usdPrice")
+                else p["cost"] for m, p in self.positions.items())
+            if worth <= float(self.cfg["stop_below"]):
+                from .signals import money
+
+                self.state["halted"] = now
+                for mint in list(self.positions):
+                    self.sell(mint, f"the account hit the {money(float(self.cfg['stop_below']))} stop")
+                self.tell(f"{self.tag}STOPPED at {money(worth)}",
+                          f"Its money (coins counted at today's prices) fell to {money(worth)}, at or under your "
+                          f"{money(float(self.cfg['stop_below']))} stop, so it sold what it held and stopped buying. "
+                          "Practice keeps running. Ask Claude to restart real money when you want.")
+                return
         for mint, p in list(self.positions.items()):
             if p.get("pending"):                         # a sell that failed: try again
                 self.sell(mint, p["pending"])
