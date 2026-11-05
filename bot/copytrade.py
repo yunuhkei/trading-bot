@@ -433,6 +433,20 @@ def status_text(now: float | None = None) -> str:
             sells = [t for t in st.get("trades", []) if t["action"] == "SELL"]
             for t in sells[-8:]:
                 out.append(f"  sold {t.get('what')}: {t.get('result', 0):+.1%} on ${t.get('usd', 0):.2f} ({when(t['t'])})")
+    try:                                                # the real wallet, if the key is available (never prints the key)
+        from .solbot import USDC, balances, keypair
+
+        kp = keypair()
+        if kp is not None:
+            addr = str(kp.pubkey())
+            bal = balances(addr)
+            usdc = float((bal.get(USDC) or {}).get("uiAmount") or 0)
+            sol = float((bal.get("SOL") or {}).get("uiAmount") or 0)
+            live = json.loads(STATE_LIVE.read_text()) if STATE_LIVE.exists() else {}
+            own = f"; copy live's own money: ${float(live['cash']):,.2f} of its ${float(live['budget']):,.0f} budget" if "budget" in live else ""
+            out.append(f"Wallet {addr[:4]}…{addr[-4:]}: ${usdc:,.2f} USDC and {sol:.4f} SOL{own}.")
+    except Exception as e:
+        out.append(f"(couldn't read the wallet: {str(e)[:80]})")
     return "\n".join(out)
 
 

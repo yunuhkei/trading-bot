@@ -1,5 +1,5 @@
 # Prints the copy-trader's saved records (practice and real money) from its last finished run: results, open coins,
-# dropped wallets, low-balance pause. Reads only; trades nothing and uses no keys. Run it by hand from the Actions tab.
+# dropped wallets, low-balance pause, and the wallet's balance. Reads only: it trades nothing and never prints the key. Run it by hand from the Actions tab.
 name: copytrade-status
 on:
   workflow_dispatch:
@@ -25,4 +25,6 @@ jobs:
           key: copytrade-live-status-${{ github.run_id }}
           restore-keys: copytrade-live-
       - name: Show the records
+        env:
+          SOLANA_BOT_KEY: ${{ secrets.SOLANA_BOT_KEY }}
         run: python -m bot copytrade --status
