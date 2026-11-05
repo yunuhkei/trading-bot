@@ -28,6 +28,23 @@ FEE = 0.012            # Coinbase taker fee for small accounts, per buy or sell 
 MIN_ORDER = 5.0        # dollars; smaller buys are skipped
 
 
+class PublicCoinbase:
+    """Practice mode: Coinbase's public prices only, no account and no key."""
+
+    def __init__(self, budget: float):
+        self.budget = budget
+
+    def fetch_ticker(self, symbol: str) -> dict:
+        import requests
+
+        r = requests.get(f"https://api.exchange.coinbase.com/products/{symbol.replace('/', '-')}/ticker", timeout=30)
+        r.raise_for_status()
+        return {"last": float(r.json()["price"])}
+
+    def fetch_balance(self) -> dict:
+        return {"free": {"USD": self.budget}}
+
+
 def make_exchange():
     import ccxt
 
@@ -125,26 +142,31 @@ def run(settings_path: str = "autotrade.yaml", exchange=None, tell=None) -> str:
     """One check: follow the rule on each market, within the budget and kill switch. Returns a short status line."""
     s = yaml.safe_load(Path(settings_path).read_text())
     mode = str(s.get("mode", "off"))
-    if mode not in ("dry_run", "live"):
+    if mode not in ("practice", "dry_run", "live"):
         return "Auto-trading is off (mode: off in autotrade.yaml)."
-    live = mode == "live"
+    live, practice = mode == "live", mode == "practice"
     target = alert_target()
 
     def say(title: str, msg: str, buy: bool = True):
         print(f"{title}: {msg}", flush=True)
         (tell or (lambda *a: notify(target, *a) if target else None))(title, msg, buy)
 
-    tag = "" if live else "DRY RUN: "
-    ex = exchange or make_exchange()
+    tag = "" if live else "PRACTICE: " if practice else "DRY RUN: "
+    ex = exchange or (PublicCoinbase(float(s.get("budget", 0))) if practice else make_exchange())
     if ex is None:
         return "No Coinbase API key yet (COINBASE_API_KEY and COINBASE_API_SECRET secrets)."
-    can_transfer = key_can_transfer(ex)
+    can_transfer = None if practice else key_can_transfer(ex)
     if live and can_transfer:
         say("Auto-trader refused to trade", "Your Coinbase API key can move money out. Make a new key with only View and "
             "Trade allowed, put it in the COINBASE_API_KEY / COINBASE_API_SECRET secrets, and it starts again.", False)
         return "Refused: key can transfer."
     ledger = Ledger(f"autotrade_state_{mode}.json")
-    if not ledger.existed and not (live and s.get("live_since")):
+    if practice and not ledger.existed:
+        say(f"{tag}Auto-trader started with pretend money",
+            f"Pretend {money(float(s.get('budget', 0)))} at real Coinbase prices, no key needed. It follows the trend rule on "
+            f"{', '.join(s.get('markets', []))} and messages every trade it makes, like the real one would. "
+            "Add a Coinbase key and switch to dry_run or live when you want it on your real account.")
+    elif not ledger.existed and not (live and s.get("live_since")):
         safety = {True: "WARNING: this key can move money out; make a trade-only one before going live",
                   False: "the key is trade-only (it can't withdraw)", None: "Coinbase didn't say what the key may do"}[can_transfer]
         say(f"{tag}Auto-trader connected to Coinbase",
@@ -190,7 +212,7 @@ def run(settings_path: str = "autotrade.yaml", exchange=None, tell=None) -> str:
             ledger.positions[m] = {"units": units, "cost": spent}
             ledger.history.append({"t": time.time(), "market": m, "side": "buy", "usd": spent, "units": units, "price": prices[m]})
             say(f"{tag}BOUGHT {money(spent)} of {name} (crypto, Coinbase)",
-                f"The auto-trader {'bought' if live else 'would buy'} {units:.8f} {name.split('-')[0]} at about {money(prices[m])}. "
+                f"The auto-trader {'bought' if live else 'bought (pretend money)' if practice else 'would buy'} {units:.8f} {name.split('-')[0]} at about {money(prices[m])}. "
                 f"Rule: {learn.settings_text(cfg.strategy, cfg.strategy_params)}. It sells when the rule says so.")
             done.append(f"{name}: bought")
         elif not hold and mine:
@@ -200,7 +222,7 @@ def run(settings_path: str = "autotrade.yaml", exchange=None, tell=None) -> str:
             ledger.positions.pop(m)
             ledger.history.append({"t": time.time(), "market": m, "side": "sell", "usd": got, "units": mine["units"], "price": prices[m]})
             say(f"{tag}SOLD {name} for {money(got)} (crypto, Coinbase)",
-                f"The trend ended, so the auto-trader {'sold' if live else 'would sell'} at about {money(prices[m])}: "
+                f"The trend ended, so the auto-trader {'sold' if live else 'sold (pretend money)' if practice else 'would sell'} at about {money(prices[m])}: "
                 f"{result:+.2f} dollars on this trade. Total so far: {ledger.pnl(prices):+.2f} dollars.", False)
             done.append(f"{name}: sold")
         else:

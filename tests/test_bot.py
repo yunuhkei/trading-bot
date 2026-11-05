@@ -2220,3 +2220,16 @@ def test_copytrade_live_budget_is_its_own_money_and_stops_under_the_limit(tmp_pa
     told.clear()
     c2 = ct.Copier(settings, lambda t, m, *a: told.append(t), live=True, wallet=Wallet())
     assert c2.wallet.cash() == 65.0 and not told      # same budget: the ledger carries on, no reset
+
+
+def test_autotrade_practice_needs_no_key_and_trades_pretend_money(tmp_path, monkeypatch):
+    at, holds, sent, tell = _autotrade_setup(tmp_path, monkeypatch, mode="practice")
+    monkeypatch.delenv("COINBASE_API_KEY", raising=False)
+    ex = FakeCoinbase()
+    status = at.run(exchange=ex, tell=tell)
+    assert not ex.orders and status.startswith("PRACTICE:")
+    assert sent[0] == "PRACTICE: Auto-trader started with pretend money"
+    assert any(t.startswith("PRACTICE: BOUGHT $50.00 of BTC-USD") for t in sent)
+    holds["BTC-USD"] = False
+    at.run(exchange=ex, tell=tell)
+    assert any(t.startswith("PRACTICE: SOLD BTC-USD") for t in sent) and not ex.orders
