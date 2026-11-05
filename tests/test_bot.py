@@ -1659,6 +1659,7 @@ def test_kalshi_new_strategy_lineup_restarts_practice_accounts_and_says_so(tmp_p
     Path("kalshi_state_practice.json").write_text(json.dumps({"cash": 42.0, "start": 100.0, "positions": {"OLD": {}},
                                                               "variants": {"B": {"cash": 1.0}}, "series": ["KXHIGHCHI"]}))
     monkeypatch.setattr(k, "weather_views", lambda events, now, state: [])
+    monkeypatch.setattr("bot.solbot.report_due", lambda *a, **kw: None)   # not during the real Thursday report time
     told = []
     k.step({"mode": "practice", "practice_cash": 100}, lambda t, m: told.append((t, m)), events=[])
     state = json.loads(Path("kalshi_state_practice.json").read_text())
