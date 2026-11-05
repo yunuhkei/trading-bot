@@ -94,7 +94,7 @@ copytrade:                # needs the HELIUS_API_KEY secret
     enabled: true
     budget: 100           # its own $100 (plus or minus what it makes); other money in the wallet is never used
     per_trade: 10         # dollars a trade (about 10% of the $100, like practice's $30 of $300)
-    max_open: 2           # coins held at once
+    max_open: 10          # coins held at once: the same room as practice ($300 / $30 = 10; here $100 / $10 = 10)
     max_cost: 0.03        # skip a buy that would cost more than 3% in fees + price impact
     stop_below: 70        # stop buying when its $100 has fallen under $70 (still sells what it holds)
     drop_after_losses: 4  # stop copying a wallet whose last 4 real copies all lost
