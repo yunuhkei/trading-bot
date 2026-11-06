@@ -502,6 +502,8 @@ STRATEGIES = {
     # From the walk-forward test (bot/kalshi_walkforward.py, 1,423 city-days Sep 7 - Nov 5, settings picked on earlier
     # days only): A made +0% on 539 held-out trades; buying the favorite only when the weather models pick the same
     # bracket made +5% on 347 (the favorites the models disagree with won 59% at ~63c: -$73), and only 60-65c +1%.
+    # Rechecked with the models' two-day-ahead forecasts (surely known before every buy): F about -1%, A -2%; most of
+    # F's edge came from forecasts a few hours newer than a morning buy. It practices with the newest real forecasts.
     "F": {"label": "Favorites the models agree with", "rules": {"pick": "favorite", "when": "tomorrow", "agree": True,
                                                                "min_price": 0.60, "max_price": 0.80, "hit_rate": 0.68}},
     "G": {"label": "Cheaper favorites (60-65c)", "rules": {"pick": "favorite", "when": "tomorrow", "min_price": 0.60,
