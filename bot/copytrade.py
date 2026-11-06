@@ -95,9 +95,11 @@ class Copier:
                          f"coins it holds are still sold by the usual rules. Until your USDC arrives it just waits.")
                 wallet = BudgetWallet(wallet, self.state)
             self.wallet = wallet
-            # follow_all: copy every wallet practice copies; otherwise only the ones the finder approved
-            self.wallets = (list((data.get("wallets") or {}))[: int(self.cfg["follow"])] if self.cfg.get("follow_all")
-                            else list(data.get("approved") or []))
+            # only: just these wallets (watched even if the weekly finder drops them); else follow_all: every wallet
+            # practice copies; otherwise only the ones the finder approved
+            self.wallets = (list(self.cfg.get("only") or []) or
+                            (list((data.get("wallets") or {}))[: int(self.cfg["follow"])] if self.cfg.get("follow_all")
+                             else list(data.get("approved") or [])))
             # forgive: wallets you put back after a drop. Each one is forgiven once, with a clean record; a later drop sticks.
             for w in list(self.cfg.get("forgive") or []):
                 dropped, forgiven = self.state.setdefault("dropped", {}), self.state.setdefault("forgiven", {})
@@ -188,7 +190,7 @@ class Copier:
                                   f"when the wallet sells or at the stop). Refill the wallet with USDC and it starts again.")
                     return
                 self.state.pop("low_told", None)
-                if self.cfg.get("playbook") and verdict(style, now, self.book) == "AVOID":
+                if self.cfg.get("playbook") and verdict(style, now, self.book, wallet) == "AVOID":
                     log.warning("%splaybook skips %s (%s, this time of day loses)", self.tag, name, style)
                     return
                 brake = float(self.cfg.get("max_daily_loss") or 0)
@@ -223,7 +225,7 @@ class Copier:
 
             self.state.setdefault("trades", []).append({"t": now, "action": "BUY", "what": name, "usd": spent,
                                                         "wallet": wallet, "tx": fill.get("tx"), "mint": mint,
-                                                        "style": style, "playbook": verdict(style, now, self.book),
+                                                        "style": style, "playbook": verdict(style, now, self.book, wallet),
                                                         "sol24": market_mood(now)})
             self.quiet(f"{self.tag}BOUGHT {money(spent)} of {name}",
                        f"Smart wallet {wallet[:4]}…{wallet[-4:]} just bought it (seconds ago); copied with "
@@ -448,7 +450,7 @@ def report_lines(state: dict, now: float, hours: float, value: float | None = No
     made = lambda ts: sum(t["usd"] * t["result"] / (1 + t["result"]) for t in ts)
     if value is None:
         value = float(state.get("paper_cash", 0)) + sum(p["cost"] for p in state.get("positions", {}).values())
-    head = ("COPY LIVE (approved wallets only; REAL money)" if live
+    head = ("COPY LIVE (REAL money)" if live
             else "COPY PRACTICE (follows the smart wallets; pretend money)")
     if not sells:
         return [f"{head}: no finished trades yet, holding {len(state.get('positions', {}))}, account about {money(value)}."]

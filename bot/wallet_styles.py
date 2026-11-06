@@ -236,6 +236,15 @@ def playbook(rows: list[dict]) -> dict:
         out["by_mood"] = {"SOL up": g(sol > 0), "SOL down": g(sol <= 0)}
     for day in sorted(d["date"].unique()):
         out["by_date"][day] = g(d["date"] == day)
+    # Each wallet's own record by style and time of day: a copier following that wallet judges its buys by these
+    # (its own history), not by the other wallets' (one wallet's overnight dip buys can lose while another's win).
+    out["by_wallet"] = {}
+    if "wallet" in d:
+        for w in d["wallet"].dropna().unique():
+            mine = d["wallet"] == w
+            out["by_wallet"][w] = {f"{s}|{n}": g(mine & (d["style"] == s) & (d["slot"] == n))
+                                   for s in STYLES for n, _, _ in SLOTS
+                                   if (mine & (d["style"] == s) & (d["slot"] == n)).any()}
     return out
 
 
@@ -256,8 +265,9 @@ def practice_rows(state: dict) -> list[dict]:
     return rows
 
 
-def verdict(style: str | None, t: float, book: dict | None = None) -> str:
-    """The playbook's call on copying a buy of this style now: GO, AVOID or "not sure yet"."""
+def verdict(style: str | None, t: float, book: dict | None = None, wallet: str | None = None) -> str:
+    """The playbook's call on copying a buy of this style now: GO, AVOID or "not sure yet". With `wallet`, a wallet that
+    has its own record in the playbook is judged only by that record (its other cells don't count against it)."""
     if book is None:
         try:
             book = json.loads(OUT.read_text()).get("playbook") or {}
@@ -265,7 +275,10 @@ def verdict(style: str | None, t: float, book: dict | None = None) -> str:
             return "not sure yet"
     if not style:
         return "not sure yet"
-    return ((book.get("by_style_slot") or {}).get(f"{style}|{slot_of(t)}") or {}).get("verdict", "not sure yet")
+    cells = (book.get("by_wallet") or {}).get(wallet) if wallet else None
+    if cells is None:
+        cells = book.get("by_style_slot") or {}
+    return (cells.get(f"{style}|{slot_of(t)}") or {}).get("verdict", "not sure yet")
 
 
 # ---- The market's mood: SOL's move over the 24 hours before a buy ----------------------------------------------------

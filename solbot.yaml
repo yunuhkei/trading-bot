@@ -94,13 +94,16 @@ copytrade:                # needs the HELIUS_API_KEY secret
     enabled: true
     budget: 100           # its own $100 (plus or minus what it makes); other money in the wallet is never used
     per_trade: 10         # dollars a trade (about 10% of the $100, like practice's $30 of $300)
-    follow_all: true      # copy every wallet practice copies (not only the finder's approved ones)
+    follow_all: true      # copy every wallet practice copies (not only the finder's approved ones); `only` overrides it
+    only:                 # since Nov 6: real money copies ONLY these wallets (HDgh found Rocco, HIGH and NIO for practice)
+      - HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2
     max_open: 10          # coins held at once: the same room as practice ($300 / $30 = 10; here $100 / $10 = 10)
     max_cost: 0.03        # skip a buy that would cost more than 3% in fees + price impact
     stop_below: 70        # if its money (coins at today's prices) is $70 or less: sell everything and stop
     drop_after_losses: 0  # off: keep copying through losing streaks; only the $70 stop stops it
-    trade_hours: [11, 17] # real money only BUYS 11 am-5 pm Milwaukee time (midday); it still sells any time
-    playbook: true        # skip buys whose style loses at this time of day (models/wallet_styles.json, AVOID cells)
+    # trade_hours: [11, 17] # off since Nov 6 (buys 24/7); [11, 17] = only BUY 11 am-5 pm Milwaukee time
+    playbook: true        # skip buys whose style loses at this time of day; a wallet with its own record is judged by
+                          # that record only (for HDgh: skips just its quiet midday buys) (models/wallet_styles.json)
     max_daily_loss: 8     # bad-day brake: if its trades lose $8 in one day, no more buys until tomorrow
     forgive:              # wallets to copy again after a drop (each is forgiven once, with a clean record)
       - 71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp

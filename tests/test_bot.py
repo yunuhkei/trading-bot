@@ -2338,6 +2338,11 @@ def test_wallet_styles_label_each_buy_and_grade_style_by_time_of_day():
     assert book["by_style_slot"]["dip buyer|evening"] == {"n": 0}
     assert ws.verdict("pump chaser", noon - 4 * 3600, book) == "AVOID" and ws.verdict("dip buyer", noon, book) == "GO"
     assert ws.verdict("quiet buyer", noon, book) == "not sure yet" and ws.verdict(None, noon, book) == "not sure yet"
+    # each wallet's own record: a wallet with one is judged only by it; a wallet without one by everyone's
+    assert book["by_wallet"]["D"]["dip buyer|midday"]["verdict"] == "GO" and "pump chaser|morning" not in book["by_wallet"]["D"]
+    assert ws.verdict("pump chaser", noon - 4 * 3600, book, "D") == "not sure yet"
+    assert ws.verdict("pump chaser", noon - 4 * 3600, book, "P") == "AVOID"
+    assert ws.verdict("pump chaser", noon - 4 * 3600, book, "nobody") == "AVOID"
     text = ws.report_text(res)
     assert "D…D: mostly DIP BUYER (100%)" in text
     assert "GO dip buyer midday" in text and "AVOID pump chaser morning" in text and "does NOT use it yet" in text
@@ -2394,6 +2399,38 @@ def test_copier_tags_each_buy_with_its_style_and_live_can_skip_what_the_playbook
     lines = ct.style_lines(on.state)
     assert any(l.startswith("  style dip buyer: 1 trades, 1 won") for l in lines)
     assert any(l.startswith("  playbook said GO: 1 trades") for l in lines)
+
+
+def test_copy_live_can_follow_only_chosen_wallets_judged_by_their_own_record(tmp_path, monkeypatch):
+    import datetime
+    import json
+    from bot import copytrade as ct
+    from bot import solbot as sb
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "smart_wallets.json").write_text(json.dumps({"wallets": {"W1": {}, "W2": {}},
+                                                                        "approved": ["W1"]}))
+    (tmp_path / "models" / "wallet_styles.json").write_text(json.dumps({"playbook": {
+        "by_style_slot": {"dip buyer|overnight": {"n": 60, "verdict": "AVOID"}},          # everyone's overnight dips lose
+        "by_wallet": {"HD": {"quiet buyer|overnight": {"n": 30, "verdict": "AVOID"}}}}}))  # HD's own record differs
+    night = datetime.datetime(2026, 11, 2, 23, 51, tzinfo=datetime.timezone(datetime.timedelta(hours=-6))).timestamp()
+    price = [1.0]
+    moves = {"DIP": (-17, 47), "CALM": (0, 0)}
+    monkeypatch.setattr(sb, "dex_info", lambda mints: {m: {"liq": 50_000, "vol24": 1e5, "symbol": m, "age_h": 15,
+                                                           "h1": moves[m][0], "h6": moves[m][1]} for m in mints})
+    monkeypatch.setattr(sb, "safety_check", lambda mint, *a: (True, "ok"))
+    monkeypatch.setattr(sb, "prices", lambda mints: {m: {"usdPrice": price[0], "decimals": 6} for m in mints})
+    cfg = {"copytrade": {"live": {"only": ["HD"], "follow_all": True, "playbook": True}}}
+    c = ct.Copier(cfg, lambda *a: None, live=True, wallet=_FakeLiveWallet(50, price), now=lambda: night)
+    assert c.wallets == ["HD"]                                       # only HD, even though it isn't in the finder's list
+    practice = ct.Copier({"copytrade": {}}, lambda *a: None, now=lambda: night)
+    practice.others.append(c)
+    assert "HD" in practice.watched()                                # still listened to
+    c.on_swap("HD", "DIP", 100)                                      # its 11:51 pm dip buy: copied (its own record)
+    c.on_swap("HD", "CALM", 100)                                     # its own record says skip quiet overnight buys
+    assert set(c.positions) == {"DIP"} and c.state["trades"][-1]["playbook"] == "not sure yet"
+    assert ct.Copier({"copytrade": {"live": {}}}, lambda *a: None, live=True, wallet=_FakeLiveWallet(50, price),
+                     now=lambda: night).wallets == ["W1"]            # without `only`: the approved ones, as before
 
 
 def test_copy_live_bad_day_brake_stops_buying_after_the_days_limit(tmp_path, monkeypatch):
