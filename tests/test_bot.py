@@ -2509,6 +2509,13 @@ def test_copy_live_can_follow_only_chosen_wallets_judged_by_their_own_record(tmp
     assert set(c.positions) == {"DIP"} and c.state["trades"][-1]["playbook"] == "not sure yet"
     assert ct.Copier({"copytrade": {"live": {}}}, lambda *a: None, live=True, wallet=_FakeLiveWallet(50, price),
                      now=lambda: night).wallets == ["W1"]            # without `only`: the approved ones, as before
+    # switching to `only` while holding a coin another wallet bought: still copies that wallet's SELL, never its buys
+    c.state["positions"]["OLD"] = {"wallets": ["W2"], "tokens": 1.0, "cost": 1.0, "entry": 1.0, "t": night}
+    c.save()
+    c2 = ct.Copier(cfg, lambda *a: None, live=True, wallet=_FakeLiveWallet(50, price), now=lambda: night)
+    assert c2.wallets == ["HD", "W2"] and c2.buy_from == {"HD"}
+    c2.on_swap("W2", "NEWCOIN", 100)
+    assert "NEWCOIN" not in c2.positions
     # anytime: HD at every hour, the other wallets only in trade_hours
     cfg = {"copytrade": {"live": {"follow_all": True, "trade_hours": [11, 17], "anytime": ["HD"], "playbook": True}}}
     clock = [night]

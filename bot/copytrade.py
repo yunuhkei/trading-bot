@@ -103,6 +103,10 @@ class Copier:
             # anytime: wallets copied at every hour (trade_hours only limits the others); always followed
             self.anytime = list(self.cfg.get("anytime") or [])
             self.wallets += [w for w in self.anytime if w not in self.wallets]
+            # Coins it holds from wallets it no longer buys from: keep listening to those wallets for their SELLS only
+            self.buy_from = set(self.wallets)
+            for p in self.positions.values():
+                self.wallets += [w for w in p.get("wallets") or [] if w not in self.wallets]
             # forgive: wallets you put back after a drop. Each one is forgiven once, with a clean record; a later drop sticks.
             for w in list(self.cfg.get("forgive") or []):
                 dropped, forgiven = self.state.setdefault("dropped", {}), self.state.setdefault("forgiven", {})
@@ -150,6 +154,8 @@ class Copier:
         from .signals import money
 
         now = self.now()
+        if change > 0 and self.live and wallet not in getattr(self, "buy_from", {wallet}):
+            return                                       # followed only to copy its sells of coins already held
         if change > 0:                                   # a smart wallet bought
             seen = self.state.setdefault("seen", {}).setdefault(mint, [])
             seen.append([now, wallet])

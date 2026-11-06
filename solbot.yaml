@@ -94,14 +94,16 @@ copytrade:                # needs the HELIUS_API_KEY secret
     enabled: true
     budget: 100           # its own $100 (plus or minus what it makes); other money in the wallet is never used
     per_trade: 10         # dollars a trade (about 10% of the $100, like practice's $30 of $300)
-    follow_all: true      # copy every wallet practice copies (not only the finder's approved ones)
-    anytime:              # these wallets are copied at EVERY hour; the rest only in trade_hours
+    follow_all: true      # copy every wallet practice copies (not only the finder's approved ones); `only` overrides it
+    only:                 # since Nov 6 ~3 pm: real money copies ONLY HDgh (the other wallets were about even at midday)
+      - HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2
+    anytime:              # these wallets are copied at EVERY hour (and the bad-day brake doesn't stop them)
       - HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2   # HDgh: found Rocco (11:51 pm), HIGH and NIO for practice
     max_open: 10          # coins held at once: the same room as practice ($300 / $30 = 10; here $100 / $10 = 10)
     max_cost: 0.03        # skip a buy that would cost more than 3% in fees + price impact
     stop_below: 70        # if its money (coins at today's prices) is $70 or less: sell everything and stop
     drop_after_losses: 0  # off: keep copying through losing streaks; only the $70 stop stops it
-    trade_hours: [11, 17] # the other wallets: real money only BUYS 11 am-5 pm Milwaukee time; it still sells any time
+    trade_hours: [11, 17] # wallets not in `anytime`: only BUY 11 am-5 pm Milwaukee time (none while `only` is HDgh)
     playbook: true        # skip buys whose style loses at this time of day; a wallet with its own record is judged by
                           # that record only (for HDgh: skips just its quiet midday buys) (models/wallet_styles.json)
     max_daily_loss: 8     # bad-day brake: if its trades lose $8 in one day, no more buys until tomorrow (anytime wallets keep going)
