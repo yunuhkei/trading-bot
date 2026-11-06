@@ -161,7 +161,7 @@ def coinbase_hourly(product: str, start: float, end: float) -> list[list]:
                          params={"granularity": 3600, "start": datetime.fromtimestamp(t, timezone.utc).isoformat(),
                                  "end": datetime.fromtimestamp(stop, timezone.utc).isoformat()}, timeout=30)
         r.raise_for_status()
-        out += [[c[0], c[4]] for c in r.json()]
+        out += [[c[0] + 3600, c[4]] for c in r.json()]          # stamped at the hour's END: its close isn't known before
         t = stop
         time.sleep(0.3)
     return sorted(out)
@@ -169,13 +169,15 @@ def coinbase_hourly(product: str, start: float, end: float) -> list[list]:
 
 # ---- One event at one moment: what each idea does ----
 
-def quote(path: list[list], at: float) -> tuple[float, float] | None:
+def quote(path: list[list], at: float, fresh_s: float = 3600) -> tuple[float, float] | None:
+    """(YES ask, YES bid) from the last hourly candle that ended by `at`, if it ended within the hour before (an older
+    quote could be stale: the price may have moved since, and buying at it then wasn't really possible)."""
     last = None
     for ts, ask, bid in path:
         if ts is None or ts > at:
             break
-        last = (ask, bid)
-    return last if last and 0 < last[0] < 1 else None
+        last = (ts, ask, bid)
+    return (last[1], last[2]) if last and at - last[0] <= fresh_s and 0 < last[1] < 1 else None
 
 
 def snapshot(ev: dict, at: float) -> dict:

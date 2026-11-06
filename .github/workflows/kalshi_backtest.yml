@@ -16,6 +16,9 @@ on:
       kind:
         description: "Daily highs or daily lows: high / low"
         default: "high"
+      lead2:
+        description: "Add the models' two-day-ahead forecasts to the saved data and re-test: yes / no"
+        default: "no"
 permissions:
   contents: write            # saves the data and the per-city forecast corrections (models/kalshi_priors.json)
 jobs:
@@ -33,7 +36,9 @@ jobs:
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
         run: |
-          if [ "${{ inputs.walkforward }}" = "yes" ]; then
+          if [ "${{ inputs.lead2 }}" = "yes" ]; then
+            python -m bot kalshi-backtest --lead2
+          elif [ "${{ inputs.walkforward }}" = "yes" ]; then
             python -m bot kalshi-backtest --walkforward --kind "${{ inputs.kind || 'high' }}"
           elif [ "${{ inputs.sameday }}" = "yes" ]; then
             python -m bot kalshi-backtest --sameday

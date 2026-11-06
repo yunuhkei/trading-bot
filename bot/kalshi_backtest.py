@@ -56,14 +56,14 @@ def prices_at(series: str, event_ticker: str, at: datetime) -> dict[str, tuple[f
     return out
 
 
-def past_day_ahead(info: dict, start: date, end: date, kind: str = "high") -> dict[str, list[float]]:
+def past_day_ahead(info: dict, start: date, end: date, kind: str = "high", lead: int = 1) -> dict[str, list[float]]:
     """date -> each model's high for that day as forecast one day earlier."""
     import requests
     from zoneinfo import ZoneInfo
 
     for models in (k.MODELS, k.SAFE_MODELS):
         r = requests.get(PREVIOUS_RUNS, params={"latitude": info["lat"], "longitude": info["lon"],
-                                                "hourly": "temperature_2m_previous_day1", "temperature_unit": "fahrenheit",
+                                                "hourly": f"temperature_2m_previous_day{lead}", "temperature_unit": "fahrenheit",
                                                 "timezone": info["tz"], "timeformat": "unixtime", "models": ",".join(models),
                                                 "start_date": start.isoformat(), "end_date": end.isoformat()}, timeout=60)
         if r.status_code != 400:
@@ -73,9 +73,9 @@ def past_day_ahead(info: dict, start: date, end: date, kind: str = "high") -> di
     times = h.get("time", [])
     out: dict[str, dict[str, float]] = {}
     for key, vals in h.items():
-        if not key.startswith("temperature_2m_previous_day1"):
+        if not key.startswith(f"temperature_2m_previous_day{lead}"):
             continue
-        model = key[len("temperature_2m_previous_day1"):].lstrip("_") or "best_match"
+        model = key[len(f"temperature_2m_previous_day{lead}"):].lstrip("_") or "best_match"
         for t, v in zip(times, vals):
             if v is None:
                 continue
@@ -267,6 +267,37 @@ def report(rows: list[dict], strategies: dict) -> str:
                 lines.append(f"    {key}. {o['label']}: {o['trades']} trades, {o['wins']}-{o['trades'] - o['wins']}, "
                              f"{o['profit']:+,.2f} on {k.money(o['staked'])} staked ({roi:+.0%})")
     return "\n".join(lines)
+
+
+def add_two_day_forecasts(kind: str = "high") -> int:
+    """Adds "mu2"/"spread2" to the saved city-days: the models' forecast made TWO days ahead. The one-day-ahead
+    forecast for the afternoon high was made the afternoon before, a few hours after a morning buy; the two-day one
+    was surely known by then (a check that a test's edge isn't from peeking at a newer forecast)."""
+    import json
+    from pathlib import Path
+    from statistics import mean, pstdev
+
+    path = Path("data/kalshi_backtest_rows.json" if kind == "high" else f"data/kalshi_backtest_rows_{kind}.json")
+    rows = json.loads(path.read_text())
+    stations, done = {}, 0
+    for st in sorted({r["station"] for r in rows}):
+        mine = [r for r in rows if r["station"] == st]
+        try:
+            info = k.station_info(st, stations)
+            f2 = past_day_ahead(info, date.fromisoformat(min(r["day"] for r in mine)) - timedelta(days=1),
+                                date.fromisoformat(max(r["day"] for r in mine)), kind, lead=2)
+        except Exception as e:
+            log.warning("%s two-day forecasts: %s", st, e)
+            continue
+        for r in mine:
+            v = f2.get(r["day"])
+            if v:
+                r["mu2"], r["spread2"] = mean(v), pstdev(v) if len(v) > 1 else 0.0
+                done += 1
+        time.sleep(1.0)
+    path.write_text(json.dumps(rows, default=str))
+    log.warning("%s: two-day forecasts for %d of %d city-days", kind, done, len(rows))
+    return done
 
 
 def run(days: int = 14, save: bool = True, kind: str = "high"):

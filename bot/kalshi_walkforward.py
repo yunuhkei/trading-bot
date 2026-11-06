@@ -239,9 +239,12 @@ def breakdown(cdhs: list[dict], rule: dict | None = None) -> list[str]:
     return out
 
 
-def report(rows: list[dict], paths: dict) -> tuple[str, dict]:
+def report(rows: list[dict], paths: dict, lead: int = 1) -> tuple[str, dict]:
+    """lead=2: the weather models' forecasts made two days ahead instead of one (surely known before any buy)."""
     from .kalshi_backtest import corrected
 
+    if lead == 2:
+        rows = [{**r, "mu": r["mu2"], "spread": r["spread2"]} for r in rows if "mu2" in r]
     rs = corrected(rows)
     cdhs = [x for x in (city_days(r, paths) for r in rs) if x]
     days = sorted({next(iter(x.values()))["day"] for x in cdhs})
@@ -280,7 +283,10 @@ def run(collect: bool = True, save: bool = True, kind: str = "high"):
         paths = collect_paths(rows) if collect else json.loads(PATHS.read_text())
         if save and collect:
             PATHS.write_text(json.dumps(paths, separators=(",", ":")))
-    text, _ = report([r for r in rows if r["event"]["event_ticker"] in paths], paths)
+    use = [r for r in rows if r["event"]["event_ticker"] in paths]
+    text, _ = report(use, paths)
+    if any("mu2" in r for r in use):
+        text += "\n\nSAME TEST, with the models' forecasts made two days ahead (surely known before every buy):\n" + report(use, paths, lead=2)[0]
     text = ("DAILY LOWS. " if kind == "low" else "") + text
     print(text, flush=True)
     target = alert_target()
