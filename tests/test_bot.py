@@ -2431,6 +2431,18 @@ def test_copy_live_can_follow_only_chosen_wallets_judged_by_their_own_record(tmp
     assert set(c.positions) == {"DIP"} and c.state["trades"][-1]["playbook"] == "not sure yet"
     assert ct.Copier({"copytrade": {"live": {}}}, lambda *a: None, live=True, wallet=_FakeLiveWallet(50, price),
                      now=lambda: night).wallets == ["W1"]            # without `only`: the approved ones, as before
+    # anytime: HD at every hour, the other wallets only in trade_hours
+    cfg = {"copytrade": {"live": {"follow_all": True, "trade_hours": [11, 17], "anytime": ["HD"], "playbook": True}}}
+    clock = [night]
+    m = ct.Copier(cfg, lambda *a: None, live=True, wallet=_FakeLiveWallet(50, price), now=lambda: clock[0])
+    m.state["positions"] = m.positions = {}
+    assert m.wallets == ["W1", "W2", "HD"]
+    m.on_swap("W1", "CALM", 100)                                     # 11:51 pm: not W1's hours
+    m.on_swap("HD", "DIP", 100)                                      # HD: any hour
+    assert set(m.positions) == {"DIP"}
+    clock[0] = night - 11 * 3600 - 51 * 60 + 60 * 60                 # 1 pm
+    m.on_swap("W1", "CALM", 100)
+    assert set(m.positions) == {"DIP", "CALM"}
 
 
 def test_copy_live_bad_day_brake_stops_buying_after_the_days_limit(tmp_path, monkeypatch):

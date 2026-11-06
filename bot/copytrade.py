@@ -100,6 +100,9 @@ class Copier:
             self.wallets = (list(self.cfg.get("only") or []) or
                             (list((data.get("wallets") or {}))[: int(self.cfg["follow"])] if self.cfg.get("follow_all")
                              else list(data.get("approved") or [])))
+            # anytime: wallets copied at every hour (trade_hours only limits the others); always followed
+            self.anytime = list(self.cfg.get("anytime") or [])
+            self.wallets += [w for w in self.anytime if w not in self.wallets]
             # forgive: wallets you put back after a drop. Each one is forgiven once, with a clean record; a later drop sticks.
             for w in list(self.cfg.get("forgive") or []):
                 dropped, forgiven = self.state.setdefault("dropped", {}), self.state.setdefault("forgiven", {})
@@ -175,7 +178,8 @@ class Copier:
             if self.live:
                 dropping = int(self.cfg.get("drop_after_losses") or 0)
                 if (self.state.get("halted") or (dropping and (self.state.get("dropped") or {}).get(wallet))
-                        or len(self.positions) >= int(self.cfg["max_open"]) or not self.in_trade_hours()):
+                        or len(self.positions) >= int(self.cfg["max_open"])
+                        or not (wallet in self.anytime or self.in_trade_hours())):
                     return
                 try:
                     self.wallet.refresh()                # the real balance now (refills count right away)
