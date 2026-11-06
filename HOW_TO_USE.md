@@ -342,10 +342,23 @@ whole set of brackets costs less than it must pay out after fees, it buys the se
 - One pattern held in every third of the test: **the market's favorite bracket for tomorrow at 60-80¢ won 75% of the
   time** (120 trades, +12% after fees). Cheap long shots were overpriced too (betting NO on them: +5%, smaller test).
 
-So there are 5 strategies side by side, each with its own pretend $100 (the Thursday 3 pm scoreboard compares them):
+**The bigger test (Nov 6: 1,423 settled city-days, Sep 7 - Nov 5).** With 60 days instead of 21, the favorites' edge
+mostly went away: bought the way the live bot buys (the first hourly check when the favorite costs 60-80¢), A made +0%
+on 539 trades (won 65%; it needs about 66% at these prices). Favorites at 70-80¢ won only 52% (-31%). A walk-forward test
+(`kalshi-backtest` with walk-forward: yes; each idea's setting picked on earlier days only, judged on later days) tried
+ways to improve it:
+- **Agreement passed:** buy the favorite only when the weather models' most likely bracket is the same one: +5% on 347
+  trades (+$80 vs A's +$2). The favorites the models disagreed with won 59% and lost $73. Not in every stretch, though
+  (in the last third of the test it did about the same as A), so it practices as F before it can be the main one.
+- Only 60-65¢ favorites: +1% (practices as G). Skipping cities whose forecasts miss, a minimum gap between the models'
+  chance and the price, taking profit early, and buying only at certain hours all did no better than A.
+
+So there are 7 strategies side by side, each with its own pretend $100 (the Thursday 3 pm scoreboard compares them):
 - **A. Market favorites** (pings your phone): YES on tomorrow's favorite bracket when it costs 60-80¢.
 - B. Weather models (7 forecasts averaged, corrected per city, 10¢+ edge) | C. Model favorites (60¢+ only) |
-  D. Late-day sure things (today after 3 pm) | E. Fade long shots (NO at 80¢+). These trade quietly.
+  D. Late-day sure things (today after 3 pm) | E. Fade long shots (NO at 80¢+) | **F. Favorites the models agree
+  with** | G. Cheaper favorites (60-65¢). These trade quietly. The `kalshi-status` workflow prints every strategy's
+  settled trades.
 
 For today's markets the bot knows the high so far exactly: the higher of every station report (incl. the 6-hour highs)
 and the Iowa Environmental Mesonet's running high matched Kalshi's official high on all 480 test days.

@@ -499,13 +499,21 @@ STRATEGIES = {
     "C": {"label": "Model favorites", "rules": {"min_price": 0.60, "max_price": 0.95, "min_edge": 0.05}},
     "D": {"label": "Late-day sure things", "rules": {"when": "late", "min_price": 0.50, "min_edge": 0.04}},
     "E": {"label": "Fade long shots", "rules": {"side": "no", "min_price": 0.80, "min_edge": 0.04}},
+    # From the walk-forward test (bot/kalshi_walkforward.py, 1,423 city-days Sep 7 - Nov 5, settings picked on earlier
+    # days only): A made +0% on 539 held-out trades; buying the favorite only when the weather models pick the same
+    # bracket made +5% on 347 (the favorites the models disagree with won 59% at ~63c: -$73), and only 60-65c +1%.
+    "F": {"label": "Favorites the models agree with", "rules": {"pick": "favorite", "when": "tomorrow", "agree": True,
+                                                               "min_price": 0.60, "max_price": 0.80, "hit_rate": 0.68}},
+    "G": {"label": "Cheaper favorites (60-65c)", "rules": {"pick": "favorite", "when": "tomorrow", "min_price": 0.60,
+                                                         "max_price": 0.65, "hit_rate": 0.65}},
 }
 LINEUP = 2          # bump when the lineup changes: the practice accounts start over so old bets don't count
 
 
-def favorite_idea(e: dict, rules: dict) -> list[dict]:
+def favorite_idea(e: dict, rules: dict, view: dict | None = None) -> list[dict]:
     """YES on the bracket the market likes most (highest mid price), if it costs between min and max price: in the
-    backtest, favorites at 60-80c won 75% of the time (90 of 120), more than their price."""
+    backtest, favorites at 60-80c won 75% of the time (90 of 120), more than their price. With `agree`, only when the
+    weather models' most likely bracket (from `view`) is the same one."""
     ms = [m for m in e.get("markets") or [] if 0 < _f(m.get("yes_ask_dollars")) < 1 and 0 < _f(m.get("no_ask_dollars")) < 1]
     if not ms:
         return []
@@ -513,10 +521,19 @@ def favorite_idea(e: dict, rules: dict) -> list[dict]:
     price, size, hit = _f(f["yes_ask_dollars"]), _f(f.get("yes_ask_size_fp")), float(rules.get("hit_rate", 0.75))
     if not (float(rules.get("min_price", 0.60)) <= price <= float(rules.get("max_price", 0.80))) or size < 1:
         return []
+    why = f"the market's favorite; in the backtest favorites at 60-80¢ won {hit:.0%} of the time"
+    if rules.get("agree"):
+        if not view:
+            return []
+        chance = {m["ticker"]: bracket_prob(m, view["mu"], view["sigma"], view.get("floor")) for m in e.get("markets") or []}
+        chance = {t: p for t, p in chance.items() if not math.isnan(p)}
+        if not chance or max(chance, key=chance.get) != f["ticker"]:
+            return []
+        why = (f"the market's favorite, and the weather models pick it too ({chance[f['ticker']]:.0%}, {view['why']}); "
+               f"in the walk-forward test those won {hit:.0%}")
     return [{"kind": "weather", "event": e["event_ticker"], "ticker": f["ticker"], "side": "yes", "price": price,
              "size": size, "fair": hit, "edge": hit - price - fee(price),
-             "title": f"{e.get('title', '').replace('?', '')}: {f.get('yes_sub_title')}",
-             "why": f"the market's favorite; in the backtest favorites at 60-80¢ won {hit:.0%} of the time"}]
+             "title": f"{e.get('title', '').replace('?', '')}: {f.get('yes_sub_title')}", "why": why}]
 
 
 def ideas_from_views(views: list[tuple[dict, dict]], rules: dict) -> list[dict]:
@@ -530,7 +547,7 @@ def ideas_from_views(views: list[tuple[dict, dict]], rules: dict) -> list[dict]:
         if (when == "late" and not view.get("late")) or (when == "tomorrow" and not view.get("tomorrow")):
             continue
         if rules.get("pick") == "favorite":
-            ideas += favorite_idea(e, rules)
+            ideas += favorite_idea(e, rules, view)
             continue
         for m in e.get("markets") or []:
             p = bracket_prob(m, view["mu"], view["sigma"] * mult, view["floor"])

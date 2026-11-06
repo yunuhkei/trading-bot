@@ -1556,11 +1556,17 @@ def test_kalshi_strategies_follow_their_own_rules_and_keep_their_own_accounts(tm
     assert ("MID", "yes") in pick("C") and all(i["price"] >= 0.60 for i in fav)       # favorites: 60c+ sides only
     assert pick("D") == [] and pick("D", late=True)                                  # late-day only after 3 pm today
     assert pick("E") and all(side == "no" for _, side in pick("E"))                  # fade: NO only
+    assert pick("F") == [("MID", "yes")] and pick("G") == [("MID", "yes")]           # the models agree; 62c is in 60-65c
+    warm = {**view, "mu": 73.5}                                                      # the models now favor HIGH
+    assert k.ideas_from_views([(ev, warm)], rules["A"]) and not k.ideas_from_views([(ev, warm)], rules["F"])
+    pricey = {**ev, "markets": [ev["markets"][0], {**ev["markets"][1], "yes_ask_dollars": "0.70", "no_ask_dollars": "0.32"},
+                                ev["markets"][2]]}
+    assert k.ideas_from_views([(pricey, view)], rules["A"]) and not k.ideas_from_views([(pricey, view)], rules["G"])
     monkeypatch.setattr(k, "weather_views", lambda events, now, state: [(ev, view)])
     told = []
     k.step({"mode": "practice", "practice_cash": 100}, lambda t, m: told.append(t), events=[ev])
     state = json.loads(Path("kalshi_state_practice.json").read_text())
-    assert state["positions"] and set(state["variants"]) == {"B", "C", "D", "E"}
+    assert state["positions"] and set(state["variants"]) == {"B", "C", "D", "E", "F", "G"}
     assert state["variants"]["E"]["positions"] and all(p["side"] == "no" for p in state["variants"]["E"]["positions"].values())
     assert sum("Kalshi: bought" in t for t in told) == len(state["positions"])        # only A pings per trade
     title, msg = k.scoreboard(state, k.strategies({}))

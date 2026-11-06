@@ -18,6 +18,8 @@ arb_margin: 0.02          # arbitrage: the set must pay at least 2¢ more than i
 # A Market favorites: YES on tomorrow's favorite bracket at 60-80c (120 trades, 75% won, +12%; positive in every third)
 # B Weather models (-11%) | C Model favorites (60c+, about even) | D Late-day sure things (today after 3 pm)
 # E Fade long shots (NO at 80c+ on overpriced cheap YES brackets, +5%).
+# Walk-forward test, 1,423 city-days (Sep 7 - Nov 5): A bought like the live bot made +0% (539 trades); 70-80c
+# favorites won only 52%. F Favorites the models agree with: +5% (347 trades) | G Cheaper favorites (60-65c): +1%.
 # Override or add one like:  strategies: {F: {label: "My idea", rules: {min_edge: 0.2, sigma_mult: 1.2}}}
 report_at: "15:00"        # the scoreboard: every Thursday at 3 pm Milwaukee time
 report_days: [Thursday]
