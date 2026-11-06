@@ -198,14 +198,17 @@ class Copier:
                     log.warning("%splaybook skips %s (%s, this time of day loses)", self.tag, name, style)
                     return
                 brake = float(self.cfg.get("max_daily_loss") or 0)
-                if brake and self.lost_today() >= brake:
+                # the brake stops every wallet except the `anytime` ones (their winners can come late in a bad day)
+                if brake and wallet not in self.anytime and self.lost_today() >= brake:
                     from .wallet_styles import date_of
 
                     if self.state.get("brake_day") != date_of(now):
                         self.state["brake_day"] = date_of(now)
-                        self.tell(f"{self.tag}bad-day brake: no more buys today",
+                        still = ", ".join(f"{w[:4]}…{w[-4:]}" for w in self.anytime)
+                        self.tell(f"{self.tag}bad-day brake: no more buys today" + (f" (except {still})" if still else ""),
                                   f"Its trades lost {money(self.lost_today())} today (limit {money(brake)}), so it stops "
-                                  "buying until tomorrow. Coins it holds are still sold by the usual rules.")
+                                  "buying until tomorrow" + (f", except from {still}, which it keeps copying" if still else "")
+                                  + ". Coins it holds are still sold by the usual rules.")
                     return
             usd = min(float(self.cfg["per_trade"]), self.wallet.cash())
             if usd < 5 or not info or info.get("liq", 0) < float(self.cfg["min_liquidity"]):
@@ -584,7 +587,7 @@ def status_text(now: float | None = None) -> str:
             from .wallet_styles import date_of
 
             if st.get("brake_day") == date_of(now):
-                out.append("  BAD-DAY BRAKE on: no more buys today")
+                out.append("  BAD-DAY BRAKE on: no more buys today (except the anytime wallets)")
             sells = [t for t in st.get("trades", []) if t["action"] == "SELL"]
             for t in sells[-8:]:
                 out.append(f"  sold {t.get('what')}: {t.get('result', 0):+.1%} on ${t.get('usd', 0):.2f} ({when(t['t'])})")

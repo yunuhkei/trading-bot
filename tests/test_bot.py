@@ -2460,7 +2460,7 @@ def test_copy_live_bad_day_brake_stops_buying_after_the_days_limit(tmp_path, mon
     monkeypatch.setattr(sb, "safety_check", lambda mint, *a: (True, "ok"))
     monkeypatch.setattr(sb, "prices", lambda mints: {m: {"usdPrice": price[0], "decimals": 6} for m in mints})
     told = []
-    c = ct.Copier({"copytrade": {"live": {"max_daily_loss": 5}}}, lambda t, m: told.append(t), live=True,
+    c = ct.Copier({"copytrade": {"live": {"max_daily_loss": 5, "anytime": ["HD"]}}}, lambda t, m: told.append(t), live=True,
                   wallet=_FakeLiveWallet(50, price), now=lambda: clock[0])
     for coin in ("A", "B"):                                          # two $6 trades that halve: -$6 today
         price[0] = 1.0
@@ -2472,6 +2472,9 @@ def test_copy_live_bad_day_brake_stops_buying_after_the_days_limit(tmp_path, mon
     c.on_swap("W1", "C", 100)
     c.on_swap("W1", "D", 100)
     assert not c.positions and sum("bad-day brake" in t for t in told) == 1  # no buys, one ping
+    assert "except HD…HD" in told[-1]
+    c.on_swap("HD", "H", 100)                                        # an anytime wallet keeps being copied
+    assert set(c.positions) == {"H"}
     clock[0] += 86400                                                # tomorrow: buying again
     c.on_swap("W1", "E", 100)
     assert "E" in c.positions and c.lost_today() == 0
