@@ -95,9 +95,10 @@ def iem_highs(st: str, info: dict, months: set[tuple[int, int]]) -> dict[str, fl
     return out
 
 
-def collect(days: int = 14, series: list[str] | None = None, budget_s: float = 2400) -> list[dict]:
+def collect(days: int = 14, series: list[str] | None = None, budget_s: float = 2400, skip: set | None = None) -> list[dict]:
     """Every settled city-day: its markets with day-before prices and results, the models' day-ahead forecasts, and
-    the real high."""
+    the real high. `skip`: event tickers already collected (not read again)."""
+    skip = skip or set()
     from statistics import mean, pstdev
 
     t0, state = time.time(), {}
@@ -122,6 +123,8 @@ def collect(days: int = 14, series: list[str] | None = None, budget_s: float = 2
             log.warning("%s: %s", s, e)
             continue
         for e in evs:
+            if e["event_ticker"] in skip:
+                continue
             ms = [m for m in e.get("markets") or [] if m.get("result") in ("yes", "no")]
             day = k.event_day(e["event_ticker"])
             st = k.station_of((ms[0] if ms else {}).get("rules_primary", ""))
@@ -264,7 +267,11 @@ def run(days: int = 14, save: bool = True):
 
     from .signals import alert_target, notify
 
-    rows = collect(days)
+    saved = Path("data/kalshi_backtest_rows.json")
+    old = json.loads(saved.read_text()) if saved.exists() else []      # add to what's saved: the test keeps growing
+    new = collect(days, skip={r["event"]["event_ticker"] for r in old})
+    rows = sorted({r["event"]["event_ticker"]: r for r in old + new}.values(), key=lambda r: (r["day"], r["station"]))
+    log.warning("%d city-days saved before, %d new, %d in all", len(old), len(new), len(rows))
     if save and rows:                  # keep the data (re-test ideas in seconds) and seed the live bot's per-city learning
         Path("data").mkdir(exist_ok=True)
         Path("data/kalshi_backtest_rows.json").write_text(json.dumps(rows, default=str))
