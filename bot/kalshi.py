@@ -521,7 +521,8 @@ def favorite_idea(e: dict, rules: dict, view: dict | None = None) -> list[dict]:
     price, size, hit = _f(f["yes_ask_dollars"]), _f(f.get("yes_ask_size_fp")), float(rules.get("hit_rate", 0.75))
     if not (float(rules.get("min_price", 0.60)) <= price <= float(rules.get("max_price", 0.80))) or size < 1:
         return []
-    why = f"the market's favorite; in the backtest favorites at 60-80¢ won {hit:.0%} of the time"
+    lo, hi = float(rules.get("min_price", 0.60)), float(rules.get("max_price", 0.80))
+    why = f"the market's favorite; in the backtest favorites at {lo * 100:.0f}-{hi * 100:.0f}¢ won {hit:.0%} of the time"
     if rules.get("agree"):
         if not view:
             return []
