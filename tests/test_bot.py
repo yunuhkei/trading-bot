@@ -1940,12 +1940,14 @@ def test_kalshi_walk_forward_picks_settings_on_earlier_days_only_and_can_take_pr
     cost, back, won = w.outcome(cds[0], take=0.90)                   # sold at the 92c bid, not held to $1
     assert won and abs(back - (7 * 0.92 - w.k.fee(0.92, 7))) < 1e-9 and cost > 4
     assert w.outcome(cds[1])[1] == 0                                 # held: lost
-    wf = w.walk_forward(cds)
+    cdhs = [{12: c} for c in cds]
+    assert w.pick(cdhs[0], {"hours": (13, 23)}) is None and w.pick(cdhs[0], {})["hour"] == 12
+    wf = w.walk_forward(cdhs)
     held_days = {t[0] for t in wf["A"]["trades"]}
     assert min(held_days) == cds[w.WARMUP_DAYS]["day"]               # the warm-up days are never judged
     a, agree = w.summary(wf["A"]["trades"]), w.summary(wf["agree"]["trades"])
     assert a["n"] == 13 and agree["n"] == 6 and agree["won"] == 6 and agree["profit"] > a["profit"]
-    picked = w.walk_forward(cds, {"take": w.IDEAS["take"]})["take"]
+    picked = w.walk_forward(cdhs, {"take": w.IDEAS["take"]})["take"]
     assert picked["setting"] in ({"take": 0.85}, {"take": 0.9})       # every bid spiked to 92c: selling there paid
 
 

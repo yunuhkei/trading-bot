@@ -139,8 +139,16 @@ def buys(c: dict, rule: dict) -> bool:
 
 # ---- Ideas and their settings ----
 
+HOURS = range(9, 24)            # the live bot checks about hourly; tomorrow's markets open mid-morning the day before
+ALL_DAY = (9, 23)
+
 IDEAS = {
-    "A": {"label": "Market favorites (now)", "base": {}, "grid": [{}]},
+    "A": {"label": "Market favorites (now: buys the first time the favorite is 60-80c)", "base": {}, "grid": [{}]},
+    "when": {"label": "Buy only at certain hours the day before", "base": {},
+             "grid": [{"hours": h} for h in ((9, 12), (9, 14), (12, 16), (15, 19), (18, 23), ALL_DAY)]},
+    "band": {"label": "Only some of the 60-80c price range", "base": {},
+             "grid": [{"min_price": lo, "max_price": hi} for lo, hi in ((0.60, 0.65), (0.65, 0.70), (0.65, 0.80),
+                                                                       (0.60, 0.70), (0.60, 0.80))]},
     "agree": {"label": "Agreement (A + models pick the same bracket)", "base": {"agree": True}, "grid": [{}]},
     "gap": {"label": "Models' chance beats the price by a gap", "base": {},
             "grid": [{"gap": g} for g in (0.10, 0.05, 0.0, -0.05, -0.10)]},
@@ -148,19 +156,37 @@ IDEAS = {
                "grid": [{"max_err": e} for e in (1.5, 2.0, 2.5, 3.0, 99)]},
     "take": {"label": "Take profit early", "base": {},
              "grid": [{"take": x} for x in (0.85, 0.90, 0.95, None)]},
-    "agree+take": {"label": "Agreement + take profit", "base": {"agree": True},
-                   "grid": [{"take": x} for x in (0.85, 0.90, 0.95, None)]},
 }
 
 
-def day_trades(cs: list[dict], rule: dict) -> list[tuple[float, float, bool]]:
-    return [outcome(c, rule.get("take")) for c in cs if buys(c, rule)]
+def city_days(r: dict, paths: dict) -> dict[int, dict]:
+    """hour (Central, the day before) -> the city-day as it looked then."""
+    out = {}
+    for h in HOURS:
+        c = city_day(r, paths, h)
+        if c:
+            out[h] = c
+    return out
 
 
-def walk_forward(cds: list[dict], ideas: dict = IDEAS) -> dict:
+def pick(cdh: dict[int, dict], rule: dict) -> dict | None:
+    """The first hour in the rule's window when it would buy (like the live bot's hourly checks), or None."""
+    lo, hi = rule.get("hours", ALL_DAY)
+    for h in sorted(cdh):
+        if lo <= h <= hi and buys(cdh[h], rule):
+            return {**cdh[h], "hour": h}
+    return None
+
+
+def day_trades(cdhs: list[dict], rule: dict) -> list[tuple[float, float, bool]]:
+    return [outcome(c, rule.get("take")) for c in (pick(x, rule) for x in cdhs) if c]
+
+
+def walk_forward(cdhs: list[dict[int, dict]], ideas: dict = IDEAS) -> dict:
     """Each idea's held-out record: on each day after the warm-up, the setting that made the most on earlier days."""
-    days = sorted({c["day"] for c in cds})
-    by_day = {d: [c for c in cds if c["day"] == d] for d in days}
+    day_of = lambda x: next(iter(x.values()))["day"]
+    days = sorted({day_of(x) for x in cdhs if x})
+    by_day = {d: [x for x in cdhs if x and day_of(x) == d] for d in days}
     out = {}
     for key, idea in ideas.items():
         rules = [{**idea["base"], **g} for g in idea["grid"]]
@@ -191,28 +217,49 @@ def summary(trades: list[tuple]) -> dict:
             "roi": (back - cost) / cost if cost else 0.0, "days": len(by_day), "without_best_day": back - cost - best_day}
 
 
+def breakdown(cdhs: list[dict], rule: dict | None = None) -> list[str]:
+    """Where A's money comes from over every city-day: by price, by the hour it buys, and its best and worst cities."""
+    rule = rule or {}
+    bought = [c for c in (pick(x, rule) for x in cdhs) if c]
+    rows = [(c, *outcome(c, rule.get("take"))) for c in bought]
+    line = lambda name, rs: (f"{name}: {len(rs)} trades, won {sum(r[3] for r in rs) / len(rs):.0%}, "
+                             f"{sum(r[2] - r[1] for r in rs):+.2f} ({sum(r[2] - r[1] for r in rs) / sum(r[1] for r in rs):+.0%})"
+                             if rs else f"{name}: none")
+    out = ["  by price: " + " | ".join(line(n, [r for r in rows if lo <= r[0]["price"] < hi])
+                                       for n, lo, hi in (("60-65c", 0.60, 0.65), ("65-70c", 0.65, 0.70), ("70-80c", 0.70, 0.81)))]
+    out.append("  by when it buys (the day before): " + " | ".join(
+        line(n, [r for r in rows if lo <= r[0]["hour"] <= hi])
+        for n, lo, hi in (("9-11 am", 9, 11), ("noon-2", 12, 14), ("3-5 pm", 15, 17), ("6-8 pm", 18, 20), ("9-11 pm", 21, 23))))
+    cities = {}
+    for r in rows:
+        cities.setdefault(r[0]["station"], []).append(r)
+    ranked = sorted(cities.items(), key=lambda kv: sum(r[2] - r[1] for r in kv[1]))
+    out.append("  worst cities: " + ", ".join(f"{st} {sum(r[2] - r[1] for r in rs):+.2f} ({len(rs)})" for st, rs in ranked[:4]))
+    out.append("  best cities: " + ", ".join(f"{st} {sum(r[2] - r[1] for r in rs):+.2f} ({len(rs)})" for st, rs in ranked[-4:][::-1]))
+    return out
+
+
 def report(rows: list[dict], paths: dict) -> tuple[str, dict]:
     from .kalshi_backtest import corrected
 
     rs = corrected(rows)
-    lines = [f"Kalshi walk-forward test: {len(rs)} settled city-days ({rs[0]['day']} to {rs[-1]['day']}), $5 a trade; "
-             f"the first {WARMUP_DAYS} days only teach, every later day is judged with settings picked on earlier days."]
+    cdhs = [x for x in (city_days(r, paths) for r in rs) if x]
+    days = sorted({next(iter(x.values()))["day"] for x in cdhs})
+    held = days[WARMUP_DAYS:]
+    half = held[len(held) // 2] if held else ""
+    lines = [f"Kalshi walk-forward test: {len(cdhs)} settled city-days with hourly prices ({days[0]} to {days[-1]}), $5 a "
+             f"trade. The first {WARMUP_DAYS} days only teach; each of the {len(held)} later days is judged with settings "
+             f"picked on the days before it.",
+             "", "A (the live main strategy) over every city-day:", *breakdown(cdhs), "", "Held-out results:"]
     res = {}
-    for hour in (12, 18):
-        cds = [c for c in (city_day(r, paths, hour) for r in rs) if c]
-        wf = walk_forward(cds)
-        days = sorted({c["day"] for c in cds})[WARMUP_DAYS:]
-        half = days[len(days) // 2] if days else ""
-        lines.append(f"\nBuying at {hour % 12 or 12} {'pm' if hour >= 12 else 'am'} Central the day before "
-                     f"({len(days)} held-out days, {days[0] if days else '-'} to {days[-1] if days else '-'}):")
-        for key, o in wf.items():
-            s = summary(o["trades"])
-            a = summary([t for t in o["trades"] if t[0] < half])
-            b = summary([t for t in o["trades"] if t[0] >= half])
-            res[(hour, key)] = {**s, "first": a, "second": b, "setting": o["setting"]}
-            lines.append(f"  {key}. {o['label']}: {s['n']} trades, {s['won']}-{s['n'] - s['won']}, {s['profit']:+,.2f} "
-                         f"({s['roi']:+.0%}); first half {a['profit']:+.2f} ({a['n']}), second half {b['profit']:+.2f} "
-                         f"({b['n']}); without its best day {s['without_best_day']:+.2f}; setting now {o['setting'] or 'none'}")
+    for key, o in walk_forward(cdhs).items():
+        s = summary(o["trades"])
+        a = summary([t for t in o["trades"] if t[0] < half])
+        b = summary([t for t in o["trades"] if t[0] >= half])
+        res[key] = {**s, "first": a, "second": b, "setting": o["setting"], "picked": o["picked"]}
+        lines.append(f"  {key}. {o['label']}: {s['n']} trades, {s['won']}-{s['n'] - s['won']}, {s['profit']:+,.2f} "
+                     f"({s['roi']:+.0%}); first half {a['profit']:+.2f} ({a['n']}), second half {b['profit']:+.2f} "
+                     f"({b['n']}); without its best day {s['without_best_day']:+.2f}; setting now {o['setting'] or 'none'}")
     return "\n".join(lines), res
 
 
