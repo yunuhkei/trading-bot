@@ -1912,6 +1912,43 @@ def test_smart_wallet_search_reads_the_bottom_then_each_big_buyers_own_history(m
     assert set(smart) == {"SMART"} and smart["SMART"]["x"] > 3
 
 
+def test_kalshi_walk_forward_picks_settings_on_earlier_days_only_and_can_take_profit():
+    from datetime import date, timedelta
+
+    from bot import kalshi_walkforward as w
+
+    def day_row(d, fav_wins, models_agree):
+        mk = lambda t, lo, res: {"ticker": t, "strike_type": "between", "floor_strike": lo, "cap_strike": lo + 1,
+                                 "result": res}
+        ev = {"event_ticker": f"KXHIGHX-{d}", "markets": [mk(f"{d}-A", 70, "yes" if fav_wins else "no"),
+                                                          mk(f"{d}-B", 72, "no" if fav_wins else "yes")]}
+        return {"event": ev, "station": "KXXX", "day": d, "mu": 70.5 if models_agree else 72.5, "spread": 0.0,
+                "bias": 0.0, "err": 1.0}
+
+    start = date(2026, 10, 1)
+    rows, paths = [], {}
+    for n in range(20):
+        d = (start + timedelta(days=n)).isoformat()
+        agree = n % 2 == 0                      # the favorite wins exactly when the models agree with it
+        rows.append(day_row(d, agree, agree))
+        at = w.entry_time(d, 12)
+        paths[f"KXHIGHX-{d}"] = {f"{d}-A": [[at - 60, 0.65, 0.63], [at + 3600 * 20, 0.66, 0.92]],
+                                 f"{d}-B": [[at - 60, 0.30, 0.28]]}
+    cds = [w.city_day(r, paths, 12) for r in rows]
+    assert cds[0]["fav"].endswith("-A") and cds[0]["price"] == 0.65 and cds[0]["model_top"] == cds[0]["fav"]
+    assert cds[1]["model_top"] != cds[1]["fav"]
+    cost, back, won = w.outcome(cds[0], take=0.90)                   # sold at the 92c bid, not held to $1
+    assert won and abs(back - (7 * 0.92 - w.k.fee(0.92, 7))) < 1e-9 and cost > 4
+    assert w.outcome(cds[1])[1] == 0                                 # held: lost
+    wf = w.walk_forward(cds)
+    held_days = {t[0] for t in wf["A"]["trades"]}
+    assert min(held_days) == cds[w.WARMUP_DAYS]["day"]               # the warm-up days are never judged
+    a, agree = w.summary(wf["A"]["trades"]), w.summary(wf["agree"]["trades"])
+    assert a["n"] == 13 and agree["n"] == 6 and agree["won"] == 6 and agree["profit"] > a["profit"]
+    picked = w.walk_forward(cds, {"take": w.IDEAS["take"]})["take"]
+    assert picked["setting"] in ({"take": 0.85}, {"take": 0.9})       # every bid spiked to 92c: selling there paid
+
+
 def test_kalshi_shows_what_each_open_bet_would_sell_for_now():
     from bot import kalshi as k
     acct = {"positions": {"T1": {"title": "NYC 70-71", "side": "yes", "price": 0.60, "count": 8, "cost": 4.94},

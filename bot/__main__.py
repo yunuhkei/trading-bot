@@ -216,7 +216,10 @@ def cmd_kalshi_backtest(args, cfg):
     import logging
 
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
-    if args.sameday:
+    if args.walkforward:
+        from .kalshi_walkforward import run
+        run()
+    elif args.sameday:
         from .kalshi_sameday import run
         run()
     else:
@@ -394,6 +397,8 @@ def main(argv=None):
     kb = sub.add_parser("kalshi-backtest", help="test the Kalshi weather strategies on settled markets")
     kb.add_argument("--days", type=int, default=14)
     kb.add_argument("--sameday", action="store_true", help="same-day trading: collect readings + day-of prices, then test")
+    kb.add_argument("--walkforward", action="store_true",
+                    help="walk-forward test of ideas to improve the main strategy (collects hourly prices first)")
     sw = sub.add_parser("smart-wallets", help="find wallets that bought bottoms and sold tops on several young coins")
     sw.add_argument("--settings", default="solbot.yaml")
     sw.add_argument("--rescore", action="store_true", help="only re-score the saved wallets' full records (approved list)")

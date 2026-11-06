@@ -10,6 +10,9 @@ on:
       sameday:
         description: "Same-day test instead (station readings + day-of prices for the saved city-days): yes / no"
         default: "no"
+      walkforward:
+        description: "Walk-forward test of ideas to improve the main strategy instead: yes / no"
+        default: "no"
 permissions:
   contents: write            # saves the data and the per-city forecast corrections (models/kalshi_priors.json)
 jobs:
@@ -27,7 +30,9 @@ jobs:
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
         run: |
-          if [ "${{ inputs.sameday }}" = "yes" ]; then
+          if [ "${{ inputs.walkforward }}" = "yes" ]; then
+            python -m bot kalshi-backtest --walkforward
+          elif [ "${{ inputs.sameday }}" = "yes" ]; then
             python -m bot kalshi-backtest --sameday
           else
             python -m bot kalshi-backtest --days "${{ inputs.days || '14' }}"
