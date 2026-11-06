@@ -200,15 +200,8 @@ def trade(side: str, price: float, won: bool) -> tuple[float, float, bool] | Non
     return count * price + k.fee(price, count), (count if won else 0.0), won
 
 
-def idea(ev: dict, rule: dict, view: tuple[float, float] | None) -> tuple[float, float, bool] | None:
-    """The trade one idea makes on this event (or None)."""
-    at = ev["close"] - rule.get("hours", 6) * 3600
-    if at < ev["open"]:
-        return None
-    q = snapshot(ev, at)
-    if not q:
-        return None
-    result = {m["ticker"]: m["result"] for m in ev["markets"]}
+def choose(ev: dict, rule: dict, view: tuple[float, float] | None, q: dict) -> tuple[str, str, float, float] | None:
+    """(ticker, side, price, the chance it's worth) that one idea buys on this event at these quotes, or None."""
     kind = rule["kind"]
     if kind == "fav":
         if not exhaustive(ev):
@@ -217,16 +210,14 @@ def idea(ev: dict, rule: dict, view: tuple[float, float] | None) -> tuple[float,
         ask = q[fav][0]
         if not (rule.get("min_price", 0.60) <= ask <= rule.get("max_price", 0.80)):
             return None
-        return trade("yes", ask, result.get(fav) == "yes")
+        return fav, "yes", ask, rule.get("hit_rate", 0.70)
     if kind == "longshot":
         best = None
         for t, (ask, bid) in q.items():
             no_ask = round(1 - bid, 4)
             if 0 < bid <= rule.get("max_yes", 0.10) and no_ask < 0.99 and (best is None or bid < best[1]):
                 best = (t, bid, no_ask)
-        if not best:
-            return None
-        return trade("no", best[2], result.get(best[0]) == "no")
+        return (best[0], "no", best[2], 1 - best[1] / 2) if best else None
     if kind == "model":
         if not view:
             return None
@@ -244,11 +235,79 @@ def idea(ev: dict, rule: dict, view: tuple[float, float] | None) -> tuple[float,
                     continue
                 edge = fair - price - k.fee(price)
                 if edge >= rule.get("gap", 0.05) and (best is None or edge > best[0]):
-                    best = (edge, side, price, result[m["ticker"]] == side)
-        if not best:
-            return None
-        return trade(best[1], best[2], best[3])
+                    best = (edge, m["ticker"], side, price, fair)
+        return best[1:] if best else None
     return None
+
+
+def idea(ev: dict, rule: dict, view: tuple[float, float] | None) -> tuple[float, float, bool] | None:
+    """The trade one idea makes on this settled event `hours` before its close: (cost, money back, won), or None."""
+    at = ev["close"] - rule.get("hours", 6) * 3600
+    if at < ev["open"]:
+        return None
+    q = snapshot(ev, at)
+    if not q:
+        return None
+    pick = choose(ev, rule, view, q)
+    if not pick:
+        return None
+    ticker, side, price, _ = pick
+    result = {m["ticker"]: m["result"] for m in ev["markets"]}
+    return trade(side, price, result.get(ticker) == side)
+
+
+# ---- Live (practice): open events and the trades a strategy would make now ----
+
+def open_events(family: str, state: dict, now: float, budget_s: float = 90) -> list[dict]:
+    """Open events in a family (its series list is refreshed daily)."""
+    t0, cache = time.time(), state.setdefault("family_series", {})
+    if now - cache.get(family, {}).get("t", 0) > 86400:
+        cache[family] = {"t": now, "series": family_series(family)}
+    out = []
+    for s in cache[family]["series"]:
+        if time.time() - t0 > budget_s:
+            log.warning("%s scan stopped after %.0f s; the rest next time", family, budget_s)
+            break
+        try:
+            evs = k.kget("/events", {"series_ticker": s, "status": "open", "with_nested_markets": "true"}).get("events", [])
+        except Exception as e:
+            log.warning("%s events: %s", s, e)
+            continue
+        out += [e for e in evs if wanted(family, e)]
+        time.sleep(0.5)
+    return out
+
+
+def live_event(e: dict, now: float) -> dict:
+    ms = e.get("markets") or []
+    return {"close": min((_ts(m.get("close_time")) for m in ms), default=0.0), "open": now,
+            "mutex": bool(e.get("mutually_exclusive")),
+            "markets": [{"ticker": m["ticker"], "strike_type": m.get("strike_type"), "floor_strike": m.get("floor_strike"),
+                         "cap_strike": m.get("cap_strike"), "yes_sub_title": m.get("yes_sub_title"),
+                         "size": {"yes": k._f(m.get("yes_ask_size_fp")), "no": k._f(m.get("no_ask_size_fp"))}} for m in ms],
+            "quotes": {m["ticker"]: (k._f(m.get("yes_ask_dollars")), k._f(m.get("yes_bid_dollars"))) for m in ms
+                       if 0 < k._f(m.get("yes_ask_dollars")) < 1}}
+
+
+def live_ideas(events: list[dict], rule: dict, now: float, views: dict | None = None, label: str = "") -> list[dict]:
+    """The trades a strategy would make right now: on events closing within its `hours`, at today's quotes, in the
+    format kalshi.trade buys."""
+    out = []
+    for e in events:
+        ev = live_event(e, now)
+        if not ev["quotes"] or not (0 < ev["close"] - now <= rule.get("hours", 6) * 3600):
+            continue
+        pick = choose(ev, rule, (views or {}).get(e["event_ticker"]), ev["quotes"])
+        if not pick:
+            continue
+        ticker, side, price, fair = pick
+        m = next(x for x in ev["markets"] if x["ticker"] == ticker)
+        size = m["size"][side] or 1.0          # some listings leave sizes out: the limit order just won't overpay
+        out.append({"kind": "market", "event": e["event_ticker"], "ticker": ticker, "side": side, "price": price,
+                    "size": size, "fair": fair, "edge": fair - price - k.fee(price),
+                    "title": f"{e.get('title', '').replace('?', '')}: {m.get('yes_sub_title') or ticker}",
+                    "why": label or rule["kind"]})
+    return sorted(out, key=lambda i: -i["edge"])
 
 
 def ideas_for(family: str) -> dict:
@@ -300,6 +359,12 @@ def summary(trades: list[tuple]) -> dict:
             "roi": (back - cost) / cost if cost else 0.0, "without_best_day": back - cost - max(by_day.values(), default=0.0)}
 
 
+def passes(s: dict, first: dict, second: dict) -> bool:
+    """Good enough to practice: 30+ held-out trades, +3% or better, and still making money in both halves of the test
+    and without its single best day."""
+    return s["n"] >= 30 and s["roi"] >= 0.03 and first["profit"] > 0 and second["profit"] > 0 and s["without_best_day"] > 0
+
+
 def family_views(family: str, data: dict) -> dict:
     if family == "gas":
         return gas_views(data)
@@ -344,9 +409,14 @@ def report(family: str, data: dict) -> tuple[str, dict]:
             v = {key: hv[h] for key, hv in views.items() if h in hv}
         o = walk_forward(data, v, {name: spec})[name]
         s = summary(o["trades"])
-        res[name] = {**s, "setting": o["setting"], "in_sample": o["in_sample"]}
-        lines.append(f"  {name}. {o['label']}: {s['n']} held-out trades, {s['won']}-{s['n'] - s['won']}, {s['profit']:+,.2f} "
-                     f"({s['roi']:+.0%}); without its best day {s['without_best_day']:+.2f}; setting now {o['setting']}")
+        held_days = sorted({t[0] for t in o["trades"]})
+        half = held_days[len(held_days) // 2] if held_days else ""
+        a, b = summary([t for t in o["trades"] if t[0] < half]), summary([t for t in o["trades"] if t[0] >= half])
+        ok = passes(s, a, b)
+        res[name] = {**s, "first": a, "second": b, "passes": ok, "setting": o["setting"], "in_sample": o["in_sample"]}
+        lines.append(f"  {'PASS' if ok else 'fail'} {name}. {o['label']}: {s['n']} held-out trades, {s['won']}-{s['n'] - s['won']}, "
+                     f"{s['profit']:+,.2f} ({s['roi']:+.0%}); halves {a['profit']:+.2f} ({a['n']}) / {b['profit']:+.2f} ({b['n']}); "
+                     f"without its best day {s['without_best_day']:+.2f}; setting now {o['setting']}")
     return "\n".join(lines), res
 
 
