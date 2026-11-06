@@ -56,7 +56,7 @@ def prices_at(series: str, event_ticker: str, at: datetime) -> dict[str, tuple[f
     return out
 
 
-def past_day_ahead(info: dict, start: date, end: date) -> dict[str, list[float]]:
+def past_day_ahead(info: dict, start: date, end: date, kind: str = "high") -> dict[str, list[float]]:
     """date -> each model's high for that day as forecast one day earlier."""
     import requests
     from zoneinfo import ZoneInfo
@@ -80,30 +80,36 @@ def past_day_ahead(info: dict, start: date, end: date) -> dict[str, list[float]]
             if v is None:
                 continue
             d = datetime.fromtimestamp(t, tz).date().isoformat()
-            out.setdefault(d, {})[model] = max(out.get(d, {}).get(model, -999.0), v)
+            agg, init = (max, -999.0) if kind == "high" else (min, 999.0)
+            out.setdefault(d, {})[model] = agg(out.get(d, {}).get(model, init), v)
     return {d: list(m.values()) for d, m in out.items()}
 
 
-def iem_highs(st: str, info: dict, months: set[tuple[int, int]]) -> dict[str, float]:
+def iem_highs(st: str, info: dict, months: set[tuple[int, int]], field: str = "max_tmpf") -> dict[str, float]:
     import requests
 
     out = {}
     for y, m in sorted(months):
         r = requests.get(f"{k.IEM}/daily.json", params={"station": st[1:], "network": f"{info['state']}_ASOS", "year": y, "month": m}, timeout=30)
         r.raise_for_status()
-        out.update({row["date"]: float(row["max_tmpf"]) for row in r.json().get("data", []) if row.get("max_tmpf") is not None})
+        out.update({row["date"]: float(row[field]) for row in r.json().get("data", []) if row.get(field) is not None})
     return out
 
 
-def collect(days: int = 14, series: list[str] | None = None, budget_s: float = 2400, skip: set | None = None) -> list[dict]:
+def collect(days: int = 14, series: list[str] | None = None, budget_s: float = 2400, skip: set | None = None,
+            kind: str = "high") -> list[dict]:
     """Every settled city-day: its markets with day-before prices and results, the models' day-ahead forecasts, and
-    the real high. `skip`: event tickers already collected (not read again)."""
+    the real high (or, with kind="low", the daily-low markets and the real low). `skip`: event tickers already
+    collected (not read again)."""
     skip = skip or set()
     from statistics import mean, pstdev
 
     t0, state = time.time(), {}
     today = datetime.now(timezone.utc).date()
     since = today - timedelta(days=days)
+    if series is None and kind == "low":
+        from .kalshi_markets import family_series
+        series = family_series("lows")
     if series is None:
         k.weather_events(state, time.time(), budget_s=600)          # learns which series are US cities
         for _ in range(4):                                           # (15 new ones a pass)
@@ -133,8 +139,10 @@ def collect(days: int = 14, series: list[str] | None = None, budget_s: float = 2
             try:
                 info = k.station_info(st, stations)
                 if st not in fcs:
-                    fcs[st] = past_day_ahead(info, since - timedelta(days=1), today)
-                    highs[st] = iem_highs(st, info, {(since.year, since.month), (today.year, today.month)})
+                    fcs[st] = past_day_ahead(info, since - timedelta(days=1), today, kind)
+                    months = {(since.year, since.month), (today.year, today.month)}
+                    months |= {(d.year, d.month) for d in (since + timedelta(days=i) for i in range(days))}
+                    highs[st] = iem_highs(st, info, months, "max_tmpf" if kind == "high" else "min_tmpf")
                 at = datetime(day.year, day.month, day.day, 18, tzinfo=timezone.utc) - timedelta(days=1)   # noon Central, day before
                 px = prices_at(s, e["event_ticker"], at)
             except Exception as ex:
@@ -261,22 +269,23 @@ def report(rows: list[dict], strategies: dict) -> str:
     return "\n".join(lines)
 
 
-def run(days: int = 14, save: bool = True):
+def run(days: int = 14, save: bool = True, kind: str = "high"):
     import json
     from pathlib import Path
 
     from .signals import alert_target, notify
 
-    saved = Path("data/kalshi_backtest_rows.json")
+    saved = Path("data/kalshi_backtest_rows.json" if kind == "high" else f"data/kalshi_backtest_rows_{kind}.json")
     old = json.loads(saved.read_text()) if saved.exists() else []      # add to what's saved: the test keeps growing
-    new = collect(days, skip={r["event"]["event_ticker"] for r in old})
+    new = collect(days, skip={r["event"]["event_ticker"] for r in old}, kind=kind)
     rows = sorted({r["event"]["event_ticker"]: r for r in old + new}.values(), key=lambda r: (r["day"], r["station"]))
     log.warning("%d city-days saved before, %d new, %d in all", len(old), len(new), len(rows))
     if save and rows:                  # keep the data (re-test ideas in seconds) and seed the live bot's per-city learning
         Path("data").mkdir(exist_ok=True)
-        Path("data/kalshi_backtest_rows.json").write_text(json.dumps(rows, default=str))
-        Path("models").mkdir(exist_ok=True)
-        Path("models/kalshi_priors.json").write_text(json.dumps(city_priors(rows), indent=1))
+        saved.write_text(json.dumps(rows, default=str))
+        if kind == "high":                                         # the live per-city corrections are for the highs
+            Path("models").mkdir(exist_ok=True)
+            Path("models/kalshi_priors.json").write_text(json.dumps(city_priors(rows), indent=1))
     text = report(rows, k.strategies(k.load_settings()))
     print(text, flush=True)
     target = alert_target()

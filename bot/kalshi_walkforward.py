@@ -263,14 +263,25 @@ def report(rows: list[dict], paths: dict) -> tuple[str, dict]:
     return "\n".join(lines), res
 
 
-def run(collect: bool = True, save: bool = True):
+def low_paths() -> dict:
+    """The daily lows' hourly prices, from the other-markets collector (data/kalshi_markets_lows.json)."""
+    p = Path("data/kalshi_markets_lows.json")
+    return {e: ev["candles"] for e, ev in json.loads(p.read_text()).items()} if p.exists() else {}
+
+
+def run(collect: bool = True, save: bool = True, kind: str = "high"):
     from .signals import alert_target, notify
 
-    rows = json.loads(ROWS.read_text())
-    paths = collect_paths(rows) if collect else json.loads(PATHS.read_text())
-    if save and collect:
-        PATHS.write_text(json.dumps(paths, separators=(",", ":")))
-    text, _ = report(rows, paths)
+    if kind == "low":
+        rows = json.loads(Path("data/kalshi_backtest_rows_low.json").read_text())
+        paths = low_paths()
+    else:
+        rows = json.loads(ROWS.read_text())
+        paths = collect_paths(rows) if collect else json.loads(PATHS.read_text())
+        if save and collect:
+            PATHS.write_text(json.dumps(paths, separators=(",", ":")))
+    text, _ = report([r for r in rows if r["event"]["event_ticker"] in paths], paths)
+    text = ("DAILY LOWS. " if kind == "low" else "") + text
     print(text, flush=True)
     target = alert_target()
     if target:

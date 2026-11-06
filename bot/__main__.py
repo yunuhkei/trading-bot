@@ -216,15 +216,18 @@ def cmd_kalshi_backtest(args, cfg):
     import logging
 
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
-    if args.walkforward:
+    if args.markets:
+        from .kalshi_markets import run
+        run(args.markets, args.days)
+    elif args.walkforward:
         from .kalshi_walkforward import run
-        run()
+        run(kind=args.kind)
     elif args.sameday:
         from .kalshi_sameday import run
         run()
     else:
         from .kalshi_backtest import run
-        run(args.days)
+        run(args.days, kind=args.kind)
 
 
 def cmd_smart_wallets(args, cfg):
@@ -397,6 +400,8 @@ def main(argv=None):
     kb = sub.add_parser("kalshi-backtest", help="test the Kalshi weather strategies on settled markets")
     kb.add_argument("--days", type=int, default=14)
     kb.add_argument("--sameday", action="store_true", help="same-day trading: collect readings + day-of prices, then test")
+    kb.add_argument("--kind", default="high", choices=["high", "low"], help="daily highs (default) or daily lows")
+    kb.add_argument("--markets", default="", help="test other markets: lows, gas, crypto, stocks or all")
     kb.add_argument("--walkforward", action="store_true",
                     help="walk-forward test of ideas to improve the main strategy (collects hourly prices first)")
     sw = sub.add_parser("smart-wallets", help="find wallets that bought bottoms and sold tops on several young coins")

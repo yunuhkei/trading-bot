@@ -13,6 +13,9 @@ on:
       walkforward:
         description: "Walk-forward test of ideas to improve the main strategy instead: yes / no"
         default: "no"
+      kind:
+        description: "Daily highs or daily lows: high / low"
+        default: "high"
 permissions:
   contents: write            # saves the data and the per-city forecast corrections (models/kalshi_priors.json)
 jobs:
@@ -31,11 +34,11 @@ jobs:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
         run: |
           if [ "${{ inputs.walkforward }}" = "yes" ]; then
-            python -m bot kalshi-backtest --walkforward
+            python -m bot kalshi-backtest --walkforward --kind "${{ inputs.kind || 'high' }}"
           elif [ "${{ inputs.sameday }}" = "yes" ]; then
             python -m bot kalshi-backtest --sameday
           else
-            python -m bot kalshi-backtest --days "${{ inputs.days || '14' }}"
+            python -m bot kalshi-backtest --days "${{ inputs.days || '14' }}" --kind "${{ inputs.kind || 'high' }}"
           fi
       - name: Save the data and what it measured
         run: |
