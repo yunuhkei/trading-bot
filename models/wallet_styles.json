@@ -118,135 +118,165 @@
    "launch sniper|morning": {
     "n": 8,
     "coins": 3,
+    "days": 2,
     "won": 0.75,
     "avg": 0.2885175,
     "median": 0.217165,
+    "sum": 2.30814,
     "sure_up": 1.0,
     "verdict": "not sure yet"
    },
    "launch sniper|midday": {
     "n": 20,
     "coins": 14,
+    "days": 4,
     "won": 0.3,
     "avg": -0.18162050000000002,
     "median": -0.242335,
+    "sum": -3.63241,
     "sure_up": 0.2205,
     "verdict": "not sure yet"
    },
    "launch sniper|evening": {
     "n": 15,
     "coins": 5,
+    "days": 2,
     "won": 0.6,
     "avg": 0.46715933333333326,
     "median": 0.27995,
+    "sum": 7.007389999999999,
     "sure_up": 0.8465,
     "verdict": "not sure yet"
    },
    "dip buyer|overnight": {
     "n": 18,
     "coins": 12,
+    "days": 3,
     "won": 0.2777777777777778,
     "avg": -0.05765777777777778,
     "median": -0.08421,
+    "sum": -1.03784,
     "sure_up": 0.191,
     "verdict": "not sure yet"
    },
    "dip buyer|morning": {
     "n": 39,
     "coins": 15,
+    "days": 4,
     "won": 0.6410256410256411,
     "avg": 0.09795820512820515,
     "median": 0.13178,
+    "sum": 3.8203700000000005,
     "sure_up": 0.9225,
     "verdict": "GO"
    },
    "dip buyer|midday": {
     "n": 43,
     "coins": 20,
+    "days": 4,
     "won": 0.5116279069767442,
     "avg": 0.08630255813953489,
     "median": 0.00045,
+    "sum": 3.71101,
     "sure_up": 0.942,
     "verdict": "GO"
    },
    "dip buyer|evening": {
     "n": 42,
     "coins": 20,
+    "days": 5,
     "won": 0.5,
     "avg": 0.1609095238095238,
     "median": 0.01383,
+    "sum": 6.7582,
     "sure_up": 0.904,
     "verdict": "GO"
    },
    "pump chaser|overnight": {
     "n": 8,
     "coins": 5,
+    "days": 3,
     "won": 0.25,
     "avg": -0.15733875,
     "median": -0.15037999999999999,
+    "sum": -1.25871,
     "sure_up": 0.0565,
     "verdict": "not sure yet"
    },
    "pump chaser|morning": {
     "n": 11,
     "coins": 9,
+    "days": 4,
     "won": 0.6363636363636364,
     "avg": 0.08402000000000001,
     "median": 0.23744,
+    "sum": 0.9242200000000002,
     "sure_up": 0.757,
     "verdict": "not sure yet"
    },
    "pump chaser|midday": {
     "n": 30,
     "coins": 8,
+    "days": 7,
     "won": 0.4666666666666667,
     "avg": 0.26191533333333333,
     "median": -0.038724999999999996,
+    "sum": 7.85746,
     "sure_up": 0.972,
     "verdict": "GO"
    },
    "pump chaser|evening": {
     "n": 12,
     "coins": 5,
+    "days": 3,
     "won": 0.8333333333333334,
     "avg": 0.7610108333333333,
     "median": 1.053065,
+    "sum": 9.13213,
     "sure_up": 0.8925,
     "verdict": "not sure yet"
    },
    "quiet buyer|overnight": {
     "n": 14,
     "coins": 9,
+    "days": 8,
     "won": 0.5714285714285714,
     "avg": 0.17237714285714292,
     "median": 0.05813,
+    "sum": 2.4132800000000008,
     "sure_up": 0.907,
     "verdict": "not sure yet"
    },
    "quiet buyer|morning": {
     "n": 20,
     "coins": 12,
+    "days": 7,
     "won": 0.25,
     "avg": -0.07501849999999999,
     "median": -0.149865,
+    "sum": -1.5003699999999998,
     "sure_up": 0.2725,
     "verdict": "not sure yet"
    },
    "quiet buyer|midday": {
     "n": 29,
     "coins": 12,
+    "days": 7,
     "won": 0.5172413793103449,
     "avg": 0.1626103448275862,
     "median": 0.05799,
+    "sum": 4.7157,
     "sure_up": 0.814,
     "verdict": "not sure yet"
    },
    "quiet buyer|evening": {
     "n": 47,
     "coins": 27,
+    "days": 6,
     "won": 0.2765957446808511,
     "avg": -0.09211531914893618,
     "median": -0.11241,
+    "sum": -4.329420000000001,
     "sure_up": 0.079,
     "verdict": "AVOID"
    }
@@ -255,101 +285,123 @@
    "Mon|overnight": {
     "n": 1,
     "coins": 1,
+    "days": 1,
     "won": 0.0,
     "avg": -0.30115,
     "median": -0.30115,
+    "sum": -0.30115,
     "sure_up": 0.0,
     "verdict": "not sure yet"
    },
    "Tue|overnight": {
     "n": 5,
     "coins": 3,
+    "days": 1,
     "won": 0.8,
     "avg": 0.293938,
     "median": 0.43137,
+    "sum": 1.46969,
     "sure_up": 0.8345,
     "verdict": "not sure yet"
    },
    "Wed|overnight": {
     "n": 14,
     "coins": 10,
+    "days": 2,
     "won": 0.14285714285714285,
     "avg": -0.14768928571428572,
     "median": -0.14879,
+    "sum": -2.06765,
     "sure_up": 0.033,
     "verdict": "not sure yet"
    },
    "Thu|overnight": {
     "n": 16,
     "coins": 11,
+    "days": 2,
     "won": 0.375,
     "avg": -0.02054125,
     "median": -0.113325,
+    "sum": -0.32866,
     "sure_up": 0.324,
     "verdict": "not sure yet"
    },
    "Fri|overnight": {
     "n": 2,
     "coins": 2,
+    "days": 1,
     "won": 1.0,
     "avg": 0.39448500000000003,
     "median": 0.39448500000000003,
+    "sum": 0.7889700000000001,
     "sure_up": 1.0,
     "verdict": "not sure yet"
    },
    "Sat|overnight": {
     "n": 1,
     "coins": 1,
+    "days": 1,
     "won": 0.0,
     "avg": -0.20879,
     "median": -0.20879,
+    "sum": -0.20879,
     "sure_up": 0.0,
     "verdict": "not sure yet"
    },
    "Sun|overnight": {
     "n": 1,
     "coins": 1,
+    "days": 1,
     "won": 1.0,
     "avg": 0.76432,
     "median": 0.76432,
+    "sum": 0.76432,
     "sure_up": 1.0,
     "verdict": "not sure yet"
    },
    "Mon|morning": {
     "n": 13,
     "coins": 5,
+    "days": 1,
     "won": 0.38461538461538464,
     "avg": -0.024954615384615377,
     "median": -0.09595,
+    "sum": -0.3244099999999999,
     "sure_up": 0.437,
     "verdict": "not sure yet"
    },
    "Tue|morning": {
     "n": 11,
     "coins": 5,
+    "days": 2,
     "won": 0.36363636363636365,
     "avg": -0.039909999999999994,
     "median": -0.14097,
+    "sum": -0.4390099999999999,
     "sure_up": 0.344,
     "verdict": "not sure yet"
    },
    "Wed|morning": {
     "n": 21,
     "coins": 9,
+    "days": 1,
     "won": 0.5714285714285714,
     "avg": 0.12628761904761907,
     "median": 0.07145,
+    "sum": 2.6520400000000004,
     "sure_up": 0.94,
-    "verdict": "GO"
+    "verdict": "not sure yet"
    },
    "Thu|morning": {
     "n": 30,
     "coins": 11,
+    "days": 2,
     "won": 0.7333333333333333,
     "avg": 0.14610199999999998,
     "median": 0.19202000000000002,
+    "sum": 4.3830599999999995,
     "sure_up": 0.928,
-    "verdict": "GO"
+    "verdict": "not sure yet"
    },
    "Fri|morning": {
     "n": 0
@@ -357,9 +409,11 @@
    "Sat|morning": {
     "n": 3,
     "coins": 3,
+    "days": 1,
     "won": 0.0,
     "avg": -0.2397733333333333,
     "median": -0.1791,
+    "sum": -0.71932,
     "sure_up": 0.0,
     "verdict": "not sure yet"
    },
@@ -369,36 +423,44 @@
    "Mon|midday": {
     "n": 16,
     "coins": 7,
+    "days": 2,
     "won": 0.375,
     "avg": -0.09544,
     "median": -0.11627499999999999,
+    "sum": -1.52704,
     "sure_up": 0.384,
     "verdict": "not sure yet"
    },
    "Tue|midday": {
     "n": 29,
     "coins": 7,
+    "days": 1,
     "won": 0.4827586206896552,
     "avg": 0.3726144827586207,
     "median": -0.04267,
+    "sum": 10.80582,
     "sure_up": 0.6745,
     "verdict": "not sure yet"
    },
    "Wed|midday": {
     "n": 35,
     "coins": 23,
+    "days": 2,
     "won": 0.5142857142857142,
     "avg": 0.05272914285714284,
     "median": 0.00615,
+    "sum": 1.8455199999999994,
     "sure_up": 0.758,
     "verdict": "not sure yet"
    },
    "Thu|midday": {
     "n": 28,
     "coins": 13,
+    "days": 2,
     "won": 0.4642857142857143,
     "avg": 0.03378071428571429,
     "median": -0.056124999999999994,
+    "sum": 0.94586,
     "sure_up": 0.7075,
     "verdict": "not sure yet"
    },
@@ -408,72 +470,88 @@
    "Sat|midday": {
     "n": 12,
     "coins": 5,
+    "days": 1,
     "won": 0.3333333333333333,
     "avg": 0.004843333333333348,
     "median": -0.131015,
+    "sum": 0.05812000000000017,
     "sure_up": 0.538,
     "verdict": "not sure yet"
    },
    "Sun|midday": {
     "n": 2,
     "coins": 1,
+    "days": 1,
     "won": 1.0,
     "avg": 0.26174,
     "median": 0.26174,
+    "sum": 0.52348,
     "sure_up": 1.0,
     "verdict": "not sure yet"
    },
    "Mon|evening": {
     "n": 4,
     "coins": 2,
+    "days": 1,
     "won": 0.75,
     "avg": 0.020727500000000003,
     "median": 0.03533,
+    "sum": 0.08291000000000001,
     "sure_up": 0.7545,
     "verdict": "not sure yet"
    },
    "Tue|evening": {
     "n": 34,
     "coins": 13,
+    "days": 1,
     "won": 0.5588235294117647,
     "avg": 0.31617676470588235,
     "median": 0.130255,
+    "sum": 10.75001,
     "sure_up": 0.922,
-    "verdict": "GO"
+    "verdict": "not sure yet"
    },
    "Wed|evening": {
     "n": 22,
     "coins": 11,
+    "days": 1,
     "won": 0.2727272727272727,
     "avg": -0.0020509090909090946,
     "median": -0.04746,
+    "sum": -0.04512000000000008,
     "sure_up": 0.474,
     "verdict": "not sure yet"
    },
    "Thu|evening": {
     "n": 13,
     "coins": 8,
+    "days": 1,
     "won": 0.5384615384615384,
     "avg": 0.06134307692307692,
     "median": 0.05529,
+    "sum": 0.79746,
     "sure_up": 0.895,
     "verdict": "not sure yet"
    },
    "Fri|evening": {
     "n": 32,
     "coins": 10,
+    "days": 1,
     "won": 0.375,
     "avg": 0.12804500000000002,
     "median": -0.27421,
+    "sum": 4.097440000000001,
     "sure_up": 0.6425,
     "verdict": "not sure yet"
    },
    "Sat|evening": {
     "n": 11,
     "coins": 7,
+    "days": 1,
     "won": 0.5454545454545454,
     "avg": 0.2623272727272727,
     "median": 0.6709,
+    "sum": 2.8855999999999997,
     "sure_up": 0.747,
     "verdict": "not sure yet"
    },
@@ -485,36 +563,44 @@
    "launch sniper": {
     "n": 43,
     "coins": 22,
+    "days": 6,
     "won": 0.4883720930232558,
     "avg": 0.13216558139534884,
     "median": -0.00279,
+    "sum": 5.68312,
     "sure_up": 0.7265,
     "verdict": "not sure yet"
    },
    "dip buyer": {
     "n": 142,
     "coins": 34,
+    "days": 6,
     "won": 0.5140845070422535,
     "avg": 0.09332211267605633,
     "median": 0.009335,
+    "sum": 13.25174,
     "sure_up": 0.967,
     "verdict": "GO"
    },
    "pump chaser": {
     "n": 61,
     "coins": 19,
+    "days": 9,
     "won": 0.5409836065573771,
     "avg": 0.2730344262295082,
     "median": 0.09078,
+    "sum": 16.6551,
     "sure_up": 0.943,
     "verdict": "GO"
    },
    "quiet buyer": {
     "n": 110,
     "coins": 45,
+    "days": 10,
     "won": 0.37272727272727274,
     "avg": 0.011810818181818195,
     "median": -0.081205,
+    "sum": 1.2991900000000014,
     "sure_up": 0.5375,
     "verdict": "not sure yet"
    }
@@ -523,36 +609,44 @@
    "overnight": {
     "n": 40,
     "coins": 21,
+    "days": 9,
     "won": 0.375,
     "avg": 0.00291825,
     "median": -0.08738,
+    "sum": 0.11673,
     "sure_up": 0.5015,
     "verdict": "not sure yet"
    },
    "morning": {
     "n": 78,
     "coins": 30,
+    "days": 7,
     "won": 0.5512820512820513,
     "avg": 0.07118410256410257,
     "median": 0.069275,
+    "sum": 5.55236,
     "sure_up": 0.8915,
     "verdict": "not sure yet"
    },
    "midday": {
     "n": 122,
     "coins": 45,
+    "days": 9,
     "won": 0.4672131147540984,
     "avg": 0.10370295081967214,
     "median": -0.029849999999999998,
+    "sum": 12.651760000000001,
     "sure_up": 0.857,
     "verdict": "not sure yet"
    },
    "evening": {
     "n": 116,
     "coins": 44,
+    "days": 6,
     "won": 0.45689655172413796,
     "avg": 0.16007155172413795,
     "median": -0.023335,
+    "sum": 18.5683,
     "sure_up": 0.918,
     "verdict": "GO"
    }
@@ -561,29 +655,182 @@
    "flips (under 15 min)": {
     "n": 82,
     "coins": 48,
+    "days": 8,
     "won": 0.35365853658536583,
     "avg": -0.09580317073170729,
     "median": -0.24598,
+    "sum": -7.855859999999997,
     "sure_up": 0.0915,
     "verdict": "AVOID"
    },
    "holds hours": {
     "n": 208,
     "coins": 48,
+    "days": 9,
     "won": 0.4182692307692308,
     "avg": 0.05810937500000001,
     "median": -0.041440000000000005,
+    "sum": 12.086750000000002,
     "sure_up": 0.898,
     "verdict": "not sure yet"
    },
    "holds days": {
     "n": 66,
     "coins": 9,
+    "days": 11,
     "won": 0.7878787878787878,
     "avg": 0.4948221212121212,
     "median": 0.505825,
+    "sum": 32.65826,
     "sure_up": 0.9815,
     "verdict": "GO"
+   }
+  },
+  "by_mood": {
+   "SOL up": {
+    "n": 224,
+    "coins": 60,
+    "days": 8,
+    "won": 0.44642857142857145,
+    "avg": 0.13602410714285715,
+    "median": -0.04281,
+    "sum": 30.469400000000004,
+    "sure_up": 0.9375,
+    "verdict": "GO"
+   },
+   "SOL down": {
+    "n": 132,
+    "coins": 45,
+    "days": 9,
+    "won": 0.5151515151515151,
+    "avg": 0.048634469696969704,
+    "median": 0.030655,
+    "sum": 6.4197500000000005,
+    "sure_up": 0.792,
+    "verdict": "not sure yet"
+   }
+  },
+  "by_date": {
+   "2026-09-14": {
+    "n": 6,
+    "coins": 1,
+    "days": 1,
+    "won": 0.6666666666666666,
+    "avg": 0.5027550000000001,
+    "median": 0.53059,
+    "sum": 3.0165300000000004,
+    "sure_up": 1.0,
+    "verdict": "not sure yet"
+   },
+   "2026-09-15": {
+    "n": 6,
+    "coins": 3,
+    "days": 1,
+    "won": 0.6666666666666666,
+    "avg": 0.09623333333333334,
+    "median": 0.28526,
+    "sum": 0.5774,
+    "sure_up": 0.6055,
+    "verdict": "not sure yet"
+   },
+   "2026-10-28": {
+    "n": 4,
+    "coins": 2,
+    "days": 1,
+    "won": 0.25,
+    "avg": -0.13423000000000002,
+    "median": -0.18483,
+    "sum": -0.5369200000000001,
+    "sure_up": 0.0,
+    "verdict": "not sure yet"
+   },
+   "2026-10-29": {
+    "n": 12,
+    "coins": 4,
+    "days": 1,
+    "won": 0.5,
+    "avg": -0.06864083333333333,
+    "median": -0.06799,
+    "sum": -0.8236899999999999,
+    "sure_up": 0.275,
+    "verdict": "not sure yet"
+   },
+   "2026-10-30": {
+    "n": 34,
+    "coins": 12,
+    "days": 1,
+    "won": 0.4117647058823529,
+    "avg": 0.1437179411764706,
+    "median": -0.261805,
+    "sum": 4.886410000000001,
+    "sure_up": 0.6625,
+    "verdict": "not sure yet"
+   },
+   "2026-10-31": {
+    "n": 27,
+    "coins": 12,
+    "days": 1,
+    "won": 0.37037037037037035,
+    "avg": 0.07465222222222222,
+    "median": -0.1791,
+    "sum": 2.0156099999999997,
+    "sure_up": 0.6315,
+    "verdict": "not sure yet"
+   },
+   "2026-11-01": {
+    "n": 3,
+    "coins": 2,
+    "days": 1,
+    "won": 1.0,
+    "avg": 0.42926666666666663,
+    "median": 0.26953,
+    "sum": 1.2877999999999998,
+    "sure_up": 1.0,
+    "verdict": "not sure yet"
+   },
+   "2026-11-02": {
+    "n": 28,
+    "coins": 13,
+    "days": 1,
+    "won": 0.35714285714285715,
+    "avg": -0.18165071428571428,
+    "median": -0.13611499999999999,
+    "sum": -5.08622,
+    "sure_up": 0.1145,
+    "verdict": "not sure yet"
+   },
+   "2026-11-03": {
+    "n": 73,
+    "coins": 17,
+    "days": 1,
+    "won": 0.5068493150684932,
+    "avg": 0.3014946575342466,
+    "median": 0.00045,
+    "sum": 22.00911,
+    "sure_up": 0.8265,
+    "verdict": "not sure yet"
+   },
+   "2026-11-04": {
+    "n": 88,
+    "coins": 35,
+    "days": 1,
+    "won": 0.42045454545454547,
+    "avg": 0.033201249999999995,
+    "median": -0.028239999999999998,
+    "sum": 2.9217099999999996,
+    "sure_up": 0.75,
+    "verdict": "not sure yet"
+   },
+   "2026-11-05": {
+    "n": 75,
+    "coins": 19,
+    "days": 1,
+    "won": 0.56,
+    "avg": 0.08828546666666666,
+    "median": 0.06376,
+    "sum": 6.621409999999999,
+    "sure_up": 0.9465,
+    "verdict": "not sure yet"
    }
   }
  },
@@ -614,7 +861,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06312947772816946
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -632,7 +881,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06312947772816946
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -650,7 +901,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.046922995445397686
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -668,7 +921,9 @@
    "hold": "holds days",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06603871234861813
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -686,7 +941,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.06150115727984118
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -704,7 +961,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.03539344084857654
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -722,7 +981,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.026760864911153925
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -740,7 +1001,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.026760864911153925
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -758,7 +1021,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.026760864911153925
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -776,7 +1041,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.026760864911153925
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -794,7 +1061,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.026760864911153925
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -812,7 +1081,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.026760864911153925
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -830,7 +1101,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -848,7 +1121,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -866,7 +1141,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -884,7 +1161,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -902,7 +1181,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -920,7 +1201,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -938,7 +1221,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -956,7 +1241,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -974,7 +1261,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -992,7 +1281,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.013477377259599965
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1010,7 +1301,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.03194444444444455
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1028,7 +1321,9 @@
    "hold": "holds days",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.03194444444444455
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1046,7 +1341,9 @@
    "hold": "holds days",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.03194444444444455
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1064,7 +1361,9 @@
    "hold": "holds days",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.03194444444444455
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1082,7 +1381,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.019408106369290135
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1100,7 +1401,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.010331702011963095
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1118,7 +1421,9 @@
    "hold": "flips (under 15 min)",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.010331702011963095
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1136,7 +1441,9 @@
    "hold": "flips (under 15 min)",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.016413174307911227
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1154,7 +1461,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.01146663754504762
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1172,7 +1481,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.01146663754504762
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1190,7 +1501,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0011943539630836497
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1208,7 +1521,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0011943539630836497
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1226,7 +1541,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0011943539630836497
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1244,7 +1561,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0011943539630836497
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1262,7 +1581,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0011943539630836497
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1280,7 +1601,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.0036876355748373113
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1298,7 +1621,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.0036876355748373113
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1316,7 +1641,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.0036876355748373113
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1334,7 +1661,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.0036876355748373113
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1352,7 +1681,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0015176151761517875
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1370,7 +1701,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.00958292497005342
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1388,7 +1721,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.00958292497005342
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1406,7 +1741,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.00958292497005342
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1424,7 +1761,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.00958292497005342
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1442,7 +1781,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.014014122759369974
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1460,7 +1801,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.014014122759369974
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1478,7 +1821,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.014014122759369974
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1496,7 +1841,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.014014122759369974
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1514,7 +1861,9 @@
    "hold": "holds days",
    "slot": "morning",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.010083855217068116
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1532,7 +1881,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.03404300168634056
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1550,7 +1901,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.03404300168634056
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1568,7 +1921,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.02742616033755263
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1586,7 +1941,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.02742616033755263
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1604,7 +1961,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.02238489284956502
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1622,7 +1981,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.02238489284956502
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1640,7 +2001,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.02251247743442719
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1658,7 +2021,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.02251247743442719
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1676,7 +2041,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.02251247743442719
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1694,7 +2061,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.02251247743442719
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1712,7 +2081,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.02251247743442719
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1730,7 +2101,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.025513444844378563
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1748,7 +2121,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.025513444844378563
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1766,7 +2141,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.014266088978125313
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1784,7 +2161,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.013206550449022747
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1802,7 +2181,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.013206550449022747
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1820,7 +2201,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.013206550449022747
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1838,7 +2221,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.013206550449022747
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1856,7 +2241,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.006747496046389023
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1874,7 +2261,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.006747496046389023
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1892,7 +2281,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.006747496046389023
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1910,7 +2301,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.006747496046389023
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1928,7 +2321,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.006747496046389023
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1946,7 +2341,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.006747496046389023
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1964,7 +2361,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.006747496046389023
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -1982,7 +2381,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.006747496046389023
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2000,7 +2401,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Sun",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-01",
+   "sol24": -0.017322341646665906
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2018,7 +2421,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Sun",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-01",
+   "sol24": -0.017322341646665906
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2036,7 +2441,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.014279801324503238
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2054,7 +2461,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.010360547036883494
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2072,7 +2481,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.010360547036883494
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2090,7 +2501,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.010360547036883494
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2108,7 +2521,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.010360547036883494
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2126,7 +2541,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.010360547036883494
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2144,7 +2561,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.010360547036883494
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2162,7 +2581,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.011078898322633979
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2180,7 +2601,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.011078898322633979
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2198,7 +2621,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.008736349453978165
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2216,7 +2641,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.008736349453978165
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2234,7 +2661,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.005460464139451782
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2252,7 +2681,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.005460464139451782
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2270,7 +2701,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.005460464139451782
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2288,7 +2721,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.005460464139451782
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2306,7 +2741,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.004523458868083141
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2324,7 +2761,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.0109924955078744
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2342,7 +2781,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.018709471670033118
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2360,7 +2801,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.009599156118143437
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2378,7 +2821,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.009599156118143437
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2396,7 +2841,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.009599156118143437
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2414,7 +2861,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.009599156118143437
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2432,7 +2881,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.009599156118143437
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2450,7 +2901,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.010871859826894648
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2468,7 +2921,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.010871859826894648
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2486,7 +2941,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": 0.010871859826894648
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2504,7 +2961,9 @@
    "hold": "holds days",
    "slot": "overnight",
    "day": "Sat",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-31",
+   "sol24": -0.023445463812436285
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2522,7 +2981,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": -0.009897927621404179
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2540,7 +3001,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.01501943073206613
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2558,7 +3021,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.01501943073206613
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2576,7 +3041,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.01501943073206613
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2594,7 +3061,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.01501943073206613
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2612,7 +3081,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.01501943073206613
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2630,7 +3101,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.01501943073206613
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2648,7 +3121,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.01501943073206613
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2666,7 +3141,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.01501943073206613
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2684,7 +3161,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2702,7 +3181,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2720,7 +3201,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2738,7 +3221,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2756,7 +3241,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2774,7 +3261,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2792,7 +3281,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2810,7 +3301,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2828,7 +3321,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2846,7 +3341,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2864,7 +3361,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2882,7 +3381,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2900,7 +3401,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2918,7 +3421,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2936,7 +3441,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2954,7 +3461,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2972,7 +3481,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -2990,7 +3501,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3008,7 +3521,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3026,7 +3541,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3044,7 +3561,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3062,7 +3581,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3080,7 +3601,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": 0.02932707689026337
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3098,7 +3621,9 @@
    "hold": "holds days",
    "slot": "morning",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-15",
+   "sol24": -0.005033060298036185
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3116,7 +3641,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-15",
+   "sol24": -0.005033060298036185
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3134,7 +3661,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-15",
+   "sol24": -0.005033060298036185
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3152,7 +3681,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-15",
+   "sol24": -0.005033060298036185
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3170,7 +3701,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-15",
+   "sol24": -0.007863953602673668
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3188,7 +3721,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-15",
+   "sol24": -0.007863953602673668
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3206,7 +3741,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-14",
+   "sol24": 0.018558736426456113
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3224,7 +3761,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-14",
+   "sol24": 0.018558736426456113
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3242,7 +3781,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-14",
+   "sol24": 0.018558736426456113
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3260,7 +3801,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-14",
+   "sol24": 0.018558736426456113
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3278,7 +3821,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-14",
+   "sol24": 0.025039432176656273
   },
   {
    "wallet": "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2",
@@ -3296,7 +3841,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-09-14",
+   "sol24": 0.025039432176656273
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3314,7 +3861,9 @@
    "hold": "holds days",
    "slot": "overnight",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.01924099075156782
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3332,7 +3881,9 @@
    "hold": "holds days",
    "slot": "overnight",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.01924099075156782
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3350,7 +3901,9 @@
    "hold": "holds days",
    "slot": "overnight",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.01924099075156782
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3368,7 +3921,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.02238489284956502
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3386,7 +3941,9 @@
    "hold": "holds days",
    "slot": "overnight",
    "day": "Mon",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-02",
+   "sol24": -0.013207547169811429
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3404,7 +3961,9 @@
    "hold": "holds days",
    "slot": "overnight",
    "day": "Sun",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-01",
+   "sol24": -0.0018861993083936213
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3422,7 +3981,9 @@
    "hold": "holds days",
    "slot": "overnight",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": -0.018411046627976768
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3440,7 +4001,9 @@
    "hold": "holds days",
    "slot": "overnight",
    "day": "Fri",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-30",
+   "sol24": -0.018411046627976768
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3458,7 +4021,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": -0.05085736554949338
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3476,7 +4041,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": -0.05085736554949338
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3494,7 +4061,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": -0.05085736554949338
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3512,7 +4081,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": -0.05085736554949338
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3530,7 +4101,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": -0.05085736554949338
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3548,7 +4121,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": -0.06217667154709616
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3566,7 +4141,9 @@
    "hold": "holds days",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": 0.008432539682539764
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3584,7 +4161,9 @@
    "hold": "holds days",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": -0.018078207899390852
   },
   {
    "wallet": "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ",
@@ -3602,7 +4181,9 @@
    "hold": "holds days",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-28",
+   "sol24": 0.027563395810363822
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3620,7 +4201,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0015176151761517875
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3638,7 +4221,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0015176151761517875
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3656,7 +4241,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0015176151761517875
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3674,7 +4261,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0015176151761517875
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3692,7 +4281,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0015176151761517875
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3710,7 +4301,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0015176151761517875
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3728,7 +4321,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0015176151761517875
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3746,7 +4341,9 @@
    "hold": "holds days",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0015176151761517875
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3764,7 +4361,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015655577299412915
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3782,7 +4381,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015655577299412915
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3800,7 +4401,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015655577299412915
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3818,7 +4421,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015655577299412915
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3836,7 +4441,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015735214324470892
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3854,7 +4461,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015735214324470892
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3872,7 +4481,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015735214324470892
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3890,7 +4501,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015735214324470892
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3908,7 +4521,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015735214324470892
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3926,7 +4541,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015735214324470892
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3944,7 +4561,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.014014122759369974
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3962,7 +4581,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.014014122759369974
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3980,7 +4601,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.014014122759369974
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -3998,7 +4621,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.014014122759369974
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4016,7 +4641,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.014014122759369974
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4034,7 +4661,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.014014122759369974
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4052,7 +4681,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.014014122759369974
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4070,7 +4701,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.013253666485605553
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4088,7 +4721,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.013253666485605553
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4106,7 +4741,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.013253666485605553
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4124,7 +4761,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0012864493996569415
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4142,7 +4781,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0012864493996569415
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4160,7 +4801,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0012864493996569415
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4178,7 +4821,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0012864493996569415
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4196,7 +4841,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": -0.06217667154709616
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4214,7 +4861,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": -0.06217667154709616
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4232,7 +4881,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": -0.06217667154709616
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4250,7 +4901,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-29",
+   "sol24": -0.0317599067599067
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4268,7 +4921,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-28",
+   "sol24": 0.01402884805374427
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4286,7 +4941,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-28",
+   "sol24": 0.01402884805374427
   },
   {
    "wallet": "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh",
@@ -4304,7 +4961,9 @@
    "hold": "holds days",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-10-28",
+   "sol24": 0.01402884805374427
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4322,7 +4981,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06312947772816946
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4340,7 +5001,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06312947772816946
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4358,7 +5021,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06312947772816946
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4376,7 +5041,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.060975609756097504
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4394,7 +5061,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.060975609756097504
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4412,7 +5081,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.060975609756097504
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4430,7 +5101,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06616415410385257
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4448,7 +5121,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06616415410385257
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4466,7 +5141,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06616415410385257
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4484,7 +5161,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06616415410385257
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4502,7 +5181,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06616415410385257
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4520,7 +5201,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06734778982485412
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4538,7 +5221,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06734778982485412
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4556,7 +5241,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06734778982485412
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4574,7 +5261,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06734778982485412
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4592,7 +5281,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06734778982485412
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4610,7 +5301,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06734778982485412
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4628,7 +5321,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06734778982485412
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4646,7 +5341,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.051948051948051854
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4664,7 +5361,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.051948051948051854
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4682,7 +5381,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.05160949868073883
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4700,7 +5401,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.046922995445397686
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4718,7 +5421,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.046922995445397686
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4736,7 +5441,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.05968267311127462
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4754,7 +5461,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.05968267311127462
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4772,7 +5481,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.05968267311127462
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4790,7 +5501,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06888981810579142
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4808,7 +5521,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06888981810579142
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4826,7 +5541,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06603871234861813
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4844,7 +5561,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06603871234861813
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4862,7 +5581,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06603871234861813
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4880,7 +5601,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06603871234861813
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4898,7 +5621,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06603871234861813
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4916,7 +5641,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06603871234861813
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4934,7 +5661,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06729475100942128
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4952,7 +5681,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06729475100942128
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4970,7 +5701,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06729475100942128
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -4988,7 +5721,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06729475100942128
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5006,7 +5741,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.06729475100942128
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5024,7 +5761,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.02250972967287246
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5042,7 +5781,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.02250972967287246
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5060,7 +5801,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.02250972967287246
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5078,7 +5821,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.02250972967287246
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5096,7 +5841,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.02250972967287246
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5114,7 +5861,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.02250972967287246
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5132,7 +5881,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": -0.02250972967287246
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5150,7 +5901,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.02617406290392066
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5168,7 +5921,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.02617406290392066
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5186,7 +5941,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.02617406290392066
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5204,7 +5961,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.02617406290392066
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5222,7 +5981,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.02617406290392066
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5240,7 +6001,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.02617406290392066
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5258,7 +6021,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.030175210902011695
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5276,7 +6041,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.030175210902011695
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5294,7 +6061,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.030175210902011695
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5312,7 +6081,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.03156092864020543
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5330,7 +6101,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.03252380442922864
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5348,7 +6121,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.040757070652758465
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5366,7 +6141,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.040757070652758465
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5384,7 +6161,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.040757070652758465
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5402,7 +6181,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.038213825676255864
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5420,7 +6201,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.038213825676255864
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5438,7 +6221,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.038213825676255864
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5456,7 +6241,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.038213825676255864
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5474,7 +6261,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.031001076426264706
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5492,7 +6281,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.031001076426264706
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5510,7 +6301,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.034879965550651315
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5528,7 +6321,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.034879965550651315
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5546,7 +6341,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.034879965550651315
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5564,7 +6361,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.034879965550651315
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5582,7 +6381,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Thu",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-05",
+   "sol24": 0.034879965550651315
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5600,7 +6401,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.032822284603757135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5618,7 +6421,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.032822284603757135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5636,7 +6441,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.032822284603757135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5654,7 +6461,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.032822284603757135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5672,7 +6481,9 @@
    "hold": "flips (under 15 min)",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.032822284603757135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5690,7 +6501,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.032822284603757135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5708,7 +6521,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.032822284603757135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5726,7 +6541,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.032822284603757135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5744,7 +6561,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.04055959223511563
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5762,7 +6581,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.04055959223511563
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5780,7 +6601,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.04055959223511563
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5798,7 +6621,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.04055959223511563
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5816,7 +6641,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.04055959223511563
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5834,7 +6661,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.05773672055427248
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5852,7 +6681,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.05773672055427248
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5870,7 +6701,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.06150115727984118
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5888,7 +6721,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.06150115727984118
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5906,7 +6741,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.06150115727984118
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5924,7 +6761,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.06150115727984118
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5942,7 +6781,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.04441541476159361
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5960,7 +6801,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.04441541476159361
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5978,7 +6821,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.04441541476159361
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -5996,7 +6841,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.04441541476159361
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6014,7 +6861,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.04441541476159361
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6032,7 +6881,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.04441541476159361
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6050,7 +6901,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.030309567468449927
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6068,7 +6921,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.030309567468449927
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6086,7 +6941,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.030309567468449927
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6104,7 +6961,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.026760864911153925
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6122,7 +6981,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.026760864911153925
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6140,7 +7001,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.026760864911153925
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6158,7 +7021,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6176,7 +7041,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6194,7 +7061,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6212,7 +7081,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.011858974358974317
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6230,7 +7101,9 @@
    "hold": "flips (under 15 min)",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.013477377259599965
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6248,7 +7121,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.013477377259599965
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6266,7 +7141,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.013477377259599965
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6284,7 +7161,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.013477377259599965
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6302,7 +7181,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.01309153342633329
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6320,7 +7201,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.01309153342633329
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6338,7 +7221,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.01309153342633329
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6356,7 +7241,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.01309153342633329
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6374,7 +7261,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.019605742446968
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6392,7 +7281,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.03436830835117766
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6410,7 +7301,9 @@
    "hold": "flips (under 15 min)",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.03436830835117766
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6428,7 +7321,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.03436830835117766
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6446,7 +7341,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.03194444444444455
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6464,7 +7361,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.019408106369290135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6482,7 +7381,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.019408106369290135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6500,7 +7401,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.019408106369290135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6518,7 +7421,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.019408106369290135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6536,7 +7441,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.019408106369290135
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6554,7 +7461,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": -0.002792696025778585
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6572,7 +7481,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": -0.002792696025778585
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6590,7 +7501,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": -0.005271651425497681
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6608,7 +7521,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.01158008658008658
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6626,7 +7541,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.01158008658008658
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6644,7 +7561,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.01158008658008658
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6662,7 +7581,9 @@
    "hold": "holds hours",
    "slot": "morning",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.01158008658008658
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6680,7 +7601,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.013115109473227804
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6698,7 +7621,9 @@
    "hold": "holds hours",
    "slot": "overnight",
    "day": "Wed",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-04",
+   "sol24": 0.01503595554587056
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6716,7 +7641,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0011943539630836497
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6734,7 +7661,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.0011943539630836497
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6752,7 +7681,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.011522991629524859
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6770,7 +7701,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.011522991629524859
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6788,7 +7721,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.011522991629524859
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6806,7 +7741,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.011522991629524859
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6824,7 +7761,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.011522991629524859
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6842,7 +7781,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.010038188761593014
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6860,7 +7801,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.010038188761593014
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6878,7 +7821,9 @@
    "hold": "flips (under 15 min)",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": -0.0036876355748373113
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6896,7 +7841,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.00958292497005342
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6914,7 +7861,9 @@
    "hold": "holds hours",
    "slot": "evening",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.00958292497005342
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6932,7 +7881,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015655577299412915
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6950,7 +7901,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015655577299412915
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6968,7 +7921,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015655577299412915
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -6986,7 +7941,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015655577299412915
   },
   {
    "wallet": "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp",
@@ -7004,7 +7961,9 @@
    "hold": "holds hours",
    "slot": "midday",
    "day": "Tue",
-   "source": "wallet"
+   "source": "wallet",
+   "date": "2026-11-03",
+   "sol24": 0.015655577299412915
   }
  ]
 }

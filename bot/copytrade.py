@@ -191,6 +191,16 @@ class Copier:
                 if self.cfg.get("playbook") and verdict(style, now, self.book) == "AVOID":
                     log.warning("%splaybook skips %s (%s, this time of day loses)", self.tag, name, style)
                     return
+                brake = float(self.cfg.get("max_daily_loss") or 0)
+                if brake and self.lost_today() >= brake:
+                    from .wallet_styles import date_of
+
+                    if self.state.get("brake_day") != date_of(now):
+                        self.state["brake_day"] = date_of(now)
+                        self.tell(f"{self.tag}bad-day brake: no more buys today",
+                                  f"Its trades lost {money(self.lost_today())} today (limit {money(brake)}), so it stops "
+                                  "buying until tomorrow. Coins it holds are still sold by the usual rules.")
+                    return
             usd = min(float(self.cfg["per_trade"]), self.wallet.cash())
             if usd < 5 or not info or info.get("liq", 0) < float(self.cfg["min_liquidity"]):
                 return
@@ -209,9 +219,12 @@ class Copier:
             self.positions[mint] = {"name": name, "raw": fill["out"], "decimals": dec, "cost": spent,
                                     "entry": spent / tokens if tokens else 0, "t": now, "wallets": [wallet], "sig": sig,
                                     "style": style}
+            from .wallet_styles import market_mood
+
             self.state.setdefault("trades", []).append({"t": now, "action": "BUY", "what": name, "usd": spent,
                                                         "wallet": wallet, "tx": fill.get("tx"), "mint": mint,
-                                                        "style": style, "playbook": verdict(style, now, self.book)})
+                                                        "style": style, "playbook": verdict(style, now, self.book),
+                                                        "sol24": market_mood(now)})
             self.quiet(f"{self.tag}BOUGHT {money(spent)} of {name}",
                        f"Smart wallet {wallet[:4]}…{wallet[-4:]} just bought it (seconds ago); copied with "
                        f"{'REAL' if self.live else 'pretend'} money" + (f" (style: {style})" if style else "")
@@ -285,6 +298,15 @@ class Copier:
 
     def value(self) -> float:
         return self.wallet.cash() + sum(p["cost"] for p in self.positions.values())
+
+    def lost_today(self) -> float:
+        """Dollars its finished trades lost today (Milwaukee time; 0 if they made money)."""
+        from .wallet_styles import date_of
+
+        today = date_of(self.now())
+        made = sum(t["usd"] * t["result"] / (1 + t["result"]) for t in self.state.get("trades", [])
+                   if t["action"] == "SELL" and date_of(t["t"]) == today)
+        return max(0.0, -made)
 
     def in_trade_hours(self) -> bool:
         """trade_hours: [start, end] in local hours (e.g. [11, 17] = 11 am to 5 pm) limits when real money buys."""
@@ -467,9 +489,13 @@ def style_lines(state: dict) -> list[str]:
 
     rows = practice_rows(state)
     lines = []
-    for key, label in (("style", "style"), ("playbook", "playbook said")):
+    for key, label in (("style", "style"), ("playbook", "playbook said"), ("mood", "SOL's last 24 h")):
         groups = {}
-        if key == "playbook":
+        if key == "mood":
+            for r in rows:
+                if r.get("sol24") is not None:
+                    groups.setdefault("up" if r["sol24"] > 0 else "down", []).append(r)
+        elif key == "playbook":
             buys = {(t["what"], t["t"]): t.get("playbook") for t in state.get("trades", []) if t["action"] == "BUY"}
             for r in rows:
                 groups.setdefault(buys.get((r["symbol"], r["t"])) or "?", []).append(r)
@@ -549,6 +575,10 @@ def status_text(now: float | None = None) -> str:
                 out.append(f"  DROPPED wallet {w[:4]}…{w[-4:]} at {when(t) if isinstance(t, (int, float)) else t}")
             if st.get("low_told"):
                 out.append(f"  PAUSED for low balance since {when(st['low_told'])}")
+            from .wallet_styles import date_of
+
+            if st.get("brake_day") == date_of(now):
+                out.append("  BAD-DAY BRAKE on: no more buys today")
             sells = [t for t in st.get("trades", []) if t["action"] == "SELL"]
             for t in sells[-8:]:
                 out.append(f"  sold {t.get('what')}: {t.get('result', 0):+.1%} on ${t.get('usd', 0):.2f} ({when(t['t'])})")

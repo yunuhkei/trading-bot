@@ -14,7 +14,7 @@ concurrency:
 jobs:
   styles:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - name: Every other week
         id: week

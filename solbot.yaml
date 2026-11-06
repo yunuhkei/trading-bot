@@ -101,5 +101,6 @@ copytrade:                # needs the HELIUS_API_KEY secret
     drop_after_losses: 0  # off: keep copying through losing streaks; only the $70 stop stops it
     trade_hours: [11, 17] # real money only BUYS 11 am-5 pm Milwaukee time (midday); it still sells any time
     playbook: true        # skip buys whose style loses at this time of day (models/wallet_styles.json, AVOID cells)
+    max_daily_loss: 8     # bad-day brake: if its trades lose $8 in one day, no more buys until tomorrow
     forgive:              # wallets to copy again after a drop (each is forgiven once, with a clean record)
       - 71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp

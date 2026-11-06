@@ -14,7 +14,11 @@
 5. The playbook: every trade from every wallet, plus the copy practice's own trades once they carry a style, grouped
    by style x time of day (Milwaukee time) and by weekday x time of day. A cell says GO or AVOID only with 20+ trades
    on 8+ different coins and 90%+ confidence, otherwise "not sure yet". The confidence reshuffles whole COINS, not
-   single trades, so one coin's big run (many trades on the same coin) can't make a cell look sure. It is re-built every other Sunday, so it
+   single trades, so one coin's big run (many trades on the same coin) can't make a cell look sure, and the trades
+   must come from 4+ different days, so one good (or bad) day can't either.
+6. Days: every trade also gets the market's mood when it was bought (SOL's move over the 24 hours before, from
+   Coinbase), and each calendar day gets its own result, so the report shows whether bad days come in a pattern
+   (a weekday, a falling market) before any rule is made from it. It is re-built every other Sunday, so it
    keeps up with whatever the wallets do next.
 Saved to models/wallet_styles.json and sent to your phone. Real-money copying skips AVOID cells only when
 solbot.yaml copytrade.live.playbook is true. Practice copies everything, so the playbook keeps learning.
@@ -39,8 +43,9 @@ SLOTS = (("overnight", 23, 5), ("morning", 5, 11), ("midday", 11, 17), ("evening
 SLOT_HOURS = {"overnight": "11pm-5am", "morning": "5-11am", "midday": "11am-5pm", "evening": "5-11pm"}
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 COPY_COST = 0.02            # what copying loses per round trip (the finder's scoring uses the same)
-MIN_CELL, MIN_COINS, MIN_SURE = 20, 8, 0.9     # 90%: many cells are judged at once, so 80% would call some by luck
-MAX_TRIPS = 150             # newest round trips per wallet that get a chart read
+MIN_CELL, MIN_COINS, MIN_DAYS, MIN_SURE = 20, 8, 4, 0.9     # 90%: many cells are judged at once, so 80% would call some by luck
+MAX_TRIPS = 150             # round trips per wallet that get a chart read, spread over as many days as possible
+WALLET_TX = 3000            # transactions read per wallet (busy wallets make ~300 a day, so this is about 10 days)
 MAX_CHARTS = 450            # GeckoTerminal reads per run (its free feed allows about 30 a minute)
 
 
@@ -66,6 +71,12 @@ def slot_of(t: float, tz: str = TZ) -> str:
 
     h = datetime.datetime.fromtimestamp(t, ZoneInfo(tz)).hour
     return next(n for n, s, e in SLOTS if ((s <= h < e) if s < e else (h >= s or h < e)))
+
+
+def date_of(t: float, tz: str = TZ) -> str:
+    from zoneinfo import ZoneInfo
+
+    return datetime.datetime.fromtimestamp(t, ZoneInfo(tz)).strftime("%Y-%m-%d")
 
 
 def day_of(t: float, tz: str = TZ) -> str:
@@ -132,7 +143,7 @@ def enrich(wallet: str, trips: list[tuple], coins: dict, charts) -> list[dict]:
         rows.append({"wallet": wallet, "mint": mint, "symbol": info.get("symbol") or mint[:6], "t": t0, "sold": t1,
                      "ret": ret - COPY_COST, "hold_min": (t1 - t0) / 60, "age_h": age_h, "ch1": ch1, "ch6": ch6,
                      "mcap": mcap, "style": entry_style(age_h, ch1, ch6), "hold": hold_style((t1 - t0) / 60),
-                     "slot": slot_of(t0), "day": day_of(t0), "source": "wallet"})
+                     "slot": slot_of(t0), "day": day_of(t0), "date": date_of(t0), "source": "wallet"})
     return rows
 
 
@@ -160,9 +171,9 @@ class Charts:
 
 # ---- Grading ----------------------------------------------------------------------------------------------------------
 
-def grade(rets, coins=None, rng=None) -> dict:
-    """n, won, avg (after copy costs) and a verdict: GO / AVOID only with MIN_CELL+ trades on MIN_COINS+ coins and
-    MIN_SURE confidence. The confidence resamples whole coins (all of a coin's trades together)."""
+def grade(rets, coins=None, rng=None, days=None) -> dict:
+    """n, won, avg (after copy costs) and a verdict: GO / AVOID only with MIN_CELL+ trades on MIN_COINS+ coins over
+    MIN_DAYS+ days and MIN_SURE confidence. The confidence resamples whole coins (all of a coin's trades together)."""
     r = np.asarray(list(rets), float)
     if not len(r):
         return {"n": 0}
@@ -173,10 +184,12 @@ def grade(rets, coins=None, rng=None) -> dict:
     pick = rng.integers(0, len(names), (2000, len(names)))
     means = sums[pick].sum(axis=1) / counts[pick].sum(axis=1)
     up = float((means > 0).mean())
-    enough = len(r) >= MIN_CELL and len(names) >= MIN_COINS
+    n_days = len(set(days)) if days is not None else MIN_DAYS
+    enough = len(r) >= MIN_CELL and len(names) >= MIN_COINS and n_days >= MIN_DAYS
     verdict = ("GO" if up >= MIN_SURE else "AVOID" if up <= 1 - MIN_SURE else "not sure yet") if enough else "not sure yet"
-    return {"n": int(len(r)), "coins": int(len(names)), "won": float((r > 0).mean()), "avg": float(r.mean()),
-            "median": float(np.median(r)), "sure_up": up, "verdict": verdict}
+    return {"n": int(len(r)), "coins": int(len(names)), "days": int(n_days), "won": float((r > 0).mean()),
+            "avg": float(r.mean()), "median": float(np.median(r)), "sum": float(r.sum()), "sure_up": up,
+            "verdict": verdict}
 
 
 def profile(rows: list[dict]) -> dict:
@@ -199,11 +212,15 @@ def profile(rows: list[dict]) -> dict:
 
 def playbook(rows: list[dict]) -> dict:
     d = pd.DataFrame(rows)
-    out = {"by_style_slot": {}, "by_day_slot": {}, "by_style": {}, "by_slot": {}, "by_hold": {}}
+    out = {"by_style_slot": {}, "by_day_slot": {}, "by_style": {}, "by_slot": {}, "by_hold": {}, "by_mood": {},
+           "by_date": {}}
     if d.empty:
         return out
+    if "date" not in d:
+        d["date"] = d["t"].map(date_of)
+    d["date"] = d["date"].fillna(d["t"].map(date_of))
     rng = np.random.default_rng(0)
-    g = lambda mask: grade(d[mask]["ret"], d[mask]["mint"], rng)
+    g = lambda mask: grade(d[mask]["ret"], d[mask]["mint"], rng, d[mask]["date"])
     for s in STYLES:
         out["by_style"][s] = g(d["style"] == s)
         for n, _, _ in SLOTS:
@@ -214,6 +231,11 @@ def playbook(rows: list[dict]) -> dict:
             out["by_day_slot"][f"{day}|{n}"] = g((d["day"] == day) & (d["slot"] == n))
     for h in HOLDS:
         out["by_hold"][h] = g(d["hold"] == h)
+    if "sol24" in d:
+        sol = pd.to_numeric(d["sol24"], errors="coerce")
+        out["by_mood"] = {"SOL up": g(sol > 0), "SOL down": g(sol <= 0)}
+    for day in sorted(d["date"].unique()):
+        out["by_date"][day] = g(d["date"] == day)
     return out
 
 
@@ -229,7 +251,8 @@ def practice_rows(state: dict) -> list[dict]:
                 rows.append({"wallet": b.get("wallet"), "mint": b.get("mint") or t["what"], "symbol": t["what"],
                              "t": b["t"], "sold": t["t"], "ret": t["result"], "hold_min": (t["t"] - b["t"]) / 60,
                              "style": b["style"], "hold": hold_style((t["t"] - b["t"]) / 60), "slot": slot_of(b["t"]),
-                             "day": day_of(b["t"]), "source": "practice"})
+                             "day": day_of(b["t"]), "date": date_of(b["t"]), "sol24": b.get("sol24"),
+                             "source": "practice"})
     return rows
 
 
@@ -245,25 +268,94 @@ def verdict(style: str | None, t: float, book: dict | None = None) -> str:
     return ((book.get("by_style_slot") or {}).get(f"{style}|{slot_of(t)}") or {}).get("verdict", "not sure yet")
 
 
+# ---- The market's mood: SOL's move over the 24 hours before a buy ----------------------------------------------------
+
+def sol_hourly(start: float, end: float) -> pd.Series:
+    """SOL's hourly closing price (Coinbase, no key) from `start` to `end`."""
+    import requests
+
+    out, t = [], start - 2 * 86400
+    while t < end:
+        e = min(t + 300 * 3600, end)
+        iso = lambda x: datetime.datetime.fromtimestamp(x, datetime.timezone.utc).isoformat()
+        r = requests.get("https://api.exchange.coinbase.com/products/SOL-USD/candles",
+                         params={"granularity": 3600, "start": iso(t), "end": iso(e)}, timeout=30)
+        r.raise_for_status()
+        out += r.json()
+        t = e
+        time.sleep(0.4)
+    s = pd.Series({float(row[0]): float(row[4]) for row in out})
+    return s.sort_index()
+
+
+def sol_change(sol: pd.Series | None, t: float, hours: float = 24) -> float | None:
+    if sol is None or sol.empty:
+        return None
+    now, then = sol[sol.index <= t], sol[sol.index <= t - hours * 3600]
+    return float(now.iloc[-1] / then.iloc[-1] - 1) if len(now) and len(then) else None
+
+
+_MOOD: dict = {}
+
+
+def market_mood(now: float | None = None) -> float | None:
+    """SOL's move over the last 24 hours (0.05 = +5%), from DEX Screener, looked up at most every 10 minutes."""
+    from .copytrade import QUOTES
+    from .solbot import dex_info
+
+    now = now or time.time()
+    if now - _MOOD.get("t", 0) > 600:
+        try:
+            sol = next(m for m in QUOTES if m.startswith("So1"))
+            _MOOD.update(t=now, sol24=float((dex_info([sol]).get(sol) or {})["h24"]) / 100)
+        except Exception as e:
+            log.warning("market mood: %s", e)
+            _MOOD.update(t=now, sol24=None)
+    return _MOOD.get("sol24")
+
+
+def spread(trips: list[tuple], n: int) -> list[tuple]:
+    """Up to n round trips, taken from as many different days as possible (newest first within each day)."""
+    by_day: dict[str, list] = {}
+    for x in sorted(trips, key=lambda x: -x[0]):
+        by_day.setdefault(date_of(x[0]), []).append(x)
+    days, out = sorted(by_day, reverse=True), []
+    while len(out) < n and any(by_day.values()):
+        for d in days:
+            if by_day[d] and len(out) < n:
+                out.append(by_day[d].pop(0))
+    return sorted(out, key=lambda x: -x[0])
+
+
 # ---- The run (every other Sunday, and by hand) ------------------------------------------------------------------------
 
-def build(wallets: list[str], trades_of=None, coin_info=None, read_chart=chart, practice: dict | None = None) -> dict:
+def build(wallets: list[str], trades_of=None, coin_info=None, read_chart=chart, practice: dict | None = None,
+          sol=None) -> dict:
     from .smart_wallets import round_trips, wallet_trades
     from .solbot import dex_info
 
-    trades_of, coin_info = trades_of or wallet_trades, coin_info or dex_info
+    trades_of = trades_of or (lambda w: wallet_trades(w, 120, WALLET_TX))
+    coin_info = coin_info or dex_info
     trips = {}
     for w in wallets:
         try:
-            trips[w] = sorted(round_trips(trades_of(w)), key=lambda x: -x[0])[:MAX_TRIPS]
+            trips[w] = spread(round_trips(trades_of(w)), MAX_TRIPS)
         except Exception as e:
             log.warning("record %s: %s", w[:6], e)
     mints = sorted({m for ts in trips.values() for *_, m in ts})
     coins = coin_info(mints) if mints else {}
     charts = Charts(coins, read_chart)
+    times = [x[0] for ts in trips.values() for x in ts]
+    if sol is None and times:
+        try:
+            sol = sol_hourly(min(times), max(times))
+        except Exception as e:
+            log.warning("SOL prices: %s", e)
     rows, profiles = [], {}
     for w, ts in trips.items():
         mine = enrich(w, ts, coins, charts)
+        for r in mine:
+            r["sol24"] = sol_change(sol, r["t"])
         if mine:
             profiles[w] = profile(mine)
             rows += mine
@@ -280,7 +372,9 @@ def _pct(x):
 
 def report_text(res: dict, live_on: bool = False) -> str:
     """The every-other-Sunday phone report, in plain words."""
-    lines = [f"Read {res['trades']} finished trades from {len(res['wallets'])} smart wallets (their last ~4 months)"
+    dates = sorted({r.get("date") or date_of(r["t"]) for r in res.get("rows", [])})
+    span = f" ({dates[0]} to {dates[-1]}, trades on {len(dates)} different days)" if dates else ""
+    lines = [f"Read {res['trades']} finished trades from {len(res['wallets'])} smart wallets{span}"
              + (f" + {res['practice_trades']} copy-practice trades" if res.get("practice_trades") else "")
              + ". Results are after 2% copying costs.", "", "HOW EACH WALLET TRADES:"]
     for w, p in sorted(res["wallets"].items(), key=lambda kv: -kv[1]["avg"] * kv[1]["trades"]):
@@ -311,6 +405,17 @@ def report_text(res: dict, live_on: bool = False) -> str:
         days.sort(key=lambda kv: kv[1]["avg"])
         fmt = lambda kv: f"{kv[0].replace('|', ' ')} {_pct(kv[1]['avg'])} ({kv[1]['n']})"
         lines.append("WEEKDAYS: best " + ", ".join(map(fmt, days[::-1][:3])) + "; worst " + ", ".join(map(fmt, days[:3])))
+    mood = [f"{k} {_pct(g['avg'])} ({g['n']}, typical {_pct(g['median'])})" for k, g in (book.get("by_mood") or {}).items()
+            if g.get("n")]
+    if mood:
+        lines.append("MARKET MOOD (SOL's last 24 h when bought): " + " · ".join(mood))
+    by_date = [(k, g) for k, g in (book.get("by_date") or {}).items() if g.get("n", 0) >= 5]
+    if by_date:
+        bad = [k for k, g in by_date if g["avg"] < 0]
+        worst = min(by_date, key=lambda kv: kv[1]["avg"])
+        best = max(by_date, key=lambda kv: kv[1]["avg"])
+        lines.append(f"DAYS: {len(bad)} of {len(by_date)} days lost money. Best {best[0]} {_pct(best[1]['avg'])} "
+                     f"({best[1]['n']}), worst {worst[0]} {_pct(worst[1]['avg'])} ({worst[1]['n']}).")
     go = [k.replace("|", " ") for k, c in book["by_style_slot"].items() if c.get("verdict") == "GO"]
     avoid = [k.replace("|", " ") for k, c in book["by_style_slot"].items() if c.get("verdict") == "AVOID"]
     lines += ["", f"PLAYBOOK: GO {', '.join(go) or 'nothing sure yet'}; AVOID {', '.join(avoid) or 'nothing sure yet'}. "

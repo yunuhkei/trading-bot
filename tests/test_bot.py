@@ -2326,7 +2326,8 @@ def test_wallet_styles_label_each_buy_and_grade_style_by_time_of_day():
         before_px = 1.0 if w == "D" else 0.6
         close = np.where(idx < t - 1800, before_px, 0.7 if w == "D" else 0.84)
         return pd.DataFrame({"close": close, "high": close}, index=idx)
-    res = ws.build(["D", "P"], trades_of=trades_of, coin_info=coins, read_chart=read_chart, practice={})
+    sol = pd.Series(np.linspace(100, 200, 24 * 40), index=noon - 3 * 86400 + 3600.0 * np.arange(24 * 40))   # rising
+    res = ws.build(["D", "P"], trades_of=trades_of, coin_info=coins, read_chart=read_chart, practice={}, sol=sol)
     d, p = res["wallets"]["D"], res["wallets"]["P"]
     assert d["main_style"] == "dip buyer" and d["mix"]["dip buyer"] == 1.0 and d["hold"] == "holds hours"
     assert p["main_style"] == "pump chaser" and abs(d["avg"] - 0.28) < 1e-9 and abs(p["avg"] + 0.22) < 1e-9
@@ -2342,6 +2343,15 @@ def test_wallet_styles_label_each_buy_and_grade_style_by_time_of_day():
     assert "GO dip buyer midday" in text and "AVOID pump chaser morning" in text and "does NOT use it yet" in text
     small = ws.grade([0.5] * 19)
     assert small["verdict"] == "not sure yet" and small["n"] == 19          # 19 trades: too few to call
+    assert book["by_mood"]["SOL up"]["n"] == 50 and book["by_mood"]["SOL down"] == {"n": 0}
+    assert len(book["by_date"]) == 25 and "trades on 25 different days" in text and "DAYS: 0 of 0" not in text
+    assert res["rows"][0]["sol24"] > 0 and res["rows"][0]["date"]
+    one_day = ws.grade([0.5] * 30, [f"C{i}" for i in range(30)], days=["2026-11-03"] * 15 + ["2026-11-04"] * 15)
+    assert one_day["verdict"] == "not sure yet" and one_day["days"] == 2       # 2 good days: not enough to call
+    trips = [(noon + d * 86400 + k * 60, noon + d * 86400 + k * 60 + 600, 0.1, "M") for d in range(3) for k in range(10)]
+    picked = ws.spread(trips, 6)
+    assert len(picked) == 6 and len({ws.date_of(x[0]) for x in picked}) == 3     # spread over all 3 days
+    assert abs(ws.sol_change(sol, noon) - (sol[sol.index <= noon].iloc[-1] / sol[sol.index <= noon - 86400].iloc[-1] - 1)) < 1e-12
     one_coin = ws.grade([0.5] * 30, ["PEAK"] * 30)
     assert one_coin["verdict"] == "not sure yet" and one_coin["coins"] == 1  # one coin's big run: can't be sure
     lucky = ws.grade([2.0] * 3 + [-0.1] * 27, [f"C{i}" for i in range(30)])
@@ -2384,3 +2394,35 @@ def test_copier_tags_each_buy_with_its_style_and_live_can_skip_what_the_playbook
     lines = ct.style_lines(on.state)
     assert any(l.startswith("  style dip buyer: 1 trades, 1 won") for l in lines)
     assert any(l.startswith("  playbook said GO: 1 trades") for l in lines)
+
+
+def test_copy_live_bad_day_brake_stops_buying_after_the_days_limit(tmp_path, monkeypatch):
+    import datetime
+    import json
+    from bot import copytrade as ct
+    from bot import solbot as sb
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "smart_wallets.json").write_text(json.dumps({"wallets": {"W1": {}}, "approved": ["W1"]}))
+    noon = datetime.datetime(2026, 11, 2, 12, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=-6))).timestamp()
+    clock = [noon]
+    price = [1.0]
+    monkeypatch.setattr(sb, "dex_info", lambda mints: {m: {"liq": 50_000, "vol24": 1e5, "symbol": m} for m in mints})
+    monkeypatch.setattr(sb, "safety_check", lambda mint, *a: (True, "ok"))
+    monkeypatch.setattr(sb, "prices", lambda mints: {m: {"usdPrice": price[0], "decimals": 6} for m in mints})
+    told = []
+    c = ct.Copier({"copytrade": {"live": {"max_daily_loss": 5}}}, lambda t, m: told.append(t), live=True,
+                  wallet=_FakeLiveWallet(50, price), now=lambda: clock[0])
+    for coin in ("A", "B"):                                          # two $6 trades that halve: -$6 today
+        price[0] = 1.0
+        c.on_swap("W1", coin, 100)
+        price[0] = 0.5
+        c.on_swap("W1", coin, -100)
+    assert abs(c.lost_today() - 6) < 0.01
+    price[0] = 1.0
+    c.on_swap("W1", "C", 100)
+    c.on_swap("W1", "D", 100)
+    assert not c.positions and sum("bad-day brake" in t for t in told) == 1  # no buys, one ping
+    clock[0] += 86400                                                # tomorrow: buying again
+    c.on_swap("W1", "E", 100)
+    assert "E" in c.positions and c.lost_today() == 0
