@@ -506,6 +506,8 @@ STRATEGIES = {
                                                                "min_price": 0.60, "max_price": 0.80, "hit_rate": 0.68}},
     "G": {"label": "Cheaper favorites (60-65c)", "rules": {"pick": "favorite", "when": "tomorrow", "min_price": 0.60,
                                                          "max_price": 0.65, "hit_rate": 0.65}},
+    # Sure-profit sets anywhere on Kalshi (arb_scan), not just weather: rare, so it has its own account to show it.
+    "R": {"label": "Arbitrage anywhere on Kalshi", "rules": {"family": "arb"}},
 }
 LINEUP = 2          # bump when the lineup changes: the practice accounts start over so old bets don't count
 
@@ -593,6 +595,76 @@ def arb_ideas(events: list[dict], settings: dict) -> list[dict]:
                 out.append({"kind": "arbitrage", "event": e["event_ticker"], "side": side, "legs": [m["ticker"] for m in ms],
                             "prices": prices, "cost": cost, "payout": payout, "edge": payout - cost,
                             "count": int(min(sizes)), "title": e.get("title", "").replace("?", "")})
+    return sorted(out, key=lambda i: -i["edge"])
+
+
+def no_subset_arb(markets: list[dict], margin: float, need_size: bool = True) -> dict | None:
+    """In an event where at most one market can come true, NO on any m of its markets pays at least m-1 dollars a
+    set. The cheapest NOs first: the m that pays the most over its cost (after fees), if that's at least `margin`."""
+    legs = sorted(((_f(m.get("no_ask_dollars")), _f(m.get("no_ask_size_fp")), m["ticker"]) for m in markets
+                   if 0 < _f(m.get("no_ask_dollars")) < 1 and (_f(m.get("no_ask_size_fp")) >= 1 or not need_size)))
+    best, cost = None, 0.0
+    for n, (price, _, _) in enumerate(legs, 1):
+        cost += price + fee(price)
+        if n >= 2 and (best is None or (n - 1) - cost > best[0]):
+            best = ((n - 1) - cost, n, cost)
+    if not best or best[0] < margin:
+        return None
+    _, n, cost = best
+    use = legs[:n]
+    return {"side": "no", "legs": [t for _, _, t in use], "prices": [p for p, _, _ in use], "cost": cost,
+            "payout": n - 1.0, "edge": (n - 1) - cost, "count": int(min(sz for _, sz, _ in use))}
+
+
+def arb_scan(state: dict, now: float, settings: dict, budget_s: float = 60) -> list[dict]:
+    """Sure-profit sets anywhere on Kalshi (not just weather), a slice of the open markets per check (where it stopped
+    is remembered): NO on several markets of an event where at most one can come true, or YES on every bracket of an
+    event whose brackets cover every outcome, for less than they must pay after fees. Only markets that settle within
+    `arb_days` (default 14), so the money isn't tied up for months."""
+    t0, margin = time.time(), float(settings.get("arb_margin", 0.02))
+    horizon = int(now + float(settings.get("arb_days", 14)) * 86400)
+    cursor, seen = state.get("arb_cursor"), {}
+    while time.time() - t0 < budget_s:
+        params = {"status": "open", "limit": 1000, "max_close_ts": horizon, "mve_filter": "exclude"}   # no parlays
+        if cursor:
+            params["cursor"] = cursor
+        try:
+            page = kget("/markets", params)
+        except Exception as e:
+            log.warning("arbitrage scan: %s", e)
+            cursor = None                                  # a stale place to resume: start over next check
+            break
+        for m in page.get("markets", []):
+            seen.setdefault(m.get("event_ticker"), []).append(m)
+        cursor = page.get("cursor") or None
+        if not cursor:
+            break                                          # swept everything: start over next check
+        time.sleep(0.5)
+    state["arb_cursor"] = cursor
+    mutex = state.setdefault("arb_mutex", {})              # event -> mutually exclusive? (asked once)
+    out = []
+    for et, ms in seen.items():
+        yes_sum = sum(_f(m.get("yes_ask_dollars")) + fee(_f(m.get("yes_ask_dollars"))) for m in ms)
+        if not (no_subset_arb(ms, margin, need_size=False) or (len(ms) >= 2 and all(0 < _f(m.get("yes_ask_dollars")) < 1 for m in ms)
+                                              and yes_sum <= 1 - margin)):
+            continue
+        try:                                               # a candidate: read the whole event to be sure
+            full = kget(f"/events/{et}", {"with_nested_markets": "true"})
+            e = {**(full.get("event") or {}), "markets": full.get("markets") or (full.get("event") or {}).get("markets") or []}
+        except Exception as ex:
+            log.warning("arbitrage check %s: %s", et, ex)
+            continue
+        mutex[et] = bool(e.get("mutually_exclusive"))
+        if not mutex[et]:
+            continue
+        found = [i for i in arb_ideas([e], settings) if i["side"] == "yes"]    # all brackets, if they cover everything
+        sub = no_subset_arb(e.get("markets") or [], margin)
+        if sub:
+            found.append({"kind": "arbitrage", "event": et, **sub, "title": e.get("title", et).replace("?", "")})
+        out += found
+        time.sleep(0.3)
+    if len(mutex) > 5000:
+        state["arb_mutex"] = dict(list(mutex.items())[-2000:])
     return sorted(out, key=lambda i: -i["edge"])
 
 
@@ -799,6 +871,7 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
             if k != "A":
                 acct = state.setdefault("variants", {}).setdefault(k, {"cash": cash0, "start": cash0, "positions": {}})
                 settle(acct, quiet, "PRACTICE ", now, cache, f"[{k}] ")
+        scan_all = events is None                         # a real check (tests hand it their own events)
         if events is None:
             events = weather_events(state, now)
         nowdt = datetime.fromtimestamp(now, timezone.utc)
@@ -807,9 +880,16 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
         except Exception as e:
             log.warning("grading failed: %s", e)
         views = weather_views(events, nowdt, state)
+        extra: dict[str, list[dict]] = {}                 # other markets' ideas, gathered once for the strategies using them
+        if scan_all and any(v["rules"].get("family") == "arb" for v in strats.values()):
+            try:
+                extra["arb"] = arb_scan(state, now, settings, float(settings.get("arb_scan_seconds", 60)))
+            except Exception as e:
+                log.warning("arbitrage scan failed: %s", e)
         bought, summary = 0, []
         for k, v in strats.items():
-            ideas = ideas_from_views(views, v["rules"])
+            fam = v["rules"].get("family")
+            ideas = extra.get(fam, []) if fam else ideas_from_views(views, v["rules"])
             if k == "A":
                 ideas = arb_ideas(events, settings) + ideas
                 bought = trade(state, ideas, settings, tell, tag, now, live, client)

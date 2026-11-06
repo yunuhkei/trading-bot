@@ -1566,7 +1566,7 @@ def test_kalshi_strategies_follow_their_own_rules_and_keep_their_own_accounts(tm
     told = []
     k.step({"mode": "practice", "practice_cash": 100}, lambda t, m: told.append(t), events=[ev])
     state = json.loads(Path("kalshi_state_practice.json").read_text())
-    assert state["positions"] and set(state["variants"]) == {"B", "C", "D", "E", "F", "G"}
+    assert state["positions"] and set(state["variants"]) == {"B", "C", "D", "E", "F", "G", "R"}
     assert state["variants"]["E"]["positions"] and all(p["side"] == "no" for p in state["variants"]["E"]["positions"].values())
     assert sum("Kalshi: bought" in t for t in told) == len(state["positions"])        # only A pings per trade
     title, msg = k.scoreboard(state, k.strategies({}))
@@ -1955,6 +1955,39 @@ def test_kalshi_walk_forward_picks_settings_on_earlier_days_only_and_can_take_pr
     assert a["n"] == 13 and agree["n"] == 6 and agree["won"] == 6 and agree["profit"] > a["profit"]
     picked = w.walk_forward(cdhs, {"take": w.IDEAS["take"]})["take"]
     assert picked["setting"] in ({"take": 0.85}, {"take": 0.9})       # every bid spiked to 92c: selling there paid
+
+
+def test_kalshi_arbitrage_anywhere_finds_sure_no_sets_and_checks_the_event_first(monkeypatch):
+    from bot import kalshi as k
+    m = lambda t, yes, no, size="50": {"ticker": t, "event_ticker": "EV", "yes_ask_dollars": str(yes),
+                                       "no_ask_dollars": str(no), "no_ask_size_fp": size}
+    # at most one of these can come true: NO on A and B (45c + 47c) pays at least $1, and adding C's 96c NO makes it
+    # at least $2 for $1.93 with fees, the best set
+    ms = [m("A", 0.56, 0.45), m("B", 0.54, 0.47), m("C", 0.05, 0.96)]
+    sub = k.no_subset_arb(ms, 0.02)
+    assert sub and sub["legs"] == ["A", "B", "C"] and sub["payout"] == 2.0 and abs(sub["edge"] - 0.07) < 1e-9
+    assert k.no_subset_arb(ms[:2], 0.02)["edge"] == k.no_subset_arb(ms[:2], 0.02)["payout"] - k.no_subset_arb(ms[:2], 0.02)["cost"]
+    assert k.no_subset_arb([m("A", 0.56, 0.52), m("B", 0.54, 0.50)], 0.02) is None          # costs more than it pays
+    assert k.no_subset_arb([m("A", 0.5, 0.45, None), m("B", 0.5, 0.47, None)], 0.02) is None  # no size to buy
+    calls = []
+
+    def kget(path, params=None):
+        calls.append(path)
+        if path == "/markets":
+            return {"markets": [{**x, "no_ask_size_fp": None} for x in ms] + [m("Z", 0.5, 0.5)], "cursor": ""}
+        if path == "/events/EV":
+            return {"event": {"event_ticker": "EV", "title": "Who wins?", "mutually_exclusive": calls.count(path) == 1,
+                              "markets": ms}}
+        raise AssertionError(path)
+    monkeypatch.setattr(k, "kget", kget)
+    state = {}
+    ideas = k.arb_scan(state, 0.0, {"arb_margin": 0.02}, budget_s=5)
+    assert len(ideas) == 1 and ideas[0]["side"] == "no" and ideas[0]["event"] == "EV" and state["arb_mutex"]["EV"]
+    assert state["arb_cursor"] is None                                          # swept it all: start over next time
+    assert k.arb_scan({}, 0.0, {"arb_margin": 0.02}, budget_s=5) == []         # not mutually exclusive: no trade
+    acct = {"cash": 100.0, "positions": {}}
+    assert k.trade(acct, ideas, {"max_per_trade": 5}, lambda *a: None, "PRACTICE ", 0.0) == 1
+    assert set(acct["positions"]) == {"A", "B", "C"} and all(p["side"] == "no" for p in acct["positions"].values())
 
 
 def test_kalshi_shows_what_each_open_bet_would_sell_for_now():
