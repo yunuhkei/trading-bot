@@ -2287,3 +2287,96 @@ def test_copytrade_live_can_follow_every_practice_wallet(tmp_path, monkeypatch):
     every = ct.Copier({"copytrade": {"live": {**base, "follow_all": True}}}, lambda *a: None, live=True, wallet=Wallet())
     practice = ct.Copier({"copytrade": {}}, lambda *a: None)
     assert only.wallets == ["C"] and every.wallets == practice.wallets == ["A", "B", "C"]
+
+
+def test_wallet_styles_label_each_buy_and_grade_style_by_time_of_day():
+    import datetime
+    import numpy as np
+    import pandas as pd
+    from bot import wallet_styles as ws
+
+    assert ws.entry_style(0.5, 0.0, 0.0) == "launch sniper" and ws.entry_style(-3, 0.5, 0.0) == "launch sniper"
+    assert ws.entry_style(30, -0.2, 0.0) == "dip buyer" and ws.entry_style(30, 0.0, -0.4) == "dip buyer"
+    assert ws.entry_style(30, 0.3, 0.0) == "pump chaser" and ws.entry_style(30, 0.05, 0.1) == "quiet buyer"
+    assert ws.style_from_dex({"age_h": 50, "h1": -20, "h6": 0}) == "dip buyer" and ws.style_from_dex(None) is None
+    assert ws.hold_style(5) == ws.HOLDS[0] and ws.hold_style(60) == "holds hours" and ws.hold_style(900) == "holds days"
+    ct_ = datetime.timezone(datetime.timedelta(hours=-6))                  # Milwaukee in November
+    noon = datetime.datetime(2026, 11, 2, 12, 0, tzinfo=ct_).timestamp()   # a Monday
+    assert ws.slot_of(noon) == "midday" and ws.slot_of(noon - 13 * 3600) == "overnight" and ws.day_of(noon) == "Mon"
+
+    # Wallet D buys 25 coins at midday right after a 30% drop and sells +30%; wallet P buys 25 in the morning
+    # after a 40% run-up and sells -20%.
+    buys = {}
+    def trades_of(w):
+        out = []
+        for i in range(25):
+            t = noon + i * 86400 - (4 * 3600 if w == "P" else 0)
+            m = f"{w}{i}"
+            buys[m] = (t, w)
+            out += [{"t": t, "mint": m, "tokens": 100.0, "sol": -1.0, "usdc": 0.0},
+                    {"t": t + 3 * 3600, "mint": m, "tokens": -100.0, "sol": 1.3 if w == "D" else 0.8, "usdc": 0.0}]
+        return out
+    coins = lambda mints: {m: {"pool": "pool_" + m, "created": buys[m][0] - 10 * 86400, "mcap": 2e6, "price": 1.0,
+                               "symbol": m} for m in mints}
+    reads = []
+    def read_chart(pool, before):
+        reads.append(pool)
+        t, w = buys[pool[5:]]
+        idx = np.arange(t - 86400, t + 86400, 300.0)
+        before_px = 1.0 if w == "D" else 0.6
+        close = np.where(idx < t - 1800, before_px, 0.7 if w == "D" else 0.84)
+        return pd.DataFrame({"close": close, "high": close}, index=idx)
+    res = ws.build(["D", "P"], trades_of=trades_of, coin_info=coins, read_chart=read_chart, practice={})
+    d, p = res["wallets"]["D"], res["wallets"]["P"]
+    assert d["main_style"] == "dip buyer" and d["mix"]["dip buyer"] == 1.0 and d["hold"] == "holds hours"
+    assert p["main_style"] == "pump chaser" and abs(d["avg"] - 0.28) < 1e-9 and abs(p["avg"] + 0.22) < 1e-9
+    assert abs(res["rows"][0]["mcap"] - 2e6 * 0.7) < 1 and len(reads) == 50 and res["charts_read"] == 50
+    book = res["playbook"]
+    assert book["by_style_slot"]["dip buyer|midday"]["verdict"] == "GO"
+    assert book["by_style_slot"]["pump chaser|morning"]["verdict"] == "AVOID"
+    assert book["by_style_slot"]["dip buyer|evening"] == {"n": 0}
+    assert ws.verdict("pump chaser", noon - 4 * 3600, book) == "AVOID" and ws.verdict("dip buyer", noon, book) == "GO"
+    assert ws.verdict("quiet buyer", noon, book) == "not sure yet" and ws.verdict(None, noon, book) == "not sure yet"
+    text = ws.report_text(res)
+    assert "D…D: mostly DIP BUYER (100%)" in text
+    assert "GO dip buyer midday" in text and "AVOID pump chaser morning" in text and "does NOT use it yet" in text
+    small = ws.grade([0.5] * 19)
+    assert small["verdict"] == "not sure yet" and small["n"] == 19          # 19 trades: too few to call
+
+
+def test_copier_tags_each_buy_with_its_style_and_live_can_skip_what_the_playbook_avoids(tmp_path, monkeypatch):
+    import datetime
+    import json
+    from bot import copytrade as ct
+    from bot import solbot as sb
+    from bot import wallet_styles as ws
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "smart_wallets.json").write_text(json.dumps({"wallets": {"W1": {}}, "approved": ["W1"]}))
+    (tmp_path / "models" / "wallet_styles.json").write_text(json.dumps({"playbook": {"by_style_slot": {
+        "pump chaser|midday": {"n": 30, "verdict": "AVOID"}, "dip buyer|midday": {"n": 30, "verdict": "GO"}}}}))
+    noon = datetime.datetime(2026, 11, 2, 12, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=-6))).timestamp()
+    price = [1.0]
+    moves = {"PUMP": 40, "DIP": -25}
+    monkeypatch.setattr(sb, "dex_info", lambda mints: {m: {"liq": 50_000, "vol24": 1e5, "symbol": m, "age_h": 30,
+                                                           "h1": moves[m], "h6": 0} for m in mints})
+    monkeypatch.setattr(sb, "safety_check", lambda mint, *a: (True, "ok"))
+    monkeypatch.setattr(sb, "prices", lambda mints: {m: {"usdPrice": price[0], "decimals": 6} for m in mints})
+    off = ct.Copier({"copytrade": {}}, lambda *a: None, live=True, wallet=_FakeLiveWallet(50, price), now=lambda: noon)
+    off.on_swap("W1", "PUMP", 100)                                   # playbook off: copied, tagged
+    assert off.positions["PUMP"]["style"] == "pump chaser"
+    buy = off.state["trades"][-1]
+    assert buy["style"] == "pump chaser" and buy["playbook"] == "AVOID" and buy["mint"] == "PUMP"
+    on = ct.Copier({"copytrade": {"live": {"playbook": True}}}, lambda *a: None, live=True,
+                   wallet=_FakeLiveWallet(50, price), now=lambda: noon)
+    on.state["positions"] = on.positions = {}
+    on.on_swap("W1", "PUMP", 100)                                    # playbook on: AVOID cell skipped
+    on.on_swap("W1", "DIP", 100)                                     # GO cell copied
+    assert set(on.positions) == {"DIP"}
+    price[0] = 1.2
+    on.on_swap("W1", "DIP", -100)
+    rows = ws.practice_rows(on.state)
+    assert rows and rows[0]["style"] == "dip buyer" and rows[0]["slot"] == "midday" and rows[0]["ret"] > 0.15
+    lines = ct.style_lines(on.state)
+    assert any(l.startswith("  style dip buyer: 1 trades, 1 won") for l in lines)
+    assert any(l.startswith("  playbook said GO: 1 trades") for l in lines)

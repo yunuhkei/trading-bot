@@ -230,6 +230,15 @@ def cmd_smart_wallets(args, cfg):
     rescore() if args.rescore else run(args.settings)
 
 
+def cmd_wallet_styles(args, cfg):
+    import logging
+
+    from .wallet_styles import run
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    run(args.settings)
+
+
 def cmd_copytrade(args, cfg):
     import logging
 
@@ -384,6 +393,8 @@ def main(argv=None):
     sw = sub.add_parser("smart-wallets", help="find wallets that bought bottoms and sold tops on several young coins")
     sw.add_argument("--settings", default="solbot.yaml")
     sw.add_argument("--rescore", action="store_true", help="only re-score the saved wallets' full records (approved list)")
+    ws = sub.add_parser("wallet-styles", help="work out which strategy each smart wallet uses and when each one works")
+    ws.add_argument("--settings", default="solbot.yaml")
     ct = sub.add_parser("copytrade", help="copy the smart wallets live, seconds behind (pretend money, and real money "
                                           "for the approved wallets)")
     ct.add_argument("--settings", default="solbot.yaml")
@@ -434,6 +445,8 @@ def main(argv=None):
         cmd_kalshi_backtest(args, cfg)
     elif args.cmd == "smart-wallets":
         cmd_smart_wallets(args, cfg)
+    elif args.cmd == "wallet-styles":
+        cmd_wallet_styles(args, cfg)
     elif args.cmd == "copytrade":
         cmd_copytrade(args, cfg)
     elif args.cmd == "imagine":

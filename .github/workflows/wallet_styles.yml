@@ -1,0 +1,48 @@
+# Wallet styles (bot/wallet_styles.py): every other Sunday (and by hand: Actions -> wallet-styles -> Run workflow) it
+# works out which strategy each smart wallet uses (launch sniper / dip buyer / pump chaser / quiet buyer, and how long
+# it holds), which of those work at which time of day and weekday, and sends you the report. Saves the playbook to
+# models/wallet_styles.json. Reads the copy practice's record but trades nothing. Needs the HELIUS_API_KEY secret.
+name: wallet-styles
+on:
+  schedule:
+    - cron: "23 22 * * 0"    # Sundays 4:23 pm Milwaukee time; the job itself skips every other week
+  workflow_dispatch:
+permissions:
+  contents: write            # saves models/wallet_styles.json
+concurrency:
+  group: wallet-styles
+jobs:
+  styles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Every other week
+        id: week
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ $(( $(date +%s) / 604800 % 2 )) -ne 0 ]; then
+            echo "Not this week (the report comes every 2 weeks)."; echo "go=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.week.outputs.go == 'yes'
+      - uses: actions/setup-python@v5
+        if: steps.week.outputs.go == 'yes'
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+        if: steps.week.outputs.go == 'yes'
+      - uses: actions/cache/restore@v4
+        if: steps.week.outputs.go == 'yes'
+        with:
+          path: copytrade_state.json
+          key: copytrade-state-styles-${{ github.run_id }}
+          restore-keys: copytrade-state-
+      - name: Work out the wallets' styles
+        if: steps.week.outputs.go == 'yes'
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+          SOLBOT_COMMIT: "1"   # save the playbook to the repo
+        run: python -m bot wallet-styles

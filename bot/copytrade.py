@@ -111,6 +111,12 @@ class Copier:
         else:
             self.wallet = PaperWallet(self.state, float(self.cfg["cash"]))
             self.wallets = list((data.get("wallets") or {}))[: int(self.cfg["follow"])]
+        try:                                                            # the wallet-styles playbook (every other Sunday)
+            from .wallet_styles import OUT as _BOOK
+
+            self.book = json.loads(_BOOK.read_text()).get("playbook") or {} if _BOOK.exists() else {}
+        except (OSError, ValueError):
+            self.book = {}
         self.others: list[Copier] = []                                  # other accounts fed by the same listener
         self.reads: dict[str, list[float]] = {}
 
@@ -150,6 +156,9 @@ class Copier:
             except Exception as e:
                 log.warning("%s: no DEX info: %s", mint, e)
             name = (info or {}).get("symbol") or mint[:6]
+            from .wallet_styles import style_from_dex, verdict
+
+            style = style_from_dex(info)                 # launch sniper / dip buyer / pump chaser / quiet buyer
             told = self.state.setdefault("alerted", {})
             if not self.live and len(buyers) >= int(self.cfg["alert_wallets"]) and now - told.get(mint, 0) > 6 * 3600:
                 told[mint] = now
@@ -179,6 +188,9 @@ class Copier:
                                   f"when the wallet sells or at the stop). Refill the wallet with USDC and it starts again.")
                     return
                 self.state.pop("low_told", None)
+                if self.cfg.get("playbook") and verdict(style, now, self.book) == "AVOID":
+                    log.warning("%splaybook skips %s (%s, this time of day loses)", self.tag, name, style)
+                    return
             usd = min(float(self.cfg["per_trade"]), self.wallet.cash())
             if usd < 5 or not info or info.get("liq", 0) < float(self.cfg["min_liquidity"]):
                 return
@@ -195,12 +207,15 @@ class Copier:
             spent = fill.get("in", usd * 10 ** USDC_DECIMALS) / 10 ** USDC_DECIMALS
             tokens = fill["out"] / 10 ** dec
             self.positions[mint] = {"name": name, "raw": fill["out"], "decimals": dec, "cost": spent,
-                                    "entry": spent / tokens if tokens else 0, "t": now, "wallets": [wallet], "sig": sig}
+                                    "entry": spent / tokens if tokens else 0, "t": now, "wallets": [wallet], "sig": sig,
+                                    "style": style}
             self.state.setdefault("trades", []).append({"t": now, "action": "BUY", "what": name, "usd": spent,
-                                                        "wallet": wallet, "tx": fill.get("tx")})
+                                                        "wallet": wallet, "tx": fill.get("tx"), "mint": mint,
+                                                        "style": style, "playbook": verdict(style, now, self.book)})
             self.quiet(f"{self.tag}BOUGHT {money(spent)} of {name}",
                        f"Smart wallet {wallet[:4]}…{wallet[-4:]} just bought it (seconds ago); copied with "
-                       f"{'REAL' if self.live else 'pretend'} money. Sells when that wallet sells, at "
+                       f"{'REAL' if self.live else 'pretend'} money" + (f" (style: {style})" if style else "")
+                       + ". Sells when that wallet sells, at "
                        f"-{float(self.cfg['stop_loss']):.0%}, or after {float(self.cfg['max_hold_hours']):g} h."
                        + (f"\nhttps://solscan.io/tx/{fill['tx']}" if fill.get("tx") else ""))
         elif mint in self.positions and wallet in self.positions[mint]["wallets"]:
@@ -446,6 +461,27 @@ def time_of_day_lines(state: dict, tz: str = "America/Chicago") -> list[str]:
     return lines
 
 
+def style_lines(state: dict) -> list[str]:
+    """Finished trades grouped by the style of the buy (tagged since wallet styles started), and what the playbook said."""
+    from .wallet_styles import practice_rows
+
+    rows = practice_rows(state)
+    lines = []
+    for key, label in (("style", "style"), ("playbook", "playbook said")):
+        groups = {}
+        if key == "playbook":
+            buys = {(t["what"], t["t"]): t.get("playbook") for t in state.get("trades", []) if t["action"] == "BUY"}
+            for r in rows:
+                groups.setdefault(buys.get((r["symbol"], r["t"])) or "?", []).append(r)
+        else:
+            for r in rows:
+                groups.setdefault(r["style"], []).append(r)
+        for name, g in sorted(groups.items()):
+            lines.append(f"  {label} {name}: {len(g)} trades, {sum(r['ret'] > 0 for r in g)} won, "
+                         f"avg {sum(r['ret'] for r in g) / len(g):+.1%}")
+    return lines
+
+
 def trade_rows(state: dict) -> list[dict]:
     """Every finished trade with its buy time: [{bought, sold, what, cost, result, wallets}]."""
     open_buys, rows = {}, []
@@ -495,6 +531,7 @@ def status_text(now: float | None = None) -> str:
                 line += f", now {change:+.1%} (worth about ${pos['cost'] * (1 + change):.2f})"
             out.append(line)
         out += time_of_day_lines(st)
+        out += style_lines(st)
         by_wallet = {}
         for t in st.get("trades", []):
             if t["action"] == "SELL":

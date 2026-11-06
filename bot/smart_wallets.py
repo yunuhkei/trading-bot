@@ -426,6 +426,11 @@ def passes(s: dict, rules: dict = RULES) -> tuple[bool, str]:
 
 def copy_record(wallet: str, days: float = 120, cap: int = 900) -> dict:
     """The wallet's trades over the last `days` (at most `cap` transactions read), scored as if copied."""
+    return score(round_trips(wallet_trades(wallet, days, cap)))
+
+
+def wallet_trades(wallet: str, days: float = 120, cap: int = 900) -> list[dict]:
+    """The wallet's own swaps over the last `days` (at most `cap` transactions read), oldest last."""
     sigs = signatures(wallet, time.time() - days * 86400, max_pages=4)[:cap]
     trades = []
     for k in range(0, len(sigs), 50):
@@ -436,7 +441,7 @@ def copy_record(wallet: str, days: float = 120, cap: int = 900) -> dict:
             x = wallet_trade(tx, wallet)
             if x:
                 trades.append(x)
-    return score(round_trips(trades))
+    return trades
 
 
 def approve(wallets: list[str], record=copy_record) -> tuple[list[str], dict]:

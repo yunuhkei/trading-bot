@@ -435,7 +435,9 @@ def dex_info(mints: list[str]) -> dict[str, dict]:
                 continue
             ch = p.get("priceChange") or {}
             out[mint] = {"liq": liq, "vol24": float((p.get("volume") or {}).get("h24") or 0),
-                         "h6": float(ch.get("h6") or 0), "h24": float(ch.get("h24") or 0),
+                         "h1": float(ch.get("h1") or 0), "h6": float(ch.get("h6") or 0), "h24": float(ch.get("h24") or 0),
+                         "price": float(p.get("priceUsd") or 0), "pool": p.get("pairAddress"),
+                         "created": (p.get("pairCreatedAt") or 0) / 1000 or None,
                          "mcap": float(p.get("marketCap") or p.get("fdv") or 0), "name": p["baseToken"].get("name") or "",
                          "symbol": p["baseToken"].get("symbol") or "",
                          "age_h": (time.time() * 1000 - (p.get("pairCreatedAt") or 0)) / 3.6e6}
