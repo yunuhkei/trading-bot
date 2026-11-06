@@ -1,0 +1,11 @@
+# Meme-coin callouts (bot/callouts.py), checked with the news every 10 minutes. It tracks who is hyping which Solana
+# coin (DEX Screener boosts, profiles and community takeovers, GeckoTerminal trending, and the Telegram channels below)
+# and how each callout's price did 1 h, 6 h and 24 h later. Scoreboard on Sundays at 5 pm. A callout is NOT a buy signal.
+telegram: []              # public Telegram call channels to watch: the name after t.me/, e.g. [somecallchannel]
+min_liquidity: 20000      # only ping coins with at least this much in their pool
+ping_sources: 2           # ping when this many DIFFERENT sources call the same coin...
+together_hours: 6         # ...within this many hours
+max_pings: 3              # at most this many pings a check
+report_days: [Sunday]
+report_at: "17:00"
+timezone: America/Chicago

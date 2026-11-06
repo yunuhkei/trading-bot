@@ -2563,3 +2563,45 @@ def test_copy_live_bad_day_brake_stops_buying_after_the_days_limit(tmp_path, mon
     clock[0] += 86400                                                # tomorrow: buying again
     c.on_swap("W1", "E", 100)
     assert "E" in c.positions and c.lost_today() == 0
+
+
+def test_callouts_record_each_callout_score_sources_and_ping_coins_called_by_two():
+    from bot import callouts as co
+
+    st = {}
+    info = {"A": {"price": 1.0, "liq": 50_000, "mcap": 1e6, "age_h": 3, "symbol": "AAA", "name": "Alpha"},
+            "B": {"price": 2.0, "liq": 5_000, "mcap": 1e5, "age_h": 1, "symbol": "BBB", "name": "Beta"}}
+    px = {"now": info}
+    price_of = lambda mints: {m: px["now"][m] for m in mints if m in px["now"]}
+    told = []
+    cfg = co.load_settings("nope.yaml")
+    co.check(st, cfg, 0.0, lambda t, m: told.append(t), [("A", "boost", ""), ("B", "boost", ""), ("X", "tg:c", "")],
+             price_of, safe=lambda m: (True, "ok"))
+    assert set(st["seen"]) == {"A", "B"} and not told                       # X has no pool; one source each: no ping
+    co.check(st, cfg, 600.0, lambda t, m: told.append(t), [("A", "trending", ""), ("B", "trending", "")],
+             price_of, safe=lambda m: (True, "ok"))
+    assert told == ["📣 Callout: AAA (2 sources)"]                          # B's pool is too small to ping
+    co.check(st, cfg, 900.0, lambda t, m: told.append(t), [("A", "tg:c", "")], price_of, safe=lambda m: (True, "ok"))
+    assert len(told) == 1                                                   # each coin once
+    px["now"] = {"A": {**info["A"], "price": 3.0}, "B": {**info["B"], "liq": 100}}
+    co.check(st, cfg, 3600.0 + 60, None, [], price_of)
+    assert st["seen"]["A"]["later"]["1h"][1] == 3.0 and st["seen"]["B"]["later"]["1h"][1] == 0.0   # B's pool died
+    board = co.scoreboard(st)
+    assert abs(board["boost"]["1h"]["avg"] - ((3 * 0.98 - 1) + (0 - 1)) / 2) < 1e-9
+    assert board["2+ sources"]["1h"]["doubled"] == 0.5 and board["trending"]["n"] == 2
+    co.check(st, cfg, 25 * 3600.0, None, [], price_of)
+    assert not st["seen"] and len(st["record"]) == 2                        # finished coins move to the record
+    assert "6h later" not in co.report_text(st) or "boost" in co.report_text(st)
+    page = ('<div class="tgme_widget_message x"><time datetime="2026-11-06T20:00:00+00:00"></time>'
+            '<div>CA: 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU send it</div></div>')
+
+    class R:
+        text = page
+    import requests
+    orig = requests.get
+    requests.get = lambda *a, **k: R()
+    try:
+        assert co.telegram("calls", 0)[0][:2] == ("7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU", "tg:calls")
+        assert co.telegram("calls", 2e9) == []                              # older than the last check: skipped
+    finally:
+        requests.get = orig

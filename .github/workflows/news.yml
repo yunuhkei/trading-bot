@@ -1,7 +1,8 @@
 # Every 10 minutes: meme coin IDEAS from the news (never buy signals, see bot/news_ideas.py), plus a digest of up to 5
 # of the WORST new headlines (war, attacks, disasters, crashes) and a staged nuclear alert if a nuclear weapon is reported
 # used: WARNING (1 outlet), RED ALERT (2+), CONFIRMED (5+ incl. 2 major services), BLACKOUT WARNING (7+ incl. 3 major).
-# Sends at most 3 new ideas per check and never the same coin twice in a week.
+# Sends at most 3 new ideas per check and never the same coin twice in a week. Also tracks meme-coin callouts
+# (bot/callouts.py, callouts.yaml): pings coins called out by 2+ sources, with how such callouts have done.
 name: news
 on:
   schedule:
@@ -26,16 +27,22 @@ jobs:
           path: |
             news_ideas_state.json
             news_headlines_state.json
+            callouts_state.json
           key: news-ideas-${{ github.run_id }}
           restore-keys: news-ideas-
       - name: Check the news for meme coin ideas
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
         run: python -m bot ideas --headlines 5 ${ALERT_TARGET:+--notify "$ALERT_TARGET"}
+      - name: Track meme-coin callouts (boosts, trending, Telegram) and how they did
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+        run: python -m bot callouts || echo "callouts check failed (the news part above still ran)"
       - uses: actions/cache/save@v4
         if: always()
         with:
           path: |
             news_ideas_state.json
             news_headlines_state.json
+            callouts_state.json
           key: news-ideas-${{ github.run_id }}

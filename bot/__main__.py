@@ -212,6 +212,15 @@ def cmd_kalshi(args, cfg):
     run(args.settings)
 
 
+def cmd_callouts(args, cfg):
+    import logging
+
+    from .callouts import run
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    run(args.settings, report=args.report)
+
+
 def cmd_kalshi_backtest(args, cfg):
     import logging
 
@@ -406,6 +415,9 @@ def main(argv=None):
     ka = sub.add_parser("kalshi", help="Kalshi bot: weather markets + arbitrage (settings: kalshi.yaml)")
     ka.add_argument("--settings", default="kalshi.yaml")
     ka.add_argument("--status", action="store_true", help="print every strategy's saved record (reads only)")
+    co = sub.add_parser("callouts", help="track meme-coin callouts (boosts, trending, Telegram) and how they did")
+    co.add_argument("--settings", default="callouts.yaml")
+    co.add_argument("--report", action="store_true", help="print the callout scoreboard")
     kb = sub.add_parser("kalshi-backtest", help="test the Kalshi weather strategies on settled markets")
     kb.add_argument("--days", type=int, default=14)
     kb.add_argument("--sameday", action="store_true", help="same-day trading: collect readings + day-of prices, then test")
@@ -465,6 +477,8 @@ def main(argv=None):
         cmd_solbot(args, cfg)
     elif args.cmd == "kalshi":
         cmd_kalshi(args, cfg)
+    elif args.cmd == "callouts":
+        cmd_callouts(args, cfg)
     elif args.cmd == "kalshi-backtest":
         cmd_kalshi_backtest(args, cfg)
     elif args.cmd == "smart-wallets":

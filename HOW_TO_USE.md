@@ -429,3 +429,19 @@ Rules it follows (YouTube pays for "using AI to visualize a unique character and
 mass-produced templates): every script is original, with real facts and a question at the end; no copied characters,
 clips or music. Add more scripts to the file (same format) or ask Claude for the next batch. Upgrades for later: real
 AI video motion (a paid video tool) and auto-posting (needs TikTok/YouTube API approval).
+
+
+## Meme-coin callouts (who's hyping what, and did it go up?)
+
+With the news check every 10 minutes, `bot/callouts.py` (settings: `callouts.yaml`) records every Solana coin being
+called out: projects that just paid DEX Screener for a **boost** or a **profile**, **community takeovers**, coins
+**trending** on GeckoTerminal, and any public **Telegram** call channels you add to `callouts.yaml` (the name after
+`t.me/`). For each it saves the price when the bot first saw the callout, then the price 1 h, 6 h and 24 h later.
+
+- **Pings:** a coin called out by 2+ different sources within 6 hours, with $20k+ in its pool and a clean RugCheck,
+  plus how such callouts have done so far.
+- **Scoreboard** on Sundays at 5 pm (or `python -m bot callouts --report`): per source, the typical and average
+  result after ~2% costs, how many went up, doubled, or lost half.
+
+A callout is not a buy signal: many are paid, and whoever paid often sells into the buying it brings. Follow a source
+only if its typical coin goes up after the callout, week after week.
