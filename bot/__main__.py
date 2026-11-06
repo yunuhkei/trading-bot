@@ -203,9 +203,12 @@ def cmd_solbot(args, cfg):
 def cmd_kalshi(args, cfg):
     import logging
 
-    from .kalshi import run
+    from .kalshi import load_settings, run, status_text
 
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    if args.status:
+        print(status_text(load_settings(args.settings)))
+        return
     run(args.settings)
 
 
@@ -387,6 +390,7 @@ def main(argv=None):
     sb.add_argument("--minutes", type=float, default=None, help="keep checking every 5 minutes for this long")
     ka = sub.add_parser("kalshi", help="Kalshi bot: weather markets + arbitrage (settings: kalshi.yaml)")
     ka.add_argument("--settings", default="kalshi.yaml")
+    ka.add_argument("--status", action="store_true", help="print every strategy's saved record (reads only)")
     kb = sub.add_parser("kalshi-backtest", help="test the Kalshi weather strategies on settled markets")
     kb.add_argument("--days", type=int, default=14)
     kb.add_argument("--sameday", action="store_true", help="same-day trading: collect readings + day-of prices, then test")

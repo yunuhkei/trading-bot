@@ -644,7 +644,9 @@ def settle(acct: dict, tell, tag: str, now: float, cache: dict, label: str = "")
             profit = paid - p["cost"]
             positions.pop(ticker)
             acct.setdefault("results", []).append({"t": now, "title": p["title"], "kind": p["kind"], "won": won,
-                                                   "profit": profit, "fair": p.get("fair"), "price": p["price"]})
+                                                   "profit": profit, "fair": p.get("fair"), "price": p["price"],
+                                                   "ticker": ticker, "side": p["side"], "event": p.get("event"),
+                                                   "opened": p.get("opened"), "count": p["count"], "cost": p["cost"]})
             tell(f"{'✅' if won else '❌'} {tag}Kalshi {'WON' if won else 'LOST'}: {profit:+,.2f}",
                  f"{label}{p['title']} ({p['count']} {p['side'].upper()} at {p['price'] * 100:.0f}¢): settled "
                  f"{m['result'].upper()}. Account {money(acct['cash'] + sum(q['cost'] for q in positions.values()))}.")
@@ -794,7 +796,7 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
                 ideas = arb_ideas(events, settings) + ideas
                 bought = trade(state, ideas, settings, tell, tag, now, live, client)
             else:
-                n = trade(state["variants"][k], ideas, settings, quiet, "PRACTICE ", now)
+                n = trade(state["variants"][k], ideas, settings, lambda t, m, k=k: quiet(f"[{k}] {t}", m), "PRACTICE ", now)
                 summary.append(f"{k}:{n}")
         due = None
         try:
@@ -824,6 +826,25 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
         for v in state.get("variants", {}).values():
             v["results"] = v.get("results", [])[-500:]
         path.write_text(json.dumps(state, indent=1, default=str))
+
+
+def status_text(settings: dict) -> str:
+    """Every strategy's record from the saved practice accounts (reads only): the scoreboard, then one RESULT line per
+    settled trade and one OPEN line per open bet (JSON), for the breakdowns."""
+    path = Path(f"kalshi_state_{settings.get('mode', 'practice')}.json")
+    if not path.exists():
+        return "No saved Kalshi accounts yet."
+    state = json.loads(path.read_text())
+    strats = strategies(settings)
+    lines = ["\n".join(scoreboard(state, strats))]
+    for key in strats:
+        acct = state if key == "A" else state.get("variants", {}).get(key, {})
+        lines += ["RESULT " + json.dumps({"strategy": key, **r}, default=str) for r in acct.get("results", [])]
+        lines += ["OPEN " + json.dumps({"strategy": key, "ticker": t, **p}, default=str)
+                  for t, p in (acct.get("positions") or {}).items()]
+    graded = {st: {h: v for h, v in c.items()} for st, c in (state.get("calib") or {}).items()}
+    lines.append("GRADED " + json.dumps(graded))
+    return "\n".join(lines)
 
 
 def run(settings_path: str = "kalshi.yaml"):

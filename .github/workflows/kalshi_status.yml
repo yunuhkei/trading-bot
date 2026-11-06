@@ -1,0 +1,23 @@
+# Prints the Kalshi bot's saved practice records (every strategy's settled trades and open bets) from its last run.
+# Reads only: it trades nothing and saves nothing. Run it by hand from the Actions tab.
+name: kalshi-status
+on:
+  workflow_dispatch:
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: kalshi_state_*.json
+          key: kalshi-state-status-${{ github.run_id }}
+          restore-keys: kalshi-state-
+      - name: Show the records
+        run: python -m bot kalshi --status
