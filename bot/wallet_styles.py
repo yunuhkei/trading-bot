@@ -13,7 +13,8 @@
 4. Each wallet's profile: its mix of styles, how long it holds, what copying it made, its best style and time of day.
 5. The playbook: every trade from every wallet, plus the copy practice's own trades once they carry a style, grouped
    by style x time of day (Milwaukee time) and by weekday x time of day. A cell says GO or AVOID only with 20+ trades
-   and 80%+ confidence (reshuffling the trades), otherwise "not sure yet". It is re-built every other Sunday, so it
+   on 8+ different coins and 90%+ confidence, otherwise "not sure yet". The confidence reshuffles whole COINS, not
+   single trades, so one coin's big run (many trades on the same coin) can't make a cell look sure. It is re-built every other Sunday, so it
    keeps up with whatever the wallets do next.
 Saved to models/wallet_styles.json and sent to your phone. Real-money copying skips AVOID cells only when
 solbot.yaml copytrade.live.playbook is true. Practice copies everything, so the playbook keeps learning.
@@ -38,7 +39,7 @@ SLOTS = (("overnight", 23, 5), ("morning", 5, 11), ("midday", 11, 17), ("evening
 SLOT_HOURS = {"overnight": "11pm-5am", "morning": "5-11am", "midday": "11am-5pm", "evening": "5-11pm"}
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 COPY_COST = 0.02            # what copying loses per round trip (the finder's scoring uses the same)
-MIN_CELL, MIN_SURE = 20, 0.8
+MIN_CELL, MIN_COINS, MIN_SURE = 20, 8, 0.9     # 90%: many cells are judged at once, so 80% would call some by luck
 MAX_TRIPS = 150             # newest round trips per wallet that get a chart read
 MAX_CHARTS = 450            # GeckoTerminal reads per run (its free feed allows about 30 a minute)
 
@@ -159,18 +160,23 @@ class Charts:
 
 # ---- Grading ----------------------------------------------------------------------------------------------------------
 
-def grade(rets, rng=None) -> dict:
-    """n, won, avg (after copy costs) and a verdict: GO / AVOID only with MIN_CELL+ trades and MIN_SURE confidence."""
+def grade(rets, coins=None, rng=None) -> dict:
+    """n, won, avg (after copy costs) and a verdict: GO / AVOID only with MIN_CELL+ trades on MIN_COINS+ coins and
+    MIN_SURE confidence. The confidence resamples whole coins (all of a coin's trades together)."""
     r = np.asarray(list(rets), float)
     if not len(r):
         return {"n": 0}
     rng = rng or np.random.default_rng(0)
-    means = rng.choice(r, (2000, len(r))).mean(axis=1)
+    coins = np.asarray(list(coins) if coins is not None else range(len(r)))
+    names, idx = np.unique(coins, return_inverse=True)
+    sums, counts = np.bincount(idx, r, len(names)), np.bincount(idx, minlength=len(names)).astype(float)
+    pick = rng.integers(0, len(names), (2000, len(names)))
+    means = sums[pick].sum(axis=1) / counts[pick].sum(axis=1)
     up = float((means > 0).mean())
-    verdict = ("GO" if up >= MIN_SURE else "AVOID" if up <= 1 - MIN_SURE else "not sure yet") if len(r) >= MIN_CELL \
-        else "not sure yet"
-    return {"n": int(len(r)), "won": float((r > 0).mean()), "avg": float(r.mean()), "median": float(np.median(r)),
-            "sure_up": up, "verdict": verdict}
+    enough = len(r) >= MIN_CELL and len(names) >= MIN_COINS
+    verdict = ("GO" if up >= MIN_SURE else "AVOID" if up <= 1 - MIN_SURE else "not sure yet") if enough else "not sure yet"
+    return {"n": int(len(r)), "coins": int(len(names)), "won": float((r > 0).mean()), "avg": float(r.mean()),
+            "median": float(np.median(r)), "sure_up": up, "verdict": verdict}
 
 
 def profile(rows: list[dict]) -> dict:
@@ -197,16 +203,17 @@ def playbook(rows: list[dict]) -> dict:
     if d.empty:
         return out
     rng = np.random.default_rng(0)
+    g = lambda mask: grade(d[mask]["ret"], d[mask]["mint"], rng)
     for s in STYLES:
-        out["by_style"][s] = grade(d[d["style"] == s]["ret"], rng)
+        out["by_style"][s] = g(d["style"] == s)
         for n, _, _ in SLOTS:
-            out["by_style_slot"][f"{s}|{n}"] = grade(d[(d["style"] == s) & (d["slot"] == n)]["ret"], rng)
+            out["by_style_slot"][f"{s}|{n}"] = g((d["style"] == s) & (d["slot"] == n))
     for n, _, _ in SLOTS:
-        out["by_slot"][n] = grade(d[d["slot"] == n]["ret"], rng)
+        out["by_slot"][n] = g(d["slot"] == n)
         for day in DAYS:
-            out["by_day_slot"][f"{day}|{n}"] = grade(d[(d["day"] == day) & (d["slot"] == n)]["ret"], rng)
+            out["by_day_slot"][f"{day}|{n}"] = g((d["day"] == day) & (d["slot"] == n))
     for h in HOLDS:
-        out["by_hold"][h] = grade(d[d["hold"] == h]["ret"], rng)
+        out["by_hold"][h] = g(d["hold"] == h)
     return out
 
 
@@ -280,7 +287,7 @@ def report_text(res: dict, live_on: bool = False) -> str:
         best = p.get("best", {})
         extra = "; best: " + ", ".join(f"{b['name']} {_pct(b['avg'])} ({b['n']})" for b in best.values()) if best else ""
         lines.append(f"• {w[:4]}…{w[-4:]}: mostly {p['main_style'].upper()} ({p['mix'][p['main_style']]:.0%}), "
-                     f"{p['hold']} (median {p['hold_min']:.0f} min). {p['trades']} trades on {p['coins']} coins, "
+                     f"{p['hold']} (median {p['hold_min']:.0f} min). {p['trades']} trades on {p['coins']} coin{'s' * (p['coins'] != 1)}, "
                      f"won {p['won']:.0%}, {_pct(p['avg'])} a trade{extra}")
     book = res["playbook"]
     lines += ["", "WHICH STYLE WORKS WHEN (avg a trade, trades):"]

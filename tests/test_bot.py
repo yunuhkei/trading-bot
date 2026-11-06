@@ -2342,6 +2342,10 @@ def test_wallet_styles_label_each_buy_and_grade_style_by_time_of_day():
     assert "GO dip buyer midday" in text and "AVOID pump chaser morning" in text and "does NOT use it yet" in text
     small = ws.grade([0.5] * 19)
     assert small["verdict"] == "not sure yet" and small["n"] == 19          # 19 trades: too few to call
+    one_coin = ws.grade([0.5] * 30, ["PEAK"] * 30)
+    assert one_coin["verdict"] == "not sure yet" and one_coin["coins"] == 1  # one coin's big run: can't be sure
+    lucky = ws.grade([2.0] * 3 + [-0.1] * 27, [f"C{i}" for i in range(30)])
+    assert lucky["avg"] > 0 and lucky["verdict"] == "not sure yet"          # 3 big wins, 27 losers: not sure
 
 
 def test_copier_tags_each_buy_with_its_style_and_live_can_skip_what_the_playbook_avoids(tmp_path, monkeypatch):
