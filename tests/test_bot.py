@@ -2576,12 +2576,12 @@ def test_callouts_record_each_callout_score_sources_and_ping_coins_called_by_two
     told = []
     cfg = co.load_settings("nope.yaml")
     co.check(st, cfg, 0.0, lambda t, m: told.append(t), [("A", "boost", ""), ("B", "boost", ""), ("X", "tg:c", "")],
-             price_of, safe=lambda m: (True, "ok"))
+             price_of, safe=lambda m: {"red": [], "green": ["an X account"], "score": 1, "desc": ""})
     assert set(st["seen"]) == {"A", "B"} and not told                       # X has no pool; one source each: no ping
     co.check(st, cfg, 600.0, lambda t, m: told.append(t), [("A", "trending", ""), ("B", "trending", "")],
-             price_of, safe=lambda m: (True, "ok"))
+             price_of, safe=lambda m: {"red": [], "green": ["an X account"], "score": 1, "desc": ""})
     assert told == ["📣 Callout: AAA (2 sources)"]                          # B's pool is too small to ping
-    co.check(st, cfg, 900.0, lambda t, m: told.append(t), [("A", "tg:c", "")], price_of, safe=lambda m: (True, "ok"))
+    co.check(st, cfg, 900.0, lambda t, m: told.append(t), [("A", "tg:c", "")], price_of, safe=lambda m: {"red": [], "green": ["an X account"], "score": 1, "desc": ""})
     assert len(told) == 1                                                   # each coin once
     px["now"] = {"A": {**info["A"], "price": 3.0}, "B": {**info["B"], "liq": 100}}
     co.check(st, cfg, 3600.0 + 60, None, [], price_of)
@@ -2605,3 +2605,32 @@ def test_callouts_record_each_callout_score_sources_and_ping_coins_called_by_two
         assert co.telegram("calls", 2e9) == []                              # older than the last check: skipped
     finally:
         requests.get = orig
+
+
+def test_callout_purpose_check_flags_dump_setups_and_lists_a_real_projects_footprint():
+    from bot import callouts as co
+
+    clean_rug = {"token": {"supply": 1_000_000}, "creatorBalance": 0, "graphInsidersDetected": 0, "totalHolders": 2400,
+                 "markets": [{"lp": {"lpLockedPct": 100}}], "topHolders": [{"pct": 4.0, "address": "w1"}], "risks": []}
+    day = 86_400_000
+    pair = {"priceChange": {"h1": 12, "h6": 40}, "txns": {"h1": {"buys": 80, "sells": 60}}, "liquidity": {"usd": 150_000},
+            "marketCap": 2_000_000, "volume": {"h24": 500_000}, "pairCreatedAt": __import__("time").time() * 1000 - 5 * day,
+            "info": {"websites": [{"url": "https://realproject.example"}, {"url": "https://github.com/x/y"}],
+                     "socials": [{"type": "twitter", "url": "https://x.com/p"}, {"type": "telegram", "url": "https://t.me/p"}],
+                     "description": "A game where you stake memes"}}
+    v = co.vet("M", clean_rug, pair, loads=lambda u: "realproject" in u)
+    assert v["red"] == [] and v["score"] == 6 and "code or docs" in v["green"] and "2,400 holders" in v["green"]
+    assert "Purpose check 6/6" in co.vet_line(v) and "stake memes" in co.vet_line(v)
+    dumpy = {**clean_rug, "creatorBalance": 120_000, "graphInsidersDetected": 8, "totalHolders": 150,
+             "markets": [{"lp": {"lpLockedPct": 20}}]}
+    late = {**pair, "priceChange": {"h1": 250, "h6": 900}, "txns": {"h1": {"buys": 10, "sells": 45}},
+            "liquidity": {"usd": 30_000}, "marketCap": 3_000_000, "info": {}}     # a 1% pool
+    r = co.vet("M", dumpy, late, loads=lambda u: False)
+    text = " | ".join(r["red"])
+    for bit in ("insider wallets", "creator still holds 12%", "isn't locked", "already pumped", "sold off",
+                "only 150 holders", "thin pool"):
+        assert bit in text, bit
+    assert r["score"] <= 1 and "pure speculation" in co.vet_line(r)
+    assert not co.site_loads("https://x.com/someone")                      # a social profile isn't a website
+    big = {**clean_rug, "graphInsidersDetected": 5000, "totalHolders": 1_000_000}
+    assert co.vet("M", big, {**pair, "marketCap": 400_000_000}, loads=lambda u: True)["red"] == []   # a sliver: fine

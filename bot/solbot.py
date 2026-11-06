@@ -369,13 +369,13 @@ RUGCHECK = "https://api.rugcheck.xyz/v1/tokens/{}/report"
 BURN = {"11111111111111111111111111111111", "1nc1nerator11111111111111111111111111111111"}
 
 
-def safety_check(mint: str, max_holder: float = 0.20, max_top10: float = 0.50) -> tuple[bool, str]:
+def safety_check(mint: str, max_holder: float = 0.20, max_top10: float = 0.50, report: dict | None = None) -> tuple[bool, str]:
     """RugCheck's report on the coin: (safe?, why). Unsafe if it was rugged, the creator can still print or freeze
     coins, it taxes transfers, RugCheck flags a danger, or a few wallets own most of it (trading pools and burned
     coins don't count)."""
     import requests
 
-    d = requests.get(RUGCHECK.format(mint), timeout=20).json()
+    d = report if report is not None else requests.get(RUGCHECK.format(mint), timeout=20).json()
     if d.get("rugged"):
         return False, "it has been rugged"
     if d.get("mintAuthority"):

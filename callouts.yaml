@@ -6,6 +6,7 @@ min_liquidity: 20000      # only ping coins with at least this much in their poo
 ping_sources: 2           # ping when this many DIFFERENT sources call the same coin...
 together_hours: 6         # ...within this many hours
 max_pings: 3              # at most this many pings a check
+min_purpose: 0            # also require this many of the 6 green flags (website, X, chat, code/docs, 3+ days, 1,000+ holders)
 report_days: [Sunday]
 report_at: "17:00"
 timezone: America/Chicago

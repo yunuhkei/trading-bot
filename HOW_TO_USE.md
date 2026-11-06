@@ -438,8 +438,15 @@ called out: projects that just paid DEX Screener for a **boost** or a **profile*
 **trending** on GeckoTerminal, and any public **Telegram** call channels you add to `callouts.yaml` (the name after
 `t.me/`). For each it saves the price when the bot first saw the callout, then the price 1 h, 6 h and 24 h later.
 
-- **Pings:** a coin called out by 2+ different sources within 6 hours, with $20k+ in its pool and a clean RugCheck,
-  plus how such callouts have done so far.
+- **Pings:** a coin called out by 2+ different sources within 6 hours, with $20k+ in its pool, plus how such
+  callouts have done so far.
+- **Purpose check before every ping.** Red flags that it's set up to dump on buyers block the ping: a failed RugCheck,
+  linked insider wallets (a bundled launch), the creator still holding 5%+, a pool whose money isn't locked, a pump
+  that already happened (+100% in 1 h or +300% in 6 h), a sell-off (2x more sells than buys), under 300 holders, or a
+  pool under 2% of the market cap. Green flags of a real project are listed (a working website, X, a community chat,
+  code or docs, still trading after 3+ days, 1,000+ holders), with the project's own description. `min_purpose` in
+  `callouts.yaml` can also require some green flags. It can't prove a coin has a purpose (scammers build websites
+  too), so the scoreboard compares coins with and without red flags, to show whether the check really helps.
 - **Scoreboard** on Sundays at 5 pm (or `python -m bot callouts --report`): per source, the typical and average
   result after ~2% costs, how many went up, doubled, or lost half.
 
