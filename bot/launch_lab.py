@@ -410,9 +410,11 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
                                      f"pump.fun events and {new:,} brand-new coins. Scoreboard when this run ends (~6 h).")
                         if now - last_report >= report_every:
                             last_report = now
-                            print(time.strftime("%H:%M UTC", time.gmtime()), f"{lab.events:,} events,",
-                                  f"{len(lab.coins):,} coins tracked", flush=True)
+                            head = (f"{time.strftime('%H:%M UTC', time.gmtime())}: {lab.events:,} events so far, "
+                                    f"{len(lab.coins):,} coins being watched")
+                            print(head, flush=True)
                             print(lab.board(), flush=True)
+                            lab.tell("🧪 Launch lab: hourly update", (head + "\n" + lab.board())[:3500])
         except Exception as e:
             log.warning("feed dropped (%s); reconnecting", e)
             await asyncio.sleep(3)
@@ -440,8 +442,15 @@ def run(minutes: float = 340, status: bool = False):
             for t in a.trades[-5:]:
                 print(f"  {k}: {t['name']} {t['profit']:+.2f} in {t['s']} s ({t['why_in']} -> {t['why_out']}, filled {t['lag']} s late)")
         return
+    import signal
+
+    def stop(*_):                                       # a cancelled job still saves the accounts
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, stop)
     try:
-        asyncio.run(listen(lab, minutes * 60))
+        asyncio.run(listen(lab, minutes * 60, report_every=3600))
+    except KeyboardInterrupt:
+        pass
     finally:
         STATE.write_text(json.dumps(lab.to_state()))
         text = lab.board()
