@@ -14,3 +14,12 @@ Code only: songs, footage and finished videos stay out of this public repo.
    captions and the right-side buttons).
 
 Fonts used (free, SIL Open Font License): Montserrat ExtraBold, Anton, Bebas Neue.
+
+## v3 (looks less cheap)
+
+`python -I make_lut.py <dir>` writes three film-look color LUTs (`night`, `noir`, `flex`). `python -I snippet3.py spec.json`
+uses 4K or vertical full-HD clips cropped at full resolution (no blurry upscales), real-speed 24 fps motion (no
+stuttering fake slow motion), a slow smooth push-in per shot, the LUT plus a glow on highlights, fine film grain and a
+soft vignette, dissolves for slow songs and hard cuts for trap, and phrase-by-phrase lyrics: a lowercase serif
+"lyric edit" look (Liberation Serif, soft glow, blur-in) or bold condensed caps (Anton) with a thin dark edge.
+Mixkit clips come in 1080p (`-1080.mp4`) and often 4K (`-2160.mp4`); vertical clips are already 1080x1920.
