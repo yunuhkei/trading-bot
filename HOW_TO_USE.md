@@ -482,5 +482,8 @@ strategies side by side, each with its own **pretend $1,000 and $250 trades**:
 **Honest fills:** a buy lands at the first trade the bot sees 1.5 s after the signal (a sell 1 s after), on the bonding
 curve's own math (price impact included), paying each trade's fee (~1%) plus 0.001 SOL a transaction. The feed itself is
 about a second behind the chain, so the bot is ~2.5 s behind the first block, where real snipers buy. That's the point:
-it shows whether a bot this fast can win. Open bets are sold at the curve price when a job ends. The phone gets the
-scoreboard every ~6 hours; `launch-lab-status` prints it with each strategy's latest trades. No real money, ever.
+it shows whether a bot this fast can win. Open bets are sold at the curve price when a job ends. The phone gets an
+hourly report like the copy bot's; `launch-lab-status` prints it with each strategy's latest trades. Busted strategies
+(under $250) stay dead. The report also splits every strategy by time of day in Milwaukee time (midday 11a-5p,
+evening 5-11p, overnight 11p-5a, morning 5-11a, by when the coin was bought), to test the midday hunch from copy
+trading. No real money, ever.

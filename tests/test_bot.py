@@ -2730,3 +2730,30 @@ def test_launch_lab_follows_whales_and_momentum_only_with_enough_buyers():
     assert lab.accts["momentum_60s"].pending or lab.accts["momentum_60s"].positions
     lab.event(63.0, ev(72.0, 450_000_000, 42.0, sol=6.0, u=60))             # a 6 SOL buy
     assert lab.accts["whale_follow"].pending
+
+
+def test_launch_lab_splits_results_by_time_of_day_and_keeps_old_trades_counted():
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    from bot import launch_lab as ll
+
+    at = lambda h: datetime.datetime(2026, 11, 7, h, 30, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    # an account saved before the tally: 5 trades in all, but only the last 3 were kept (all midday)
+    old = {"cash": 1100.0, "n": 5, "wins": 3, "pnl": 100.0,
+           "trades": [{"t": at(15), "s": 30, "profit": 50.0}, {"t": at(15), "s": 30, "profit": -20.0},
+                      {"t": at(16), "s": 30, "profit": 40.0}]}
+    lab = ll.Lab(state={"accounts": {"volume_spike": old}})
+    a = lab.accts["volume_spike"]
+    assert a.slot(11, 17) == (5, 3, 100.0)              # the 2 trades it no longer has count in the oldest kept hour
+    a.tally(at(20), -30.0)                              # 8:30 pm: evening
+    a.tally(at(2), 10.0)                                # 2:30 am: overnight
+    assert a.slot(17, 23) == (1, 0, -30.0) and a.slot(23, 5) == (1, 1, 10.0)
+    again = ll.Lab(state={"accounts": {"volume_spike": a.to_dict()}}).accts["volume_spike"]
+    assert again.by_hour == a.by_hour
+    lab.accts["snipe"].cash = 197.0                      # busted: a short line, and no time-of-day line
+    board = lab.board(now=at(21))
+    assert "By time of day" in board and "midday 11a-5p 5 trades, 60% won, +100" in board
+    assert "evening 5-11p 1 trades, 0% won, -30" in board and "overnight 11p-5a 1 trades" in board
+    assert "busted" in board.split("Snipe every new coin")[1].split("\n")[0]
+    assert "Snipe every new coin" not in board.split("By time of day")[1]

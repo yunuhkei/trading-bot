@@ -36,6 +36,20 @@ DISC = {hashlib.sha256(f"event:{n}".encode()).digest()[:8]: n for n in ("TradeEv
 GRADUATE_SOL = 84.9            # real SOL in the curve when it completes
 TX_COST_SOL = 0.001
 CASH, PER_TRADE, MAX_OPEN = 1000.0, 250.0, 4
+TZ = "America/Chicago"         # Milwaukee time, the same four slots as the copy bot's playbook
+SLOTS = (("midday", "midday 11a-5p", 11, 17), ("evening", "evening 5-11p", 17, 23),
+         ("overnight", "overnight 11p-5a", 23, 5), ("morning", "morning 5-11a", 5, 11))
+
+
+def local_hour(t: float) -> int:
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    return datetime.datetime.fromtimestamp(t, ZoneInfo(TZ)).hour
+
+
+def slot_hours(s: int, e: int) -> list[int]:
+    return list(range(s, e)) if s < e else list(range(s, 24)) + list(range(0, e))
 
 STRATEGIES = {
     "snipe": {"label": "Snipe every new coin", "tp": 1.0, "sl": 0.35, "max_s": 90},
@@ -175,10 +189,37 @@ class Account:
         self.n, self.wins, self.pnl = int(d.get("n", 0)), int(d.get("wins", 0)), float(d.get("pnl", 0.0))
         self.best, self.worst = float(d.get("best", 0.0)), float(d.get("worst", 0.0))
         self.pending: dict = {}
+        # every trade by the hour it was bought (Milwaukee time): [trades, wins, profit]; not cut off like `trades`
+        self.by_hour = [list(b) for b in d["by_hour"]] if d.get("by_hour") else self._rebuild_hours()
+
+    def _rebuild_hours(self) -> list:
+        """For a saved account from before the tally: count the trades it kept; any older ones it no longer has
+        happened before the oldest kept trade, so they go in that trade's hour."""
+        hours = [[0, 0, 0.0] for _ in range(24)]
+        for tr in self.trades:
+            self.tally(tr["t"], tr["profit"], hours)
+        left = self.n - len(self.trades)
+        if left > 0 and self.trades:
+            b = hours[local_hour(self.trades[0]["t"])]
+            b[0] += left
+            b[1] += max(0, self.wins - sum(tr["profit"] > 0 for tr in self.trades))
+            b[2] += self.pnl - sum(tr["profit"] for tr in self.trades)
+        return hours
+
+    def tally(self, t: float, profit: float, hours: list | None = None):
+        b = (self.by_hour if hours is None else hours)[local_hour(t)]
+        b[0] += 1
+        b[1] += profit > 0
+        b[2] += profit
+
+    def slot(self, s: int, e: int) -> tuple[int, int, float]:
+        bs = [self.by_hour[h] for h in slot_hours(s, e)]
+        return sum(b[0] for b in bs), sum(b[1] for b in bs), sum(b[2] for b in bs)
 
     def to_dict(self) -> dict:
         return {"cash": self.cash, "start": self.start, "trades": self.trades[-300:], "n": self.n, "wins": self.wins,
-                "pnl": self.pnl, "best": self.best, "worst": self.worst}
+                "pnl": self.pnl, "best": self.best, "worst": self.worst,
+                "by_hour": [[b[0], b[1], round(b[2], 2)] for b in self.by_hour]}
 
     def can_buy(self, mint: str) -> bool:
         return (len(self.positions) + len(self.pending) < MAX_OPEN and self.cash >= PER_TRADE
@@ -241,6 +282,7 @@ class Lab:
         a.wins += profit > 0
         a.pnl += profit
         a.best, a.worst = max(a.best, profit), min(a.worst, profit)
+        a.tally(p["t"], profit)
         a.trades.append({"t": round(p["t"]), "s": round(now - p["t"], 1), "name": p["name"], "mint": coin.mint,
                          "profit": round(profit, 2), "why_in": p["why"], "why_out": why, "lag": p["lag"]})
 
@@ -355,13 +397,23 @@ class Lab:
                 self.coins.pop(c.mint, None)
                 self.names.pop(c.mint, None)
 
+    def value(self, a: Account) -> float:
+        return a.cash + sum(p["cost"] for p in a.positions.values()) + PER_TRADE * len(a.pending)
+
     def board(self, now: float | None = None, hours: float = 1.0) -> str:
-        """Like the copy bot's reports: per strategy, the last hour and since it started, and the account."""
+        """Like the copy bot's reports: per strategy, the last hour and since it started, and the account; then the
+        same strategies split by time of day."""
         now = now or time.time()
         lines = ["Pretend $1,000 per strategy, $250 trades, 1-second charts, real delays and fees:"]
         rows = sorted(self.accts.items(), key=lambda kv: -kv[1].pnl)
+        alive = [(k, a) for k, a in rows if self.value(a) >= PER_TRADE or a.positions or a.pending]
+        living = {k for k, _ in alive}
         for k, a in rows:
-            value = a.cash + sum(p["cost"] for p in a.positions.values()) + PER_TRADE * len(a.pending)
+            value = self.value(a)
+            if k not in living:                      # busted strategies stay dead: one short line
+                lines.append(f"• {STRATEGIES[k]['label']}: busted (about ${value:,.0f} left, too little for a $250 "
+                             f"trade). {a.n} trades, {a.wins / max(a.n, 1):.0%} won, {a.pnl:+,.2f}.")
+                continue
             recent = [t for t in a.trades if now - (t["t"] + t["s"]) <= hours * 3600]
             won = sum(t["profit"] > 0 for t in recent)
             last = (f"last {hours:.0f} h {len(recent)} trades, {won}-{len(recent) - won}, "
@@ -369,14 +421,39 @@ class Lab:
             since = (f"Since it started: {a.n} trades, {a.wins / a.n:.0%} won, {a.pnl:+,.2f}; account about ${value:,.0f}"
                      if a.n else "Since it started: no trades yet")
             lines.append(f"• {STRATEGIES[k]['label']}: {last}{since}.")
+        tod = self.times_of_day(alive)
+        if tod:
+            lines += ["", "By time of day (Milwaukee time, when the coin was bought):"] + tod
         return "\n".join(lines)
+
+    def times_of_day(self, alive: list) -> list[str]:
+        """One line per strategy still trading, plus all of them together; only the time slots it has traded in."""
+        def piece(n, w, pnl, label):
+            return f"{label} {n} trades, {w / n:.0%} won, {pnl:+,.0f}"
+
+        out, total = [], {key: [0, 0, 0.0] for key, *_ in SLOTS}
+        for k, a in alive:
+            parts = []
+            for key, label, s, e in SLOTS:
+                n, w, pnl = a.slot(s, e)
+                if n:
+                    parts.append(piece(n, w, pnl, label))
+                    if k != "random":                    # the luck baseline isn't a strategy
+                        t = total[key]
+                        t[0], t[1], t[2] = t[0] + n, t[1] + w, t[2] + pnl
+            if parts:
+                out.append(f"• {STRATEGIES[k]['label']}: " + " | ".join(parts))
+        both = [piece(*total[key], label) for key, label, *_ in SLOTS if total[key][0]]
+        if len(both) > 1 or out:
+            out.insert(0, "• All of them together (not random): " + (" | ".join(both) or "no trades yet"))
+        return out
 
     def snapshot(self) -> dict:
         """The accounts as they stand, open bets counted at what they cost (for a save in the middle of a run)."""
         accts = {}
         for k, a in self.accts.items():
             d = a.to_dict()
-            d["cash"] = a.cash + sum(p["cost"] for p in a.positions.values()) + PER_TRADE * len(a.pending)
+            d["cash"] = self.value(a)
             accts[k] = d
         return {"accounts": accts, "events": self.events, "t": time.time(), "hello": self.hello_done}
 
