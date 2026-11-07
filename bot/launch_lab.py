@@ -256,6 +256,10 @@ class Lab:
         self.rng = random.Random(seed)
         self.random_plan: dict[str, float] = {}
         self.events = int(state.get("events", 0))
+        # how busy pump.fun is by the hour (Milwaukee time): [seconds watched, trades, new coins, SOL bought]
+        self.activity = ([list(b) for b in state["activity"]] if state.get("activity")
+                         else [[0.0, 0, 0, 0.0] for _ in range(24)])
+        self._clock, self._last_seen = (None, 0), None
         self.hello_done = bool(state.get("hello")) or self.events > 0       # a lab that already ran said hello
         self.tell = tell or (lambda t, m: None)
 
@@ -377,8 +381,41 @@ class Lab:
             if why:
                 self.order(key, coin.mint, now, "sell", why)
 
+    def watch(self, now: float, e: dict):
+        m = int(now // 60)
+        if m != self._clock[0]:                          # the local hour, worked out once a minute
+            self._clock = (m, local_hour(now))
+        b = self.activity[self._clock[1]]
+        if self._last_seen is not None and 0 < now - self._last_seen < 10:    # gaps (between runs) don't count
+            b[0] += now - self._last_seen
+        self._last_seen = now
+        if e["kind"] == "create":
+            b[2] += 1
+        elif e["kind"] == "trade":
+            b[1] += 1
+            if e.get("buy"):
+                b[3] += e.get("sol", 0.0)
+
+    def busy_lines(self) -> list[str]:
+        """Trades and new coins a minute in each time slot, and the busiest hours, once there's 10+ minutes of it."""
+        def rate(hours):
+            secs = sum(self.activity[h][0] for h in hours)
+            if secs < 600:
+                return None
+            return (sum(self.activity[h][1] for h in hours) * 60 / secs,
+                    sum(self.activity[h][2] for h in hours) * 60 / secs)
+        slots = [(label, rate(slot_hours(s, e))) for _, label, s, e in SLOTS]
+        slots = [f"{label} {r[0]:,.0f} trades, {r[1]:.1f} new coins" for label, r in slots if r]
+        if not slots:
+            return []
+        hours = sorted(((rate([h]), h) for h in range(24) if rate([h])), key=lambda x: -x[0][0])[:3]
+        name = lambda h: f"{h % 12 or 12}{'a' if h < 12 else 'p'}"
+        return ["• How busy pump.fun is, a minute: " + " | ".join(slots),
+                "• Busiest hours so far: " + ", ".join(f"{name(h)} ({r[0]:,.0f} trades)" for r, h in hours)]
+
     def event(self, now: float, e: dict):
         self.events += 1
+        self.watch(now, e)
         if e["kind"] == "create":
             self.names[e["mint"]] = e["symbol"] or e["name"]
             return
@@ -440,7 +477,7 @@ class Lab:
             since = (f"Since it started: {a.n} trades, {a.wins / a.n:.0%} won, {a.pnl:+,.2f}; account about ${value:,.0f}"
                      if a.n else "Since it started: no trades yet")
             lines.append(f"• {STRATEGIES[k]['label']}: {last}{since}.")
-        tod = self.times_of_day(alive)
+        tod = self.busy_lines() + self.times_of_day(alive)
         if tod:
             lines += ["", "By time of day (Milwaukee time, when the coin was bought):"] + tod
         win = self.window_lines(alive)
@@ -488,7 +525,8 @@ class Lab:
             d = a.to_dict()
             d["cash"] = self.value(a)
             accts[k] = d
-        return {"accounts": accts, "events": self.events, "t": time.time(), "hello": self.hello_done}
+        return {"accounts": accts, "events": self.events, "t": time.time(), "hello": self.hello_done,
+                "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity]}
 
     def to_state(self, now: float | None = None) -> dict:
         now = now or time.time()
@@ -502,7 +540,8 @@ class Lab:
             a.cash += PER_TRADE * len(a.pending)
             a.pending = {}
         return {"accounts": {k: a.to_dict() for k, a in self.accts.items()}, "events": self.events, "t": time.time(),
-                "hello": self.hello_done}
+                "hello": self.hello_done,
+                "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity]}
 
 
 async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180,

@@ -2764,3 +2764,24 @@ def test_launch_lab_splits_results_by_time_of_day_and_keeps_old_trades_counted()
     board = lab.board(now=at(21))
     assert "in it 1 trades, 100% won, +25 | rest 3 trades, 33% won, -25" in board
     assert ll.Lab(state={"accounts": {"volume_spike": a.to_dict()}}).accts["volume_spike"].window == a.window
+
+
+def test_launch_lab_measures_how_busy_pump_fun_is_by_the_hour():
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    from bot import launch_lab as ll
+
+    t0 = datetime.datetime(2026, 11, 8, 15, 0, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    lab = ll.Lab()
+    assert lab.busy_lines() == []                       # under 10 minutes watched: nothing to say yet
+    for i in range(1200):                               # 20 minutes at 3 pm: a trade every second, a new coin a minute
+        lab.watch(t0 + i, {"kind": "trade", "buy": True, "sol": 0.5})
+        if i % 60 == 0:
+            lab.watch(t0 + i, {"kind": "create"})
+    lab.watch(t0 + 5000, {"kind": "trade", "buy": False, "sol": 1.0})    # after a gap: the gap isn't counted
+    lines = lab.busy_lines()
+    assert lines[0] == "• How busy pump.fun is, a minute: midday 11a-5p 60 trades, 1.0 new coins"
+    assert lines[1] == "• Busiest hours so far: 3p (60 trades)"
+    saved = ll.Lab(state=lab.snapshot())
+    assert saved.activity[15][1] == 1200 and saved.busy_lines() == lines
