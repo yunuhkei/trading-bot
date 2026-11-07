@@ -190,6 +190,7 @@ class Lab:
         self.rng = random.Random(seed)
         self.random_plan: dict[str, float] = {}
         self.events = int(state.get("events", 0))
+        self.hello_done = bool(state.get("hello")) or self.events > 0       # a lab that already ran said hello
         self.tell = tell or (lambda t, m: None)
 
     # orders: signal now, filled at the first trade seen `latency` seconds later
@@ -345,14 +346,20 @@ class Lab:
                 self.coins.pop(c.mint, None)
                 self.names.pop(c.mint, None)
 
-    def board(self) -> str:
-        lines = ["🧪 Launch lab (pretend $1,000 each, $250 trades, 1-second charts, honest delays and fees):"]
-        rows = sorted(self.accts.items(), key=lambda kv: -(kv[1].cash + sum(p["cost"] for p in kv[1].positions.values())))
+    def board(self, now: float | None = None, hours: float = 1.0) -> str:
+        """Like the copy bot's reports: per strategy, the last hour and since it started, and the account."""
+        now = now or time.time()
+        lines = ["Pretend $1,000 per strategy, $250 trades, 1-second charts, real delays and fees:"]
+        rows = sorted(self.accts.items(), key=lambda kv: -kv[1].pnl)
         for k, a in rows:
             value = a.cash + sum(p["cost"] for p in a.positions.values()) + PER_TRADE * len(a.pending)
-            lines.append(f"• {STRATEGIES[k]['label']}: {a.n} trades, {a.wins / a.n:.0%} won, {a.pnl:+,.2f}, account "
-                         f"${value:,.0f} (best {a.best:+.0f}, worst {a.worst:+.0f})" if a.n else
-                         f"• {STRATEGIES[k]['label']}: no trades yet")
+            recent = [t for t in a.trades if now - (t["t"] + t["s"]) <= hours * 3600]
+            won = sum(t["profit"] > 0 for t in recent)
+            last = (f"last {hours:.0f} h {len(recent)} trades, {won}-{len(recent) - won}, "
+                    f"{sum(t['profit'] for t in recent):+,.2f}. ")
+            since = (f"Since it started: {a.n} trades, {a.wins / a.n:.0%} won, {a.pnl:+,.2f}; account about ${value:,.0f}"
+                     if a.n else "Since it started: no trades yet")
+            lines.append(f"• {STRATEGIES[k]['label']}: {last}{since}.")
         return "\n".join(lines)
 
     def snapshot(self) -> dict:
@@ -362,7 +369,7 @@ class Lab:
             d = a.to_dict()
             d["cash"] = a.cash + sum(p["cost"] for p in a.positions.values()) + PER_TRADE * len(a.pending)
             accts[k] = d
-        return {"accounts": accts, "events": self.events, "t": time.time()}
+        return {"accounts": accts, "events": self.events, "t": time.time(), "hello": self.hello_done}
 
     def to_state(self, now: float | None = None) -> dict:
         now = now or time.time()
@@ -375,15 +382,17 @@ class Lab:
                     a.cash += a.positions.pop(mint)["cost"]
             a.cash += PER_TRADE * len(a.pending)
             a.pending = {}
-        return {"accounts": {k: a.to_dict() for k, a in self.accts.items()}, "events": self.events, "t": time.time()}
+        return {"accounts": {k: a.to_dict() for k, a in self.accts.items()}, "events": self.events, "t": time.time(),
+                "hello": self.hello_done}
 
 
 async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180,
                  first_report: float = 300, save_every: float = 300):
     import aiohttp
 
-    end, start, said_hello = time.time() + seconds, time.time(), False
-    last_report = start - report_every + first_report       # the first report comes `first_report` s in
+    end, start = time.time() + seconds, time.time()
+    said_hello = lab.hello_done                             # "lab is live" and the quick first report: only ever once
+    last_report = start - report_every + first_report if not said_hello else start
     last_save = start
     while time.time() < end:
         try:
@@ -416,7 +425,7 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
                             lab.tick(now)
                             next_tick = now + 1
                         if not said_hello and now - start >= hello_after:
-                            said_hello = True
+                            said_hello = lab.hello_done = True
                             new = sum(c.fresh for c in lab.coins.values())
                             lab.tell("🧪 Launch lab is live", f"In the first {hello_after / 60:.0f} minutes it saw {lab.events:,} "
                                      f"pump.fun events and {new:,} brand-new coins. Scoreboard when this run ends (~6 h).")
@@ -432,7 +441,7 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
                                     f"{len(lab.coins):,} coins being watched")
                             print(head, flush=True)
                             print(lab.board(), flush=True)
-                            lab.tell("🧪 Launch lab: hourly update", (head + "\n" + lab.board())[:3500])
+                            lab.tell("🧪 Launch lab: hourly report", (head + "\n" + lab.board(now))[:3500])
         except Exception as e:
             log.warning("feed dropped (%s); reconnecting", e)
             await asyncio.sleep(3)
@@ -471,6 +480,4 @@ def run(minutes: float = 340, status: bool = False):
         pass
     finally:
         STATE.write_text(json.dumps(lab.to_state()))
-        text = lab.board()
-        print(text, flush=True)
-        tell("🧪 Launch lab update", text[:3500])
+        print(lab.board(), flush=True)                  # the hourly reports already went to the phone

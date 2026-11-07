@@ -2707,7 +2707,7 @@ def test_launch_lab_decodes_pump_trades_and_prices_fills_on_the_curve_with_delay
     assert a.positions[ll.b58(b"\x09" * 32)].get("selling")
     lab.event(111.2, ev(71.0, 453_000_000, 41.0))
     assert a.n == 1 and a.wins == 1 and a.pnl > 200 and not a.positions
-    assert "Snipe every new coin: 1 trades, 100% won" in lab.board()
+    assert "Snipe every new coin: last 1 h 1 trades, 1-0" in lab.board(112.0) and "Since it started: 1 trades, 100% won" in lab.board(112.0)
     lab.event(112.0, ev(80.0, 400_000_000, 85.0))                           # the curve completes: graduated
     for acct in lab.accts.values():
         assert not acct.positions and not acct.pending                     # everything sold or refunded
