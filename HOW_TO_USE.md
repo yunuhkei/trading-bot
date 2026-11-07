@@ -486,4 +486,10 @@ it shows whether a bot this fast can win. Open bets are sold at the curve price 
 hourly report like the copy bot's; `launch-lab-status` prints it with each strategy's latest trades. Busted strategies
 (under $250) stay dead. The report also splits every strategy by time of day in Milwaukee time (midday 11a-5p,
 evening 5-11p, overnight 11p-5a, morning 5-11a, by when the coin was bought), to test the midday hunch from copy
-trading. No real money, ever.
+trading. It also shows how busy pump.fun is each hour, and the owner's 11a-3:40p window against the rest of the day.
+
+**Super bot** (`timing`): its own pretend $1,000. Each hour it copies the buys of every strategy that made money in that
+same hour on earlier days: 2+ days with trades in that hour, 20+ trades, a profit overall and on more than half of those
+days. Today's trades never count for today, so its results are a fair test, not hindsight. Random coins is never
+copied. Each copied bet sells with the rules of the strategy it came from. The report says which strategies it's
+copying this hour, or that it's sitting out. No real money, ever.

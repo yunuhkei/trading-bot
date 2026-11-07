@@ -54,6 +54,9 @@ def local_hour(t: float) -> int:
 
 # the owner's hunch: coins jump from about 11 am to 3:40 pm (Milwaukee time), then die. Counted from Nov 8.
 WINDOW, WINDOW_LABEL = (11 * 60, 15 * 60 + 40), "11a-3:40p"
+# the super bot turns a strategy on for an hour when, in that same hour on EARLIER days (never today), it has
+# 2+ days of trades, 20+ trades in all, a profit overall, and a profit on more than half of those days
+SUPER_DAYS, SUPER_TRADES, KEEP_DAYS = 2, 20, 21
 
 
 def in_window(t: float) -> bool:
@@ -80,6 +83,8 @@ STRATEGIES = {
     "graduation_run": {"label": "Graduation run (70% full curve)", "sl": 0.2, "max_s": 900},
     "whale_follow": {"label": "Follow a 5+ SOL buy", "tp": 0.5, "sl": 0.25, "max_s": 180},
     "random": {"label": "Random coins (luck baseline)", "tp": 0.5, "sl": 0.25, "max_s": 180},
+    # copies a strategy's buys only in the hours that strategy made money in on earlier days (see timing_on)
+    "timing": {"label": "Super bot (each strategy only at its best hours)", "max_s": 900},
 }
 
 
@@ -204,6 +209,11 @@ class Account:
         self.pending: dict = {}
         # every trade by the hour it was bought (Milwaukee time): [trades, wins, profit]; not cut off like `trades`
         self.by_hour = [list(b) for b in d["by_hour"]] if d.get("by_hour") else self._rebuild_hours()
+        # by day and hour, for the super bot: {"2026-11-08": 24 x [trades, wins, profit]}. A save from before this
+        # was all one day (the lab's first, Nov 7), so its hour tally becomes that day.
+        self.days = {k: [list(b) for b in v] for k, v in (d.get("days") or {}).items()}
+        if not d.get("days") and d.get("by_hour") and self.trades:
+            self.days[local_time(self.trades[-1]["t"]).strftime("%Y-%m-%d")] = [list(b) for b in self.by_hour]
         # inside the owner's window vs the rest of the day; starts empty (only trades from Nov 8 on)
         self.window = {k: list(v) for k, v in (d.get("window") or {"in": [0, 0, 0.0], "out": [0, 0, 0.0]}).items()}
 
@@ -222,9 +232,16 @@ class Account:
         return hours
 
     def tally(self, t: float, profit: float, hours: list | None = None):
-        bs = [(self.by_hour if hours is None else hours)[local_hour(t)]]
+        lt = local_time(t)
+        bs = [(self.by_hour if hours is None else hours)[lt.hour]]
         if hours is None:
             bs.append(self.window["in" if in_window(t) else "out"])
+            day = lt.strftime("%Y-%m-%d")
+            if day not in self.days:
+                self.days[day] = [[0, 0, 0.0] for _ in range(24)]
+                for old in sorted(self.days)[:-KEEP_DAYS]:
+                    self.days.pop(old)
+            bs.append(self.days[day][lt.hour])
         for b in bs:
             b[0] += 1
             b[1] += profit > 0
@@ -238,7 +255,8 @@ class Account:
         return {"cash": self.cash, "start": self.start, "trades": self.trades[-300:], "n": self.n, "wins": self.wins,
                 "pnl": self.pnl, "best": self.best, "worst": self.worst,
                 "by_hour": [[b[0], b[1], round(b[2], 2)] for b in self.by_hour],
-                "window": {k: [b[0], b[1], round(b[2], 2)] for k, b in self.window.items()}}
+                "window": {k: [b[0], b[1], round(b[2], 2)] for k, b in self.window.items()},
+                "days": {k: [[b[0], b[1], round(b[2], 2)] for b in v] for k, v in self.days.items()}}
 
     def can_buy(self, mint: str) -> bool:
         return (len(self.positions) + len(self.pending) < MAX_OPEN and self.cash >= PER_TRADE
@@ -260,16 +278,35 @@ class Lab:
         self.activity = ([list(b) for b in state["activity"]] if state.get("activity")
                          else [[0.0, 0, 0, 0.0] for _ in range(24)])
         self._clock, self._last_seen = (None, 0), None
+        self._timing: tuple = (None, [])
         self.hello_done = bool(state.get("hello")) or self.events > 0       # a lab that already ran said hello
         self.tell = tell or (lambda t, m: None)
 
     # orders: signal now, filled at the first trade seen `latency` seconds later
-    def order(self, key: str, mint: str, now: float, side: str, why: str = ""):
+    def timing_on(self, now: float) -> list[str]:
+        """The strategies the super bot copies right now: judged only on this same hour on earlier days."""
+        lt = local_time(now)
+        day, h = lt.strftime("%Y-%m-%d"), lt.hour
+        if self._timing[0] != (day, h):
+            on = []
+            for k, a in self.accts.items():
+                if k in ("random", "timing"):
+                    continue
+                rows = [a.days[d][h] for d in a.days if d < day and a.days[d][h][0]]
+                if (len(rows) >= SUPER_DAYS and sum(r[0] for r in rows) >= SUPER_TRADES and sum(r[2] for r in rows) > 0
+                        and 2 * sum(r[2] > 0 for r in rows) > len(rows)):
+                    on.append((sum(r[2] for r in rows) / sum(r[0] for r in rows), k))
+            self._timing = ((day, h), [k for _, k in sorted(on, reverse=True)])
+        return self._timing[1]
+
+    def order(self, key: str, mint: str, now: float, side: str, why: str = "", via: str | None = None):
         a = self.accts[key]
         if side == "buy":
+            if key != "timing" and key in self.timing_on(now):
+                self.order("timing", mint, now, "buy", f"{STRATEGIES[key]['label']}: {why}", via=key)
             if not a.can_buy(mint):
                 return
-            a.pending[mint] = {"side": "buy", "at": now + self.lb, "why": why, "signal": now}
+            a.pending[mint] = {"side": "buy", "at": now + self.lb, "why": why, "signal": now, "via": via}
             a.cash -= PER_TRADE                                         # reserved
         elif mint in a.positions and not a.positions[mint].get("selling"):
             a.positions[mint]["selling"] = {"at": now + self.ls, "why": why}
@@ -288,6 +325,7 @@ class Lab:
                 a.positions[coin.mint] = {"tokens": tok, "net": sol_in * (1 - coin.fee), "cost": PER_TRADE, "t": now,
                                           "entry": coin.price,
                                           "peak": coin.price, "why": o["why"], "lag": round(now - o["signal"], 2),
+                                          "via": o.get("via"),
                                           "name": self.names.get(coin.mint, coin.mint[:6])}
             p = a.positions.get(coin.mint)
             if p and p.get("selling") and (now >= p["selling"]["at"] or stale):
@@ -359,7 +397,7 @@ class Lab:
             p = a.positions.get(coin.mint)
             if not p or p.get("selling"):
                 continue
-            rules, ch = STRATEGIES[key], px / p["entry"] - 1 if p["entry"] else 0.0
+            rules, ch = STRATEGIES[p.get("via") or key], px / p["entry"] - 1 if p["entry"] else 0.0
             p["peak"] = max(p["peak"], px)
             why = None
             if "tp" in rules and ch >= rules["tp"]:
@@ -477,6 +515,12 @@ class Lab:
             since = (f"Since it started: {a.n} trades, {a.wins / a.n:.0%} won, {a.pnl:+,.2f}; account about ${value:,.0f}"
                      if a.n else "Since it started: no trades yet")
             lines.append(f"• {STRATEGIES[k]['label']}: {last}{since}.")
+        on = self.timing_on(now)
+        hour = local_time(now).hour
+        hour = f"{hour % 12 or 12}{'a' if hour < 12 else 'p'}"
+        lines.append(f"• Super bot this hour ({hour}): " + (
+            "copying " + ", ".join(STRATEGIES[k]["label"] for k in on) if on else
+            f"sitting out (no strategy has made money at {hour} on {SUPER_DAYS}+ earlier days yet)"))
         tod = self.busy_lines() + self.times_of_day(alive)
         if tod:
             lines += ["", "By time of day (Milwaukee time, when the coin was bought):"] + tod

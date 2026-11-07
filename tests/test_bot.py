@@ -2785,3 +2785,59 @@ def test_launch_lab_measures_how_busy_pump_fun_is_by_the_hour():
     assert lines[1] == "• Busiest hours so far: 3p (60 trades)"
     saved = ll.Lab(state=lab.snapshot())
     assert saved.activity[15][1] == 1200 and saved.busy_lines() == lines
+
+
+def test_launch_lab_super_bot_copies_a_strategy_only_in_hours_it_won_on_earlier_days():
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    from bot import launch_lab as ll
+
+    tz = ZoneInfo("America/Chicago")
+    at = lambda d, h, m=0: datetime.datetime(2026, 11, d, h, m, tzinfo=tz).timestamp()
+    lab = ll.Lab()
+    whale, spike = lab.accts["whale_follow"], lab.accts["volume_spike"]
+    for day in (8, 9):                                   # whale: won at 3 pm on both earlier days
+        for _ in range(12):
+            whale.tally(at(day, 15, 5), 20.0)
+        for _ in range(12):
+            whale.tally(at(day, 20, 5), -20.0)           # and lost at 8 pm
+    for _ in range(40):
+        spike.tally(at(10, 15, 1), 50.0)                 # spike: a great 3 pm, but only today (Nov 10) -> not yet
+    for _ in range(30):
+        lab.accts["random"].tally(at(8, 15), 9.0); lab.accts["random"].tally(at(9, 15), 9.0)    # luck: never
+    assert lab.timing_on(at(10, 15, 30)) == ["whale_follow"]
+    assert lab.timing_on(at(10, 20, 30)) == []
+    assert lab.timing_on(at(9, 15, 30)) == []           # on Nov 9 only one earlier day: not enough
+
+    lab.order("whale_follow", "MINT", at(10, 15, 30), "buy", "a 6.0 SOL buy")
+    lab.order("volume_spike", "MINT2", at(10, 15, 30), "buy", "5 SOL in 10 s")
+    sup = lab.accts["timing"]
+    assert set(sup.pending) == {"MINT"} and sup.pending["MINT"]["via"] == "whale_follow"
+    assert sup.pending["MINT"]["why"].startswith("Follow a 5+ SOL buy:") and sup.cash == 750.0
+    lab.order("whale_follow", "MINT3", at(10, 20, 30), "buy", "a 7.0 SOL buy")    # 8 pm: whale isn't on
+    assert "MINT3" not in sup.pending
+
+    board = lab.board(now=at(10, 15, 40))
+    assert "Super bot this hour (3p): copying Follow a 5+ SOL buy" in board
+    assert "Super bot this hour (8p): sitting out" in lab.board(now=at(10, 20, 40))
+    again = ll.Lab(state={"accounts": {"whale_follow": whale.to_dict()}})
+    assert again.accts["whale_follow"].days == whale.days
+
+
+def test_launch_lab_super_bot_sells_with_the_copied_strategys_rules():
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=200.0)
+    lab._timing = (None, [])
+    lab.timing_on = lambda now: ["whale_follow"]          # pretend whale is on this hour
+    mint = "M" * 32
+    e = {"kind": "trade", "mint": mint, "sol": 1.0, "tokens": 1e6, "buy": True, "user": "u1", "ts": 0,
+         "vsol": 31.0, "vtok": 1.0e9, "real_sol": 1.0, "fee": 0.0}
+    lab.event(1000.0, e)
+    lab.order("whale_follow", mint, 1000.0, "buy", "a 6.0 SOL buy")
+    lab.event(1002.0, dict(e, user="u2"))                # filled 1.5 s later
+    p = lab.accts["timing"].positions[mint]
+    assert p["via"] == "whale_follow"
+    lab.event(1003.0, dict(e, user="u3", vsol=60.0, vtok=0.52e9))    # price up ~+86%: whale's +50% take profit
+    assert lab.accts["timing"].positions[mint].get("selling", {}).get("why", "").startswith("take profit")
