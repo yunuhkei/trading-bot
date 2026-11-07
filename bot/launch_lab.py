@@ -550,15 +550,15 @@ class Lab:
                 n, w, pnl = a.slot(s, e)
                 if n:
                     parts.append(piece(n, w, pnl, label))
-                    if k != "random":                    # the luck baseline isn't a strategy
+                    if k not in ("random", "timing"):    # not the luck baseline, and the super bot only copies
                         t = total[key]
                         t[0], t[1], t[2] = t[0] + n, t[1] + w, t[2] + pnl
             if parts:
                 out.append(f"• {STRATEGIES[k]['label']}: " + " | ".join(parts))
         both = [piece(*total[key], label) for key, label, *_ in SLOTS if total[key][0]]
         if len(both) > 1 or out:
-            m = sum(k != "random" for k, _ in alive)    # busted ones are left out, so midday looks better than it was
-            out.insert(0, f"• The {m} still trading, together (not random, not the busted ones): "
+            m = sum(k not in ("random", "timing") for k, _ in alive)    # busted ones are left out
+            out.insert(0, f"• The {m} still trading, together (not random, the super bot or busted ones): "
                           + (" | ".join(both) or "no trades yet"))
         return out
 
