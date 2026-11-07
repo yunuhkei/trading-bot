@@ -41,7 +41,13 @@ STRATEGIES = {
     "snipe": {"label": "Snipe every new coin", "tp": 1.0, "sl": 0.35, "max_s": 90},
     "snipe_quick": {"label": "Snipe, quick flip", "tp": 0.25, "sl": 0.15, "max_s": 20},
     "momentum_60s": {"label": "First-minute momentum", "tp": 0.6, "sl": 0.25, "max_s": 300},
-    "volume_spike": {"label": "Volume spike", "tp": 0.4, "sl": 0.2, "max_s": 180},
+    "volume_spike": {"label": "Volume spike", "tp": 0.4, "sl": 0.2, "max_s": 180, "spike": 4},
+    # versions of the volume spike with other settings: if they ALL make money, the edge is real, not one lucky setting
+    "volume_spike_3": {"label": "Volume spike, 3 SOL trigger", "tp": 0.4, "sl": 0.2, "max_s": 180, "spike": 3},
+    "volume_spike_5": {"label": "Volume spike, 5 SOL trigger", "tp": 0.4, "sl": 0.2, "max_s": 180, "spike": 5},
+    "volume_spike_tp30": {"label": "Volume spike, quick (+30%/-15%)", "tp": 0.3, "sl": 0.15, "max_s": 120, "spike": 4},
+    "volume_spike_tp60": {"label": "Volume spike, let it run (+60%/-25%)", "tp": 0.6, "sl": 0.25, "max_s": 300,
+                          "spike": 4},
     "dip_bounce": {"label": "Second-chart dip bounce", "sl": 0.15, "max_s": 120, "exit": "vwap"},
     "breakout": {"label": "Breakout to new highs", "trail": 0.2, "max_s": 600},
     "graduation_run": {"label": "Graduation run (70% full curve)", "sl": 0.2, "max_s": 900},
@@ -254,9 +260,12 @@ class Lab:
         if age <= 1800:
             last10 = sum(x[2] for x in coin.window(now, 10) if x[3])
             prev = sum(x[2] for x in coin.window(now, 70, 10) if x[3]) / 6
-            if last10 >= 4 and last10 >= 3 * max(prev, 0.3) and now - coin.__dict__.get("vs_t", 0) > 120:
-                coin.vs_t = now
-                self.order("volume_spike", coin.mint, now, "buy", f"{last10:.1f} SOL bought in 10 s")
+            for key, rules in STRATEGIES.items():
+                need = rules.get("spike")
+                if need and last10 >= need and last10 >= 3 * max(prev, 0.3) and \
+                        now - coin.__dict__.get(f"vs_{key}", 0) > 120:
+                    setattr(coin, f"vs_{key}", now)
+                    self.order(key, coin.mint, now, "buy", f"{last10:.1f} SOL bought in 10 s")
         if 120 <= age <= 3600 and len(coin.trades) >= 60 and coin.real_sol >= 10:
             w = coin.window(now, 30)
             hi = max((x[1] for x in w), default=px)
@@ -431,6 +440,7 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
                                      f"pump.fun events and {new:,} brand-new coins. Scoreboard when this run ends (~6 h).")
                         if now - last_save >= save_every:            # a killed job keeps its accounts
                             last_save = now
+                            peek(lab, now)
                             try:
                                 STATE.write_text(json.dumps(lab.snapshot()))
                             except Exception as ex:
@@ -445,6 +455,21 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
         except Exception as e:
             log.warning("feed dropped (%s); reconnecting", e)
             await asyncio.sleep(3)
+
+
+PEEK_TOPIC = "tbot-launch-lab-" + hashlib.sha256(b"yunuhkei/trading-bot launch lab").hexdigest()[:12]
+
+
+def peek(lab: "Lab", now: float):
+    """The scoreboard every few minutes on a quiet ntfy topic no phone subscribes to, so it can be read while the
+    lab runs (curl https://ntfy.sh/<PEEK_TOPIC>/json?poll=1&since=15m) without stopping it. Pretend money only."""
+    import requests
+
+    try:
+        requests.post(f"https://ntfy.sh/{PEEK_TOPIC}", data=lab.board(now).encode(), timeout=10,
+                      headers={"Title": f"launch lab {time.strftime('%H:%M UTC', time.gmtime(now))}", "Priority": "min"})
+    except Exception as ex:
+        log.debug("peek failed: %s", ex)
 
 
 def sol_price() -> float:
