@@ -2711,6 +2711,8 @@ def test_launch_lab_decodes_pump_trades_and_prices_fills_on_the_curve_with_delay
     lab.event(112.0, ev(80.0, 400_000_000, 85.0))                           # the curve completes: graduated
     for acct in lab.accts.values():
         assert not acct.positions and not acct.pending                     # everything sold or refunded
+    snap = lab.snapshot()
+    assert snap["accounts"]["snipe"]["n"] == 1 and snap["accounts"]["snipe"]["cash"] > 1000
     st = lab.to_state(200.0)
     assert st["accounts"]["snipe"]["n"] == 1 and all(v["cash"] > 0 for v in st["accounts"].values())
 

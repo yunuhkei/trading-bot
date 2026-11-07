@@ -355,6 +355,15 @@ class Lab:
                          f"• {STRATEGIES[k]['label']}: no trades yet")
         return "\n".join(lines)
 
+    def snapshot(self) -> dict:
+        """The accounts as they stand, open bets counted at what they cost (for a save in the middle of a run)."""
+        accts = {}
+        for k, a in self.accts.items():
+            d = a.to_dict()
+            d["cash"] = a.cash + sum(p["cost"] for p in a.positions.values()) + PER_TRADE * len(a.pending)
+            accts[k] = d
+        return {"accounts": accts, "events": self.events, "t": time.time()}
+
     def to_state(self, now: float | None = None) -> dict:
         now = now or time.time()
         for a in self.accts.values():                   # a run ends: sell what's open at today's curve price
@@ -369,10 +378,13 @@ class Lab:
         return {"accounts": {k: a.to_dict() for k, a in self.accts.items()}, "events": self.events, "t": time.time()}
 
 
-async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180):
+async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180,
+                 first_report: float = 300, save_every: float = 300):
     import aiohttp
 
-    end, last_report, start, said_hello = time.time() + seconds, time.time(), time.time(), False
+    end, start, said_hello = time.time() + seconds, time.time(), False
+    last_report = start - report_every + first_report       # the first report comes `first_report` s in
+    last_save = start
     while time.time() < end:
         try:
             async with aiohttp.ClientSession() as s:
@@ -408,6 +420,12 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
                             new = sum(c.fresh for c in lab.coins.values())
                             lab.tell("🧪 Launch lab is live", f"In the first {hello_after / 60:.0f} minutes it saw {lab.events:,} "
                                      f"pump.fun events and {new:,} brand-new coins. Scoreboard when this run ends (~6 h).")
+                        if now - last_save >= save_every:            # a killed job keeps its accounts
+                            last_save = now
+                            try:
+                                STATE.write_text(json.dumps(lab.snapshot()))
+                            except Exception as ex:
+                                log.warning("saving failed: %s", ex)
                         if now - last_report >= report_every:
                             last_report = now
                             head = (f"{time.strftime('%H:%M UTC', time.gmtime())}: {lab.events:,} events so far, "
