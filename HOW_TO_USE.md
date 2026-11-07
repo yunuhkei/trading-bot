@@ -492,4 +492,6 @@ trading. It also shows how busy pump.fun is each hour, and the owner's 11a-3:40p
 same hour on earlier days: 2+ days with trades in that hour, 20+ trades, a profit overall and on more than half of those
 days. Today's trades never count for today, so its results are a fair test, not hindsight. Random coins is never
 copied. Each copied bet sells with the rules of the strategy it came from. The report says which strategies it's
-copying this hour, or that it's sitting out. No real money, ever.
+copying this hour, or that it's sitting out. A second one (`timing_5k`) makes the same picks at the owner's planned
+size, $5,000 with $1,000 trades, so a month of practice shows what bigger buys do on these small coins. Day-by-hour
+records are kept for 35 days. No real money, ever.

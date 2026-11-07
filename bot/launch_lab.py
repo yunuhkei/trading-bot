@@ -56,7 +56,8 @@ def local_hour(t: float) -> int:
 WINDOW, WINDOW_LABEL = (11 * 60, 15 * 60 + 40), "11a-3:40p"
 # the super bot turns a strategy on for an hour when, in that same hour on EARLIER days (never today), it has
 # 2+ days of trades, 20+ trades in all, a profit overall, and a profit on more than half of those days
-SUPER_DAYS, SUPER_TRADES, KEEP_DAYS = 2, 20, 21
+SUPER_DAYS, SUPER_TRADES, KEEP_DAYS = 2, 20, 35
+SUPER = ("timing", "timing_5k")
 
 
 def in_window(t: float) -> bool:
@@ -85,6 +86,9 @@ STRATEGIES = {
     "random": {"label": "Random coins (luck baseline)", "tp": 0.5, "sl": 0.25, "max_s": 180},
     # copies a strategy's buys only in the hours that strategy made money in on earlier days (see timing_on)
     "timing": {"label": "Super bot (each strategy only at its best hours)", "max_s": 900},
+    # the same picks at the size the owner would really trade, so a month of practice shows what $1,000 buys do
+    "timing_5k": {"label": "Super bot, your plan ($5,000, $1,000 trades)", "max_s": 900, "cash": 5000.0,
+                  "per_trade": 1000.0},
 }
 
 
@@ -200,8 +204,10 @@ class Coin:
 class Account:
     def __init__(self, key: str, d: dict | None = None):
         d = d or {}
-        self.key, self.cash = key, float(d.get("cash", CASH))
-        self.start = float(d.get("start", CASH))
+        size = STRATEGIES.get(key, {})
+        self.per_trade = float(size.get("per_trade", PER_TRADE))
+        self.key, self.cash = key, float(d.get("cash", size.get("cash", CASH)))
+        self.start = float(d.get("start", size.get("cash", CASH)))
         self.positions: dict = {}                       # open bets are sold when a run ends (see to_state)
         self.trades: list = d.get("trades", [])[-300:]
         self.n, self.wins, self.pnl = int(d.get("n", 0)), int(d.get("wins", 0)), float(d.get("pnl", 0.0))
@@ -259,7 +265,7 @@ class Account:
                 "days": {k: [[b[0], b[1], round(b[2], 2)] for b in v] for k, v in self.days.items()}}
 
     def can_buy(self, mint: str) -> bool:
-        return (len(self.positions) + len(self.pending) < MAX_OPEN and self.cash >= PER_TRADE
+        return (len(self.positions) + len(self.pending) < MAX_OPEN and self.cash >= self.per_trade
                 and mint not in self.positions and mint not in self.pending)
 
 
@@ -290,7 +296,7 @@ class Lab:
         if self._timing[0] != (day, h):
             on = []
             for k, a in self.accts.items():
-                if k in ("random", "timing"):
+                if k == "random" or k in SUPER:
                     continue
                 rows = [a.days[d][h] for d in a.days if d < day and a.days[d][h][0]]
                 if (len(rows) >= SUPER_DAYS and sum(r[0] for r in rows) >= SUPER_TRADES and sum(r[2] for r in rows) > 0
@@ -302,12 +308,13 @@ class Lab:
     def order(self, key: str, mint: str, now: float, side: str, why: str = "", via: str | None = None):
         a = self.accts[key]
         if side == "buy":
-            if key != "timing" and key in self.timing_on(now):
-                self.order("timing", mint, now, "buy", f"{STRATEGIES[key]['label']}: {why}", via=key)
+            if key not in SUPER and key in self.timing_on(now):
+                for sk in SUPER:
+                    self.order(sk, mint, now, "buy", f"{STRATEGIES[key]['label']}: {why}", via=key)
             if not a.can_buy(mint):
                 return
             a.pending[mint] = {"side": "buy", "at": now + self.lb, "why": why, "signal": now, "via": via}
-            a.cash -= PER_TRADE                                         # reserved
+            a.cash -= a.per_trade                                       # reserved
         elif mint in a.positions and not a.positions[mint].get("selling"):
             a.positions[mint]["selling"] = {"at": now + self.ls, "why": why}
 
@@ -318,11 +325,11 @@ class Lab:
             if o and now >= o["at"]:
                 a.pending.pop(coin.mint)
                 if coin.done:
-                    a.cash += PER_TRADE
+                    a.cash += a.per_trade
                     continue
-                sol_in = PER_TRADE / self.sol_usd - TX_COST_SOL
+                sol_in = a.per_trade / self.sol_usd - TX_COST_SOL
                 tok = buy_tokens(coin.vsol, coin.vtok, sol_in, coin.fee)
-                a.positions[coin.mint] = {"tokens": tok, "net": sol_in * (1 - coin.fee), "cost": PER_TRADE, "t": now,
+                a.positions[coin.mint] = {"tokens": tok, "net": sol_in * (1 - coin.fee), "cost": a.per_trade, "t": now,
                                           "entry": coin.price,
                                           "peak": coin.price, "why": o["why"], "lag": round(now - o["signal"], 2),
                                           "via": o.get("via"),
@@ -492,15 +499,16 @@ class Lab:
                 self.names.pop(c.mint, None)
 
     def value(self, a: Account) -> float:
-        return a.cash + sum(p["cost"] for p in a.positions.values()) + PER_TRADE * len(a.pending)
+        return a.cash + sum(p["cost"] for p in a.positions.values()) + a.per_trade * len(a.pending)
 
     def board(self, now: float | None = None, hours: float = 1.0) -> str:
         """Like the copy bot's reports: per strategy, the last hour and since it started, and the account; then the
         same strategies split by time of day."""
         now = now or time.time()
-        lines = ["Pretend $1,000 per strategy, $250 trades, 1-second charts, real delays and fees:"]
+        lines = ["Pretend $1,000 per strategy, $250 trades ($5,000 and $1,000 trades for your-plan super bot), "
+                 "1-second charts, real delays and fees:"]
         rows = sorted(self.accts.items(), key=lambda kv: -kv[1].pnl)
-        alive = [(k, a) for k, a in rows if self.value(a) >= PER_TRADE or a.positions or a.pending]
+        alive = [(k, a) for k, a in rows if self.value(a) >= a.per_trade or a.positions or a.pending]
         living = {k for k, _ in alive}
         for k, a in rows:
             value = self.value(a)
@@ -550,14 +558,14 @@ class Lab:
                 n, w, pnl = a.slot(s, e)
                 if n:
                     parts.append(piece(n, w, pnl, label))
-                    if k not in ("random", "timing"):    # not the luck baseline, and the super bot only copies
+                    if k != "random" and k not in SUPER:    # not the luck baseline; the super bots only copy
                         t = total[key]
                         t[0], t[1], t[2] = t[0] + n, t[1] + w, t[2] + pnl
             if parts:
                 out.append(f"• {STRATEGIES[k]['label']}: " + " | ".join(parts))
         both = [piece(*total[key], label) for key, label, *_ in SLOTS if total[key][0]]
         if len(both) > 1 or out:
-            m = sum(k not in ("random", "timing") for k, _ in alive)    # busted ones are left out
+            m = sum(k != "random" and k not in SUPER for k, _ in alive)    # busted ones are left out
             out.insert(0, f"• The {m} still trading, together (not random, the super bot or busted ones): "
                           + (" | ".join(both) or "no trades yet"))
         return out
@@ -581,7 +589,7 @@ class Lab:
                     self.close(a, c, now, "the run ended")
                 else:
                     a.cash += a.positions.pop(mint)["cost"]
-            a.cash += PER_TRADE * len(a.pending)
+            a.cash += a.per_trade * len(a.pending)
             a.pending = {}
         return {"accounts": {k: a.to_dict() for k, a in self.accts.items()}, "events": self.events, "t": time.time(),
                 "hello": self.hello_done,
