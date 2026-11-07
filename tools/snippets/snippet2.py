@@ -65,7 +65,7 @@ for i, g in enumerate(groups):
             col = f"{{\\c{accent}}}" if word.lower().strip("'") in keys else ""
             pop = "{\\fscx72\\fscy72\\t(0,110,\\fscx104\\fscy104)\\t(110,170,\\fscx100\\fscy100)}" if j == k else ""
             parts.append(f"{pop}{col}{word}{{\\r}}")
-        ass.append(f"Dialogue: 1,{ts(a)},{ts(b)},Lyric,{{\\an5\\pos(540,1040)}}" + " ".join(parts))
+        ass.append(f"Dialogue: 1,{ts(a)},{ts(b)},Lyric,{{\\an5\\pos(540,930)}}" + " ".join(parts))
 if spec.get("hook"):
     ass.append(f"Dialogue: 2,{ts(0)},{ts(min(3.0, L))},Hook,{{\\fad(0,250)}}{spec['hook']}")
 if spec.get("stamp"):                                     # camcorder look: PLAY + date, top-left
@@ -111,7 +111,7 @@ vf = (f"{grades[spec.get('grade', 'night')]},noise=alls=12:allf=t+u,vignette=ang
       f"ass={work}/caps.ass:fontsdir={os.path.dirname(spec['font'])}")
 subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", f"{work}/list.txt",
                 "-ss", str(S), "-t", str(L), "-i", spec["song"], "-map", "0:v", "-map", "1:a", "-vf", vf,
-                "-af", f"afade=t=in:d=0.04,afade=t=out:st={L - 0.35:.2f}:d=0.35", "-t", str(L),
+                "-af", f"afade=t=in:d=0.04,afade=t=out:st={L - 0.35:.2f}:d=0.35,alimiter=limit=0.891:level=false", "-t", str(L),
                 "-r", str(fps), "-c:v", "libx264", "-profile:v", "high", "-pix_fmt", "yuv420p", "-preset", "slow",
                 "-crf", "18", "-c:a", "aac", "-b:a", "256k", "-movflags", "+faststart", spec["out"]], check=True)
 print("made", spec["out"], len(segs), "cuts,", len(groups), "caption groups")
