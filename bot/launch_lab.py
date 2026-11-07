@@ -41,11 +41,24 @@ SLOTS = (("midday", "midday 11a-5p", 11, 17), ("evening", "evening 5-11p", 17, 2
          ("overnight", "overnight 11p-5a", 23, 5), ("morning", "morning 5-11a", 5, 11))
 
 
-def local_hour(t: float) -> int:
+def local_time(t: float):
     import datetime
     from zoneinfo import ZoneInfo
 
-    return datetime.datetime.fromtimestamp(t, ZoneInfo(TZ)).hour
+    return datetime.datetime.fromtimestamp(t, ZoneInfo(TZ))
+
+
+def local_hour(t: float) -> int:
+    return local_time(t).hour
+
+
+# the owner's hunch: coins jump from about 11 am to 3:40 pm (Milwaukee time), then die. Counted from Nov 8.
+WINDOW, WINDOW_LABEL = (11 * 60, 15 * 60 + 40), "11a-3:40p"
+
+
+def in_window(t: float) -> bool:
+    lt = local_time(t)
+    return WINDOW[0] <= lt.hour * 60 + lt.minute < WINDOW[1]
 
 
 def slot_hours(s: int, e: int) -> list[int]:
@@ -191,6 +204,8 @@ class Account:
         self.pending: dict = {}
         # every trade by the hour it was bought (Milwaukee time): [trades, wins, profit]; not cut off like `trades`
         self.by_hour = [list(b) for b in d["by_hour"]] if d.get("by_hour") else self._rebuild_hours()
+        # inside the owner's window vs the rest of the day; starts empty (only trades from Nov 8 on)
+        self.window = {k: list(v) for k, v in (d.get("window") or {"in": [0, 0, 0.0], "out": [0, 0, 0.0]}).items()}
 
     def _rebuild_hours(self) -> list:
         """For a saved account from before the tally: count the trades it kept; any older ones it no longer has
@@ -207,10 +222,13 @@ class Account:
         return hours
 
     def tally(self, t: float, profit: float, hours: list | None = None):
-        b = (self.by_hour if hours is None else hours)[local_hour(t)]
-        b[0] += 1
-        b[1] += profit > 0
-        b[2] += profit
+        bs = [(self.by_hour if hours is None else hours)[local_hour(t)]]
+        if hours is None:
+            bs.append(self.window["in" if in_window(t) else "out"])
+        for b in bs:
+            b[0] += 1
+            b[1] += profit > 0
+            b[2] += profit
 
     def slot(self, s: int, e: int) -> tuple[int, int, float]:
         bs = [self.by_hour[h] for h in slot_hours(s, e)]
@@ -219,7 +237,8 @@ class Account:
     def to_dict(self) -> dict:
         return {"cash": self.cash, "start": self.start, "trades": self.trades[-300:], "n": self.n, "wins": self.wins,
                 "pnl": self.pnl, "best": self.best, "worst": self.worst,
-                "by_hour": [[b[0], b[1], round(b[2], 2)] for b in self.by_hour]}
+                "by_hour": [[b[0], b[1], round(b[2], 2)] for b in self.by_hour],
+                "window": {k: [b[0], b[1], round(b[2], 2)] for k, b in self.window.items()}}
 
     def can_buy(self, mint: str) -> bool:
         return (len(self.positions) + len(self.pending) < MAX_OPEN and self.cash >= PER_TRADE
@@ -411,8 +430,8 @@ class Lab:
         for k, a in rows:
             value = self.value(a)
             if k not in living:                      # busted strategies stay dead: one short line
-                lines.append(f"• {STRATEGIES[k]['label']}: busted (about ${value:,.0f} left, too little for a $250 "
-                             f"trade). {a.n} trades, {a.wins / max(a.n, 1):.0%} won, {a.pnl:+,.2f}.")
+                lines.append(f"• {STRATEGIES[k]['label']}: busted at ${value:,.0f} ({a.n} trades, "
+                             f"{a.wins / max(a.n, 1):.0%} won, {a.pnl:+,.0f})")
                 continue
             recent = [t for t in a.trades if now - (t["t"] + t["s"]) <= hours * 3600]
             won = sum(t["profit"] > 0 for t in recent)
@@ -424,7 +443,19 @@ class Lab:
         tod = self.times_of_day(alive)
         if tod:
             lines += ["", "By time of day (Milwaukee time, when the coin was bought):"] + tod
+        win = self.window_lines(alive)
+        if win:
+            lines += ["", f"Your {WINDOW_LABEL} window vs the rest of the day (from Nov 8 on):"] + win
         return "\n".join(lines)
+
+    def window_lines(self, alive: list) -> list[str]:
+        """Each strategy still trading: inside the owner's window vs outside it. Shown once a trade lands inside."""
+        if not any(a.window["in"][0] for _, a in alive):
+            return []
+        def piece(b):
+            return f"{b[0]} trades, {b[1] / b[0]:.0%} won, {b[2]:+,.0f}" if b[0] else "no trades"
+        return [f"• {STRATEGIES[k]['label']}: in it {piece(a.window['in'])} | rest {piece(a.window['out'])}"
+                for k, a in alive if a.window["in"][0] or a.window["out"][0]]
 
     def times_of_day(self, alive: list) -> list[str]:
         """One line per strategy still trading, plus all of them together; only the time slots it has traded in."""

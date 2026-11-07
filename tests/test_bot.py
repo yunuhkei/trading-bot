@@ -2757,3 +2757,10 @@ def test_launch_lab_splits_results_by_time_of_day_and_keeps_old_trades_counted()
     assert "evening 5-11p 1 trades, 0% won, -30" in board and "overnight 11p-5a 1 trades" in board
     assert "busted" in board.split("Snipe every new coin")[1].split("\n")[0]
     assert "Snipe every new coin" not in board.split("By time of day")[1]
+    assert "window vs the rest" not in board            # nothing inside 11a-3:40p yet
+    a.tally(at(15) - 20 * 60, 25.0)                     # 3:10 pm: inside the window
+    a.tally(at(15) + 15 * 60, -5.0)                     # 3:45 pm: just after it
+    assert a.window == {"in": [1, 1, 25.0], "out": [3, 1, -25.0]}
+    board = lab.board(now=at(21))
+    assert "in it 1 trades, 100% won, +25 | rest 3 trades, 33% won, -25" in board
+    assert ll.Lab(state={"accounts": {"volume_spike": a.to_dict()}}).accts["volume_spike"].window == a.window
