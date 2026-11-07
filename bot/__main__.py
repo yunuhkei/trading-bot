@@ -218,7 +218,7 @@ def cmd_launch_lab(args, cfg):
     from .launch_lab import run
 
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
-    run(args.minutes, status=args.status)
+    run(args.minutes, status=args.status, first_report=args.first_report)
 
 
 def cmd_callouts(args, cfg):
@@ -427,6 +427,7 @@ def main(argv=None):
     ll = sub.add_parser("launch-lab", help="practice: every pump.fun coin live, 1-second charts, many strategies")
     ll.add_argument("--minutes", type=float, default=340)
     ll.add_argument("--status", action="store_true", help="print each strategy's record")
+    ll.add_argument("--first-report", type=float, default=None, help="send a report this many minutes in")
     co = sub.add_parser("callouts", help="track meme-coin callouts (boosts, trending, Telegram) and how they did")
     co.add_argument("--settings", default="callouts.yaml")
     co.add_argument("--report", action="store_true", help="print the callout scoreboard")

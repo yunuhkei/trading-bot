@@ -396,12 +396,12 @@ class Lab:
 
 
 async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180,
-                 first_report: float = 300, save_every: float = 300):
+                 first_report: float = 300, save_every: float = 300, early: bool = False):
     import aiohttp
 
     end, start = time.time() + seconds, time.time()
     said_hello = lab.hello_done                             # "lab is live" and the quick first report: only ever once
-    last_report = start - report_every + first_report if not said_hello else start
+    last_report = start - report_every + first_report if not said_hello or early else start
     last_save = start
     while time.time() < end:
         try:
@@ -481,7 +481,7 @@ def sol_price() -> float:
         return 150.0
 
 
-def run(minutes: float = 340, status: bool = False):
+def run(minutes: float = 340, status: bool = False, first_report: float | None = None):
     from .signals import alert_target, notify
 
     state = json.loads(STATE.read_text()) if STATE.exists() else {}
@@ -500,7 +500,8 @@ def run(minutes: float = 340, status: bool = False):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, stop)
     try:
-        asyncio.run(listen(lab, minutes * 60, report_every=3600))
+        asyncio.run(listen(lab, minutes * 60, report_every=3600,
+                           first_report=(first_report or 5) * 60, early=first_report is not None))
     except KeyboardInterrupt:
         pass
     finally:

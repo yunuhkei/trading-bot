@@ -7,6 +7,10 @@ on:
   schedule:
     - cron: "*/30 * * * *"   # starts a new job if none is running; waits its turn otherwise
   workflow_dispatch:
+    inputs:
+      first_report:
+        description: "Send an early report this many minutes in (blank = just the hourly ones)"
+        default: ""
 concurrency:
   group: launch-lab
   cancel-in-progress: false
@@ -29,7 +33,8 @@ jobs:
       - name: Watch pump.fun and practice-trade
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
-        run: python -m bot launch-lab --minutes 340
+          FIRST_REPORT: ${{ inputs.first_report }}
+        run: python -m bot launch-lab --minutes 340 ${FIRST_REPORT:+--first-report "$FIRST_REPORT"}
       - uses: actions/cache/save@v4
         if: always()
         with:
