@@ -1434,17 +1434,18 @@ duck:(xa,xb,h,k)=>{const lo=Math.min(at(xa,2),at(xb,2)),hi=Math.max(at(xa,2),at(
 fin:(xa,xb,z,h,t,k)=>{const lo=Math.min(at(xa,2),at(xb,2));bm(xa,xb,lo-.4,Math.max(at(xa,2),at(xb,2))+h,z?z-t/2:0,z?z+t/2:t/2,k)},
 scoop:(xa,xb,zw,h,k)=>{const g=at((xa+xb)/2,2);bm(xa,xb,g-.3,g+h,0,zw,k);bm(xb-.2,xb+.1,g,g+h*.85,0,zw*.85,'k')},
 vent:(xa,xb,za,zb,n,k)=>{for(let i=0;i<n;i++){const x=xa+(xb-xa)*(n==1?.5:i/(n-1)),g=at(x,2);bm(x-.45,x+.45,g+.02,g+.38,za,zb,k)}},
-stripe:(zc,w,xa,xb,k)=>{const zs=zc?[-zc,zc]:[0],seg=(a,b)=>{for(let x=a;x<b-.05;x+=3){const x2=Math.min(b,x+3),h1=at(x,2)+.07,h2=at(x2,2)+.07;zs.forEach(z=>addF([[x,h1,z-w/2],[x2,h2,z-w/2],[x2,h2,z+w/2],[x,h2<h1?h1:h1,z+w/2]],[x,h1-3,z],cc(k),B,-1.5))}};if(d.cb){seg(xa,Math.min(xb,d.cb[0]));seg(Math.max(xa,d.cb[1]),xb)}else seg(xa,xb)},
+stripe:(zc,w,xa,xb,k)=>{if(HQ)HQ.layer=(HQ.layer||0)+1;const zs=zc?[-zc,zc]:[0],seg=(a,b)=>{for(let x=a;x<b-.05;x+=3){const x2=Math.min(b,x+3),h1=at(x,2)+.07,h2=at(x2,2)+.07;zs.forEach(z=>addF([[x,h1,z-w/2],[x2,h2,z-w/2],[x2,h2,z+w/2],[x,h2<h1?h1:h1,z+w/2]],[x,h1-3,z],cc(k),B,-1.5))}};if(d.cb){seg(xa,Math.min(xb,d.cb[0]));seg(Math.max(xa,d.cb[1]),xb)}else seg(xa,xb)},
 rack:(xa,xb,k)=>{const H=d.cb[4],zr=d.cb[6]-.7;bm(xa,xb,H,H+.8,zr-.5,zr,k);for(let i=0;i<4;i++){const x=xa+(xb-xa)*i/3;bm(x-.5,x+.5,H+.8,H+1.4,0,zr,k)}},
 lbar:(x,sp,n,k,lk)=>{const H=d.cb[4];bm(x-1.1,x+1.1,H,H+1.5,0,sp,k);for(let i=0;i<n;i++){const z=-sp+(i+.5)*2*sp/n;bx(x+1.1,x+1.9,H+.3,H+1.3,z-.8,z+.8,cc(lk),B)}},
 bull:k=>{bm(N-1.2,N+.6,y0+.6,y0+4.6,bw*.6,bw*.6+1,k);bm(N-1.2,N+.6,y0+2.4,y0+3.5,0,bw*.6+1,k)},
 spare:()=>cylx(-hl+1.6,y0+5,0,4.2,1.5,wr?'#111':'#15110d',B,wr?'#222':'#8a8d92'),
 flare:k=>{[0,1].forEach(i=>{const x=i?W.rx:W.fx,r=ar(W.r,i);bm(x-r-.5,x+r+.5,r*1.55,r*2+.5,bw-.6,hw,k)})},
 seat:(x,k)=>{const g=at(x,2);bm(x-4.4,x+3.4,g,g+.14,0,bw*.8,'n');bm(x-1.8,x+.7,g+.14,g+1.4,.8,3.8,k);bm(x-2.7,x-1.7,g+.14,g+4.8,.8,3.8,k);bm(x-3,x-2.5,g+4.2,g+6,1.3,3,'d')},
-glow:k=>{FK=3;for(let i=0;i<S.length-1;i++){const a=S[i],b=S[i+1],e=1.4;addF([[a[0],.8,-a[1]-e],[b[0],.8,-b[1]-e],[b[0],.8,b[1]+e],[a[0],.8,a[1]+e]],[a[0],-3,0],cc(k),B,6)}FK=0},
+glow:k=>{if(HQ){hqGlow(cc(k),S,y0,at);return}FK=3;for(let i=0;i<S.length-1;i++){const a=S[i],b=S[i+1],e=1.4;addF([[a[0],.8,-a[1]-e],[b[0],.8,-b[1]-e],[b[0],.8,b[1]+e],[a[0],.8,a[1]+e]],[a[0],-3,0],cc(k),B,6)}FK=0},
 ex:(n,k)=>{(n==1?[0]:n==2?[2.6]:[1.8,4.4]).forEach(z=>bm(-hl,-hl+1.8,y0+.3,y0+2.1,z?z-.9:0,z?z+.9:.9,k))},
 split:k=>bm(hl-2.4,hl,y0-.3,y0+.5,0,bw*.94,k),diff:k=>bm(-hl,-hl+2.8,y0-.3,y0+1.9,0,bw*.8,k)};
-(d.f||[]).forEach(a=>{if(F[a[0]])F[a[0]].apply(null,a.slice(1))});
+(d.f||[]).forEach((a,i)=>{if(F[a[0]]&&!(HQ&&hqSkip(c.id,i)))F[a[0]].apply(null,a.slice(1))});
+if(HQ)hqKit(c.id,{F,at,bm,cc,W,ar,hw,bw,hl,y0,N,S,d,B});
 const q={hl,hw,bw,y0,N,rY,rx,rw,wt:wt_,dk:at(-hl*.7,2),hx:hl*.45,hd:at(hl*.45,2),W,ar};
 if(o.up)dzUp(q,o.up[0],o.up[1]);
 return q}
@@ -1527,8 +1528,8 @@ const GSH={
  'vec3 irr=amb+vec3(1.05,.96,.84)*d1*.62+vec3(.36,.46,.68)*d2*.26+vec3(1.,.85,.62)*d3*.2;'+
  'float ao=.42+.58*smoothstep(0.,6.5,vW.y);vec3 F0=mix(vec3(.04),alb,metal),fr=F0+(1.-F0)*pow(1.-ndv,5.);'+
  'vec3 col=alb*(1.-metal)*irr*ao;'+
- 'vec3 H1=normalize(L1+V);float sp=pow(max(dot(n,H1),0.),mix(8.,60.,1.-rg))*(1.-rg*.55);col+=vec3(1.,.95,.88)*sp*.1*mix(vec3(1.),alb*2.,metal);'+
- 'col+=env(R,max(rg,.4))*fr*ao*mix(.3,1.,metal);col+=env(R,.22)*(.04+.96*pow(1.-ndv,5.))*coat*ao*.7;col+=alb*emis*2.6;'+
+ 'vec3 H1=normalize(L1+V);float sp=pow(max(dot(n,H1),0.),mix(8.,60.,1.-rg))*(1.-rg*.55);col+=vec3(1.,.95,.88)*sp*.06*mix(vec3(1.),alb*2.,metal);'+
+ 'col+=env(R,max(rg,.5))*fr*ao*mix(.2,1.,metal);col+=env(R,.22)*(.04+.96*pow(1.-ndv,5.))*coat*ao*.5;col+=alb*emis*2.6;'+
  'float h1=(1.-step(.5,abs(vH-uHL.x)))*uHL.y,h2=(1.-step(.5,abs(vH-uHL.z)))*uHL.w;float hh=max(h1,h2);col+=hh*(vec3(1.,.82,.3)*(.16+.1*sin(uT*14.))+pow(1.-ndv,2.)*vec3(1.,.9,.5)*.7);'+
  'col=tone(col*uEx);col+=(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.;float al=1.;if(uRef>.01){al=uRef*exp(-vW.y*.06);}gl_FragColor=vec4(col,al);}',
  bgV:'attribute vec2 aP;varying vec2 vU;void main(){vU=aP;gl_Position=vec4(aP,.9999,1.);}',
@@ -1691,11 +1692,11 @@ Q.push(P[n-1].slice());return Q}
 /* wheel layout: tyres that would stand far above the bodywork are scaled down and the fender is raised a little over them, like a real car */
 function hqWI(d,hw,at){const W=Object.assign({fx:14,rx:-14,r:4.2,w:2,hub:'s',hr:.5,cap:'k',tire:'#15110d'},d.wh),ar=(v,i)=>Array.isArray(v)?v[i]:v;
 return[0,1].map(i=>{const x=i?W.rx:W.fx,r0=ar(W.r,i),w=ar(W.w,i),top=at(x,2),R=Math.max(2.6,Math.min(r0,(top+3.2-1.05)/2)),bump=Math.max(0,2*R+1.05-top),bw=at(x,1);
-return{x,R,r0,w:Math.min(w,3),bump,ra:R+.5,top,bw,zo:bw+.45,hub:ar(W.hub,i),hr:ar(W.hr,i),cap:ar(W.cap,i),tire:W.tire}})}
+return{x,R,r0,w:Math.min(w,3),bump,ra:R+.5,top,bw,zo:bw+.45,hub:(HQ&&HQ.o&&HQ.o.hub)||ar(W.hub,i),hr:ar(W.hr,i),cap:ar(W.cap,i),tire:W.tire}})}
 /* body section (right half) from the top centre down to the sill: flat-ish top, shoulder, widest point, tucked sill */
 function hqSec(w,hc,bp,yb){const top=hc+bp,r2=Math.min(2.6,Math.max(.2,(top-yb)*.4));return hqCR([[0,hc],[w*.45,hc+bp*.04],[w*.74,hc+bp*.5-.1],[w*.93,top-r2*.6],[w,top-r2*1.2],[w*.99,(yb+top)/2+.2],[w*.965,yb+Math.min(1.4,(top-yb)*.22)],[w*.9,yb+.04]],2,1)}
 function hqBody(g,d,S,y0,hl,hw,col,at){const xe0=S[0][0],xe1=S[S.length-1][0],wl=hqWI(d,hw,at),rl=Math.min(3.2,(xe1-xe0)*.065),cl=glin(col),dk=glin(shx(col,.5)),
-bump=x=>{let b=0;wl.forEach(q=>{const t=Math.abs(x-q.x)/(q.ra+1.3);if(t<1)b=Math.max(b,q.bump*(1+Math.cos(Math.PI*t))/2)});return b},X=[];
+bump=x=>{let b=0;wl.forEach(q=>{const t=Math.abs(x-q.x)/(q.ra+2.1);if(t<1)b=Math.max(b,q.bump*Math.pow((1+Math.cos(Math.PI*t))/2,1.25))});return b},X=[];
 for(let i=0;i<S.length-1;i++){const a=S[i][0],b=S[i+1][0],n=Math.max(1,Math.round((b-a)/2.4));for(let k=0;k<n;k++)X.push(a+(b-a)*k/n)}
 for(let k=0;k<=6;k++){const t=Math.sin(k/6*1.5708);X.push(xe1-rl+rl*t,xe0+rl-rl*t)}
 wl.forEach(q=>{for(let k=0;k<=12;k++)X.push(q.x+q.ra*Math.cos(k/12*Math.PI));X.push(q.x-q.ra-.05,q.x+q.ra+.05)});
@@ -1752,15 +1753,56 @@ const m=FK==4||FK==3?GMAT.lamp:part=='armor'?GMAT.steel:part=='turbo'?GMAT.metal
 if(FK!=4&&HQ.hl&&hx<2.6&&(z1-z0)>3&&(cx>0?cx>HQ.hl.xe1-2.4:cx<HQ.hl.xe0+2.4)){/* a wide bar across the nose or tail: keep it inside the rounded corners, sitting on the surface */
 const sg=cx>0?1:-1,wE=sg>0?HQ.hl.we1:HQ.hl.we0,zm=wE*.8,e=sg>0?HQ.hl.xe1:HQ.hl.xe0;let a=Math.max(z0,-zm),b=Math.min(z1,zm);if(!(b-a>.3)){return}cx+=hqSurfX(sg,Math.min(zm,Math.max(Math.abs(a),Math.abs(b))))-e;cz=(a+b)/2;gbRBox(HQ,cx,cy,cz,hx,hy,(b-a)/2,r<.12?0:r,c,m,part,0);return}
 if(FK==4&&HQ.hl){const sg=cx>0?1:-1,e=sg>0?HQ.hl.xe1:HQ.hl.xe0,zc=Math.abs(cz),dx=hqSurfX(sg,zc)-e,s=(hqSurfX(sg,zc+.15)-hqSurfX(sg,Math.max(0,zc-.15)))/.3*(cz>=0?1:-1);cx+=dx;yaw=Math.atan(s);
-if(HQ.gl.length<14)HQ.gl.push([cx+sg*hx,cy,cz,Math.max(hy,hz)*1.9,c[0]*.9+.15,c[1]*.9+.1,c[2]*.9+.05,.4])}
+if(HQ.gl.length<24){const gs=Math.min(2.5,Math.max(hy,hz)*1.35),n=hz>2.2?3:1;for(let q2=0;q2<n;q2++)HQ.gl.push([cx+sg*hx,cy,n==1?cz:cz+(q2-1)*hz*.7,gs,c[0]*.9+.15,c[1]*.9+.1,c[2]*.9+.05,.26])}}
 gbRBox(HQ,cx,cy,cz,hx,hy,hz,r<.12?0:r,c,m,part,yaw)}
-function hqF(P_,n,col,part,bias){const m=FK==3||FK==4?GMAT.lamp:(GMAT[HQK[HQM]||'plastic']||GMAT.plastic),c=glin(col),lift=bias<0?.07:0,base=HQ.n,pid=GPID(part);HQM=null;
+function hqF(P_,n,col,part,bias){const m=FK==3||FK==4?GMAT.lamp:(GMAT[HQK[HQM]||'plastic']||GMAT.plastic),c=glin(col),lift=bias<0?.07+.06*((HQ.layer||1)-1):0,base=HQ.n,pid=GPID(part);HQM=null;
 P_.forEach(p=>gbV(HQ,[p[0]+n[0]*lift,p[1]+n[1]*lift,p[2]+n[2]*lift],n,c,m,pid));
 const a=P_[0],b=P_[1],c2=P_[2],g=[(b[1]-a[1])*(c2[2]-a[2])-(b[2]-a[2])*(c2[1]-a[1]),(b[2]-a[2])*(c2[0]-a[0])-(b[0]-a[0])*(c2[2]-a[2]),(b[0]-a[0])*(c2[1]-a[1])-(b[1]-a[1])*(c2[0]-a[0])],fl=g[0]*n[0]+g[1]*n[1]+g[2]*n[2]<0;
 for(let i=1;i<P_.length-1;i++){if(fl)HQ.i.push(base,base+i+1,base+i);else HQ.i.push(base,base+i,base+i+1)}}
 /* build one HQ car: returns the mesh builder (with .gl lamp glows) and the design measurements. o.up = [armor, turbo] upgrade levels */
-function hqCar(c,col,o){const sM=MESH,sT=TF,sG=GS,sK=FK,sH=HQ,sM2=HQM;MESH=[];TF=p=>[p[0],p[1],p[2]];GS='car';FK=0;HQ=gbNew();HQ.gl=[];let q=null,g=null;
+function hqCar(c,col,o){const sM=MESH,sT=TF,sG=GS,sK=FK,sH=HQ,sM2=HQM;MESH=[];TF=p=>[p[0],p[1],p[2]];GS='car';FK=0;HQ=gbNew();HQ.gl=[];HQ.id=c.id;HQ.o=HQO[c.id]||null;let q=null,g=null;
 try{q=dzBuild(c,col,Object.assign({hq:1},o||{}));g=HQ}finally{HQ=sH;HQM=sM2;MESH=sM;TF=sT;GS=sG;FK=sK}return{g,q}}
+
+/* underglow: a thin neon strip along each sill and soft light pools on the floor (replaces the flat slab the sprite uses) */
+function hqGlow(hex,S,y0,at){const c=glin(hex),col=[c[0]*.9+.1,c[1]*.9+.1,c[2]*.9+.1],xa=S[1][0],xb=S[S.length-2][0],xm=(xa+xb)/2;
+[1,-1].forEach(s=>{gbRBox(HQ,xm,y0+.5,s*at(xm,1)*.92,(xb-xa)/2,.16,.12,.08,c,GMAT.lamp,'body');for(let k=0;k<=6;k++){const x=xa+(xb-xa)*k/6;HQ.gl.push([x,.9,s*(at(x,1)+.4),5.6,col[0],col[1],col[2],.32])}});
+for(let k=0;k<=5;k++){const x=xa+(xb-xa)*k/5;for(const z of[-1,0,1])HQ.gl.push([x,.6,z*at(x,1)*.55,7,col[0],col[1],col[2],.18])}}
+/* ===== GARAGE-ONLY STYLING (the in-game top-down sprites never see this) =====
+   hub: wheel hub colour key, skip: indices of the design's own extras to leave out in the showroom, add: extra parts.
+   The premium cars get the Surge Sport treatment: wide fender blades, big wings with end plates, canards, side pods, roof ducts, LED accents. */
+const HQO={roadster:{skip:[2]},
+ hyper:{hub:'c',add:[['flare2','w'],['wing',-26.6,10,12.6,4.4,.7,'k',1],['canard','w'],['pod','k'],['led','c']]},
+ super:{hub:'r',add:[['flare2','b'],['canard','k'],['roof','k'],['led','o']]},
+ gt:{hub:'a',skip:[0],add:[['flare2','w'],['wing',-26.2,9.6,11.2,4,.7,'k',1],['roof','k']]},
+ sport:{hub:'y',skip:[0],add:[['flare2','k'],['wing',-25.6,9.6,11.4,4,.8,'k',1],['roof','k'],['canard','k']]},
+ n_banker:{hub:'a',add:[['flare2','s'],['canard','s'],['led','y']]},
+ n_mercury:{hub:'c',add:[['flare2','s'],['canard','k'],['led','c']]},
+ phantom:{skip:[0],add:[['wing',-26,10.6,11.6,4.8,.7,'k',1],['flare2','k'],['canard','c'],['pod','k'],['led','c']]},
+ h_widow:{hub:'r',add:[['flare2','k'],['wing',-26.2,10,10.6,4.2,.6,'r',1],['canard','r'],['led','r']]},
+ h_reaper:{hub:'y',add:[['flare2','d'],['wing',-27.2,8.6,9.6,4.4,.7,'k',0],['canard','r'],['led','r'],['cannon','k']]},
+ h_wraith:{hub:'u',add:[['flare2','s'],['canard','s'],['led','u'],['wing',-27.4,9.8,13.6,3.4,.6,'k',1]]},
+ h_hellfire:{add:[['canard','o'],['led','o']]},
+ n_magnet:{hub:'c',add:[['flare2','k'],['wing',-23.2,9,11.2,3.6,.7,'k',1],['led','c']]}};
+const HQP={};
+/* wide fender blades over each wheel (the Surge Sport look), sized from the real showroom fender so they sit right on every car */
+HQP.flare2=(X,k)=>{const c=glin(X.cc(k||'b')),m=GMAT.paint;hqWI(X.d,X.hw,X.at).forEach(q=>{const top=q.top+q.bump,yc=Math.max(2*q.R-.3,top-.6);[1,-1].forEach(s=>gbRBox(HQ,q.x,yc,s*(q.zo+.05),q.R+.9,1.05,1.45,.55,c,m,'body'))})};
+/* small front winglets with an end plate, nose down */
+HQP.canard=(X,k)=>{const h=HQ.hl,x=h.xe1-4.7,c=glin(X.cc(k||'k')),m=GMAT.paint,w=X.at(x,1),y=X.y0+1.5,tb=gbNew();
+gbRBox(tb,0,0,0,1.8,.17,1.75,.16,c,m,'body');gbRBox(tb,-.2,.55,1.75,1.7,.6,.13,.1,c,m,'body');[1,-1].forEach(s=>gbAdd(HQ,tb,{mz:s<0,rz:-.16,t:[x,y,s*(w+1.45)]}))};
+/* side intake pods between the wheels, dark mouth on the front */
+HQP.pod=(X,k,x0,len)=>{const c=glin(X.cc(k||'k')),m=GMAT.paint,dk=glin('#0a0a0b'),xc=x0==null?(X.W.fx+X.W.rx)/2-1:x0,L=len||9,hc=X.at(xc,2),w=X.at(xc,1),yc=X.y0+(hc-X.y0)*.5,hg=Math.min(3.2,(hc-X.y0)*.62);
+[1,-1].forEach(s=>{gbRBox(HQ,xc,yc,s*(w+.35),L/2,hg/2,1.15,.8,c,m,'body');gbRBox(HQ,xc+L/2-.12,yc,s*(w+.5),.28,Math.max(.3,hg/2-.45),.85,.18,dk,GMAT.plastic,'body')})};
+/* glowing accent strips along the sills and across the nose, with soft glows */
+HQP.led=(X,k)=>{const h=HQ.hl,c=glin(X.cc(k||'c')),col=[c[0]*.9+.1,c[1]*.9+.1,c[2]*.9+.1],xa=X.W.rx+X.ar(X.W.r,1)*.9+1,xb=X.W.fx-X.ar(X.W.r,0)*.9-1,xm=(xa+xb)/2,y=X.y0+1.05;
+[1,-1].forEach(s=>{const w=X.at(xm,1);gbRBox(HQ,xm,y,s*w*.985,(xb-xa)/2,.2,.14,.1,c,GMAT.lamp,'body');for(let i=0;i<4;i++)HQ.gl.push([xa+(xb-xa)*(i+.5)/4,y,s*(w+.3),3.4,col[0],col[1],col[2],.3])});
+const wn=X.at(h.xe1-2,1);gbRBox(HQ,h.xe1-.9,X.y0+.7,0,.3,.2,wn*.6,.12,c,GMAT.lamp,'body');HQ.gl.push([h.xe1,X.y0+.8,0,3,col[0],col[1],col[2],.26])};
+/* roof air intake */
+HQP.roof=(X,k,x,len)=>{const cb=X.d.cb,H=cb?cb[4]:10,xc=x==null?(cb?(cb[2]+cb[3])/2:0):x,L=len||4,c=glin(X.cc(k||'k'));gbRBox(HQ,xc,H+.55,0,L/2,.75,1.35,.5,c,GMAT.paint,'body');gbRBox(HQ,xc+L/2-.1,H+.55,0,.25,.5,.9,.1,glin('#0a0a0b'),GMAT.plastic,'body')};
+/* twin exhaust cannons at the tail with a glowing bore */
+HQP.cannon=(X,k)=>{const h=HQ.hl,c=glin(X.cc(k||'k')),R=1.75,Lc=4.6,cup=gbNew();gbLathe(cup,[[R,0],[R,Lc],[R*.62,Lc],[R*.62,Lc-.9],[0,Lc-.9]],18,0,0,0,c,GMAT.steel,'body');gbLathe(cup,[[R*.58,Lc-.85],[0,Lc-.85]],18,0,0,0,[1,.45,.12],GMAT.lamp,'body');
+[1,-1].forEach(s=>{gbAdd(HQ,cup,{ry:-1.5708,t:[h.xe0+1.2,X.y0+3.3,s*3.9]});HQ.gl.push([h.xe0-3.5,X.y0+3.3,s*3.9,3.2,1,.5,.15,.4])})};
+function hqSkip(id,i){const o=HQO[id];return!!(o&&o.skip&&o.skip.indexOf(i)>=0)}
+function hqKit(id,X){const o=HQO[id];if(!o||!o.add)return;o.add.forEach(a=>{const f=X.F[a[0]];if(f)f.apply(null,a.slice(1));else if(HQP[a[0]])HQP[a[0]].apply(null,[X].concat(a.slice(1)))})}
 /* ===== HQ DRIVER (garage showroom only) =====
    The same character and the same upgrade-driven parts as the old blocky one (Grit: thicker arms and torso, Stunt: knee/elbow pads and helmet,
    Marksman: pistol / rifle, bandolier, backpack), built from rounded limbs, ellipsoids and a lofted torso. Faces +x, feet on y=0, right arm toward +z. */
@@ -1838,7 +1880,8 @@ return true}catch(e){GLX.err=String(e&&e.stack||e);GLX.bad=1;GLX.ok=0;return fal
 /* list / shop thumbnail rendered by the same showroom shader: front three-quarter view, transparent background, soft contact shadow */
 function glThumb(id,col){try{if(!(GLX.ok||glInit()))return null;const c=CARBY[id];if(!c)return null;const gl=GLX.gl,r=hqCar(c,col,{up:[0,0]}),mesh=glUp(r.g),q=r.q,W=264,H=150;
 if(GLX.cv.width<W||GLX.cv.height<H){GLX.cv.width=Math.max(GLX.cv.width,W);GLX.cv.height=Math.max(GLX.cv.height,H)}
-const az=.78,pt=.36,dir=[Math.cos(pt)*Math.cos(az),Math.sin(pt),Math.cos(pt)*Math.sin(az)],ctr=[0,4.2,0],P=m4persp(.42,W/H,10,900),pts=[];for(const x of[-q.hl,q.hl])for(const y of[0,q.rY+1])for(const z of[-q.hw,q.hw])pts.push([x,y,z]);
+const az=.78,pt=.36,dir=[Math.cos(pt)*Math.cos(az),Math.sin(pt),Math.cos(pt)*Math.sin(az)],P=m4persp(.42,W/H,10,900),pts=[],bb=[1e9,-1e9,1e9,-1e9,1e9,-1e9];for(let i=0;i<r.g.n;i++){const o=i*14,v=r.g.v;bb[0]=Math.min(bb[0],v[o]);bb[1]=Math.max(bb[1],v[o]);bb[2]=Math.min(bb[2],v[o+1]);bb[3]=Math.max(bb[3],v[o+1]);bb[4]=Math.min(bb[4],v[o+2]);bb[5]=Math.max(bb[5],v[o+2])}/* frame the real model, wings and fender blades included */
+const ctr=[(bb[0]+bb[1])/2,(bb[2]+bb[3])/2,(bb[4]+bb[5])/2];for(const x of[bb[0],bb[1]])for(const y of[bb[2],bb[3]])for(const z of[bb[4],bb[5]])pts.push([x,y,z]);
 let D=170,VP,eye;for(let it=0;it<4;it++){eye=[ctr[0]+dir[0]*D,ctr[1]+dir[1]*D,ctr[2]+dir[2]*D];VP=m4mul(P,m4look(eye,ctr,[0,1,0]));let ex=0,ey=0;pts.forEach(p=>{const v=[VP[0]*p[0]+VP[4]*p[1]+VP[8]*p[2]+VP[12],VP[1]*p[0]+VP[5]*p[1]+VP[9]*p[2]+VP[13],VP[3]*p[0]+VP[7]*p[1]+VP[11]*p[2]+VP[15]];ex=Math.max(ex,Math.abs(v[0]/v[2]));ey=Math.max(ey,Math.abs(v[1]/v[2]))});D*=Math.max(ex/.95,ey/.9)}
 eye=[ctr[0]+dir[0]*D,ctr[1]+dir[1]*D,ctr[2]+dir[2]*D];VP=m4mul(P,m4look(eye,ctr,[0,1,0]));
 gl.viewport(0,0,W,H);gl.disable(gl.SCISSOR_TEST);gl.disable(gl.STENCIL_TEST);gl.depthMask(true);gl.colorMask(true,true,true,true);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
