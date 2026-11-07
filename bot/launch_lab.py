@@ -369,10 +369,10 @@ class Lab:
         return {"accounts": {k: a.to_dict() for k, a in self.accts.items()}, "events": self.events, "t": time.time()}
 
 
-async def listen(lab: Lab, seconds: float, report_every: float = 1800):
+async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180):
     import aiohttp
 
-    end, last_report = time.time() + seconds, time.time()
+    end, last_report, start, said_hello = time.time() + seconds, time.time(), time.time(), False
     while time.time() < end:
         try:
             async with aiohttp.ClientSession() as s:
@@ -403,6 +403,11 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800):
                         if now >= next_tick:
                             lab.tick(now)
                             next_tick = now + 1
+                        if not said_hello and now - start >= hello_after:
+                            said_hello = True
+                            new = sum(c.fresh for c in lab.coins.values())
+                            lab.tell("🧪 Launch lab is live", f"In the first {hello_after / 60:.0f} minutes it saw {lab.events:,} "
+                                     f"pump.fun events and {new:,} brand-new coins. Scoreboard when this run ends (~6 h).")
                         if now - last_report >= report_every:
                             last_report = now
                             print(time.strftime("%H:%M UTC", time.gmtime()), f"{lab.events:,} events,",
