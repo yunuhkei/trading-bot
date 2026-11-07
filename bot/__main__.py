@@ -212,6 +212,15 @@ def cmd_kalshi(args, cfg):
     run(args.settings)
 
 
+def cmd_launch_lab(args, cfg):
+    import logging
+
+    from .launch_lab import run
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    run(args.minutes, status=args.status)
+
+
 def cmd_callouts(args, cfg):
     import logging
 
@@ -415,6 +424,9 @@ def main(argv=None):
     ka = sub.add_parser("kalshi", help="Kalshi bot: weather markets + arbitrage (settings: kalshi.yaml)")
     ka.add_argument("--settings", default="kalshi.yaml")
     ka.add_argument("--status", action="store_true", help="print every strategy's saved record (reads only)")
+    ll = sub.add_parser("launch-lab", help="practice: every pump.fun coin live, 1-second charts, many strategies")
+    ll.add_argument("--minutes", type=float, default=340)
+    ll.add_argument("--status", action="store_true", help="print each strategy's record")
     co = sub.add_parser("callouts", help="track meme-coin callouts (boosts, trending, Telegram) and how they did")
     co.add_argument("--settings", default="callouts.yaml")
     co.add_argument("--report", action="store_true", help="print the callout scoreboard")
@@ -477,6 +489,8 @@ def main(argv=None):
         cmd_solbot(args, cfg)
     elif args.cmd == "kalshi":
         cmd_kalshi(args, cfg)
+    elif args.cmd == "launch-lab":
+        cmd_launch_lab(args, cfg)
     elif args.cmd == "callouts":
         cmd_callouts(args, cfg)
     elif args.cmd == "kalshi-backtest":

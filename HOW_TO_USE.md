@@ -459,3 +459,28 @@ called out: projects that just paid DEX Screener for a **boost** or a **profile*
 
 A callout is not a buy signal: many are paid, and whoever paid often sells into the buying it brings. Follow a source
 only if its typical coin goes up after the callout, week after week.
+
+
+## Launch lab: practice sniping and second-chart trading on pump.fun
+
+The **launch-lab** workflow (`bot/launch_lab.py`) watches **every pump.fun coin live** through Solana's free public feed
+(no keys, so it never uses the Helius allowance the real copy bot needs), builds **1-second charts**, and runs 9
+strategies side by side, each with its own **pretend $1,000 and $250 trades**:
+
+| Strategy | Buys | Sells |
+|---|---|---|
+| Snipe every new coin | the moment a coin launches | +100%, -35% or 90 s |
+| Snipe, quick flip | the moment a coin launches | +25%, -15% or 20 s |
+| First-minute momentum | at 60 s if 15+ buys, 10+ buyers, price 1.5x and few sells | +60%, -25% or 5 min |
+| Volume spike | 4+ SOL bought in 10 s, 3x the minute before | +40%, -20% or 3 min |
+| Second-chart dip bounce | down 25% in 20 s on an active coin | back to the 60 s average, -15% or 2 min |
+| Breakout | 10% above its 3-minute high on volume | 20% trailing stop or 10 min |
+| Graduation run | the curve 70% full | at graduation, -20% or 15 min |
+| Follow a 5+ SOL buy | 1.5 s after a whale buy | +50%, -25% or 3 min |
+| Random coins | random times (to show what luck alone does) | +50%, -25% or 3 min |
+
+**Honest fills:** a buy lands at the first trade the bot sees 1.5 s after the signal (a sell 1 s after), on the bonding
+curve's own math (price impact included), paying each trade's fee (~1%) plus 0.001 SOL a transaction. The feed itself is
+about a second behind the chain, so the bot is ~2.5 s behind the first block, where real snipers buy. That's the point:
+it shows whether a bot this fast can win. Open bets are sold at the curve price when a job ends. The phone gets the
+scoreboard every ~6 hours; `launch-lab-status` prints it with each strategy's latest trades. No real money, ever.

@@ -1,0 +1,22 @@
+# Prints the launch lab's practice records (every strategy's results and its latest trades) from its last finished job.
+# Reads only: it trades nothing and saves nothing. Run it by hand from the Actions tab.
+name: launch-lab-status
+on:
+  workflow_dispatch:
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: launch_lab_state.json
+          key: launch-lab-status-${{ github.run_id }}
+          restore-keys: launch-lab-
+      - run: python -m bot launch-lab --status

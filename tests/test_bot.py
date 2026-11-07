@@ -2670,3 +2670,61 @@ def test_kalshi_maker_bids_rest_at_the_bid_and_fill_only_when_someone_sells_belo
     acct3 = {"cash": 100.0, "positions": {}}
     k.maker_step(acct3, [(wide, {"tomorrow": True})], k.STRATEGIES["M"]["rules"], {}, lambda *a: None, 1.0, lambda t, s: [])
     assert not acct3.get("resting")                                                    # a 28c spread: no bid
+
+
+def _pump_trade(mint_b, sol, tok, buy, user_b, ts, vs, vt, rs, fee_bps=95, creator_bps=5):
+    import hashlib
+    import struct
+    raw = hashlib.sha256(b"event:TradeEvent").digest()[:8] + mint_b + struct.pack("<QQ", int(sol * 1e9), int(tok * 1e6))
+    raw += bytes([1 if buy else 0]) + user_b + struct.pack("<qQQQQ", ts, int(vs * 1e9), int(vt * 1e6), int(rs * 1e9), 0)
+    raw += b"\x00" * 32 + struct.pack("<QQ", fee_bps, 0) + b"\x00" * 32 + struct.pack("<QQ", creator_bps, 0)
+    import base64
+    return "Program data: " + base64.b64encode(raw).decode()
+
+
+def test_launch_lab_decodes_pump_trades_and_prices_fills_on_the_curve_with_delays_and_fees():
+    from bot import launch_lab as ll
+
+    line = _pump_trade(b"\x01" * 32, 1.0, 34_000_000, True, b"\x02" * 32, 1_800_000_000, 31.0, 1_039_000_000, 1.0)
+    e = ll.decode(line)
+    assert e["kind"] == "trade" and e["buy"] and abs(e["sol"] - 1.0) < 1e-9 and abs(e["vsol"] - 31.0) < 1e-6
+    assert abs(e["fee"] - 0.01) < 1e-12 and e["mint"] == ll.b58(b"\x01" * 32)
+    tok = ll.buy_tokens(31.0, 1_039_000_000, 1.0, 0.01)
+    back = ll.sell_sol(31.0 + 0.99, 1_039_000_000 - tok, tok, 0.01)
+    assert 0.97 < back < 0.99                                              # a round trip costs the two fees
+    lab = ll.Lab(sol_usd=200.0)
+    ev = lambda vs, vt, rs, sol=0.5, buy=True, user=b"\x03" * 32: ll.decode(
+        _pump_trade(b"\x09" * 32, sol, 1e6, buy, user, 1, vs, vt, rs))
+    lab.event(100.0, ev(31.0, 1_039_000_000, 1.0, sol=1.0))                 # launch (the dev's buy)
+    a = lab.accts["snipe"]
+    assert len(a.pending) == 1 and a.cash == 750.0 and not a.positions         # ordered, not yet filled
+    lab.event(101.0, ev(32.0, 1_006_000_000, 2.0))                          # too soon: still waiting
+    assert not a.positions
+    lab.event(101.6, ev(33.0, 975_000_000, 3.0))                            # 1.6 s after the signal: filled here
+    p = a.positions[ll.b58(b"\x09" * 32)]
+    assert abs(p["entry"] - 33.0 / 975_000_000) < 1e-15 and p["lag"] == 1.6
+    lab.event(110.0, ev(70.0, 460_000_000, 40.0, sol=5.0))                  # price way up: take profit (+100%+)
+    assert a.positions[ll.b58(b"\x09" * 32)].get("selling")
+    lab.event(111.2, ev(71.0, 453_000_000, 41.0))
+    assert a.n == 1 and a.wins == 1 and a.pnl > 200 and not a.positions
+    assert "Snipe every new coin: 1 trades, 100% won" in lab.board()
+    lab.event(112.0, ev(80.0, 400_000_000, 85.0))                           # the curve completes: graduated
+    for acct in lab.accts.values():
+        assert not acct.positions and not acct.pending                     # everything sold or refunded
+    st = lab.to_state(200.0)
+    assert st["accounts"]["snipe"]["n"] == 1 and all(v["cash"] > 0 for v in st["accounts"].values())
+
+
+def test_launch_lab_follows_whales_and_momentum_only_with_enough_buyers():
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=200.0)
+    mint = b"\x07" * 32
+    ev = lambda vs, vt, rs, sol=0.3, buy=True, u=0: ll.decode(_pump_trade(mint, sol, 1e6, buy, bytes([u]) * 32, 1, vs, vt, rs))
+    lab.event(0.0, ev(31.0, 1_039_000_000, 1.0, sol=1.0, u=200))
+    for i in range(20):                                                     # 20 different buyers, price climbing
+        lab.event(3.0 * i + 1, ev(31.0 + i * 1.5, 1_039_000_000 - i * 30_000_000, 1.0 + i * 1.5, u=i + 1))
+    lab.event(62.0, ev(70.0, 460_000_000, 40.0, u=50))
+    assert lab.accts["momentum_60s"].pending or lab.accts["momentum_60s"].positions
+    lab.event(63.0, ev(72.0, 450_000_000, 42.0, sol=6.0, u=60))             # a 6 SOL buy
+    assert lab.accts["whale_follow"].pending

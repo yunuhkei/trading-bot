@@ -1,0 +1,37 @@
+# Launch lab (bot/launch_lab.py): PRACTICE only, pretend money. Watches every pump.fun coin live through Solana's free
+# public feed (no keys), builds 1-second charts and runs 9 short-term strategies side by side, each with its own
+# pretend $1,000 and $250 trades, with honest delays, curve price impact and fees. One long job of almost 6 hours,
+# then the next; the results carry over. Your phone gets the scoreboard when each job ends.
+name: launch-lab
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # starts a new job if none is running; waits its turn otherwise
+  workflow_dispatch:
+concurrency:
+  group: launch-lab
+  cancel-in-progress: false
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: launch_lab_state.json
+          key: launch-lab-${{ github.run_id }}
+          restore-keys: launch-lab-
+      - name: Watch pump.fun and practice-trade
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+        run: python -m bot launch-lab --minutes 340
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: launch_lab_state.json
+          key: launch-lab-${{ github.run_id }}
