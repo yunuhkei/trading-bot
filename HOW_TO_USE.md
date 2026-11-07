@@ -360,11 +360,18 @@ ways to improve it:
   doesn't trade them. **R. Arbitrage anywhere on Kalshi** practices instead: each check sweeps a slice of every open
   market settling within 2 weeks for sets that pay more than they cost whatever happens (rare).
 
-So there are 8 strategies side by side, each with its own pretend $100 (the Thursday 3 pm scoreboard compares them):
+**Be the house (Nov 7, from `reports/What profitable day traders know.md`).** Research on 72 million Kalshi trades:
+traders who post resting bids (makers) earn about +1% to +2.5%, the ones who pay the ask (takers) lose it. On our own
+1,412 settled city-days with real trade prints (`tools/kalshi_maker_test.py`; a bid counts as filled only if someone
+sold BELOW it), resting a bid on tomorrow's favorite bracket made +7.2% (+6.4% if Kalshi charges its maker fee) on
+374 bids, in both halves, vs +5.3% paying the ask on the same rule. Resting bids against long shots lost (-2.8%): they
+get filled right before the long shot comes true. It practices as **M. Maker bids on the favorite**.
+
+So there are 9 strategies side by side, each with its own pretend $100 (the Thursday 3 pm scoreboard compares them):
 - **A. Market favorites** (pings your phone): YES on tomorrow's favorite bracket when it costs 60-80¢.
 - B. Weather models (7 forecasts averaged, corrected per city, 10¢+ edge) | C. Model favorites (60¢+ only) |
   D. Late-day sure things (today after 3 pm) | E. Fade long shots (NO at 80¢+) | **F. Favorites the models agree
-  with** | G. Cheaper favorites (60-65¢) | R. Arbitrage anywhere. These trade quietly. The `kalshi-status` workflow prints every strategy's
+  with** | G. Cheaper favorites (60-65¢) | R. Arbitrage anywhere | **M. Maker bids on the favorite**. These trade quietly. The `kalshi-status` workflow prints every strategy's
   settled trades.
 
 For today's markets the bot knows the high so far exactly: the higher of every station report (incl. the 6-hour highs)

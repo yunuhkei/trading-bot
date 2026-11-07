@@ -510,6 +510,12 @@ STRATEGIES = {
                                                          "max_price": 0.65, "hit_rate": 0.65}},
     # Sure-profit sets anywhere on Kalshi (arb_scan), not just weather: rare, so it has its own account to show it.
     "R": {"label": "Arbitrage anywhere on Kalshi", "rules": {"family": "arb"}},
+    # Be the house (the research's #1, reports/What profitable day traders know.md): instead of paying the ask, rest a
+    # bid at the best bid on tomorrow's favorite bracket. On 1,412 settled city-days (Sep 7 - Nov 5, real trade prints:
+    # a bid counted as filled only if someone sold below it) it made +7.2% (+6.4% with Kalshi's maker fee) on 374
+    # bids, in both halves, vs +5.3% paying the ask on the same rule. Bets against long shots lost as a maker (-2.8%).
+    "M": {"label": "Maker bids on the favorite", "rules": {"maker": True, "min_bid": 0.60, "max_bid": 0.95,
+                                                          "max_spread": 0.20}},
 }
 LINEUP = 2          # bump when the lineup changes: the practice accounts start over so old bets don't count
 
@@ -798,6 +804,62 @@ def trade(acct: dict, ideas: list[dict], settings: dict, tell, tag: str, now: fl
     return bought
 
 
+def maker_fee(price: float, count: int = 1, rate: float = 0.0175) -> float:
+    """Kalshi's fee for a resting (maker) order on the series that charge one, rounded up to the cent."""
+    return math.ceil(rate * count * price * (1 - price) * 100 - 1e-9) / 100
+
+
+def maker_step(acct: dict, views: list[tuple[dict, dict]], rules: dict, settings: dict, tell, now: float,
+               trades_of=None) -> int:
+    """Practice maker bids: a resting bid at the best bid on tomorrow's favorite YES bracket (bid in min-max, spread at
+    most max_spread), re-priced each check. It counts as FILLED only if someone traded that market BELOW our price
+    since the bid was placed (so the queue at our price was used up), at our price, paying the maker fee to be safe.
+    Bids are cancelled once the measurement day starts. Returns how many bids filled."""
+    trades_of = trades_of or (lambda t, since: kget("/markets/trades", {"ticker": t, "min_ts": int(since), "limit": 1000})
+                              .get("trades", []))
+    resting, positions = acct.setdefault("resting", {}), acct.setdefault("positions", {})
+    tomorrow = {e["event_ticker"]: e for e, v in views if v.get("tomorrow")}
+    filled = 0
+    for ticker, b in list(resting.items()):
+        try:
+            prints = trades_of(ticker, b["placed"])
+        except Exception as e:
+            log.warning("maker check %s: %s", ticker, e)
+            continue
+        if any(_f(t.get("yes_price_dollars")) < b["price"] for t in prints):
+            count = int(min(float(settings.get("max_per_trade", 5)), acct["cash"]) // (b["price"] * 1.02))
+            if count >= 1:
+                cost = count * b["price"] + maker_fee(b["price"], count)
+                acct["cash"] -= cost
+                positions[ticker] = {"event": b["event"], "side": "yes", "count": count, "price": b["price"], "cost": cost,
+                                     "kind": "weather", "fair": None, "opened": now, "title": b["title"]}
+                filled += 1
+                tell(f"🎯 PRACTICE Kalshi maker bid filled: {count} YES at {b['price'] * 100:.0f}¢", b["title"])
+            resting.pop(ticker)
+        elif b["event"] not in tomorrow:
+            resting.pop(ticker)                          # the measurement day began: cancel
+    held = {p["event"] for p in positions.values()} | {b["event"] for b in resting.values()}
+    for et, e in tomorrow.items():
+        best = None
+        for m in e.get("markets") or []:
+            bid, ask = _f(m.get("yes_bid_dollars")), _f(m.get("yes_ask_dollars"))
+            if 0 < bid < ask < 1 and bid >= 0.5 and ask - bid <= float(rules.get("max_spread", 0.20)) and \
+                    float(rules.get("min_bid", 0.60)) <= bid <= float(rules.get("max_bid", 0.95)):
+                best = (bid, m)
+        if not best:
+            continue
+        bid, m = best
+        title = f"{e.get('title', '').replace('?', '')}: {m.get('yes_sub_title')}"
+        if et in held:
+            r = resting.get(m["ticker"])
+            if r and r["price"] != bid:                  # re-price to the new best bid
+                resting[m["ticker"]] = {**r, "price": bid, "placed": now}
+            continue
+        if acct["cash"] >= bid * 1.02:
+            resting[m["ticker"]] = {"event": et, "price": bid, "placed": now, "title": title}
+    return filled
+
+
 def marks(acct: dict, cache: dict) -> list[dict]:
     """Each open bet with what it would sell for right now (the best bid for its side, after the selling fee)."""
     out = []
@@ -891,6 +953,16 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
         bought, summary = 0, []
         for k, v in strats.items():
             fam = v["rules"].get("family")
+            if v["rules"].get("maker"):
+                acct = state["variants"][k]
+                try:
+                    n = maker_step(acct, views, v["rules"], settings, lambda t, m, k=k: quiet(f"[{k}] {t}", m), now,
+                                   None if scan_all else (lambda t, since: []))
+                except Exception as e:
+                    log.warning("maker bids failed: %s", e)
+                    n = 0
+                summary.append(f"{k}:{n}")
+                continue
             ideas = extra.get(fam, []) if fam else ideas_from_views(views, v["rules"])
             if k == "A":
                 ideas = arb_ideas(events, settings) + ideas

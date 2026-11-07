@@ -20,3 +20,4 @@ solbot_state_*.json
 kalshi_state_*.json
 
 content/imagine/out/
+data/maker_trades.json

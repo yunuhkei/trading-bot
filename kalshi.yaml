@@ -22,6 +22,8 @@ arb_margin: 0.02          # arbitrage: the set must pay at least 2¢ more than i
 # favorites won only 52%. F Favorites the models agree with: +5% (347 trades), but about -1% with forecasts surely
 # known before each buy (two days ahead), so unproven | G Cheaper favorites (60-65c): +1% | R Arbitrage anywhere.
 # Lows, gas, crypto and S&P markets were tested too (Nov 6): nothing passed, so they aren't traded.
+# M Maker bids on the favorite (Nov 7): rests a bid at the best bid instead of paying the ask; on real trade prints
+# +7.2% (+6.4% with a maker fee) on 374 bids vs +5.3% paying the ask (tools/kalshi_maker_test.py).
 # Override or add one like:  strategies: {F: {label: "My idea", rules: {min_edge: 0.2, sigma_mult: 1.2}}}
 report_at: "15:00"        # the scoreboard: every Thursday at 3 pm Milwaukee time
 report_days: [Thursday]

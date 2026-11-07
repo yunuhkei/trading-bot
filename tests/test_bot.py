@@ -1566,7 +1566,7 @@ def test_kalshi_strategies_follow_their_own_rules_and_keep_their_own_accounts(tm
     told = []
     k.step({"mode": "practice", "practice_cash": 100}, lambda t, m: told.append(t), events=[ev])
     state = json.loads(Path("kalshi_state_practice.json").read_text())
-    assert state["positions"] and set(state["variants"]) == {"B", "C", "D", "E", "F", "G", "R"}
+    assert state["positions"] and set(state["variants"]) == {"B", "C", "D", "E", "F", "G", "R", "M"}
     assert state["variants"]["E"]["positions"] and all(p["side"] == "no" for p in state["variants"]["E"]["positions"].values())
     assert sum("Kalshi: bought" in t for t in told) == len(state["positions"])        # only A pings per trade
     title, msg = k.scoreboard(state, k.strategies({}))
@@ -2634,3 +2634,39 @@ def test_callout_purpose_check_flags_dump_setups_and_lists_a_real_projects_footp
     assert not co.site_loads("https://x.com/someone")                      # a social profile isn't a website
     big = {**clean_rug, "graphInsidersDetected": 5000, "totalHolders": 1_000_000}
     assert co.vet("M", big, {**pair, "marketCap": 400_000_000}, loads=lambda u: True)["red"] == []   # a sliver: fine
+
+
+def test_kalshi_maker_bids_rest_at_the_bid_and_fill_only_when_someone_sells_below():
+    from bot import kalshi as k
+
+    mk = lambda t, bid, ask: {"ticker": t, "yes_sub_title": t, "yes_bid_dollars": str(bid), "yes_ask_dollars": str(ask)}
+    ev = {"event_ticker": "EV", "title": "Chicago high Nov 9?",
+          "markets": [mk("FAV", 0.66, 0.69), mk("MID", 0.20, 0.23), mk("LOW", 0.03, 0.05)]}
+    views = [(ev, {"tomorrow": True})]
+    acct = {"cash": 100.0, "positions": {}}
+    prints = {"FAV": []}
+    told = []
+    trades_of = lambda t, since: [p for p in prints.get(t, []) if p["t"] > since]
+    assert k.maker_step(acct, views, k.STRATEGIES["M"]["rules"], {"max_per_trade": 5}, lambda *a: told.append(a), 100.0,
+                        trades_of) == 0
+    assert acct["resting"]["FAV"]["price"] == 0.66 and not acct["positions"]            # resting, not bought
+    prints["FAV"] = [{"t": 150.0, "yes_price_dollars": "0.66"}]                           # a trade AT our price: not enough
+    ev["markets"][0] = mk("FAV", 0.67, 0.70)
+    assert k.maker_step(acct, views, k.STRATEGIES["M"]["rules"], {"max_per_trade": 5}, lambda *a: told.append(a), 200.0,
+                        trades_of) == 0
+    assert acct["resting"]["FAV"]["price"] == 0.67                                     # re-priced to the new best bid
+    prints["FAV"].append({"t": 250.0, "yes_price_dollars": "0.65"})                       # someone sold below us: filled
+    assert k.maker_step(acct, views, k.STRATEGIES["M"]["rules"], {"max_per_trade": 5}, lambda *a: told.append(a), 300.0,
+                        trades_of) == 1
+    p = acct["positions"]["FAV"]
+    assert p["count"] == 7 and p["price"] == 0.67 and abs(p["cost"] - (7 * 0.67 + k.maker_fee(0.67, 7))) < 1e-9
+    assert not acct["resting"] and told
+    acct2 = {"cash": 100.0, "positions": {}}
+    k.maker_step(acct2, views, k.STRATEGIES["M"]["rules"], {}, lambda *a: None, 100.0, lambda t, s: [])
+    k.maker_step(acct2, [(ev, {"tomorrow": False})], k.STRATEGIES["M"]["rules"], {}, lambda *a: None, 200.0,
+                 lambda t, s: [])
+    assert not acct2["resting"] and not acct2["positions"]                              # the day began: cancelled
+    wide = {**ev, "markets": [mk("FAV", 0.62, 0.90)]}
+    acct3 = {"cash": 100.0, "positions": {}}
+    k.maker_step(acct3, [(wide, {"tomorrow": True})], k.STRATEGIES["M"]["rules"], {}, lambda *a: None, 1.0, lambda t, s: [])
+    assert not acct3.get("resting")                                                    # a 28c spread: no bid
