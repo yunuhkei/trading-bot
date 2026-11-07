@@ -445,7 +445,9 @@ class Lab:
                 out.append(f"• {STRATEGIES[k]['label']}: " + " | ".join(parts))
         both = [piece(*total[key], label) for key, label, *_ in SLOTS if total[key][0]]
         if len(both) > 1 or out:
-            out.insert(0, "• All of them together (not random): " + (" | ".join(both) or "no trades yet"))
+            m = sum(k != "random" for k, _ in alive)    # busted ones are left out, so midday looks better than it was
+            out.insert(0, f"• The {m} still trading, together (not random, not the busted ones): "
+                          + (" | ".join(both) or "no trades yet"))
         return out
 
     def snapshot(self) -> dict:
