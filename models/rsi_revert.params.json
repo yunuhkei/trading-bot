@@ -1,6 +1,6 @@
 {
  "strategy": "rsi_revert",
- "tuned_at": "2026-11-06 10:31 UTC",
+ "tuned_at": "2026-11-07 10:14 UTC",
  "params": {
   "low": 20,
   "high": 50
@@ -11,9 +11,9 @@
   "was": "buy when the dip score drops below 20, sell when it's back above 50",
   "tried": 9,
   "best": "buy when the dip score drops below 15, sell when it's back above 50",
-  "exam_from": "2026-08-21",
-  "exam_current": 0.002957698765083516,
-  "exam_best": 0.002532052508699484,
-  "sure": 0.4725
+  "exam_from": "2026-08-24",
+  "exam_current": 0.0049209021203649615,
+  "exam_best": 0.003861508612263409,
+  "sure": 0.4285
  }
 }
