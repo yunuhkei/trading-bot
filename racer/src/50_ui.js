@@ -67,7 +67,7 @@ function uiInputs(dt){
   if(tstick){const R2=Math.max(46,UI.w*.075);st+=clamp((tstick.x-tstick.x0)/R2,-1,1)}
   /* steering response: eases in so small thumb movements are gentle */
   const target=clamp(st,-1,1),sh=Math.sign(target)*Math.pow(Math.abs(target),1.25);
-  C.steer+=(sh-C.steer)*Math.min(1,dt*(Math.abs(sh)>Math.abs(C.steer)?9:14));
+  C.steer+=(sh-C.steer)*Math.min(1,dt*(Math.abs(sh)>Math.abs(C.steer)?20:26));
   if(K.Space)IN.hand=1;else if(!UI.bn.drift.on)IN.hand=0;
     if(brk)IN.brk=1;else if(!UI.bn.brake.on)IN.brk=0;
   IN.thr=(gas||UI.bn.gas.on)?1:0;
@@ -96,9 +96,9 @@ function hudDraw(){
   const c=UI.ctx,w=UI.hud.width,h=UI.hud.height,k=w/UI.w;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,w,h);c.scale(k,k);const W_=UI.w,H_=UI.h,u=UI.btnU;
   c.textBaseline='alphabetic';c.font='700 12px -apple-system,Roboto,sans-serif';
   /* speed */
-  const kmh=Math.round(C.kmh),bx=u*.45,by=H_-u*.45;
+  const kmh=Math.round(C.speed*2.23694),bx=u*.45,by=H_-u*.45;
   c.save();c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=6;c.fillStyle='#fff';c.font='800 '+Math.round(u*1.05)+'px -apple-system,Roboto,sans-serif';c.textAlign='left';c.fillText(String(kmh),bx,by);
-  const tw=c.measureText(String(kmh)).width;c.font='700 '+Math.round(u*.34)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.8)';c.fillText('km/h',bx+tw+6,by);c.restore();
+  const tw=c.measureText(String(kmh)).width;c.font='700 '+Math.round(u*.34)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.8)';c.fillText('mph',bx+tw+6,by);c.restore();
   /* nitro bar */
   const nw=u*3.2,nh=u*.17,nx=bx,ny=by-u*1.4;c.fillStyle='rgba(0,0,0,.45)';c.fillRect(nx-2,ny-2,nw+4,nh+4);c.fillStyle=C.boosting?'#ffffff':'#ff9a1f';c.fillRect(nx,ny,nw*C.nos,nh);if(UI.nosFlash>C.t&&((C.t*10)|0)%2==0){c.strokeStyle='#ff3b3b';c.lineWidth=3;c.strokeRect(nx-3,ny-3,nw+6,nh+6)}
   c.textAlign='left';c.fillStyle='rgba(255,255,255,.75)';c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillText('NITRO',nx,ny-5);
