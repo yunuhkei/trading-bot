@@ -13,7 +13,7 @@ It is built from the modules in `racer/src` by `python3 racer/build.py` (the out
 * **Driving** (`HND` constants at the top of `src/40_car.js`): grip first, like the Need for Speed arcade games. Steering is limited by a tyre budget
   (about 1.4-2.3 g), so at speed full lock runs wide instead of sliding. The handbrake starts a drift: the stick picks the slide angle, a stability assist
   holds it and straightens the car when you let go. Cars stay glued to the road (small bumps never cut the grip), braking is firm but not instant,
-  the body leans and dives. Nitro is filled by drifting. Building, barrier and bank collisions, respawn.
+  the body leans and dives. Nitro is filled by drifting and is a latch: one tap starts it, it runs until the tank is empty (tap again or brake to stop). Building, barrier and bank collisions, respawn.
 * **Controls**: touch (drag the left half to steer; GAS and BRAKE pedals bottom right, DRIFT above brake, NITRO above gas; tap the minimap (top left) for the world map;
   AUTO = automatic gas) or keyboard (arrows/WASD, Space drift, Shift nitro, R respawn, M map, G auto-gas, F fps, P pause).
 

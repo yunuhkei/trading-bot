@@ -20,11 +20,13 @@ function uiInit(){
   cv.addEventListener('touchend',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);cv.addEventListener('touchcancel',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);
   /* mouse (desktop testing): same as one finger */
   let md=false;cv.addEventListener('mousedown',e=>{md=true;down('m',e.offsetX,e.offsetY);audioStart()});window.addEventListener('mousemove',e=>{if(md){const r=cv.getBoundingClientRect();move('m',e.clientX-r.left,e.clientY-r.top)}});window.addEventListener('mouseup',()=>{if(md){md=false;up('m')}});
-  const K=UI.keys;window.addEventListener('keydown',e=>{K[e.code]=1;if(e.code=='KeyR')IN.respawn=1;if(e.code=='KeyF'){UI.showStats=!UI.showStats}if(e.code=='KeyP'||e.code=='Escape')UI.paused=!UI.paused;if(e.code=='KeyG')IN.auto=!IN.auto;if(e.code=='KeyM')UI.mapOpen=!UI.mapOpen;audioStart();if(/Arrow|Space/.test(e.code))e.preventDefault()});
+  const K=UI.keys;window.addEventListener('keydown',e=>{K[e.code]=1;if((e.code=='ShiftLeft'||e.code=='ShiftRight'||e.code=='KeyN')&&!e.repeat)nitroTap();if(e.code=='KeyR')IN.respawn=1;if(e.code=='KeyF'){UI.showStats=!UI.showStats}if(e.code=='KeyP'||e.code=='Escape')UI.paused=!UI.paused;if(e.code=='KeyG')IN.auto=!IN.auto;if(e.code=='KeyM')UI.mapOpen=!UI.mapOpen;audioStart();if(/Arrow|Space/.test(e.code))e.preventDefault()});
   window.addEventListener('keyup',e=>{K[e.code]=0});
   window.addEventListener('blur',()=>{for(const k in K)K[k]=0;UI.touches.clear();UI.stickT=null;UI.btn.forEach(b=>b.on=0)});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)UI.paused=true});
   uiLayout()}
+/* tap = boost on (needs some nitro in the tank), tap again = off */
+function nitroTap(){if(IN.nitro)IN.nitro=0;else if(C.nos>.1)IN.nitro=1;else UI.nosFlash=C.t+.6}
 function uiLayout(){
   const b=UI.btn;b.length=0;const w=UI.w,h=UI.h,u=Math.min(w,h*1.5)/10,m=u*.35;
   const add=(id,label,x,y,rw,rh,act,col,extra)=>{const o={id,label,x,y,w:rw,h:rh,act,on:0,col};if(extra)Object.assign(o,extra);b.push(o);return o};
@@ -36,7 +38,7 @@ function uiLayout(){
   add('gas','GAS',gx,gy,gw,gh,v=>{},'#34d27b',{pedal:1});
   add('brake','BRAKE',bx,by,bw,bh,v=>{IN.brk=v},'#ff3b3b',{pedal:1});
   add('drift','DRIFT',bx,by-u*.2-u*.8,bw,u*.8,v=>{IN.hand=v},'#2aa8ff');
-  add('nitro','NITRO',gx,gy-u*.2-u*.9,gw,u*.9,v=>{IN.nitro=v},'#ff7a1a');
+  add('nitro','NITRO',gx,gy-u*.2-u*.9,gw,u*.9,v=>{if(v)nitroTap()},'#ff7a1a');
   /* small buttons along the top right */
   const rx=w-m-u*1.05;add('reset','RESET',rx,m,u*1.05,u*.55,v=>{if(v)IN.respawn=1},'#8a94a6');
   const ax=rx-u*.15-u*1.4;add('auto','AUTO',ax,m,u*1.4,u*.55,v=>{if(v)IN.auto=!IN.auto},'#8a94a6');
@@ -67,8 +69,7 @@ function uiInputs(dt){
   const target=clamp(st,-1,1),sh=Math.sign(target)*Math.pow(Math.abs(target),1.25);
   C.steer+=(sh-C.steer)*Math.min(1,dt*(Math.abs(sh)>Math.abs(C.steer)?9:14));
   if(K.Space)IN.hand=1;else if(!UI.bn.drift.on)IN.hand=0;
-  if(K.ShiftLeft||K.ShiftRight||K.KeyN)IN.nitro=1;else if(!UI.bn.nitro.on)IN.nitro=0;
-  if(brk)IN.brk=1;else if(!UI.bn.brake.on)IN.brk=0;
+    if(brk)IN.brk=1;else if(!UI.bn.brake.on)IN.brk=0;
   IN.thr=(gas||UI.bn.gas.on)?1:0;
   /* a held touch on the car's own button area does the rest */
 }
@@ -99,7 +100,7 @@ function hudDraw(){
   c.save();c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=6;c.fillStyle='#fff';c.font='800 '+Math.round(u*1.05)+'px -apple-system,Roboto,sans-serif';c.textAlign='left';c.fillText(String(kmh),bx,by);
   const tw=c.measureText(String(kmh)).width;c.font='700 '+Math.round(u*.34)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.8)';c.fillText('km/h',bx+tw+6,by);c.restore();
   /* nitro bar */
-  const nw=u*3.2,nh=u*.17,nx=bx,ny=by-u*1.4;c.fillStyle='rgba(0,0,0,.45)';c.fillRect(nx-2,ny-2,nw+4,nh+4);c.fillStyle=C.boosting?'#ffffff':'#ff9a1f';c.fillRect(nx,ny,nw*C.nos,nh);
+  const nw=u*3.2,nh=u*.17,nx=bx,ny=by-u*1.4;c.fillStyle='rgba(0,0,0,.45)';c.fillRect(nx-2,ny-2,nw+4,nh+4);c.fillStyle=C.boosting?'#ffffff':'#ff9a1f';c.fillRect(nx,ny,nw*C.nos,nh);if(UI.nosFlash>C.t&&((C.t*10)|0)%2==0){c.strokeStyle='#ff3b3b';c.lineWidth=3;c.strokeRect(nx-3,ny-3,nw+6,nh+6)}
   c.textAlign='left';c.fillStyle='rgba(255,255,255,.75)';c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillText('NITRO',nx,ny-5);
   /* drift score */
   if(C.driftTime>.25){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#7fd4ff';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=5;c.fillText('DRIFT  '+Math.round(C.driftScore),W_*.5,u*1.5);c.restore()}
@@ -109,7 +110,7 @@ function hudDraw(){
   if(C.t-UI.locT>1.5){const n=regionName();if(n!==UI.locName){UI.locName=n;UI.locT=C.t}}
   if(UI.locName&&C.t-UI.locT<3.5){const a=Math.min(1,(3.5-(C.t-UI.locT)),(C.t-UI.locT)*3);c.save();c.globalAlpha=a;c.textAlign='center';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#fff';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=6;c.fillText(UI.locName.toUpperCase(),W_*.5,H_*.2);c.restore()}
   /* buttons and pedals */
-  for(const b of UI.btn){if(b.id=='map')continue;const on=b.on||(b.id=='auto'&&IN.auto)||(b.id=='stat'&&UI.showStats);c.globalAlpha=on?.95:.64;c.fillStyle=on?b.col:'rgba(20,24,32,.58)';c.strokeStyle=b.col;c.lineWidth=2;const r=Math.min(b.w,b.h)*(b.pedal?.22:.28);rr(c,b.x,b.y,b.w,b.h,r);c.fill();c.stroke();
+  for(const b of UI.btn){if(b.id=='map')continue;const on=b.on||(b.id=='auto'&&IN.auto)||(b.id=='stat'&&UI.showStats)||(b.id=='nitro'&&IN.nitro);c.globalAlpha=on?.95:.64;c.fillStyle=on?b.col:'rgba(20,24,32,.58)';c.strokeStyle=b.col;c.lineWidth=2;const r=Math.min(b.w,b.h)*(b.pedal?.22:.28);rr(c,b.x,b.y,b.w,b.h,r);c.fill();c.stroke();
     if(b.pedal){c.strokeStyle=on?'rgba(0,0,0,.35)':'rgba(255,255,255,.2)';c.lineWidth=Math.max(1.5,u*.035);for(let i=0;i<4;i++){const yy=b.y+b.h*(.52+.1*i);c.beginPath();c.moveTo(b.x+b.w*.2,yy);c.lineTo(b.x+b.w*.8,yy);c.stroke()}}
     c.globalAlpha=1;c.fillStyle=on?'#111':'#fff';c.textAlign='center';c.font='800 '+Math.round(b.pedal?u*.27:Math.min(b.h*.42,u*.3))+'px -apple-system,Roboto,sans-serif';
     c.fillText(b.label+(b.id=='auto'?(IN.auto?' ON':' OFF'):''),b.x+b.w/2,b.pedal?b.y+u*.42:b.y+b.h/2+b.h*.15)}

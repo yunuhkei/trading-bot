@@ -35,7 +35,7 @@ const WB=1.35,TR=.8,RADIUS=1.05;
 /* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
 const HND={grip:32,gripDrift:3.2,gripBrake:16,driftFric:9.5,aBase:14,aAero:.0015,omLow:2.3,respond:7,respondDrift:12,betaMax:.66,betaMin:.45,kBeta:3.2,omDrift:2.4,grass:.62,accel:11.5,accelLow:2.8,brake:11.5,scrub:.05,snap:.1,snapV:.004};
 function carPlace(x,z,yaw,yh){C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6}
-function respawn(){const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1}
+function respawn(){IN.nitro=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1}
 const gw=(x,z,y)=>groundAt(x,z,y);
 function carStep(dt){
   C.px=C.x;C.py=C.y;C.pz=C.z;C.pyaw=C.yaw;C.ppitch=C.pitch;C.proll=C.roll;
@@ -57,7 +57,9 @@ function carStep(dt){
   const gr=C.grounded;
   /* ---- inputs ---- */
   let thr=IN.thr,brk=IN.brk;if(IN.auto&&!IN.brk)thr=1;
-  const nitroOn=IN.nitro&&C.nos>.015&&(thr>0||IN.auto);C.boosting=nitroOn?1:0;if(nitroOn)C.nos=Math.max(0,C.nos-dt*.30);
+  /* nitro is a latch: one tap starts it, it runs until the tank is empty (or you brake / tap again), and it pushes even if you are not on the gas */
+  if(IN.nitro&&(C.nos<=.015||brk>0))IN.nitro=0;
+  const nitroOn=IN.nitro?1:0;C.boosting=nitroOn;if(nitroOn){C.nos=Math.max(0,C.nos-dt*.30);thr=1}
   const vmax=(C.onRoad?80:62)*(nitroOn?1.26:1),surf=C.onRoad?1:HND.grass;
   /* ---- longitudinal: weighty launch, strong but not instant braking ---- */
   if(gr){
