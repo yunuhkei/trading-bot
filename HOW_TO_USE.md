@@ -499,6 +499,14 @@ copied. Each copied bet sells with the rules of the strategy it came from. The r
 copying this hour, or that it's sitting out. It trades $1,000 with $250 trades like everything else; real money
 later at $100 with $25 trades would be about a tenth of its results.
 
+**Super bot 2** (`streak`): its own pretend $1,000 and $250 trades. Every minute it copies the best 3 strategies by profit
+over the last 30 minutes (5+ trades, in profit), so it tests whether a good stretch, once it starts, keeps going. It needs
+no history and starts right away.
+
+**Market signs log:** every 5 minutes the lab saves one row: trades, new coins, SOL bought and sold, buyers (all per
+minute), coins graduating, and how each strategy family did in those 5 minutes. It's kept for 35 days and printed by
+`launch-lab-status` (the `SIGNS` line), to find out which signs show up before a good stretch.
+
 **The owner's money plan** (the super bot follows it): $1,000 stays in, no trade over $250. At midnight (Milwaukee time) a
 winning day takes out everything above $1,000; a losing day isn't topped up; after 2 losing days in a row it goes into
 practice mode: it stops using its money and only trades on paper (its ghost) until the owner's next check. The phone gets

@@ -57,7 +57,9 @@ WINDOW, WINDOW_LABEL = (11 * 60, 15 * 60 + 40), "11a-3:40p"
 # the super bot turns a strategy on for an hour when, in that same hour on EARLIER days (never today), it has
 # 2+ days of trades, 20+ trades in all, a profit overall, and a profit on more than half of those days
 SUPER_DAYS, SUPER_TRADES, KEEP_DAYS = 2, 20, 35
-SUPER = ("timing",)           # $1,000 and $250 trades like the rest; real money later at $100 is about a tenth
+SUPER = ("timing", "streak")  # $1,000 and $250 trades like the rest; real money later at $100 is about a tenth
+STREAK_S, STREAK_TRADES = 1800, 5     # super bot 2: a strategy is hot when it made money in its last 30 min (5+ trades)
+SIGN_EVERY = 300                      # the market-signs log: one row every 5 minutes, kept for KEEP_DAYS
 SUPER_TOP = 3                  # with this many versions, copy only the best 3 for an hour (luck makes some look good)
 
 
@@ -92,6 +94,8 @@ STRATEGIES = {
     "random": {"label": "Random coins (luck baseline)", "family": "random", "tp": 0.5, "sl": 0.25, "max_s": 180},
     # copies a strategy's buys only in the hours that strategy made money in on earlier days (see timing_on)
     "timing": {"label": "Super bot (each strategy only at its best hours)", "max_s": 900},
+    # copies the strategies that are winning right now: made money in the last 30 minutes (see streak_on)
+    "streak": {"label": "Super bot 2 (copies what's winning right now)", "max_s": 900},
 }
 
 # more versions for the super bot to choose from: the same buy signals with other ways out. They're ghost-only (no
@@ -332,6 +336,11 @@ class Lab:
                          else [[0.0, 0, 0, 0.0] for _ in range(24)])
         self._clock, self._last_seen = (None, 0), None
         self._timing: tuple = (None, [])
+        self._streak: tuple = (-1e18, [])
+        # market signs every 5 minutes, to find out later what shows up before a good stretch
+        self.signs: list = state.get("signs") or []
+        self._win: dict = {"start": None, "trades": 0, "new": 0, "buy": 0.0, "sell": 0.0, "grad": 0, "buyers": set(),
+                           "fam": {}}
         # the owner's money plan for the super bot: keep $1,000 in, take out everything above it each night, and
         # after 2 losing days in a row stop using the money (paper only) until the owner's next check
         self.plan = state.get("plan") or {"mode": "plan", "streak": 0, "put_in": CASH, "banked": 0.0, "start": None,
@@ -359,14 +368,27 @@ class Lab:
     def books(self) -> list[Account]:
         return list(self.accts.values()) + list(self.ghosts.values())
 
+    def streak_on(self, now: float) -> list[str]:
+        """Super bot 2's picks: the best 3 strategies by profit over the last 30 minutes (5+ trades, in profit)."""
+        if now - self._streak[0] >= 60:
+            hot = []
+            for k, g in self.ghosts.items():
+                if k == "random" or k in SUPER:
+                    continue
+                rec = [t["profit"] for t in g.trades[-400:] if now - (t["t"] + t["s"]) <= STREAK_S]
+                if len(rec) >= STREAK_TRADES and sum(rec) > 0:
+                    hot.append((sum(rec), k))
+            self._streak = (now, [k for _, k in sorted(hot, reverse=True)[:SUPER_TOP]])
+        return self._streak[1]
+
     def order(self, key: str, mint: str, now: float, side: str, why: str = ""):
         if side != "buy":
             return self._sell(self.accts[key], mint, now, why) if key in self.accts else None
         if key not in SUPER:
-            if key in self.timing_on(now):
-                for sk in SUPER:
+            for sk, picks in (("timing", self.timing_on(now)), ("streak", self.streak_on(now))):
+                if key in picks:
                     why2 = f"{STRATEGIES[key]['label']}: {why}"
-                    if self.plan["mode"] == "plan":              # in practice mode its money sits still
+                    if sk != "timing" or self.plan["mode"] == "plan":    # in practice mode its money sits still
                         self._buy(self.accts[sk], mint, now, why2, via=key)
                     self._buy(self.ghosts[sk], mint, now, why2, via=key)
             self._buy(self.ghosts[key], mint, now, why)
@@ -424,6 +446,10 @@ class Lab:
         a.pnl += profit
         a.best, a.worst = max(a.best, profit), min(a.worst, profit)
         a.tally(p["t"], profit)
+        if a.ghost and a.key not in SUPER:                # the families' results, for the market-signs log
+            f = self._win["fam"].setdefault(STRATEGIES[a.key].get("family", "?"), [0, 0.0])
+            f[0] += 1
+            f[1] += profit
         if len(a.trades) > 2000:
             del a.trades[:-1000]
         a.trades.append({"t": round(p["t"]), "s": round(now - p["t"], 1), "name": p["name"], "mint": coin.mint,
@@ -520,12 +546,24 @@ class Lab:
         if self._last_seen is not None and 0 < now - self._last_seen < 10:    # gaps (between runs) don't count
             b[0] += now - self._last_seen
         self._last_seen = now
+        w = self._win
+        if w["start"] is None:
+            w["start"] = now
         if e["kind"] == "create":
             b[2] += 1
+            w["new"] += 1
+        elif e["kind"] == "complete":
+            w["grad"] += 1
         elif e["kind"] == "trade":
             b[1] += 1
+            w["trades"] += 1
             if e.get("buy"):
                 b[3] += e.get("sol", 0.0)
+                w["buy"] += e.get("sol", 0.0)
+                if len(w["buyers"]) < 50000 and e.get("user"):
+                    w["buyers"].add(e["user"])
+            else:
+                w["sell"] += e.get("sol", 0.0)
 
     def settle(self):
         """End of a day (Milwaukee time) for the owner's plan: a winning day takes out everything above $1,000; a
@@ -637,8 +675,27 @@ class Lab:
         self.exits(now, c)
         self.fill(now, c)
 
+    def log_signs(self, now: float):
+        """Every 5 minutes, one row of market signs and how each strategy family did in those 5 minutes."""
+        w = self._win
+        if w["start"] is None or now - w["start"] < SIGN_EVERY:
+            return
+        mins = (now - w["start"]) / 60
+        lt = local_time(w["start"])
+        self.signs.append({"t": round(w["start"]), "day": lt.strftime("%Y-%m-%d"), "hm": lt.strftime("%H:%M"),
+                           "trades_min": round(w["trades"] / mins), "new_min": round(w["new"] / mins, 1),
+                           "buy_sol_min": round(w["buy"] / mins, 1), "sell_sol_min": round(w["sell"] / mins, 1),
+                           "buyers_min": round(len(w["buyers"]) / mins), "grads": w["grad"],
+                           "coins": len(self.coins), "sol_usd": round(self.sol_usd, 2),
+                           "fam": {k: [v[0], round(v[1], 1)] for k, v in w["fam"].items()}})
+        cut = now - KEEP_DAYS * 86400
+        while self.signs and self.signs[0]["t"] < cut:
+            self.signs.pop(0)
+        self._win = {"start": now, "trades": 0, "new": 0, "buy": 0.0, "sell": 0.0, "grad": 0, "buyers": set(), "fam": {}}
+
     def tick(self, now: float):
-        """Every second: time-based exits and orders on coins that went quiet; forget old coins."""
+        """Every second: time-based exits and orders on coins that went quiet; forget old coins; the signs log."""
+        self.log_signs(now)
         for c in list(self.coins.values()):
             busy = any(c.mint in a.positions or c.mint in a.pending for a in self.books())    # ghosts too
             if busy:
@@ -692,6 +749,10 @@ class Lab:
         how much, the rest as an average, the biggest win); the best hours so far, and the ones that keep winning."""
         now = now or time.time()
         lines = self.plan_lines(now)
+        s2 = self.accts["streak"]
+        hot = self.streak_on(now)
+        lines.append(f"Super bot 2 (copies what's winning right now): ${self.value(s2):,.0f} ({s2.pnl:+,.0f} on {s2.n} "
+                     f"trades). Now copying: " + (", ".join(STRATEGIES[k]["label"] for k in hot) or "nothing is hot"))
         on = self.timing_on(now)
         hour = local_time(now).hour
         hour = f"{hour % 12 or 12}{'a' if hour < 12 else 'p'}"
@@ -786,7 +847,7 @@ class Lab:
             accts[k] = d
         return {"accounts": accts, "events": self.events, "t": time.time(), "hello": self.hello_done,
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
-                "shadow": self.ghost_state(), "plan": self.plan}
+                "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs}
 
     def ghost_state(self) -> dict:
         out = {}
@@ -811,7 +872,7 @@ class Lab:
         return {"accounts": {k: a.to_dict() for k, a in self.accts.items()}, "events": self.events, "t": time.time(),
                 "hello": self.hello_done,
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
-                "shadow": self.ghost_state(), "plan": self.plan}
+                "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs}
 
 
 async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180,
@@ -917,6 +978,7 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
         print(lab.board())
         # every strategy's record by day and hour (Milwaukee time), for a closer look at its best times
         print("DAYS " + json.dumps({k: g.days for k, g in lab.ghosts.items() if g.days}), flush=True)
+        print("SIGNS " + json.dumps(lab.signs), flush=True)
         for k, a in lab.accts.items():
             for t in a.trades[-5:]:
                 print(f"  {k}: {t['name']} {t['profit']:+.2f} in {t['s']} s ({t['why_in']} -> {t['why_out']}, filled {t['lag']} s late)")

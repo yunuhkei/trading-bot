@@ -2883,6 +2883,7 @@ def test_launch_lab_simple_ping_says_it_in_plain_words():
     msg = lab.simple(now=at(10))
     assert msg.splitlines() == [
         "Super bot: no trades yet. It starts once a strategy wins the same hour on 2 different days.",
+        "Super bot 2 (copies what's winning right now): $1,000 (+0 on 0 trades). Now copying: nothing is hot",
         "Super bot this hour (10a): sitting out",
         "",
         "Last hour: 1 strategies traded (2 trades)",
@@ -2992,3 +2993,43 @@ def test_launch_lab_ghost_bets_on_coins_that_go_quiet_still_close_and_count():
     for t in range(1400, 2400):                          # snipe versions bought it too; the longest limit is 20 min
         lab.tick(float(t))
     assert not any(mint in b.positions or mint in b.pending for b in lab.books())
+
+
+def test_launch_lab_super_bot_2_copies_what_won_in_the_last_30_minutes():
+    from bot import launch_lab as ll
+
+    lab = ll.Lab()
+    now = 100_000.0
+    hot, cold = lab.ghosts["vs3_quick"], lab.ghosts["breakout"]
+    hot.trades += [{"t": now - 900 + i, "s": 30, "profit": 40.0 if i % 2 else -10.0, "name": "x"} for i in range(6)]
+    cold.trades += [{"t": now - 900 + i, "s": 30, "profit": -40.0, "name": "y"} for i in range(6)]
+    lab.ghosts["dip_quick"].trades += [{"t": now - 4000, "s": 30, "profit": 99.0, "name": "z"} for _ in range(6)]  # old
+    lab.ghosts["random"].trades += [{"t": now - 900, "s": 30, "profit": 99.0, "name": "r"} for _ in range(6)]   # luck
+    assert lab.streak_on(now) == ["vs3_quick"]
+    lab.timing_on = lambda t: []
+    lab.order("vs3_quick", "MINT", now, "buy", "5 SOL in 10 s")
+    lab.order("breakout", "MINT2", now, "buy", "new 3-min high")
+    s2 = lab.accts["streak"]
+    assert set(s2.pending) == {"MINT"} and s2.pending["MINT"]["via"] == "vs3_quick"
+    assert "MINT" not in lab.accts["timing"].pending        # the hour-based super bot didn't pick it
+
+
+def test_launch_lab_logs_market_signs_every_5_minutes():
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=200.0)
+    t0 = 1_800_000_000.0
+    for i in range(600):                                   # 10 minutes: a trade a second, a new coin a minute
+        lab.watch(t0 + i, {"kind": "trade", "buy": i % 3 != 0, "sol": 0.6, "user": f"u{i % 40}"})
+        if i % 60 == 0:
+            lab.watch(t0 + i, {"kind": "create"})
+        lab.tick(t0 + i)
+    lab.watch(t0 + 300, {"kind": "complete"})
+    lab._win["fam"]["whale"] = [3, 120.0]
+    lab.tick(t0 + 601)
+    assert len(lab.signs) == 2
+    row = lab.signs[0]
+    assert row["trades_min"] == 60 and row["new_min"] == 1.2 and row["buyers_min"] == 8     # 0:00-5:00, both ends
+    assert row["buy_sol_min"] == 24.0 and row["sell_sol_min"] == 12.1
+    assert lab.signs[1]["grads"] == 1 and lab.signs[1]["fam"] == {"whale": [3, 120.0]}
+    assert ll.Lab(state=lab.snapshot()).signs == lab.signs
