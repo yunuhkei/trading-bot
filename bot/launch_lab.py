@@ -910,6 +910,8 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
              + (f", topped back up to $1,000 (${add:,.0f} put in)." if add else "."))
     if status:
         print(lab.board())
+        # every strategy's record by day and hour (Milwaukee time), for a closer look at its best times
+        print("DAYS " + json.dumps({k: g.days for k, g in lab.ghosts.items() if g.days}), flush=True)
         for k, a in lab.accts.items():
             for t in a.trades[-5:]:
                 print(f"  {k}: {t['name']} {t['profit']:+.2f} in {t['s']} s ({t['why_in']} -> {t['why_out']}, filled {t['lag']} s late)")
