@@ -618,16 +618,18 @@ const CARS_RENDER=null;
 /* ---------- state ---------- */
 const GRAV=24;
 const C={x:0,y:0,z:0,yaw:0,vx:0,vz:0,vy:0,pitch:0,roll:0,px:0,py:0,pz:0,pyaw:0,ppitch:0,proll:0,spin:0,steerVis:0,wyaw:0,bob:0,
-  gs:0,gsp:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0};
+  gs:0,gsp:0,ax:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0};
 const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
 const WB=1.35,TR=.8,RADIUS=1.05;
+/* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
+const HND={grip:32,gripDrift:3.2,gripBrake:16,driftFric:9.5,aBase:14,aAero:.0015,omLow:2.3,respond:7,respondDrift:12,betaMax:.66,betaMin:.45,kBeta:3.2,omDrift:2.4,grass:.62,accel:11.5,accelLow:2.8,brake:11.5,scrub:.05,snap:.1,snapV:.004};
 function carPlace(x,z,yaw,yh){C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6}
 function respawn(){const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1}
 const gw=(x,z,y)=>groundAt(x,z,y);
 function carStep(dt){
   C.px=C.x;C.py=C.y;C.pz=C.z;C.pyaw=C.yaw;C.ppitch=C.pitch;C.proll=C.roll;
   const sy=Math.sin(C.yaw),cy=Math.cos(C.yaw),fx=sy,fz=-cy,rx=cy,rz=sy;
-  let f=C.vx*fx+C.vz*fz,s=C.vx*rx+C.vz*rz;const af=Math.abs(f);
+  let f=C.vx*fx+C.vz*fz,s=C.vx*rx+C.vz*rz;const af=Math.abs(f),f0=f;
   /* sample the surface under the four wheels */
   const hw=TR,fo=WB*.55,ro=WB*.65;let sum=0,g0,g1,g2,g3;
   g0=gw(C.x+fx*fo-rx*hw,C.z+fz*fo-rz*hw,C.y);const on0=RQ.on;g1=gw(C.x+fx*fo+rx*hw,C.z+fz*fo+rz*hw,C.y);const on1=RQ.on;
@@ -635,45 +637,60 @@ function carStep(dt){
   const gy=(g0+g1+g2+g3)*.25;C.onRoad=(on0+on1+on2+on3)>=2;
   const slope=((g0+g1)-(g2+g3))*.5/(fo+ro);       /* >0 nose up */
   const tp=Math.atan2((g0+g1)*.5-(g2+g3)*.5,fo+ro),tr=Math.atan2((g1+g3)*.5-(g0+g2)*.5,hw*2);
-  /* ---- vertical ---- */
+  /* ---- vertical: the car sticks to the road unless it really leaves it (small kinks must never let go of the tyres) ---- */
   const k=1-Math.exp(-dt/.05);C.gs+=(gy-C.gs)*k;const vG=(C.gs-C.gsp)/dt;C.gsp=C.gs;
   C.vy-=GRAV*dt;C.y+=C.vy*dt;
-  if(C.y<=C.gs+.001){if(!C.grounded){const imp=-C.vy;if(imp>5){C.shake=Math.min(1,C.shake+imp*.04);C.bob=-Math.min(.18,imp*.012)}C.air=0}C.y=C.gs;C.vy=vG>40?40:vG<-40?-40:vG;C.grounded=1}else{C.grounded=0;C.air+=dt}
+  const snap=HND.snap+HND.snapV*C.speed;
+  if(C.y<=C.gs+snap&&C.vy-vG<6){if(!C.grounded){const imp=-(C.vy-vG);if(imp>5){C.shake=Math.min(1,C.shake+imp*.04);C.bob=-Math.min(.18,imp*.012)}C.air=0}C.y=C.gs;C.vy=vG>40?40:vG<-40?-40:vG;C.grounded=1}else{C.grounded=0;C.air+=dt}
   if(C.y<gy-.03)C.y=gy-.03;
   const gr=C.grounded;
   /* ---- inputs ---- */
   let thr=IN.thr,brk=IN.brk;if(IN.auto&&!IN.brk)thr=1;
   const nitroOn=IN.nitro&&C.nos>.015&&(thr>0||IN.auto);C.boosting=nitroOn?1:0;if(nitroOn)C.nos=Math.max(0,C.nos-dt*.30);
-  const vmax=(C.onRoad?80:62)*(nitroOn?1.26:1);
-  /* ---- longitudinal ---- */
+  const vmax=(C.onRoad?80:62)*(nitroOn?1.26:1),surf=C.onRoad?1:HND.grass;
+  /* ---- longitudinal: weighty launch, strong but not instant braking ---- */
   if(gr){
-    let a=0;if(thr>0&&f>-1){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(13.5*r+2.5*(f<14?1:0))*(nitroOn?1.9:1)}
-    if(brk>0){if(f>1.5)a-=brk*34;else a-=brk*10}   /* hard brake, then reverse */
+    let a=0;if(thr>0&&f>-1){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(f<14?1:0))*(nitroOn?1.9:1)}
+    if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8}   /* brake, then reverse */
     a-=Math.sign(f)*(.35+af*af*.0004);                 /* rolling + air drag */
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */
     a-=slope*GRAV*.9;                                  /* hills */
     f+=a*dt;
     if(thr==0&&brk==0&&!IN.auto)f-=Math.sign(f)*Math.min(af,3.2*dt)}
-  /* ---- lateral grip and steering ---- */
-  const sp=Math.min(1,af/60);let steer=C.steer;
+  /* ---- lateral: grip first (the car runs wide before it slides), the handbrake starts a controlled drift ---- */
+  const sp=Math.min(1,af/60);const steer=C.steer;
+  const hand=IN.hand&&f>8&&gr;
+  C.drift+=((hand?1:0)-C.drift)*Math.min(1,dt*(hand?10:5));
+  const dr=C.drift;let beta=0;
   if(gr){
-    const hand=IN.hand&&af>6;
-    let grip=lerp(15,9.5,sp);if(hand)grip=1.9;else if(C.drift>.3)grip=lerp(grip,3.3,C.drift*.8);
-    if(nitroOn)grip*=.8;
-    s-=s*Math.min(1,grip*dt);
-    const rate=(af<4?af/4:1)*Math.min(2.1,27/Math.max(af,1))*(hand?1.5:1)*(C.drift>.2?1.15:1);
-    const tgt=steer*rate*(f<-1?-1:1),ac=1-Math.exp(-dt*(hand?9:11));
+    /* the most sideways acceleration the tyres give: a little aero grip at speed, much less on grass */
+    const A=(HND.aBase+HND.aAero*af*af)*surf;
+    /* steering target: yaw rate limited by that budget, so at speed full lock just gives you the tightest line (understeer), not a slide */
+    const omN=steer*Math.min(HND.omLow*Math.min(1,af/6),A/Math.max(af,4))*(f<-1?-1:1);
+    /* drift assist: the stick chooses the slide angle, the assist holds it and straightens the car the moment you let go */
+    beta=Math.atan2(s,Math.max(af,3));
+    const bt=-steer*lerp(HND.betaMax,HND.betaMin,sp),omD=clamp(HND.kBeta*(beta-bt),-HND.omDrift,HND.omDrift);
+    /* lateral friction: strong normally, weak in a drift; always limited, so a hit or a hard turn cannot snap the car around */
+    let kg=HND.grip*surf;if(brk>0&&af>20&&Math.abs(steer)>.5)kg=Math.min(kg,HND.gripBrake);
+    kg=lerp(kg,HND.gripDrift,dr);const fr=lerp(1.3*A,HND.driftFric*(.6+.4*surf),dr);
+    let ds=Math.min(Math.abs(s)*kg,fr)*dt;if(ds>Math.abs(s))ds=Math.abs(s);s-=Math.sign(s)*ds;
+    /* sliding costs a little speed; so does cornering at the limit */
+    if(dr>.05)f-=Math.sign(f)*.5*HND.driftFric*Math.abs(Math.sin(beta))*dr*dt;
+    const ratio=Math.min(1.2,Math.abs(C.wyaw)*af/Math.max(A,1));f-=Math.sign(f)*HND.scrub*A*ratio*ratio*dt;
+    let wt=lerp(omN,omD,dr);
     /* steering assist: with the thumb off the stick the car quietly follows the road (fades out as you steer) */
-    let assist=0;if(IN.assist&&C.onRoad&&!hand&&af>12&&C.drift<.25&&f>0&&roadAt(C.x,C.z,C.y)){const ang=Math.atan2(RQ.tx,-RQ.tz);let d=angd(ang,C.yaw);if(Math.abs(d)<.9)assist=d*1.5*Math.min(1,af/35)*(1-Math.min(1,Math.abs(steer)/.22))}
-    C.wyaw+=(tgt+assist-C.wyaw)*ac;
+    if(IN.assist&&C.onRoad&&dr<.2&&af>12&&f>0&&roadAt(C.x,C.z,C.y)){const ang=Math.atan2(RQ.tx,-RQ.tz),dd=angd(ang,C.yaw);if(Math.abs(dd)<.9){/* follow the road's direction, and lean back towards the middle when you drift towards an edge */
+      const edge=clamp((Math.abs(RQ.lat)-.55*RQ.hw)/(.45*RQ.hw),0,1),want=dd-Math.sign(RQ.lat)*edge*.2;
+      wt+=want*1.6*Math.min(1,af/35)*(1-Math.min(1,Math.abs(steer)/.22))}}
+    {const lim=lerp(A/Math.max(af,4),HND.omDrift,dr);wt=wt>lim?lim:wt<-lim?-lim:wt}   /* nothing (assist included) may ask for more than the tyres have */
+    C.wyaw+=(wt-C.wyaw)*(1-Math.exp(-dt*lerp(HND.respond,HND.respondDrift,dr)));
   }else{C.wyaw*=Math.max(0,1-dt*.6)}
   /* back to world velocity with the OLD heading: the car turns, the velocity does not, so the difference becomes slip */
   C.vx=fx*f+rx*s;C.vz=fz*f+rz*s;
   C.yaw+=C.wyaw*dt;
-  /* ---- drift bookkeeping ---- */
+  /* ---- drift bookkeeping (nitro and score only while really sliding) ---- */
   const slipA=af>8?Math.abs(s)/Math.max(af,8):0;C.slip=slipA;
-  const drifting=gr&&af>14&&(slipA>.17||(IN.hand&&Math.abs(C.wyaw)>.35));
-  C.drift+=((drifting?1:0)-C.drift)*Math.min(1,dt*(drifting?8:3));
+  const drifting=gr&&af>10&&dr>.4&&slipA>.14;
   if(drifting){C.nos=Math.min(1,C.nos+dt*.2*Math.min(1,slipA*2.2+.3));C.driftTime+=dt;C.driftScore+=dt*af*slipA*2}else if(C.driftTime>0){C.driftTime=Math.max(0,C.driftTime-dt*4)}
   C.nos=Math.min(1,C.nos+dt*.012);
   /* ---- move ---- */
@@ -686,11 +703,12 @@ function carStep(dt){
   if(roadAt(C.x,C.z,C.y)&&RQ.rail){const lim=RQ.hw+.55,a=RQ.lat;if((a>lim&&(RQ.rail&2))||(a<-lim&&(RQ.rail&1))){const out=Math.abs(a)-lim,sg=a>0?1:-1;C.x-=RQ.nx*sg*out;C.z-=RQ.nz*sg*out;const vn=C.vx*RQ.nx*sg+C.vz*RQ.nz*sg;if(vn>0){C.vx-=RQ.nx*sg*vn*1.25;C.vz-=RQ.nz*sg*vn*1.25;const sc=1-Math.min(.25,vn*.012);C.vx*=sc;C.vz*=sc;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.03)}}}
   /* ---- solid things: buildings, poles, trees ---- */
   collide(fx,fz);
+  C.ax+=(((f-f0)/dt)-C.ax)*Math.min(1,dt*6);
   /* ---- visual attitude ---- */
   const ta=gr?14:1.6,kk=1-Math.exp(-dt*ta);
-  C.pitch+=((gr?tp:Math.atan2(C.vy,Math.max(8,af))*.8)-C.pitch)*kk;C.roll+=((gr?tr:0)-C.roll)*kk;
+  C.pitch+=((gr?tp+clamp(C.ax*.0028,-.07,.05):Math.atan2(C.vy,Math.max(8,af))*.8)-C.pitch)*kk;C.roll+=((gr?tr+clamp(C.wyaw*f*.0042,-.09,.09):0)-C.roll)*kk;
   /* body roll in corners and squat/dive */
-  if(gr){C.roll+=(-C.wyaw*af*.0035-C.roll)*0+0;C.bob*=Math.max(0,1-dt*8)}
+  if(gr)C.bob*=Math.max(0,1-dt*8);
   C.spin+=f*dt/.34;C.steerVis+=((-steer*.5*(1-sp*.55))-C.steerVis)*Math.min(1,dt*14);
   C.speed=Math.hypot(C.vx,C.vz);C.fwd=f;C.lat=s;C.kmh=C.speed*3.6;C.braking=brk>0&&f>1.5?1:0;C.t+=dt;C.distance+=C.speed*dt;C.shake*=Math.max(0,1-dt*5);C.flash*=Math.max(0,1-dt*3);C.hit*=Math.max(0,1-dt*6);
   /* last safe spot (on a road, moving, dry) for respawns */
@@ -714,7 +732,7 @@ const CAM={x:0,y:0,z:0,tx:0,ty:0,tz:0,fov:1.08};
 function camStep(dt,snap){
   const sp=Math.min(1,C.speed/70),tgtYaw=C.speed>6?Math.atan2(C.vx,-C.vz):C.yaw;
   /* look a little towards where the car points and a little towards where it is going, so drifts are visible */
-  const want=C.yaw+angd(tgtYaw,C.yaw)*(.45+.25*Math.min(1,C.drift*1.2));
+  const want=C.yaw+angd(tgtYaw,C.yaw)*(.12+.5*Math.min(1,C.drift*1.2));
   C.camYaw+=angd(want,C.camYaw)*(snap?1:1-Math.exp(-dt*(3.2+sp*2.5)));
   const dist=5.7+sp*1.9+(C.boosting?1.1:0),h=1.95+sp*.55;
   const cyw=C.camYaw,x=C.x-Math.sin(cyw)*dist,z=C.z+Math.cos(cyw)*dist;let y=C.y+h;
@@ -729,7 +747,7 @@ const SKID=[],SKMAX=240;let skidHead=0;const SMOKE=[];for(let i=0;i<64;i++)SMOKE
 const lastSk=[[0,0,0,0],[0,0,0,0]];let skCool=0;
 function fxUpdate(dt){
   /* tyre smoke + skid marks from the rear wheels while sliding */
-  const act=C.grounded&&C.drift>.35&&C.speed>10,sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
+  const act=C.grounded&&C.drift>.35&&C.slip>.1&&C.speed>10,sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
   for(let w=0;w<2;w++){const sd=w?1:-1,px=C.x-sy*1.3+cy*sd*.8,pz=C.z+cy*1.3+sy*sd*.8;
     if(act){const L=lastSk[w];if(L[3]){const q=SKID[skidHead%SKMAX]=SKID[skidHead%SKMAX]||new Float32Array(8);q[0]=L[0];q[1]=L[1];q[2]=px;q[3]=pz;q[4]=C.y;q[5]=C.t;q[6]=Math.min(1,C.drift);skidHead++}L[0]=px;L[1]=pz;L[3]=1}else lastSk[w][3]=0}
   if(act||C.boosting){skCool-=dt;while(skCool<=0){skCool+=.035;const s=SMOKE[smokeHead++%64],sd=Math.random()<.5?-1:1;s.x=C.x-sy*1.4+cy*sd*.8;s.z=C.z+cy*1.4+sy*sd*.8;s.y=C.y+.25;s.vx=C.vx*.25+(Math.random()-.5)*1.5;s.vz=C.vz*.25+(Math.random()-.5)*1.5;s.vy=1+Math.random()*1.2;s.age=0;s.life=.9+Math.random()*.6;s.sz=.9;s.a=act?.5:.3;s.fire=!act}}
@@ -769,7 +787,7 @@ function uiInit(){
   const down=(id,x,y)=>{
     if(UI.paused){UI.paused=false;UI.touches.set(id,{type:'none'});return}
     if(UI.mapOpen){UI.mapOpen=false;UI.touches.set(id,{type:'none'});return}
-    for(const b of UI.btn){const hit=b.circle?Math.hypot(x-b.cx,y-b.cy)<=b.circle:(x>=b.x-4&&x<=b.x+b.w+4&&y>=b.y-4&&y<=b.y+b.h+4);if(hit){UI.touches.set(id,{type:'btn',b});b.on=1;b.act&&b.act(1);return}}
+    for(const b of UI.btn){const hit=b.circle?Math.hypot(x-b.cx,y-b.cy)<=b.circle:(x>=b.x-8&&x<=b.x+b.w+8&&y>=b.y-8&&y<=b.y+b.h+8);if(hit){UI.touches.set(id,{type:'btn',b});b.on=1;b.act&&b.act(1);return}}
     if(x<UI.w*.55){const t={type:'stick',x0:x,y0:y,x:x,y:y};UI.touches.set(id,t);UI.stickT=t;return}
     UI.touches.set(id,{type:'none'})};
   const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&t.type=='stick'){t.x=x;t.y=y}};
@@ -789,19 +807,19 @@ function uiLayout(){
   const b=UI.btn;b.length=0;const w=UI.w,h=UI.h,u=Math.min(w,h*1.5)/10,m=u*.35;
   const add=(id,label,x,y,rw,rh,act,col,extra)=>{const o={id,label,x,y,w:rw,h:rh,act,on:0,col};if(extra)Object.assign(o,extra);b.push(o);return o};
   /* the minimap lives top-left; tapping it opens the world map */
-  const mr=Math.min(w,h)*.17;UI.mm={cx:m+mr,cy:m+mr,r:mr};
-  add('map','MAP',UI.mm.cx-mr,UI.mm.cy-mr,mr*2,mr*2,v=>{if(v)UI.mapOpen=true},'#ffffff',{circle:mr,cx:UI.mm.cx,cy:UI.mm.cy});
+  const mr=Math.min(w,h)*.105;UI.mm={cx:m+mr,cy:m+mr,r:mr};
+  add('map','MAP',UI.mm.cx-mr,UI.mm.cy-mr,mr*2,mr*2,v=>{if(v)UI.mapOpen=true},'#ffffff',{circle:mr+10,cx:UI.mm.cx,cy:UI.mm.cy});
   /* pedals: gas (tall, far right), brake to its left; drift sits above the brake, nitro above the gas */
-  const gw=u*1.9,gh=u*3.0,bw=u*1.7,bh=u*2.3,gx=w-m-gw,gy=h-m-gh,bx=gx-u*.35-bw,by=h-m-bh;
+  const gw=u*1.1,gh=u*1.75,bw=u*1.0,bh=u*1.35,gx=w-m-gw,gy=h-m-gh,bx=gx-u*.22-bw,by=h-m-bh;
   add('gas','GAS',gx,gy,gw,gh,v=>{},'#34d27b',{pedal:1});
   add('brake','BRAKE',bx,by,bw,bh,v=>{IN.brk=v},'#ff3b3b',{pedal:1});
-  add('drift','DRIFT',bx,by-u*.3-u*1.3,bw,u*1.3,v=>{IN.hand=v},'#2aa8ff');
-  add('nitro','NITRO',gx,gy-u*.3-u*1.5,gw,u*1.5,v=>{IN.nitro=v},'#ff7a1a');
+  add('drift','DRIFT',bx,by-u*.2-u*.8,bw,u*.8,v=>{IN.hand=v},'#2aa8ff');
+  add('nitro','NITRO',gx,gy-u*.2-u*.9,gw,u*.9,v=>{IN.nitro=v},'#ff7a1a');
   /* small buttons along the top right */
-  const rx=w-m-u*1.3;add('reset','RESET',rx,m,u*1.3,u*.7,v=>{if(v)IN.respawn=1},'#8a94a6');
-  const ax=rx-u*.2-u*1.6;add('auto','AUTO',ax,m,u*1.6,u*.7,v=>{if(v)IN.auto=!IN.auto},'#8a94a6');
-  const px=ax-u*.2-u*.8;add('pause','II',px,m,u*.8,u*.7,v=>{if(v)UI.paused=true},'#8a94a6');
-  add('stat','FPS',px-u*.2-u*1,m,u*1,u*.7,v=>{if(v)UI.showStats=!UI.showStats},'#8a94a6');
+  const rx=w-m-u*1.05;add('reset','RESET',rx,m,u*1.05,u*.55,v=>{if(v)IN.respawn=1},'#8a94a6');
+  const ax=rx-u*.15-u*1.4;add('auto','AUTO',ax,m,u*1.4,u*.55,v=>{if(v)IN.auto=!IN.auto},'#8a94a6');
+  const px=ax-u*.15-u*.65;add('pause','II',px,m,u*.65,u*.55,v=>{if(v)UI.paused=true},'#8a94a6');
+  add('stat','FPS',px-u*.15-u*.8,m,u*.8,u*.55,v=>{if(v)UI.showStats=!UI.showStats},'#8a94a6');
   UI.bn={};b.forEach(x=>UI.bn[x.id]=x);
   UI.btnU=u}
 function uiResize(){
@@ -856,23 +874,23 @@ function hudDraw(){
   c.textBaseline='alphabetic';c.font='700 12px -apple-system,Roboto,sans-serif';
   /* speed */
   const kmh=Math.round(C.kmh),bx=u*.45,by=H_-u*.45;
-  c.save();c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=6;c.fillStyle='#fff';c.font='800 '+Math.round(u*1.35)+'px -apple-system,Roboto,sans-serif';c.textAlign='left';c.fillText(String(kmh),bx,by);
-  const tw=c.measureText(String(kmh)).width;c.font='700 '+Math.round(u*.42)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.8)';c.fillText('km/h',bx+tw+6,by);c.restore();
+  c.save();c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=6;c.fillStyle='#fff';c.font='800 '+Math.round(u*1.05)+'px -apple-system,Roboto,sans-serif';c.textAlign='left';c.fillText(String(kmh),bx,by);
+  const tw=c.measureText(String(kmh)).width;c.font='700 '+Math.round(u*.34)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.8)';c.fillText('km/h',bx+tw+6,by);c.restore();
   /* nitro bar */
-  const nw=u*4.2,nh=u*.2,nx=bx,ny=by-u*1.75;c.fillStyle='rgba(0,0,0,.45)';c.fillRect(nx-2,ny-2,nw+4,nh+4);c.fillStyle=C.boosting?'#ffffff':'#ff9a1f';c.fillRect(nx,ny,nw*C.nos,nh);
+  const nw=u*3.2,nh=u*.17,nx=bx,ny=by-u*1.4;c.fillStyle='rgba(0,0,0,.45)';c.fillRect(nx-2,ny-2,nw+4,nh+4);c.fillStyle=C.boosting?'#ffffff':'#ff9a1f';c.fillRect(nx,ny,nw*C.nos,nh);
   c.textAlign='left';c.fillStyle='rgba(255,255,255,.75)';c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillText('NITRO',nx,ny-5);
   /* drift score */
   if(C.driftTime>.25){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#7fd4ff';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=5;c.fillText('DRIFT  '+Math.round(C.driftScore),W_*.5,u*1.5);c.restore()}
   /* minimap */
-  const mm=UI.mm;drawMap(c,mm.cx,mm.cy,mm.r,420,-C.yaw);c.save();c.textAlign='center';c.font='800 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.85)';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText('TAP FOR MAP',mm.cx,mm.cy+mm.r+u*.34);c.restore();
+  const mm=UI.mm;drawMap(c,mm.cx,mm.cy,mm.r,420,-C.yaw);c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.85)';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText('MAP',mm.cx,mm.cy+mm.r+u*.3);c.restore();
   /* location banner */
   if(C.t-UI.locT>1.5){const n=regionName();if(n!==UI.locName){UI.locName=n;UI.locT=C.t}}
   if(UI.locName&&C.t-UI.locT<3.5){const a=Math.min(1,(3.5-(C.t-UI.locT)),(C.t-UI.locT)*3);c.save();c.globalAlpha=a;c.textAlign='center';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#fff';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=6;c.fillText(UI.locName.toUpperCase(),W_*.5,H_*.2);c.restore()}
   /* buttons and pedals */
-  for(const b of UI.btn){if(b.id=='map')continue;const on=b.on||(b.id=='auto'&&IN.auto)||(b.id=='stat'&&UI.showStats);c.globalAlpha=on?.95:.64;c.fillStyle=on?b.col:'rgba(20,24,32,.58)';c.strokeStyle=b.col;c.lineWidth=2.5;const r=Math.min(b.w,b.h)*(b.pedal?.2:.28);rr(c,b.x,b.y,b.w,b.h,r);c.fill();c.stroke();
-    if(b.pedal){c.strokeStyle=on?'rgba(0,0,0,.35)':'rgba(255,255,255,.2)';c.lineWidth=Math.max(2,u*.06);for(let i=0;i<5;i++){const yy=b.y+b.h*(.4+.11*i);c.beginPath();c.moveTo(b.x+b.w*.2,yy);c.lineTo(b.x+b.w*.8,yy);c.stroke()}}
-    c.globalAlpha=1;c.fillStyle=on?'#111':'#fff';c.textAlign='center';c.font='800 '+Math.round(b.pedal?u*.5:Math.min(b.h*.34,u*.5))+'px -apple-system,Roboto,sans-serif';
-    c.fillText(b.label+(b.id=='auto'?(IN.auto?' ON':' OFF'):''),b.x+b.w/2,b.pedal?b.y+u*.7:b.y+b.h/2+b.h*.12)}
+  for(const b of UI.btn){if(b.id=='map')continue;const on=b.on||(b.id=='auto'&&IN.auto)||(b.id=='stat'&&UI.showStats);c.globalAlpha=on?.95:.64;c.fillStyle=on?b.col:'rgba(20,24,32,.58)';c.strokeStyle=b.col;c.lineWidth=2;const r=Math.min(b.w,b.h)*(b.pedal?.22:.28);rr(c,b.x,b.y,b.w,b.h,r);c.fill();c.stroke();
+    if(b.pedal){c.strokeStyle=on?'rgba(0,0,0,.35)':'rgba(255,255,255,.2)';c.lineWidth=Math.max(1.5,u*.035);for(let i=0;i<4;i++){const yy=b.y+b.h*(.52+.1*i);c.beginPath();c.moveTo(b.x+b.w*.2,yy);c.lineTo(b.x+b.w*.8,yy);c.stroke()}}
+    c.globalAlpha=1;c.fillStyle=on?'#111':'#fff';c.textAlign='center';c.font='800 '+Math.round(b.pedal?u*.27:Math.min(b.h*.42,u*.3))+'px -apple-system,Roboto,sans-serif';
+    c.fillText(b.label+(b.id=='auto'?(IN.auto?' ON':' OFF'):''),b.x+b.w/2,b.pedal?b.y+u*.42:b.y+b.h/2+b.h*.15)}
   /* the thumb-stick ring where the left thumb is */
   {const t=UI.stickT;if(t){c.globalAlpha=.5;c.strokeStyle='#fff';c.lineWidth=3;c.beginPath();c.arc(t.x0,t.y0,Math.max(46,UI.w*.075),0,TAU);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(clamp(t.x,t.x0-Math.max(46,UI.w*.075),t.x0+Math.max(46,UI.w*.075)),t.y0,18,0,TAU);c.fill();c.globalAlpha=1}}
   /* stats */
