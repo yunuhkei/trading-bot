@@ -3,9 +3,15 @@
 A free-roam arcade racer in **one self-contained HTML file** (`Racer_Prototype.html`, no libraries, no network).
 It is built from the modules in `racer/src` by `python3 racer/build.py` (the output is committed so you can just open it).
 
-* **Map**: one fixed county (about 6 km square): downtown grid, a 10 km highway ring, a mountain pass with switchbacks,
-  a coast road, a long southern straight, an east link, two overpasses, sea on the west. Roads are authored in plan view only
-  (`src/20_map.js`); heights follow the land and the land is carved around the roads. Everything is deterministic.
+* **Map**: one fixed county (about 6 km square), roads authored in plan view only (`src/20_map.js`), heights follow the land and the land is carved around the roads:
+  a ~10 km highway ring with sweeping bends (and a long straight), a mountain pass with switchbacks, a twisty coast road (Highway 1 style) with an overpass,
+  a long straight on the southern plains, an east link, and the county's districts, inspired by San Francisco and California:
+  **Downtown** = two street grids (one axis-aligned, one rotated to follow the diagonal **Market Street**, like SF), a tower district with a pyramid tower,
+  Victorian row houses on **Nob Hill / Russian Hill** (grades over 20 percent) with a hairpin **Lombard Street** block, **Twin Peaks** with a winding road,
+  **Golden Gate Park** (a long green strip with a lake and a park drive); **the Valley** = LA style wide palm-lined boulevards with strip malls, parking lots and stucco houses;
+  **Mulholland** = a very twisty ridge road in the hills. Roads that cross do so on real overpasses (found and built automatically, `fixCrossings`).
+  Collision: guardrails on all divided highways (except junctions), on cliffs and bridges; buildings (also the rotated ones), poles, trees and bridge piers are solid
+  (with height ranges, so the deck of a bridge is not blocked by what is under it); steep banks are walls. Everything is deterministic.
 * **Rendering**: terrain is a GPU clip-map (6 rings, one draw each) displaced from a 16-bit height texture; roads are ribbons with analytic
   lane markings; buildings/trees/barriers are merged per 128 m cell and culled by distance + frustum; sky, fog and water are shaders.
   About 40-110 draw calls and 60-90k triangles per frame. No shadows or reflections. A render-scale governor keeps frame time near 16 ms.

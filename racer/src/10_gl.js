@@ -58,12 +58,12 @@ const SH={
   /* edge lines (solid white) */
   'wh+=ln(ax,hw-.55,.11,aa);'+
   /* lane dashes between lanes (white), centre double line (yellow) or median */
-  'if(style<.5){ye+=ln(ax,.2,.07,aa);ye+=ln(ax,0.,.0,aa)*0.;ye=min(ye,1.);if(lanes>1.){for(int i=1;i<4;i++){if(float(i)<lanes){float d=fract(v/12.);float on=step(d,.28);wh+=ln(ax,float(i)*lw+.0,.07,aa)*on;}}}'+
-  '}else if(style<1.5){/*divided highway: median strip + dashed lanes*/float md=1.-smoothstep(.95,1.1,ax);asph=mix(asph,vec3(.28,.27,.25),md);ye+=ln(ax,1.35,.08,aa);'+
+  'if(style<.5||(style>2.5&&style<3.5)){ye+=ln(ax,.2,.07,aa);ye+=ln(ax,0.,.0,aa)*0.;ye=min(ye,1.);if(lanes>1.){for(int i=1;i<4;i++){if(float(i)<lanes){float d=fract(v/12.);float on=step(d,.28);wh+=ln(ax,float(i)*lw+.0,.07,aa)*on;}}}'+
+  '}else if(style<1.5||style>3.5){/*divided highway: median strip + dashed lanes*/float md=1.-smoothstep(.95,1.1,ax);asph=mix(asph,vec3(.28,.27,.25),md);ye+=ln(ax,1.35,.08,aa);'+
    'for(int i=1;i<5;i++){if(float(i)<lanes+.5){float d=fract(v/12.);float on=step(d,.26);wh+=ln(ax,1.3+float(i)*lw,.07,aa)*on;}}}'+
   'else{/*no markings (junction patch)*/}'+
   'float fade=clamp(fl*0.+1.,0.,1.);wh*=step(.5,fade);'+
-  'float shd=smoothstep(hw-.1,hw+.35,ax);/* shoulder: gravel */asph=mix(asph,vec3(.30,.27,.22)*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
+  'float shd=smoothstep(hw-.1,hw+.35,ax);/* shoulder: gravel */asph=mix(asph,(style>2.5&&style<4.5?vec3(.46,.45,.43):vec3(.30,.27,.22))*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
   'vec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;'+
   'vec3 n=vec3(0.,1.,0.);vec3 V=normalize(uCam-vW);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,1.)+uSunC*nl;vec3 col=alb*irr;'+
   'vec3 R=reflect(-V,n);float sp=pow(max(dot(R,uSun),0.),30.)*(1.-shd)*(1.-wh*.6);col+=uSunC*sp*.18+skyc(R)*(.02+.1*pow(1.-max(V.y,0.),4.))*(1.-shd);'+
