@@ -57,7 +57,8 @@ WINDOW, WINDOW_LABEL = (11 * 60, 15 * 60 + 40), "11a-3:40p"
 # the super bot turns a strategy on for an hour when, in that same hour on EARLIER days (never today), it has
 # 2+ days of trades, 20+ trades in all, a profit overall, and a profit on more than half of those days
 SUPER_DAYS, SUPER_TRADES, KEEP_DAYS = 2, 20, 35
-SUPER = ("timing", "timing_5k")
+SUPER = ("timing", "timing_100")
+SUPER_TOP = 3                  # with this many versions, copy only the best 3 for an hour (luck makes some look good)
 
 
 def in_window(t: float) -> bool:
@@ -69,27 +70,63 @@ def slot_hours(s: int, e: int) -> list[int]:
     return list(range(s, e)) if s < e else list(range(s, 24)) + list(range(0, e))
 
 STRATEGIES = {
-    "snipe": {"label": "Snipe every new coin", "tp": 1.0, "sl": 0.35, "max_s": 90},
-    "snipe_quick": {"label": "Snipe, quick flip", "tp": 0.25, "sl": 0.15, "max_s": 20},
-    "momentum_60s": {"label": "First-minute momentum", "tp": 0.6, "sl": 0.25, "max_s": 300},
-    "volume_spike": {"label": "Volume spike", "tp": 0.4, "sl": 0.2, "max_s": 180, "spike": 4},
+    "snipe": {"label": "Snipe every new coin", "family": "new_coin", "tp": 1.0, "sl": 0.35, "max_s": 90},
+    "snipe_quick": {"label": "Snipe, quick flip", "family": "new_coin", "tp": 0.25, "sl": 0.15, "max_s": 20},
+    "momentum_60s": {"label": "First-minute momentum", "family": "momentum", "tp": 0.6, "sl": 0.25, "max_s": 300},
+    "volume_spike": {"label": "Volume spike", "family": "spike", "tp": 0.4, "sl": 0.2, "max_s": 180, "spike": 4},
     # versions of the volume spike with other settings: if they ALL make money, the edge is real, not one lucky setting
-    "volume_spike_3": {"label": "Volume spike, 3 SOL trigger", "tp": 0.4, "sl": 0.2, "max_s": 180, "spike": 3},
-    "volume_spike_5": {"label": "Volume spike, 5 SOL trigger", "tp": 0.4, "sl": 0.2, "max_s": 180, "spike": 5},
-    "volume_spike_tp30": {"label": "Volume spike, quick (+30%/-15%)", "tp": 0.3, "sl": 0.15, "max_s": 120, "spike": 4},
-    "volume_spike_tp60": {"label": "Volume spike, let it run (+60%/-25%)", "tp": 0.6, "sl": 0.25, "max_s": 300,
-                          "spike": 4},
-    "dip_bounce": {"label": "Second-chart dip bounce", "sl": 0.15, "max_s": 120, "exit": "vwap"},
-    "breakout": {"label": "Breakout to new highs", "trail": 0.2, "max_s": 600},
-    "graduation_run": {"label": "Graduation run (70% full curve)", "sl": 0.2, "max_s": 900},
-    "whale_follow": {"label": "Follow a 5+ SOL buy", "tp": 0.5, "sl": 0.25, "max_s": 180},
-    "random": {"label": "Random coins (luck baseline)", "tp": 0.5, "sl": 0.25, "max_s": 180},
+    "volume_spike_3": {"label": "Volume spike, 3 SOL trigger", "family": "spike", "tp": 0.4, "sl": 0.2, "max_s": 180,
+                       "spike": 3},
+    "volume_spike_5": {"label": "Volume spike, 5 SOL trigger", "family": "spike", "tp": 0.4, "sl": 0.2, "max_s": 180,
+                       "spike": 5},
+    "volume_spike_tp30": {"label": "Volume spike, quick (+30%/-15%)", "family": "spike", "tp": 0.3, "sl": 0.15,
+                          "max_s": 120, "spike": 4},
+    "volume_spike_tp60": {"label": "Volume spike, let it run (+60%/-25%)", "family": "spike", "tp": 0.6, "sl": 0.25,
+                          "max_s": 300, "spike": 4},
+    "dip_bounce": {"label": "Second-chart dip bounce", "family": "dip", "sl": 0.15, "max_s": 120, "exit": "vwap"},
+    "breakout": {"label": "Breakout to new highs", "family": "breakout", "trail": 0.2, "max_s": 600},
+    "graduation_run": {"label": "Graduation run (70% full curve)", "family": "graduation", "grad": 0.7, "sl": 0.2,
+                       "max_s": 900},
+    "whale_follow": {"label": "Follow a 5+ SOL buy", "family": "whale", "min_sol": 5, "tp": 0.5, "sl": 0.25,
+                     "max_s": 180},
+    "random": {"label": "Random coins (luck baseline)", "family": "random", "tp": 0.5, "sl": 0.25, "max_s": 180},
     # copies a strategy's buys only in the hours that strategy made money in on earlier days (see timing_on)
     "timing": {"label": "Super bot (each strategy only at its best hours)", "max_s": 900},
-    # the same picks at the size the owner would really trade, so a month of practice shows what $1,000 buys do
-    "timing_5k": {"label": "Super bot, your plan ($5,000, $1,000 trades)", "max_s": 900, "cash": 5000.0,
-                  "per_trade": 1000.0},
+    # the same picks at the size the owner will really start with
+    "timing_100": {"label": "Super bot, your plan ($100, $25 trades)", "max_s": 900, "cash": 100.0, "per_trade": 25.0},
 }
+
+# more versions for the super bot to choose from: the same buy signals with other ways out. They're ghost-only (no
+# pretend account of their own, just a record), so the report stays short.
+EXITS = {
+    "quick": ({"tp": 0.15, "sl": 0.10, "max_s": 60}, "quick flip +15%/-10%"),
+    "flip": ({"tp": 0.25, "sl": 0.15, "max_s": 120}, "flip +25%/-15%"),
+    "base": ({"tp": 0.40, "sl": 0.20, "max_s": 180}, "+40%/-20%"),
+    "ride": ({"tp": 1.0, "sl": 0.30, "max_s": 600}, "let it ride +100%/-30%"),
+    "hold": ({"sl": 0.20, "max_s": 900}, "hold up to 15 min, -20% stop"),
+    "trail": ({"trail": 0.15, "max_s": 600}, "15% trailing stop"),
+    "trail_wide": ({"trail": 0.30, "max_s": 1200}, "30% trailing stop"),
+}
+VERSIONS = [  # (key prefix, family, settings, name, ways out)
+    ("sn", "new_coin", {}, "Snipe new coins", ["quick", "base", "trail", "trail_wide"]),
+    ("mo", "momentum", {}, "First-minute momentum", ["quick", "flip", "base", "trail"]),
+    ("vs4", "spike", {"spike": 4}, "Volume spike", ["quick", "ride", "trail", "trail_wide"]),
+    ("vs3", "spike", {"spike": 3}, "Volume spike 3 SOL", ["quick", "flip", "trail"]),
+    ("vs5", "spike", {"spike": 5}, "Volume spike 5 SOL", ["quick", "flip", "trail"]),
+    ("vs8", "spike", {"spike": 8}, "Volume spike 8 SOL", ["quick", "base", "trail"]),
+    ("dip", "dip", {}, "Dip bounce", ["quick", "flip", "base"]),
+    ("bo", "breakout", {}, "Breakout", ["quick", "flip", "base"]),
+    ("gr70", "graduation", {"grad": 0.7}, "Graduation run 70%", ["quick", "base", "trail"]),
+    ("gr50", "graduation", {"grad": 0.5}, "Graduation run 50%", ["hold", "base", "trail"]),
+    ("gr85", "graduation", {"grad": 0.85}, "Graduation run 85%", ["hold", "base", "trail"]),
+    ("wh5", "whale", {"min_sol": 5}, "Follow a 5+ SOL buy", ["quick", "flip", "trail"]),
+    ("wh2", "whale", {"min_sol": 2}, "Follow a 2+ SOL buy", ["quick", "base", "trail"]),
+    ("wh10", "whale", {"min_sol": 10}, "Follow a 10+ SOL buy", ["quick", "base", "trail"]),
+]
+for _pre, _fam, _set, _name, _outs in VERSIONS:
+    for _out in _outs:
+        _rules, _how = EXITS[_out]
+        STRATEGIES[f"{_pre}_{_out}"] = {"label": f"{_name}, {_how}", "family": _fam, **_set, **_rules, "ghost_only": True}
 
 
 # ---- decoding pump.fun events ----
@@ -277,7 +314,12 @@ class Lab:
         self.coins: dict[str, Coin] = {}
         self.names: dict[str, str] = {}
         self.sol_usd, self.lb, self.ls = sol_usd, latency_buy, latency_sell
-        self.accts = {k: Account(k, (state.get("accounts") or {}).get(k)) for k in STRATEGIES}
+        self.accts = {k: Account(k, (state.get("accounts") or {}).get(k))
+                      for k, r in STRATEGIES.items() if not r.get("ghost_only")}
+        self.family: dict[str, list[str]] = {}
+        for k, r in STRATEGIES.items():
+            if r.get("family"):
+                self.family.setdefault(r["family"], []).append(k)
         # a ghost of every strategy: the same buys and sells, but it never runs out of money, so its records keep
         # counting after the real account busts (busted accounts stay dead). The super bot judges strategies on these.
         saved = state.get("shadow") or {}
@@ -310,7 +352,7 @@ class Lab:
                 if (len(rows) >= SUPER_DAYS and sum(r[0] for r in rows) >= SUPER_TRADES and sum(r[2] for r in rows) > 0
                         and 2 * sum(r[2] > 0 for r in rows) > len(rows)):
                     on.append((sum(r[2] for r in rows) / sum(r[0] for r in rows), k))
-            self._timing = ((day, h), [k for _, k in sorted(on, reverse=True)])
+            self._timing = ((day, h), [k for _, k in sorted(on, reverse=True)[:SUPER_TOP]])
         return self._timing[1]
 
     def books(self) -> list[Account]:
@@ -318,13 +360,20 @@ class Lab:
 
     def order(self, key: str, mint: str, now: float, side: str, why: str = ""):
         if side != "buy":
-            return self._sell(self.accts[key], mint, now, why)
+            return self._sell(self.accts[key], mint, now, why) if key in self.accts else None
         if key not in SUPER:
             if key in self.timing_on(now):
                 for sk in SUPER:
                     self._buy(self.accts[sk], mint, now, f"{STRATEGIES[key]['label']}: {why}", via=key)
             self._buy(self.ghosts[key], mint, now, why)
-        self._buy(self.accts[key], mint, now, why)
+        if key in self.accts:
+            self._buy(self.accts[key], mint, now, why)
+
+    def signal(self, family: str, mint: str, now: float, why: str, keep=lambda rules: True):
+        """A buy signal goes to every strategy of that family (whose settings `keep` accepts)."""
+        for key in self.family.get(family, ()):
+            if keep(STRATEGIES[key]):
+                self.order(key, mint, now, "buy", why)
 
     def _buy(self, a: Account, mint: str, now: float, why: str, via: str | None = None):
         if a.ghost and a.cash < a.per_trade:
@@ -371,6 +420,8 @@ class Lab:
         a.pnl += profit
         a.best, a.worst = max(a.best, profit), min(a.worst, profit)
         a.tally(p["t"], profit)
+        if len(a.trades) > 2000:
+            del a.trades[:-1000]
         a.trades.append({"t": round(p["t"]), "s": round(now - p["t"], 1), "name": p["name"], "mint": coin.mint,
                          "profit": round(profit, 2), "why_in": p["why"], "why_out": why, "lag": p["lag"]})
 
@@ -378,19 +429,19 @@ class Lab:
     def on_trade(self, now: float, coin: Coin, t: dict):
         age, px = coin.age(now), coin.price
         if coin.fresh and coin.n_buys + coin.n_sells == 1:
-            self.order("snipe", coin.mint, now, "buy", "new coin")
-            self.order("snipe_quick", coin.mint, now, "buy", "new coin")
+            self.signal("new_coin", coin.mint, now, "new coin")
             if self.rng.random() < 0.05:
                 self.random_plan[coin.mint] = now + self.rng.uniform(5, 600)
         if coin.fresh and 60 <= age <= 75 and "m60" not in coin.flags:
             coin.flags.add("m60")
             sells, buys = coin.n_sells, coin.n_buys
             if coin.birth_price and buys >= 15 and len(coin.buyers) >= 10 and px >= 1.5 * coin.birth_price and sells <= 0.6 * buys:
-                self.order("momentum_60s", coin.mint, now, "buy", f"{buys} buys, {len(coin.buyers)} buyers, x{px / coin.birth_price:.1f}")
+                self.signal("momentum", coin.mint, now, f"{buys} buys, {len(coin.buyers)} buyers, x{px / coin.birth_price:.1f}")
         if age <= 1800:
             last10 = sum(x[2] for x in coin.window(now, 10) if x[3])
             prev = sum(x[2] for x in coin.window(now, 70, 10) if x[3]) / 6
-            for key, rules in STRATEGIES.items():
+            for key in self.family.get("spike", ()):
+                rules = STRATEGIES[key]
                 need = rules.get("spike")
                 if need and last10 >= need and last10 >= 3 * max(prev, 0.3) and \
                         now - coin.__dict__.get(f"vs_{key}", 0) > 120:
@@ -402,18 +453,21 @@ class Lab:
             fell = [x for x in w if now - x[0] <= 20]
             if hi and px <= 0.75 * hi and fell and max(x[1] for x in fell) >= 0.95 * hi and now - coin.__dict__.get("db_t", 0) > 120:
                 coin.db_t = now
-                self.order("dip_bounce", coin.mint, now, "buy", f"down {1 - px / hi:.0%} in 20 s")
+                self.signal("dip", coin.mint, now, f"down {1 - px / hi:.0%} in 20 s")
         if 180 <= age <= 3600:
             prior = [x[1] for x in coin.window(now, 190, 10)]
             vol = sum(x[2] for x in coin.window(now, 10) if x[3])
             if len(prior) >= 20 and px > 1.10 * max(prior) and vol >= 2 and now - coin.__dict__.get("bo_t", 0) > 300:
                 coin.bo_t = now
-                self.order("breakout", coin.mint, now, "buy", "new 3-min high")
-        if coin.real_sol >= 0.7 * GRADUATE_SOL and "grad" not in coin.flags and coin.first_real_sol < 0.6 * GRADUATE_SOL:
-            coin.flags.add("grad")
-            self.order("graduation_run", coin.mint, now, "buy", f"{coin.real_sol:.0f} SOL in the curve")
-        if t["buy"] and t["sol"] >= 5 and age <= 600 and coin.n_buys > 1:
-            self.order("whale_follow", coin.mint, now, "buy", f"a {t['sol']:.1f} SOL buy")
+                self.signal("breakout", coin.mint, now, "new 3-min high")
+        for g in sorted({STRATEGIES[k]["grad"] for k in self.family.get("graduation", ())}):
+            flag = "grad" if g == 0.7 else f"grad{g}"
+            if coin.real_sol >= g * GRADUATE_SOL and flag not in coin.flags and coin.first_real_sol < (g - 0.1) * GRADUATE_SOL:
+                coin.flags.add(flag)
+                self.signal("graduation", coin.mint, now, f"{coin.real_sol:.0f} SOL in the curve",
+                            keep=lambda r, g=g: r["grad"] == g)
+        if t["buy"] and t["sol"] >= 2 and age <= 600 and coin.n_buys > 1:
+            self.signal("whale", coin.mint, now, f"a {t['sol']:.1f} SOL buy", keep=lambda r: t["sol"] >= r["min_sol"])
         if coin.mint in self.random_plan and now >= self.random_plan[coin.mint]:
             self.random_plan.pop(coin.mint)
             self.order("random", coin.mint, now, "buy", "random")
@@ -522,11 +576,11 @@ class Lab:
     def value(self, a: Account) -> float:
         return a.cash + sum(p["cost"] for p in a.positions.values()) + a.per_trade * len(a.pending)
 
-    def board(self, now: float | None = None, hours: float = 1.0) -> str:
+    def board(self, now: float | None = None, hours: float = 1.0, top: int | None = None) -> str:
         """Like the copy bot's reports: per account still trading, the last hour and since it started; the busted
         ones in one line; what the super bot is doing; then every strategy by time of day (its ghost record)."""
         now = now or time.time()
-        lines = ["Pretend $1,000 per strategy, $250 trades ($5,000 and $1,000 trades for your-plan super bot), "
+        lines = ["Pretend $1,000 per strategy, $250 trades ($100 and $25 trades for your-plan super bot), "
                  "1-second charts, real delays and fees:"]
         rows = sorted(self.accts.items(), key=lambda kv: -kv[1].pnl)
         dead = []
@@ -550,7 +604,7 @@ class Lab:
         lines.append(f"• Super bot this hour ({hour}): " + (
             "copying " + ", ".join(STRATEGIES[k]["label"] for k in on) if on else
             f"sitting out (no strategy has made money at {hour} on {SUPER_DAYS}+ earlier days yet)"))
-        tod = self.busy_lines() + self.times_of_day()
+        tod = self.busy_lines() + self.times_of_day(top)
         if tod:
             lines += ["", "By time of day, profit/trades (% won). Busted ones keep counting what they would have made. "
                           f"Milwaukee time: mid 11a-5p, eve 5-11p, night 11p-5a, morn 5-11a; win = your {WINDOW_LABEL} "
@@ -561,13 +615,13 @@ class Lab:
         """The phone's hourly ping in plain words: the super bot, what it's doing this hour, the best spot so far,
         and what trading only at the good times would have made (hindsight)."""
         now = now or time.time()
-        sup, big = self.accts["timing"], self.accts["timing_5k"]
+        sup, big = self.accts["timing"], self.accts["timing_100"]
         if sup.n == 0 and big.n == 0 and not sup.positions and not big.positions:
             lines = ["Super bot: no trades yet. It starts once a strategy wins the same hour on 2 different days."]
         else:
             lines = [f"Super bot: ${sup.start:,.0f} -> ${self.value(sup):,.0f} ({sup.pnl:+,.0f} on {sup.n} trades, "
                      f"{sup.wins / max(sup.n, 1):.0%} won)",
-                     f"Your $5k plan: ${big.start:,.0f} -> ${self.value(big):,.0f} ({big.pnl:+,.0f} on {big.n} trades)"]
+                     f"Your $100 plan: ${big.start:,.0f} -> ${self.value(big):,.2f} ({big.pnl:+,.2f} on {big.n} trades)"]
         recent = [t for k, g in self.ghosts.items() if k != "random" for t in g.trades
                   if now - (t["t"] + t["s"]) <= 3600]
         lines.append(f"Ghosts (every strategy, always running): {len(recent)} trades in the last hour, "
@@ -584,14 +638,19 @@ class Lab:
         if good:
             (n, w, pnl), k, key = max(good, key=lambda c: c[0][2])
             lines.append(f"Best spot so far: {STRATEGIES[k]['label']} {names[key]}, {pnl:+,.0f}")
-            lines.append(f"Good times only (hindsight): {sum(c[0][2] for c in good):+,.0f} on "
-                         f"{sum(c[0][0] for c in good)} trades")
+            # many versions trade the same coins, so adding them all up would count the same trades again and again:
+            # instead, the best single strategy for each time of day
+            best = {}
+            for c in good:
+                best[c[2]] = max(best.get(c[2], 0.0), c[0][2])
+            lines.append(f"Best strategy for each time of day (hindsight): {sum(best.values()):+,.0f}")
         elif cells:
             lines.append("Best spot so far: none yet, every strategy is losing at every time of day")
         return "\n".join(lines)
 
-    def times_of_day(self) -> list[str]:
-        """Every strategy's ghost record by time slot and in the owner's window, plus all of them together."""
+    def times_of_day(self, top: int | None = None) -> list[str]:
+        """Every strategy's ghost record by time slot and in the owner's window, plus all of them together. With
+        `top`, only the best that many strategies (the rest are counted in one line)."""
         def piece(short, n, w, pnl):
             return f"{short} {pnl:+,.0f}/{n} ({w / n:.0%})"
 
@@ -610,9 +669,11 @@ class Lab:
                 parts.append(piece("win", *g.window["in"]))
             if parts:
                 out.append(f"• {STRATEGIES[k]['label']}: " + " | ".join(parts))
+        if top is not None and len(out) > top:
+            out = out[:top] + [f"• ...and {len(out) - top} more strategies (all of them: launch-lab-status)"]
         both = [piece(shorts[key], *total[key]) for key, *_ in SLOTS if total[key][0]]
         if both:
-            out.insert(0, "• All strategies together (not random): " + " | ".join(both))
+            out.insert(0, f"• All {len(self.ghosts) - 1} strategies together (not random): " + " | ".join(both))
         return out
 
     def snapshot(self) -> dict:
@@ -723,7 +784,7 @@ def peek(lab: "Lab", now: float):
     import requests
 
     try:
-        requests.post(f"https://ntfy.sh/{PEEK_TOPIC}", data=lab.board(now).encode()[:4000], timeout=10,
+        requests.post(f"https://ntfy.sh/{PEEK_TOPIC}", data=lab.board(now, top=14).encode()[:4000], timeout=10,
                       headers={"Title": f"launch lab {time.strftime('%H:%M UTC', time.gmtime(now))}", "Priority": "min"})
     except Exception as ex:
         log.debug("peek failed: %s", ex)

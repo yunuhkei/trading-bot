@@ -2758,7 +2758,7 @@ def test_launch_lab_splits_results_by_time_of_day_and_keeps_old_trades_counted()
     board = lab.board(now=at(21))
     assert "• Busted, staying dead (1): Snipe every new coin +0" in board
     assert "• Volume spike: mid +100/5 (60%) | eve -30/1 (0%) | night +10/1 (100%)" in board
-    assert "• All strategies together (not random): mid +100/5 (60%) | eve -30/1 (0%)" in board
+    assert "• All 57 strategies together (not random): mid +100/5 (60%) | eve -30/1 (0%)" in board
     assert "| win " not in board                       # nothing inside 11a-3:40p yet
     g.tally(at(15) - 20 * 60, 25.0)                     # 3:10 pm: inside the window
     g.tally(at(15) + 15 * 60, -5.0)                     # 3:45 pm: just after it
@@ -2836,8 +2836,8 @@ def test_launch_lab_super_bot_copies_a_strategy_only_in_hours_it_won_on_earlier_
     sup = lab.accts["timing"]
     assert set(sup.pending) == {"MINT"} and sup.pending["MINT"]["via"] == "whale_follow"
     assert sup.pending["MINT"]["why"].startswith("Follow a 5+ SOL buy:") and sup.cash == 750.0
-    big = lab.accts["timing_5k"]                        # the same pick at the owner's size
-    assert set(big.pending) == {"MINT"} and big.cash == 4000.0 and big.per_trade == 1000.0
+    big = lab.accts["timing_100"]                       # the same pick at the owner's size
+    assert set(big.pending) == {"MINT"} and big.cash == 75.0 and big.per_trade == 25.0
     lab.order("whale_follow", "MINT3", at(10, 20, 30), "buy", "a 7.0 SOL buy")    # 8 pm: whale isn't on
     assert "MINT3" not in sup.pending
 
@@ -2862,8 +2862,8 @@ def test_launch_lab_super_bot_sells_with_the_copied_strategys_rules():
     lab.event(1002.0, dict(e, user="u2"))                # filled 1.5 s later
     p = lab.accts["timing"].positions[mint]
     assert p["via"] == "whale_follow"
-    big = lab.accts["timing_5k"].positions[mint]
-    assert big["cost"] == 1000.0 and big["tokens"] < 3.9 * p["tokens"]   # 4x the money buys under 4x the coins
+    big = lab.accts["timing_100"].positions[mint]
+    assert big["cost"] == 25.0 and big["tokens"] > 0.1 * p["tokens"]    # a smaller buy moves the price less
     lab.event(1003.0, dict(e, user="u3", vsol=60.0, vtok=0.52e9))    # price up ~+86%: whale's +50% take profit
     assert lab.accts["timing"].positions[mint].get("selling", {}).get("why", "").startswith("take profit")
 
@@ -2890,8 +2890,24 @@ def test_launch_lab_simple_ping_says_it_in_plain_words():
         "Ghosts (every strategy, always running): 2 trades in the last hour, -15",
         "Super bot this hour (10a): sitting out",
         "Best spot so far: Follow a 5+ SOL buy at midday (11a-5p), +1,600",
-        "Good times only (hindsight): +2,260 on 20 trades"]
+        "Best strategy for each time of day (hindsight): +2,260"]
     sup = lab.accts["timing"]
     sup.n, sup.wins, sup.pnl, sup.cash = 14, 6, 120.0, 1120.0
     assert lab.simple(now=at(10)).splitlines()[:2] == [
-        "Super bot: $1,000 -> $1,120 (+120 on 14 trades, 43% won)", "Your $5k plan: $5,000 -> $5,000 (+0 on 0 trades)"]
+        "Super bot: $1,000 -> $1,120 (+120 on 14 trades, 43% won)", "Your $100 plan: $100 -> $100.00 (+0.00 on 0 trades)"]
+
+
+def test_launch_lab_versions_get_their_familys_signals_as_ghosts_only():
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=200.0)
+    assert "wh10_quick" in lab.ghosts and "wh10_quick" not in lab.accts      # ghost-only: a record, no account
+    mint = "W" * 32
+    e = {"kind": "trade", "mint": mint, "sol": 1.0, "tokens": 1e6, "buy": True, "user": "u1", "ts": 0,
+         "vsol": 31.0, "vtok": 1.0e9, "real_sol": 1.0, "fee": 0.0}
+    lab.event(1000.0, e)
+    lab.event(1001.0, dict(e, user="u2", sol=6.0))                          # a 6 SOL buy
+    pend = {k for k, g in lab.ghosts.items() if mint in g.pending}
+    assert {"whale_follow", "wh5_quick", "wh5_flip", "wh5_trail", "wh2_quick", "wh2_base", "wh2_trail"} <= pend
+    assert not {"wh10_quick", "wh10_base", "wh10_trail"} & pend             # under 10 SOL: the 10+ versions wait
+    assert mint in lab.accts["whale_follow"].pending                         # the original still trades for real
