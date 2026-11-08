@@ -568,10 +568,14 @@ class Lab:
             lines = [f"Super bot: ${sup.start:,.0f} -> ${self.value(sup):,.0f} ({sup.pnl:+,.0f} on {sup.n} trades, "
                      f"{sup.wins / max(sup.n, 1):.0%} won)",
                      f"Your $5k plan: ${big.start:,.0f} -> ${self.value(big):,.0f} ({big.pnl:+,.0f} on {big.n} trades)"]
+        recent = [t for k, g in self.ghosts.items() if k != "random" for t in g.trades
+                  if now - (t["t"] + t["s"]) <= 3600]
+        lines.append(f"Ghosts (every strategy, always running): {len(recent)} trades in the last hour, "
+                     f"{sum(t['profit'] for t in recent):+,.0f}")
         on = self.timing_on(now)
         hour = local_time(now).hour
         hour = f"{hour % 12 or 12}{'a' if hour < 12 else 'p'}"
-        lines.append(f"This hour ({hour}): " + ("copying " + ", ".join(STRATEGIES[k]["label"] for k in on)
+        lines.append(f"Super bot this hour ({hour}): " + ("copying " + ", ".join(STRATEGIES[k]["label"] for k in on)
                                                if on else "sitting out"))
         names = {"midday": "at midday (11a-5p)", "evening": "in the evening (5-11p)", "overnight": "overnight (11p-5a)",
                  "morning": "in the morning (5-11a)"}

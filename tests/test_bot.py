@@ -2881,10 +2881,14 @@ def test_launch_lab_simple_ping_says_it_in_plain_words():
         lab.ghosts["whale_follow"].tally(at(19), -260.0)         # evening -2,600
         lab.ghosts["volume_spike_tp30"].tally(at(19), 66.0)      # evening +660
         lab.ghosts["random"].tally(at(13), 500.0)                # luck never counts
+    lab.ghosts["breakout"].trades += [{"t": at(10) - 600, "s": 60, "profit": -40.0},     # the last hour
+                                      {"t": at(10) - 300, "s": 60, "profit": 25.0},
+                                      {"t": at(10) - 9000, "s": 60, "profit": 99.0}]     # older: not counted
     msg = lab.simple(now=at(10))
     assert msg.splitlines() == [
         "Super bot: no trades yet. It starts once a strategy wins the same hour on 2 different days.",
-        "This hour (10a): sitting out",
+        "Ghosts (every strategy, always running): 2 trades in the last hour, -15",
+        "Super bot this hour (10a): sitting out",
         "Best spot so far: Follow a 5+ SOL buy at midday (11a-5p), +1,600",
         "Good times only (hindsight): +2,260 on 20 trades"]
     sup = lab.accts["timing"]
