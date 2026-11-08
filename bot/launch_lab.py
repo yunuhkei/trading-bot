@@ -557,6 +557,35 @@ class Lab:
                           "window (from Nov 8):"] + tod
         return "\n".join(lines)
 
+    def simple(self, now: float | None = None) -> str:
+        """The phone's hourly ping in plain words: the super bot, what it's doing this hour, the best spot so far,
+        and what trading only at the good times would have made (hindsight)."""
+        now = now or time.time()
+        sup, big = self.accts["timing"], self.accts["timing_5k"]
+        if sup.n == 0 and big.n == 0 and not sup.positions and not big.positions:
+            lines = ["Super bot: no trades yet. It starts once a strategy wins the same hour on 2 different days."]
+        else:
+            lines = [f"Super bot: ${sup.start:,.0f} -> ${self.value(sup):,.0f} ({sup.pnl:+,.0f} on {sup.n} trades, "
+                     f"{sup.wins / max(sup.n, 1):.0%} won)",
+                     f"Your $5k plan: ${big.start:,.0f} -> ${self.value(big):,.0f} ({big.pnl:+,.0f} on {big.n} trades)"]
+        on = self.timing_on(now)
+        hour = local_time(now).hour
+        hour = f"{hour % 12 or 12}{'a' if hour < 12 else 'p'}"
+        lines.append(f"This hour ({hour}): " + ("copying " + ", ".join(STRATEGIES[k]["label"] for k in on)
+                                               if on else "sitting out"))
+        names = {"midday": "at midday (11a-5p)", "evening": "in the evening (5-11p)", "overnight": "overnight (11p-5a)",
+                 "morning": "in the morning (5-11a)"}
+        cells = [(g.slot(s, e), k, key) for k, g in self.ghosts.items() if k != "random" for key, _, s, e in SLOTS]
+        good = [c for c in cells if c[0][0] and c[0][2] > 0]
+        if good:
+            (n, w, pnl), k, key = max(good, key=lambda c: c[0][2])
+            lines.append(f"Best spot so far: {STRATEGIES[k]['label']} {names[key]}, {pnl:+,.0f}")
+            lines.append(f"Good times only (hindsight): {sum(c[0][2] for c in good):+,.0f} on "
+                         f"{sum(c[0][0] for c in good)} trades")
+        elif cells:
+            lines.append("Best spot so far: none yet, every strategy is losing at every time of day")
+        return "\n".join(lines)
+
     def times_of_day(self) -> list[str]:
         """Every strategy's ghost record by time slot and in the owner's window, plus all of them together."""
         def piece(short, n, w, pnl):
@@ -675,8 +704,7 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
                                     f"{len(lab.coins):,} coins being watched")
                             print(head, flush=True)
                             print(lab.board(), flush=True)
-                            lab.tell("🧪 Launch lab: hourly report",      # ntfy's limit is 4,096 bytes
-                                     (head + "\n" + lab.board(now)).encode()[:4000].decode(errors="ignore"))
+                            lab.tell("🧪 Launch lab", lab.simple(now))    # the full board goes to the logs/peek
         except Exception as e:
             log.warning("feed dropped (%s); reconnecting", e)
             await asyncio.sleep(3)

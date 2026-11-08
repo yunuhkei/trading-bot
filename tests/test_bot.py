@@ -2866,3 +2866,28 @@ def test_launch_lab_super_bot_sells_with_the_copied_strategys_rules():
     assert big["cost"] == 1000.0 and big["tokens"] < 3.9 * p["tokens"]   # 4x the money buys under 4x the coins
     lab.event(1003.0, dict(e, user="u3", vsol=60.0, vtok=0.52e9))    # price up ~+86%: whale's +50% take profit
     assert lab.accts["timing"].positions[mint].get("selling", {}).get("why", "").startswith("take profit")
+
+
+def test_launch_lab_simple_ping_says_it_in_plain_words():
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    from bot import launch_lab as ll
+
+    at = lambda h: datetime.datetime(2026, 11, 8, h, 30, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    lab = ll.Lab()
+    for _ in range(10):
+        lab.ghosts["whale_follow"].tally(at(13), 160.0)          # midday +1,600
+        lab.ghosts["whale_follow"].tally(at(19), -260.0)         # evening -2,600
+        lab.ghosts["volume_spike_tp30"].tally(at(19), 66.0)      # evening +660
+        lab.ghosts["random"].tally(at(13), 500.0)                # luck never counts
+    msg = lab.simple(now=at(10))
+    assert msg.splitlines() == [
+        "Super bot: no trades yet. It starts once a strategy wins the same hour on 2 different days.",
+        "This hour (10a): sitting out",
+        "Best spot so far: Follow a 5+ SOL buy at midday (11a-5p), +1,600",
+        "Good times only (hindsight): +2,260 on 20 trades"]
+    sup = lab.accts["timing"]
+    sup.n, sup.wins, sup.pnl, sup.cash = 14, 6, 120.0, 1120.0
+    assert lab.simple(now=at(10)).splitlines()[:2] == [
+        "Super bot: $1,000 -> $1,120 (+120 on 14 trades, 43% won)", "Your $5k plan: $5,000 -> $5,000 (+0 on 0 trades)"]
