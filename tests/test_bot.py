@@ -2877,16 +2877,25 @@ def test_launch_lab_simple_ping_says_it_in_plain_words():
         lab.ghosts["whale_follow"].tally(at(19), -260.0)         # evening -2,600
         lab.ghosts["volume_spike_tp30"].tally(at(19), 66.0)      # evening +660
         lab.ghosts["random"].tally(at(13), 500.0)                # luck never counts
-    lab.ghosts["breakout"].trades += [{"t": at(10) - 600, "s": 60, "profit": -40.0},     # the last hour
-                                      {"t": at(10) - 300, "s": 60, "profit": 25.0},
-                                      {"t": at(10) - 9000, "s": 60, "profit": 99.0}]     # older: not counted
+    lab.ghosts["breakout"].trades += [{"t": at(10) - 600, "s": 60, "profit": -20.0, "name": "?"},     # the last hour
+                                      {"t": at(10) - 300, "s": 60, "profit": 25.0, "name": "?"},
+                                      {"t": at(10) - 9000, "s": 60, "profit": 99.0, "name": "?"}]     # older
     msg = lab.simple(now=at(10))
     assert msg.splitlines() == [
         "Super bot: no trades yet. It starts once a strategy wins the same hour on 2 different days.",
-        "Ghosts (every strategy, always running): 2 trades in the last hour, -15",
         "Super bot this hour (10a): sitting out",
-        "Best spot so far: Follow a 5+ SOL buy at midday (11a-5p), +1,600",
+        "",
+        "Last hour: 1 strategies traded (2 trades)",
+        "✅ Breakout to new highs: +5 on 2 trades (1 won)",
+        "Biggest win: Breakout to new highs on ?, +25",
+        "",
+        "Best spots so far:",
+        "1. Follow a 5+ SOL buy at midday (11a-5p): +1,600 on 10 trades (100% won)",
+        "2. Volume spike, quick (+30%/-15%) in the evening (5-11p): +660 on 10 trades (100% won)",
         "Best strategy for each time of day (hindsight): +2,260"]
+    lab.ghosts["dip_bounce"].trades += [{"t": at(10) - 900, "s": 60, "profit": -80.0, "name": "X"}]
+    lab.ghosts["snipe"].trades += [{"t": at(10) - 900, "s": 60, "profit": -20.0, "name": "Y"}]
+    assert "❌ 2 lost money: -50 each on average (worst: Second-chart dip bounce, -80)" in lab.simple(now=at(10))
     sup = lab.accts["timing"]
     sup.n, sup.wins, sup.pnl, sup.cash = 14, 6, 120.0, 1120.0
     assert lab.simple(now=at(10)).splitlines()[1] == \

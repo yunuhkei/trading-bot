@@ -688,27 +688,49 @@ class Lab:
         return "\n".join(lines)
 
     def simple(self, now: float | None = None) -> str:
-        """The phone's hourly ping in plain words: the super bot, what it's doing this hour, the best spot so far,
-        and what trading only at the good times would have made (hindsight)."""
+        """The phone's hourly ping in plain words: the super bot; last hour per strategy (which ones made money and
+        how much, the rest as an average, the biggest win); the best spots so far; and hindsight."""
         now = now or time.time()
         lines = self.plan_lines(now)
-        recent = [t for k, g in self.ghosts.items() if k != "random" and k not in SUPER for t in g.trades
-                  if now - (t["t"] + t["s"]) <= 3600]
-        lines.append(f"Ghosts (every strategy, always running): {len(recent)} trades in the last hour, "
-                     f"{sum(t['profit'] for t in recent):+,.0f}")
         on = self.timing_on(now)
         hour = local_time(now).hour
         hour = f"{hour % 12 or 12}{'a' if hour < 12 else 'p'}"
         lines.append(f"Super bot this hour ({hour}): " + ("copying " + ", ".join(STRATEGIES[k]["label"] for k in on)
-                                               if on else "sitting out"))
+                                                         if on else "sitting out"))
+        # the last hour, strategy by strategy (the ghosts: every strategy, always running)
+        hour_of = {}
+        for k, g in self.ghosts.items():
+            if k == "random" or k in SUPER:
+                continue
+            rec = [t for t in g.trades if now - (t["t"] + t["s"]) <= 3600]
+            if rec:
+                hour_of[k] = rec
+        if hour_of:
+            pnl = {k: sum(t["profit"] for t in r) for k, r in hour_of.items()}
+            won, lost = [k for k in pnl if pnl[k] > 0], [k for k in pnl if pnl[k] <= 0]
+            lines += ["", f"Last hour: {len(hour_of)} strategies traded ({sum(len(r) for r in hour_of.values())} trades)"]
+            for k in sorted(won, key=lambda k: -pnl[k])[:6]:
+                lines.append(f"✅ {STRATEGIES[k]['label']}: {pnl[k]:+,.0f} on {len(hour_of[k])} trades "
+                             f"({sum(t['profit'] > 0 for t in hour_of[k])} won)")
+            if len(won) > 6:
+                lines.append(f"✅ ...and {len(won) - 6} more made money")
+            if lost:
+                worst = min(lost, key=lambda k: pnl[k])
+                lines.append(f"❌ {len(lost)} lost money: {sum(pnl[k] for k in lost) / len(lost):+,.0f} each on average "
+                             f"(worst: {STRATEGIES[worst]['label']}, {pnl[worst]:+,.0f})")
+            k, t = max(((k, t) for k, r in hour_of.items() for t in r), key=lambda kt: kt[1]["profit"])
+            if t["profit"] > 0:
+                lines.append(f"Biggest win: {STRATEGIES[k]['label']} on {t['name']}, {t['profit']:+,.0f}")
+        # the best spots so far (strategy + time of day)
         names = {"midday": "at midday (11a-5p)", "evening": "in the evening (5-11p)", "overnight": "overnight (11p-5a)",
                  "morning": "in the morning (5-11a)"}
         cells = [(g.slot(s, e), k, key) for k, g in self.ghosts.items() if k != "random" and k not in SUPER
                  for key, _, s, e in SLOTS]
-        good = [c for c in cells if c[0][0] and c[0][2] > 0]
+        good = sorted((c for c in cells if c[0][0] and c[0][2] > 0), key=lambda c: -c[0][2])
         if good:
-            (n, w, pnl), k, key = max(good, key=lambda c: c[0][2])
-            lines.append(f"Best spot so far: {STRATEGIES[k]['label']} {names[key]}, {pnl:+,.0f}")
+            lines += ["", "Best spots so far:"]
+            for i, ((n, w, pnl_), k, key) in enumerate(good[:3], 1):
+                lines.append(f"{i}. {STRATEGIES[k]['label']} {names[key]}: {pnl_:+,.0f} on {n} trades ({w / n:.0%} won)")
             # many versions trade the same coins, so adding them all up would count the same trades again and again:
             # instead, the best single strategy for each time of day
             best = {}
@@ -716,8 +738,8 @@ class Lab:
                 best[c[2]] = max(best.get(c[2], 0.0), c[0][2])
             lines.append(f"Best strategy for each time of day (hindsight): {sum(best.values()):+,.0f}")
         elif cells:
-            lines.append("Best spot so far: none yet, every strategy is losing at every time of day")
-        return "\n".join(lines)
+            lines.append("Best spots so far: none yet, every strategy is losing at every time of day")
+        return "\n".join(lines).encode()[:4000].decode(errors="ignore")
 
     def times_of_day(self, top: int | None = None) -> list[str]:
         """Every strategy's ghost record by time slot and in the owner's window, plus all of them together. With
