@@ -496,8 +496,8 @@ strategy, and the super bot can still use a strategy at its good hours.
 that same hour on earlier days: 2+ days with trades in that hour, 20+ trades, a profit overall and on more than half of those
 days. Today's trades never count for today, so its results are a fair test, not hindsight. Random coins is never
 copied. Each copied bet sells with the rules of the strategy it came from. The report says which strategies it's
-copying this hour, or that it's sitting out. A second one (`timing_100`) makes the same picks at the size the owner
-will really start with, $100 with $25 trades.
+copying this hour, or that it's sitting out. It trades $1,000 with $250 trades like everything else; real money
+later at $100 with $25 trades would be about a tenth of its results.
 
 **More versions:** besides the 13 originals there are 45 ghost-only versions (`VERSIONS` in `bot/launch_lab.py`): the same
 buy signals (new coins, first-minute momentum, volume spikes of 3/4/5/8 SOL, dip bounce, breakout, graduation runs at

@@ -2836,8 +2836,6 @@ def test_launch_lab_super_bot_copies_a_strategy_only_in_hours_it_won_on_earlier_
     sup = lab.accts["timing"]
     assert set(sup.pending) == {"MINT"} and sup.pending["MINT"]["via"] == "whale_follow"
     assert sup.pending["MINT"]["why"].startswith("Follow a 5+ SOL buy:") and sup.cash == 750.0
-    big = lab.accts["timing_100"]                       # the same pick at the owner's size
-    assert set(big.pending) == {"MINT"} and big.cash == 75.0 and big.per_trade == 25.0
     lab.order("whale_follow", "MINT3", at(10, 20, 30), "buy", "a 7.0 SOL buy")    # 8 pm: whale isn't on
     assert "MINT3" not in sup.pending
 
@@ -2862,8 +2860,6 @@ def test_launch_lab_super_bot_sells_with_the_copied_strategys_rules():
     lab.event(1002.0, dict(e, user="u2"))                # filled 1.5 s later
     p = lab.accts["timing"].positions[mint]
     assert p["via"] == "whale_follow"
-    big = lab.accts["timing_100"].positions[mint]
-    assert big["cost"] == 25.0 and big["tokens"] > 0.1 * p["tokens"]    # a smaller buy moves the price less
     lab.event(1003.0, dict(e, user="u3", vsol=60.0, vtok=0.52e9))    # price up ~+86%: whale's +50% take profit
     assert lab.accts["timing"].positions[mint].get("selling", {}).get("why", "").startswith("take profit")
 
@@ -2893,8 +2889,7 @@ def test_launch_lab_simple_ping_says_it_in_plain_words():
         "Best strategy for each time of day (hindsight): +2,260"]
     sup = lab.accts["timing"]
     sup.n, sup.wins, sup.pnl, sup.cash = 14, 6, 120.0, 1120.0
-    assert lab.simple(now=at(10)).splitlines()[:2] == [
-        "Super bot: $1,000 -> $1,120 (+120 on 14 trades, 43% won)", "Your $100 plan: $100 -> $100.00 (+0.00 on 0 trades)"]
+    assert lab.simple(now=at(10)).splitlines()[0] == "Super bot: $1,000 -> $1,120 (+120 on 14 trades, 43% won)"
 
 
 def test_launch_lab_versions_get_their_familys_signals_as_ghosts_only():

@@ -57,7 +57,7 @@ WINDOW, WINDOW_LABEL = (11 * 60, 15 * 60 + 40), "11a-3:40p"
 # the super bot turns a strategy on for an hour when, in that same hour on EARLIER days (never today), it has
 # 2+ days of trades, 20+ trades in all, a profit overall, and a profit on more than half of those days
 SUPER_DAYS, SUPER_TRADES, KEEP_DAYS = 2, 20, 35
-SUPER = ("timing", "timing_100")
+SUPER = ("timing",)           # $1,000 and $250 trades like the rest; real money later at $100 is about a tenth
 SUPER_TOP = 3                  # with this many versions, copy only the best 3 for an hour (luck makes some look good)
 
 
@@ -92,8 +92,6 @@ STRATEGIES = {
     "random": {"label": "Random coins (luck baseline)", "family": "random", "tp": 0.5, "sl": 0.25, "max_s": 180},
     # copies a strategy's buys only in the hours that strategy made money in on earlier days (see timing_on)
     "timing": {"label": "Super bot (each strategy only at its best hours)", "max_s": 900},
-    # the same picks at the size the owner will really start with
-    "timing_100": {"label": "Super bot, your plan ($100, $25 trades)", "max_s": 900, "cash": 100.0, "per_trade": 25.0},
 }
 
 # more versions for the super bot to choose from: the same buy signals with other ways out. They're ghost-only (no
@@ -580,8 +578,7 @@ class Lab:
         """Like the copy bot's reports: per account still trading, the last hour and since it started; the busted
         ones in one line; what the super bot is doing; then every strategy by time of day (its ghost record)."""
         now = now or time.time()
-        lines = ["Pretend $1,000 per strategy, $250 trades ($100 and $25 trades for your-plan super bot), "
-                 "1-second charts, real delays and fees:"]
+        lines = ["Pretend $1,000 per strategy, $250 trades, 1-second charts, real delays and fees:"]
         rows = sorted(self.accts.items(), key=lambda kv: -kv[1].pnl)
         dead = []
         for k, a in rows:
@@ -615,13 +612,12 @@ class Lab:
         """The phone's hourly ping in plain words: the super bot, what it's doing this hour, the best spot so far,
         and what trading only at the good times would have made (hindsight)."""
         now = now or time.time()
-        sup, big = self.accts["timing"], self.accts["timing_100"]
-        if sup.n == 0 and big.n == 0 and not sup.positions and not big.positions:
+        sup = self.accts["timing"]
+        if sup.n == 0 and not sup.positions and not sup.pending:
             lines = ["Super bot: no trades yet. It starts once a strategy wins the same hour on 2 different days."]
         else:
             lines = [f"Super bot: ${sup.start:,.0f} -> ${self.value(sup):,.0f} ({sup.pnl:+,.0f} on {sup.n} trades, "
-                     f"{sup.wins / max(sup.n, 1):.0%} won)",
-                     f"Your $100 plan: ${big.start:,.0f} -> ${self.value(big):,.2f} ({big.pnl:+,.2f} on {big.n} trades)"]
+                     f"{sup.wins / max(sup.n, 1):.0%} won)"]
         recent = [t for k, g in self.ghosts.items() if k != "random" for t in g.trades
                   if now - (t["t"] + t["s"]) <= 3600]
         lines.append(f"Ghosts (every strategy, always running): {len(recent)} trades in the last hour, "
