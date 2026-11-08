@@ -145,6 +145,37 @@ def b58(b: bytes) -> str:
     return "1" * (len(b) - len(b.lstrip(b"\0"))) + s
 
 
+def pump_events(logs: list[str]):
+    """The pump.fun events in one transaction's logs. Only "Program data" lines written while pump.fun itself is
+    running count: other programs in the same transaction can log an event with the same name ("TradeEvent") but a
+    different layout, which read as nonsense (buys of millions of SOL)."""
+    stack: list[str] = []
+    for line in logs:
+        if line.startswith("Program data: "):
+            if stack and stack[-1] == PUMP:
+                e = decode(line)
+                if e and sane(e):
+                    yield e
+            continue
+        parts = line.split(" ")
+        if len(parts) >= 3 and parts[0] == "Program":
+            if parts[2] == "invoke":
+                stack.append(parts[1])
+            elif parts[2] in ("success", "failed:", "failed") and stack:
+                stack.pop()
+
+
+def sane(e: dict) -> bool:
+    """A real trade on pump.fun's normal bonding curve: 30 SOL of virtual SOL at launch, about 115 at graduation, and
+    a fee. About 40% of the feed is spam instead: bots trading a handful of coins back and forth for fractions of a cent
+    with no fee, on curves that don't fit (virtual SOL near 0, or in the thousands). Those would fake volume, buyers and
+    momentum, so they're left out."""
+    if e["kind"] != "trade":
+        return True
+    return (e["fee"] > 0 and 0 <= e["sol"] <= 200 and 29 <= e["vsol"] <= 120 and 0 < e["vtok"] <= 1.2e9
+            and -1 <= e["real_sol"] <= 100)
+
+
 def decode(line: str) -> dict | None:
     """A 'Program data: ...' log line -> {"kind": "trade"|"create"|"complete", ...}, or None."""
     try:
@@ -914,14 +945,11 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
                             d = json.loads(msg.data)
                             v = (d.get("params") or {}).get("result", {}).get("value")
                             if v and not v.get("err"):
-                                for line in v.get("logs") or []:
-                                    if line.startswith("Program data: "):
-                                        e = decode(line)
-                                        if e:
-                                            try:
-                                                lab.event(now, e)
-                                            except Exception as ex:          # one odd coin never stops the lab
-                                                log.debug("event skipped: %s", ex)
+                                for e in pump_events(v.get("logs") or []):
+                                    try:
+                                        lab.event(now, e)
+                                    except Exception as ex:                  # one odd coin never stops the lab
+                                        log.debug("event skipped: %s", ex)
                         if now >= next_tick:
                             lab.tick(now)
                             next_tick = now + 1

@@ -3052,3 +3052,34 @@ def test_launch_lab_market_health_counts_the_share_of_coins_going_up():
     lab.event(1100.0, dict(base, mint="C1" * 16, vsol=45.0, vtok=0.9e9))           # up
     lab.event(1100.0, dict(base, mint="C2" * 16, vsol=35.0, vtok=1.1e9, buy=False))  # down; C3 didn't trade
     assert lab.up_share(lab._win) == round(2 / 3, 3)
+
+
+def test_launch_lab_reads_only_pump_funs_own_events():
+    import base64
+    import struct
+
+    from bot import launch_lab as ll
+
+    def trade_line(sol, vsol=40.0):
+        raw = bytearray(250)
+        raw[:8] = next(k for k, v in ll.DISC.items() if v == "TradeEvent")
+        struct.pack_into("<Q", raw, 161, 125)                      # a 1.25% fee
+        raw[8:40] = b"\x05" * 32
+        struct.pack_into("<Q", raw, 40, int(sol * 1e9)); struct.pack_into("<Q", raw, 48, int(1e12))
+        raw[56] = 1
+        struct.pack_into("<Q", raw, 97, int(vsol * 1e9)); struct.pack_into("<Q", raw, 105, int(8e14))
+        struct.pack_into("<Q", raw, 113, int(10 * 1e9))
+        return "Program data: " + base64.b64encode(bytes(raw)).decode()
+
+    other = "OtherProg1111111111111111111111111111111111"
+    logs = [f"Program {ll.PUMP} invoke [1]", trade_line(1.5), f"Program {other} invoke [2]",
+            trade_line(4_000_000.0, vsol=9e6),                       # another program's "TradeEvent": nonsense
+            f"Program {other} success", trade_line(2.0), f"Program {ll.PUMP} success",
+            f"Program {other} invoke [1]", trade_line(3.0), f"Program {other} success"]
+    got = list(ll.pump_events(logs))
+    assert [round(e["sol"], 1) for e in got] == [1.5, 2.0]
+    ok = {"kind": "trade", "sol": 1.0, "vsol": 40.0, "vtok": 8e8, "real_sol": 10.0, "fee": 0.0125}
+    assert ll.sane(ok)
+    assert not ll.sane(dict(ok, sol=5e5))                   # a nonsense size
+    assert not ll.sane(dict(ok, fee=0.0))                   # spam bots: no fee
+    assert not ll.sane(dict(ok, vsol=5.07)) and not ll.sane(dict(ok, vsol=1994.1))    # curves that don't fit
