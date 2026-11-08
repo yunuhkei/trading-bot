@@ -321,8 +321,7 @@ class Lab:
         # a ghost of every strategy: the same buys and sells, but it never runs out of money, so its records keep
         # counting after the real account busts (busted accounts stay dead). The super bot judges strategies on these.
         saved = state.get("shadow") or {}
-        self.ghosts = {k: Account(k, saved.get(k) or (state.get("accounts") or {}).get(k))
-                       for k in STRATEGIES if k not in SUPER}
+        self.ghosts = {k: Account(k, saved.get(k) or (state.get("accounts") or {}).get(k)) for k in STRATEGIES}
         for g in self.ghosts.values():
             g.ghost = True
         self.rng = random.Random(seed)
@@ -333,6 +332,10 @@ class Lab:
                          else [[0.0, 0, 0, 0.0] for _ in range(24)])
         self._clock, self._last_seen = (None, 0), None
         self._timing: tuple = (None, [])
+        # the owner's money plan for the super bot: keep $1,000 in, take out everything above it each night, and
+        # after 2 losing days in a row stop using the money (paper only) until the owner's next check
+        self.plan = state.get("plan") or {"mode": "plan", "streak": 0, "put_in": CASH, "banked": 0.0, "start": None,
+                                          "n": None, "day": None, "ghost_start": 0.0, "log": []}
         self.hello_done = bool(state.get("hello")) or self.events > 0       # a lab that already ran said hello
         self.tell = tell or (lambda t, m: None)
 
@@ -344,7 +347,7 @@ class Lab:
         if self._timing[0] != (day, h):
             on = []
             for k, a in self.ghosts.items():
-                if k == "random":
+                if k == "random" or k in SUPER:
                     continue
                 rows = [a.days[d][h] for d in a.days if d < day and a.days[d][h][0]]
                 if (len(rows) >= SUPER_DAYS and sum(r[0] for r in rows) >= SUPER_TRADES and sum(r[2] for r in rows) > 0
@@ -362,7 +365,10 @@ class Lab:
         if key not in SUPER:
             if key in self.timing_on(now):
                 for sk in SUPER:
-                    self._buy(self.accts[sk], mint, now, f"{STRATEGIES[key]['label']}: {why}", via=key)
+                    why2 = f"{STRATEGIES[key]['label']}: {why}"
+                    if self.plan["mode"] == "plan":              # in practice mode its money sits still
+                        self._buy(self.accts[sk], mint, now, why2, via=key)
+                    self._buy(self.ghosts[sk], mint, now, why2, via=key)
             self._buy(self.ghosts[key], mint, now, why)
         if key in self.accts:
             self._buy(self.accts[key], mint, now, why)
@@ -501,7 +507,15 @@ class Lab:
     def watch(self, now: float, e: dict):
         m = int(now // 60)
         if m != self._clock[0]:                          # the local hour, worked out once a minute
-            self._clock = (m, local_hour(now))
+            lt = local_time(now)
+            self._clock = (m, lt.hour)
+            day = lt.strftime("%Y-%m-%d")
+            if self.plan["day"] is None:
+                self.plan.update(day=day, start=self.value(self.accts["timing"]), n=self.accts["timing"].n,
+                                 ghost_start=self.ghosts["timing"].pnl)
+            elif day != self.plan["day"]:
+                self.settle()
+                self.plan["day"] = day
         b = self.activity[self._clock[1]]
         if self._last_seen is not None and 0 < now - self._last_seen < 10:    # gaps (between runs) don't count
             b[0] += now - self._last_seen
@@ -512,6 +526,70 @@ class Lab:
             b[1] += 1
             if e.get("buy"):
                 b[3] += e.get("sol", 0.0)
+
+    def settle(self):
+        """End of a day (Milwaukee time) for the owner's plan: a winning day takes out everything above $1,000; a
+        losing day isn't topped up; 2 losing days in a row put the super bot in practice mode."""
+        p, sup, g = self.plan, self.accts["timing"], self.ghosts["timing"]
+        day, value = p["day"], self.value(sup)
+        res, n = value - p["start"], sup.n - p["n"]
+        took, mode = 0.0, p["mode"]
+        if mode == "plan" and n > 0:
+            if res > 0:
+                p["streak"] = 0
+                took = max(0.0, min(sup.cash, value - CASH))
+                sup.cash -= took
+                p["banked"] += took
+            elif res < 0:
+                p["streak"] += 1
+        paper = g.pnl - p.get("ghost_start", 0.0)
+        p["log"] = (p["log"] + [{"day": day, "mode": mode, "result": round(res, 2), "trades": n, "took": round(took, 2),
+                                 "paper": round(paper, 2)}])[-60:]
+        after = self.value(sup)
+        net = p["banked"] + after - p["put_in"]
+        if mode == "plan" and n > 0 and p["streak"] >= 2:
+            p.update(mode="practice", since=day, ghost_at=g.pnl)
+            last2 = [x for x in p["log"] if x.get("mode") == "plan" and x.get("trades")][-2:]
+            days = ", ".join(f"{x['day']} {x['result']:+,.0f}" for x in last2)
+            self.tell("🧪 Super bot: practice mode",
+                      f"2 losing days in a row ({days}). "
+                      f"It stopped using its money and trades on paper only until your next check. Your plan so far: "
+                      f"taken out ${p['banked']:,.0f}, account ${after:,.0f}, net {net:+,.0f}.")
+        elif mode == "plan" and n > 0:
+            self.tell(f"🧪 Super bot, {day}",
+                      f"{res:+,.0f} on {n} trades. Took out ${took:,.0f}. Your plan so far: taken out ${p['banked']:,.0f}, "
+                      f"account ${after:,.0f}, net {net:+,.0f}." + (" Losing day 1 of 2." if res < 0 else ""))
+        p["start"], p["n"], p["ghost_start"] = after, sup.n, g.pnl
+
+    def resume_super(self) -> float:
+        """The owner's check says go: the super bot uses its money again, topped back up to $1,000 (counted as put in)."""
+        p, sup = self.plan, self.accts["timing"]
+        add = max(0.0, CASH - self.value(sup))
+        sup.cash += add
+        p["put_in"] += add
+        p.update(mode="plan", streak=0)
+        p.pop("since", None)
+        p["start"], p["n"] = self.value(sup), sup.n
+        p["log"] = (p["log"] + [{"day": p["day"], "resumed": True, "added": round(add, 2)}])[-60:]
+        return add
+
+    def plan_lines(self, now: float) -> list[str]:
+        """The super bot's lines for the phone: practice mode, no trades yet, or today and the plan so far."""
+        p, sup = self.plan, self.accts["timing"]
+        value = self.value(sup)
+        net = p["banked"] + value - p["put_in"]
+        so_far = f"Your plan so far: taken out ${p['banked']:,.0f}, account ${value:,.0f}, net {net:+,.0f}"
+        if p["mode"] == "practice":
+            paper = self.ghosts["timing"].pnl - p.get("ghost_at", 0.0)
+            return [f"Super bot: PRACTICE MODE since {p.get('since')} (2 losing days in a row). On paper since then: "
+                    f"{paper:+,.0f}. Tell Claude to restart it at your next check.", so_far]
+        if sup.n == 0 and not sup.positions and not sup.pending:
+            return ["Super bot: no trades yet. It starts once a strategy wins the same hour on 2 different days."]
+        start = p["start"] if p["start"] is not None else value
+        n = sup.n - (p["n"] if p["n"] is not None else sup.n)
+        return [f"Super bot today: {value - start:+,.0f} on {n} trades" + (" (losing day 1 of 2 so far: yesterday was red)"
+                                                                         if p["streak"] == 1 else ""),
+                f"{so_far} ({sup.n} trades, {sup.wins / max(sup.n, 1):.0%} won)"]
 
     def busy_lines(self) -> list[str]:
         """Trades and new coins a minute in each time slot, and the busiest hours, once there's 10+ minutes of it."""
@@ -595,6 +673,7 @@ class Lab:
             lines.append(f"• {STRATEGIES[k]['label']}: {last}{since}.")
         if dead:
             lines.append(f"• Busted, staying dead ({len(dead)}): " + ", ".join(dead))
+        lines += [f"• {x}" for x in self.plan_lines(now)]
         on = self.timing_on(now)
         hour = local_time(now).hour
         hour = f"{hour % 12 or 12}{'a' if hour < 12 else 'p'}"
@@ -612,13 +691,8 @@ class Lab:
         """The phone's hourly ping in plain words: the super bot, what it's doing this hour, the best spot so far,
         and what trading only at the good times would have made (hindsight)."""
         now = now or time.time()
-        sup = self.accts["timing"]
-        if sup.n == 0 and not sup.positions and not sup.pending:
-            lines = ["Super bot: no trades yet. It starts once a strategy wins the same hour on 2 different days."]
-        else:
-            lines = [f"Super bot: ${sup.start:,.0f} -> ${self.value(sup):,.0f} ({sup.pnl:+,.0f} on {sup.n} trades, "
-                     f"{sup.wins / max(sup.n, 1):.0%} won)"]
-        recent = [t for k, g in self.ghosts.items() if k != "random" for t in g.trades
+        lines = self.plan_lines(now)
+        recent = [t for k, g in self.ghosts.items() if k != "random" and k not in SUPER for t in g.trades
                   if now - (t["t"] + t["s"]) <= 3600]
         lines.append(f"Ghosts (every strategy, always running): {len(recent)} trades in the last hour, "
                      f"{sum(t['profit'] for t in recent):+,.0f}")
@@ -629,7 +703,8 @@ class Lab:
                                                if on else "sitting out"))
         names = {"midday": "at midday (11a-5p)", "evening": "in the evening (5-11p)", "overnight": "overnight (11p-5a)",
                  "morning": "in the morning (5-11a)"}
-        cells = [(g.slot(s, e), k, key) for k, g in self.ghosts.items() if k != "random" for key, _, s, e in SLOTS]
+        cells = [(g.slot(s, e), k, key) for k, g in self.ghosts.items() if k != "random" and k not in SUPER
+                 for key, _, s, e in SLOTS]
         good = [c for c in cells if c[0][0] and c[0][2] > 0]
         if good:
             (n, w, pnl), k, key = max(good, key=lambda c: c[0][2])
@@ -653,6 +728,8 @@ class Lab:
         shorts = {"midday": "mid", "evening": "eve", "overnight": "night", "morning": "morn"}
         out, total = [], {key: [0, 0, 0.0] for key, *_ in SLOTS}
         for k, g in sorted(self.ghosts.items(), key=lambda kv: -kv[1].pnl):
+            if k in SUPER:
+                continue
             parts = []
             for key, _, s, e in SLOTS:
                 n, w, pnl = g.slot(s, e)
@@ -669,7 +746,8 @@ class Lab:
             out = out[:top] + [f"• ...and {len(out) - top} more strategies (all of them: launch-lab-status)"]
         both = [piece(shorts[key], *total[key]) for key, *_ in SLOTS if total[key][0]]
         if both:
-            out.insert(0, f"• All {len(self.ghosts) - 1} strategies together (not random): " + " | ".join(both))
+            m = sum(k != "random" and k not in SUPER for k in self.ghosts)
+            out.insert(0, f"• All {m} strategies together (not random): " + " | ".join(both))
         return out
 
     def snapshot(self) -> dict:
@@ -681,7 +759,7 @@ class Lab:
             accts[k] = d
         return {"accounts": accts, "events": self.events, "t": time.time(), "hello": self.hello_done,
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
-                "shadow": self.ghost_state()}
+                "shadow": self.ghost_state(), "plan": self.plan}
 
     def ghost_state(self) -> dict:
         out = {}
@@ -706,7 +784,7 @@ class Lab:
         return {"accounts": {k: a.to_dict() for k, a in self.accts.items()}, "events": self.events, "t": time.time(),
                 "hello": self.hello_done,
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
-                "shadow": self.ghost_state()}
+                "shadow": self.ghost_state(), "plan": self.plan}
 
 
 async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180,
@@ -795,13 +873,19 @@ def sol_price() -> float:
         return 150.0
 
 
-def run(minutes: float = 340, status: bool = False, first_report: float | None = None):
+def run(minutes: float = 340, status: bool = False, first_report: float | None = None, resume_super: bool = False):
     from .signals import alert_target, notify
 
     state = json.loads(STATE.read_text()) if STATE.exists() else {}
     target = alert_target()
     tell = (lambda t, m: notify(target, t, m, buy=True, tag="test_tube")) if target else (lambda t, m: print(t, m))
     lab = Lab(sol_price(), state=state, tell=tell)
+    if resume_super:                                    # the owner's check said go
+        was = lab.plan["mode"]
+        add = lab.resume_super()
+        STATE.write_text(json.dumps(lab.snapshot()))
+        tell("🧪 Super bot is back on", f"It was in {was} mode; it uses its money again"
+             + (f", topped back up to $1,000 (${add:,.0f} put in)." if add else "."))
     if status:
         print(lab.board())
         for k, a in lab.accts.items():

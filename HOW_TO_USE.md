@@ -499,6 +499,14 @@ copied. Each copied bet sells with the rules of the strategy it came from. The r
 copying this hour, or that it's sitting out. It trades $1,000 with $250 trades like everything else; real money
 later at $100 with $25 trades would be about a tenth of its results.
 
+**The owner's money plan** (the super bot follows it): $1,000 stays in, no trade over $250. At midnight (Milwaukee time) a
+winning day takes out everything above $1,000; a losing day isn't topped up; after 2 losing days in a row it goes into
+practice mode: it stops using its money and only trades on paper (its ghost) until the owner's next check. The phone gets
+one line each night it traded, and a ping when it goes into practice mode. The ping shows "Your plan so far: taken out $X,
+account $Y, net $Z" (net = taken out + account - money put in). To put it back on its money after a check: run the
+launch-lab workflow by hand with `resume_super` = `yes`, then cancel the run that's going so the new one starts right
+away (a newer scheduled run would replace a waiting one). It tops the account back up to $1,000 and counts that as put in.
+
 **More versions:** besides the 13 originals there are 45 ghost-only versions (`VERSIONS` in `bot/launch_lab.py`): the same
 buy signals (new coins, first-minute momentum, volume spikes of 3/4/5/8 SOL, dip bounce, breakout, graduation runs at
 50/70/85% of the curve, following 2/5/10+ SOL buys) with other ways out (quick flip +15%/-10%, +25%/-15%, +40%/-20%,

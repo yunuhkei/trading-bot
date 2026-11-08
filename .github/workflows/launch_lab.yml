@@ -11,6 +11,9 @@ on:
       first_report:
         description: "Send an early report this many minutes in (blank = just the hourly ones)"
         default: ""
+      resume_super:
+        description: "Type yes to put the super bot back on its money after practice mode (your check said go)"
+        default: ""
 concurrency:
   group: launch-lab
   cancel-in-progress: false
@@ -34,7 +37,10 @@ jobs:
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
           FIRST_REPORT: ${{ inputs.first_report }}
-        run: python -m bot launch-lab --minutes 340 ${FIRST_REPORT:+--first-report "$FIRST_REPORT"}
+          RESUME_SUPER: ${{ inputs.resume_super }}
+        run: >-
+          python -m bot launch-lab --minutes 340 ${FIRST_REPORT:+--first-report "$FIRST_REPORT"}
+          $( [ "$RESUME_SUPER" = "yes" ] && echo --resume-super )
       - uses: actions/cache/save@v4
         if: always()
         with:

@@ -2889,7 +2889,8 @@ def test_launch_lab_simple_ping_says_it_in_plain_words():
         "Best strategy for each time of day (hindsight): +2,260"]
     sup = lab.accts["timing"]
     sup.n, sup.wins, sup.pnl, sup.cash = 14, 6, 120.0, 1120.0
-    assert lab.simple(now=at(10)).splitlines()[0] == "Super bot: $1,000 -> $1,120 (+120 on 14 trades, 43% won)"
+    assert lab.simple(now=at(10)).splitlines()[1] == \
+        "Your plan so far: taken out $0, account $1,120, net +120 (14 trades, 43% won)"
 
 
 def test_launch_lab_versions_get_their_familys_signals_as_ghosts_only():
@@ -2906,3 +2907,54 @@ def test_launch_lab_versions_get_their_familys_signals_as_ghosts_only():
     assert {"whale_follow", "wh5_quick", "wh5_flip", "wh5_trail", "wh2_quick", "wh2_base", "wh2_trail"} <= pend
     assert not {"wh10_quick", "wh10_base", "wh10_trail"} & pend             # under 10 SOL: the 10+ versions wait
     assert mint in lab.accts["whale_follow"].pending                         # the original still trades for real
+
+
+def test_launch_lab_super_bot_follows_the_owners_money_plan():
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    from bot import launch_lab as ll
+
+    told = []
+    at = lambda d, h: datetime.datetime(2026, 11, d, h, 0, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    lab = ll.Lab(tell=lambda t, m: told.append((t, m)))
+    sup, ghost = lab.accts["timing"], lab.ghosts["timing"]
+    tick = lambda t: lab.watch(t, {"kind": "trade", "buy": True, "sol": 0.1})
+    tick(at(9, 10))                                     # the plan starts on Nov 9
+
+    def day(profit, trades=10):                         # the super bot's day: some trades, a result
+        sup.n += trades
+        sup.cash += profit
+        ghost.pnl += profit
+
+    day(+340.0)
+    tick(at(10, 0) + 30)                                # midnight: Nov 9 settles
+    assert lab.plan["banked"] == 340.0 and sup.cash == 1000.0     # everything over $1,000 taken out
+    assert told[-1][0] == "🧪 Super bot, 2026-11-09" and "+340 on 10 trades. Took out $340" in told[-1][1]
+    day(-150.0)
+    tick(at(11, 0) + 30)                                # a losing day: not topped up, 1 of 2
+    assert sup.cash == 850.0 and lab.plan["streak"] == 1 and lab.plan["mode"] == "plan"
+    assert "Losing day 1 of 2" in told[-1][1]
+    tick(at(11, 9) + 30)                                # a day with no trades doesn't count either way
+    day(-100.0)
+    tick(at(12, 0) + 30)                                # a second losing day in a row: practice mode
+    assert lab.plan["mode"] == "practice" and told[-1][0] == "🧪 Super bot: practice mode"
+    assert "2026-11-10 -150, 2026-11-11 -100" in told[-1][1] and "net +90" in told[-1][1]    # +340 -150 -100
+
+    lab.timing_on = lambda now: ["whale_follow"]          # a pick comes in: paper only
+    lab.order("whale_follow", "MINT", at(12, 15), "buy", "a 6.0 SOL buy")
+    assert "MINT" not in sup.pending and "MINT" in ghost.pending
+    ghost.pnl += 75.0
+    assert lab.simple(now=at(12, 16)).splitlines()[:2] == [
+        "Super bot: PRACTICE MODE since 2026-11-11 (2 losing days in a row). On paper since then: +75. "
+        "Tell Claude to restart it at your next check.",
+        "Your plan so far: taken out $340, account $750, net +90"]
+
+    ghost.pending.clear()
+    sup.cash = 750.0
+    assert lab.resume_super() == 250.0                  # the check said go: back to $1,000, counted as put in
+    assert lab.plan["mode"] == "plan" and lab.plan["put_in"] == 1250.0 and sup.cash == 1000.0
+    lab.order("whale_follow", "MINT2", at(12, 20), "buy", "a 7.0 SOL buy")
+    assert "MINT2" in sup.pending
+    again = ll.Lab(state=lab.snapshot())
+    assert again.plan["banked"] == 340.0 and again.plan["put_in"] == 1250.0
