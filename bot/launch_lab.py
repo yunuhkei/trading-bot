@@ -640,7 +640,7 @@ class Lab:
     def tick(self, now: float):
         """Every second: time-based exits and orders on coins that went quiet; forget old coins."""
         for c in list(self.coins.values()):
-            busy = any(c.mint in a.positions or c.mint in a.pending for a in self.accts.values())
+            busy = any(c.mint in a.positions or c.mint in a.pending for a in self.books())    # ghosts too
             if busy:
                 self.exits(now, c)
                 if now - c.last > 10:                    # no trades for 10 s: fill at the last known reserves
@@ -689,7 +689,7 @@ class Lab:
 
     def simple(self, now: float | None = None) -> str:
         """The phone's hourly ping in plain words: the super bot; last hour per strategy (which ones made money and
-        how much, the rest as an average, the biggest win); the best spots so far; and hindsight."""
+        how much, the rest as an average, the biggest win); the best hours so far, and the ones that keep winning."""
         now = now or time.time()
         lines = self.plan_lines(now)
         on = self.timing_on(now)
@@ -721,24 +721,29 @@ class Lab:
             k, t = max(((k, t) for k, r in hour_of.items() for t in r), key=lambda kt: kt[1]["profit"])
             if t["profit"] > 0:
                 lines.append(f"Biggest win: {STRATEGIES[k]['label']} on {t['name']}, {t['profit']:+,.0f}")
-        # the best spots so far (strategy + time of day)
-        names = {"midday": "at midday (11a-5p)", "evening": "in the evening (5-11p)", "overnight": "overnight (11p-5a)",
-                 "morning": "in the morning (5-11a)"}
-        cells = [(g.slot(s, e), k, key) for k, g in self.ghosts.items() if k != "random" and k not in SUPER
-                 for key, _, s, e in SLOTS]
-        good = sorted((c for c in cells if c[0][0] and c[0][2] > 0), key=lambda c: -c[0][2])
+        # the best hours so far (strategy + hour of the day, Milwaukee time), and the ones that keep winning there
+        cells = []
+        for k, g in self.ghosts.items():
+            if k == "random" or k in SUPER:
+                continue
+            for h in range(24):
+                n, w, pnl_ = g.by_hour[h]
+                if n:
+                    rows = [g.days[d][h] for d in g.days if g.days[d][h][0]]
+                    cells.append((pnl_, n, w, k, h, sum(r[2] > 0 for r in rows), len(rows)))
+        hr = lambda h: f"{h % 12 or 12}{'a' if h < 12 else 'p'}"
+        piece = lambda c: (f"{STRATEGIES[c[3]]['label']} at {hr(c[4])}: {c[0]:+,.0f} on {c[1]} trades "
+                           f"({c[2] / c[1]:.0%} won; up {c[5]} of {c[6]} days)")
+        good = sorted((c for c in cells if c[0] > 0), reverse=True)
         if good:
-            lines += ["", "Best spots so far:"]
-            for i, ((n, w, pnl_), k, key) in enumerate(good[:3], 1):
-                lines.append(f"{i}. {STRATEGIES[k]['label']} {names[key]}: {pnl_:+,.0f} on {n} trades ({w / n:.0%} won)")
-            # many versions trade the same coins, so adding them all up would count the same trades again and again:
-            # instead, the best single strategy for each time of day
-            best = {}
-            for c in good:
-                best[c[2]] = max(best.get(c[2], 0.0), c[0][2])
-            lines.append(f"Best strategy for each time of day (hindsight): {sum(best.values()):+,.0f}")
+            lines += ["", "Best hours so far:"] + [f"{i}. {piece(c)}" for i, c in enumerate(good[:3], 1)]
         elif cells:
-            lines.append("Best spots so far: none yet, every strategy is losing at every time of day")
+            lines += ["", "Best hours so far: none yet, every strategy is losing in every hour"]
+        repeat = [c for c in good if c[6] >= 2 and c[5] == c[6]]       # up in that hour every day it traded, 2+ days
+        if repeat:
+            lines += ["Repeat winners (up in the same hour every day, 2+ days):"] + [f"• {piece(c)}" for c in repeat[:3]]
+        elif cells:
+            lines.append("Repeat winners (up in the same hour on 2+ days): none yet")
         return "\n".join(lines).encode()[:4000].decode(errors="ignore")
 
     def times_of_day(self, top: int | None = None) -> list[str]:

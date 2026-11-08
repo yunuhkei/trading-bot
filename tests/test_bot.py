@@ -2889,10 +2889,14 @@ def test_launch_lab_simple_ping_says_it_in_plain_words():
         "✅ Breakout to new highs: +5 on 2 trades (1 won)",
         "Biggest win: Breakout to new highs on ?, +25",
         "",
-        "Best spots so far:",
-        "1. Follow a 5+ SOL buy at midday (11a-5p): +1,600 on 10 trades (100% won)",
-        "2. Volume spike, quick (+30%/-15%) in the evening (5-11p): +660 on 10 trades (100% won)",
-        "Best strategy for each time of day (hindsight): +2,260"]
+        "Best hours so far:",
+        "1. Follow a 5+ SOL buy at 1p: +1,600 on 10 trades (100% won; up 1 of 1 days)",
+        "2. Volume spike, quick (+30%/-15%) at 7p: +660 on 10 trades (100% won; up 1 of 1 days)",
+        "Repeat winners (up in the same hour on 2+ days): none yet"]
+    for _ in range(3):
+        lab.ghosts["whale_follow"].tally(at(13) + 86400, 50.0)     # the next day, the same hour: up again
+    assert ("• Follow a 5+ SOL buy at 1p: +1,750 on 13 trades (100% won; up 2 of 2 days)"
+            in lab.simple(now=at(10) + 86400))
     lab.ghosts["dip_bounce"].trades += [{"t": at(10) - 900, "s": 60, "profit": -80.0, "name": "X"}]
     lab.ghosts["snipe"].trades += [{"t": at(10) - 900, "s": 60, "profit": -20.0, "name": "Y"}]
     assert "❌ 2 lost money: -50 each on average (worst: Second-chart dip bounce, -80)" in lab.simple(now=at(10))
@@ -2967,3 +2971,24 @@ def test_launch_lab_super_bot_follows_the_owners_money_plan():
     assert "MINT2" in sup.pending
     again = ll.Lab(state=lab.snapshot())
     assert again.plan["banked"] == 340.0 and again.plan["put_in"] == 1250.0
+
+
+def test_launch_lab_ghost_bets_on_coins_that_go_quiet_still_close_and_count():
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=200.0)
+    lab.accts["whale_follow"].cash = 100.0               # busted: only the ghost trades
+    mint = "Q" * 32
+    e = {"kind": "trade", "mint": mint, "sol": 1.0, "tokens": 1e6, "buy": True, "user": "u1", "ts": 0,
+         "vsol": 31.0, "vtok": 1.0e9, "real_sol": 1.0, "fee": 0.0}
+    lab.event(1000.0, e)
+    lab.order("whale_follow", mint, 1000.0, "buy", "a 6.0 SOL buy")
+    lab.event(1002.0, dict(e, user="u2"))                # filled; then the coin goes quiet for good
+    g = lab.ghosts["whale_follow"]
+    assert mint in g.positions
+    for t in range(1003, 1400):                          # the lab's once-a-second check
+        lab.tick(float(t))
+    assert mint not in g.positions and g.n == 1          # the 180 s limit ran out: sold at the last price, counted
+    for t in range(1400, 2400):                          # snipe versions bought it too; the longest limit is 20 min
+        lab.tick(float(t))
+    assert not any(mint in b.positions or mint in b.pending for b in lab.books())
