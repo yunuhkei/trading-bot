@@ -59,6 +59,7 @@ WINDOW, WINDOW_LABEL = (11 * 60, 15 * 60 + 40), "11a-3:40p"
 SUPER_DAYS, SUPER_TRADES, KEEP_DAYS = 2, 20, 35
 SUPER = ("timing", "streak")  # $1,000 and $250 trades like the rest; real money later at $100 is about a tenth
 STREAK_S, STREAK_TRADES = 1800, 5     # super bot 2: a strategy is hot when it made money in its last 30 min (5+ trades)
+COOLED = 3                            # ...and it's dropped the moment its last 3 trades all lost (good stretches end fast)
 SIGN_EVERY = 300                      # the market-signs log: one row every 5 minutes, kept for KEEP_DAYS
 SUPER_TOP = 3                  # with this many versions, copy only the best 3 for an hour (luck makes some look good)
 
@@ -369,14 +370,16 @@ class Lab:
         return list(self.accts.values()) + list(self.ghosts.values())
 
     def streak_on(self, now: float) -> list[str]:
-        """Super bot 2's picks: the best 3 strategies by profit over the last 30 minutes (5+ trades, in profit)."""
+        """Super bot 2's picks: the best 3 strategies by profit over the last 30 minutes (5+ trades, in profit), but
+        not one whose last 3 trades all lost (it's cooling off)."""
         if now - self._streak[0] >= 60:
             hot = []
             for k, g in self.ghosts.items():
                 if k == "random" or k in SUPER:
                     continue
                 rec = [t["profit"] for t in g.trades[-400:] if now - (t["t"] + t["s"]) <= STREAK_S]
-                if len(rec) >= STREAK_TRADES and sum(rec) > 0:
+                cooled = len(rec) >= COOLED and all(x <= 0 for x in rec[-COOLED:])
+                if len(rec) >= STREAK_TRADES and sum(rec) > 0 and not cooled:
                     hot.append((sum(rec), k))
             self._streak = (now, [k for _, k in sorted(hot, reverse=True)[:SUPER_TOP]])
         return self._streak[1]
@@ -549,6 +552,7 @@ class Lab:
         w = self._win
         if w["start"] is None:
             w["start"] = now
+            w["px0"] = {m: c.price for m, c in self.coins.items()}
         if e["kind"] == "create":
             b[2] += 1
             w["new"] += 1
@@ -675,6 +679,12 @@ class Lab:
         self.exits(now, c)
         self.fill(now, c)
 
+    def up_share(self, w: dict) -> float | None:
+        """Market health: of the coins that traded in these 5 minutes, the share whose price ended higher."""
+        px0 = w.get("px0") or {}
+        moved = [c.price > px0[m] for m, c in self.coins.items() if m in px0 and c.last >= w["start"]]
+        return round(sum(moved) / len(moved), 3) if moved else None
+
     def log_signs(self, now: float):
         """Every 5 minutes, one row of market signs and how each strategy family did in those 5 minutes."""
         w = self._win
@@ -687,11 +697,13 @@ class Lab:
                            "buy_sol_min": round(w["buy"] / mins, 1), "sell_sol_min": round(w["sell"] / mins, 1),
                            "buyers_min": round(len(w["buyers"]) / mins), "grads": w["grad"],
                            "coins": len(self.coins), "sol_usd": round(self.sol_usd, 2),
+                           "up_share": self.up_share(w),
                            "fam": {k: [v[0], round(v[1], 1)] for k, v in w["fam"].items()}})
         cut = now - KEEP_DAYS * 86400
         while self.signs and self.signs[0]["t"] < cut:
             self.signs.pop(0)
-        self._win = {"start": now, "trades": 0, "new": 0, "buy": 0.0, "sell": 0.0, "grad": 0, "buyers": set(), "fam": {}}
+        self._win = {"start": now, "trades": 0, "new": 0, "buy": 0.0, "sell": 0.0, "grad": 0, "buyers": set(), "fam": {},
+                     "px0": {m: c.price for m, c in self.coins.items()}}
 
     def tick(self, now: float):
         """Every second: time-based exits and orders on coins that went quiet; forget old coins; the signs log."""

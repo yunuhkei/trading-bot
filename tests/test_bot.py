@@ -3006,6 +3006,10 @@ def test_launch_lab_super_bot_2_copies_what_won_in_the_last_30_minutes():
     lab.ghosts["dip_quick"].trades += [{"t": now - 4000, "s": 30, "profit": 99.0, "name": "z"} for _ in range(6)]  # old
     lab.ghosts["random"].trades += [{"t": now - 900, "s": 30, "profit": 99.0, "name": "r"} for _ in range(6)]   # luck
     assert lab.streak_on(now) == ["vs3_quick"]
+    lab.ghosts["vs4_quick"].trades += [{"t": now - 900 + i, "s": 30, "profit": p, "name": "c"}       # up overall,
+                                       for i, p in enumerate([90.0, 90.0, -10.0, -10.0, -10.0])]  # but cooling off
+    lab._streak = (-1e18, [])
+    assert lab.streak_on(now) == ["vs3_quick"]
     lab.timing_on = lambda t: []
     lab.order("vs3_quick", "MINT", now, "buy", "5 SOL in 10 s")
     lab.order("breakout", "MINT2", now, "buy", "new 3-min high")
@@ -3033,3 +3037,18 @@ def test_launch_lab_logs_market_signs_every_5_minutes():
     assert row["buy_sol_min"] == 24.0 and row["sell_sol_min"] == 12.1
     assert lab.signs[1]["grads"] == 1 and lab.signs[1]["fam"] == {"whale": [3, 120.0]}
     assert ll.Lab(state=lab.snapshot()).signs == lab.signs
+
+
+def test_launch_lab_market_health_counts_the_share_of_coins_going_up():
+    from bot import launch_lab as ll
+
+    lab = ll.Lab()
+    base = {"kind": "trade", "sol": 1.0, "tokens": 1e6, "buy": True, "user": "u", "ts": 0, "real_sol": 1.0, "fee": 0.0}
+    for i in range(4):
+        lab.event(1000.0, dict(base, mint=f"C{i}" * 16, vsol=40.0, vtok=1.0e9))
+    lab._win = {"start": 1001.0, "trades": 0, "new": 0, "buy": 0.0, "sell": 0.0, "grad": 0, "buyers": set(), "fam": {},
+                "px0": {m: c.price for m, c in lab.coins.items()}}
+    lab.event(1100.0, dict(base, mint="C0" * 16, vsol=50.0, vtok=0.8e9))           # up
+    lab.event(1100.0, dict(base, mint="C1" * 16, vsol=45.0, vtok=0.9e9))           # up
+    lab.event(1100.0, dict(base, mint="C2" * 16, vsol=35.0, vtok=1.1e9, buy=False))  # down; C3 didn't trade
+    assert lab.up_share(lab._win) == round(2 / 3, 3)
