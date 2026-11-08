@@ -2744,26 +2744,47 @@ def test_launch_lab_splits_results_by_time_of_day_and_keeps_old_trades_counted()
            "trades": [{"t": at(15), "s": 30, "profit": 50.0}, {"t": at(15), "s": 30, "profit": -20.0},
                       {"t": at(16), "s": 30, "profit": 40.0}]}
     lab = ll.Lab(state={"accounts": {"volume_spike": old}})
-    a = lab.accts["volume_spike"]
+    a, g = lab.accts["volume_spike"], lab.ghosts["volume_spike"]
     assert a.slot(11, 17) == (5, 3, 100.0)              # the 2 trades it no longer has count in the oldest kept hour
-    a.tally(at(20), -30.0)                              # 8:30 pm: evening
-    a.tally(at(2), 10.0)                                # 2:30 am: overnight
+    assert g.slot(11, 17) == (5, 3, 100.0)              # the ghost starts from the same record
+    assert list(g.days) == ["2026-11-07"]               # and the first day's hours become that day
+    for b in (a, g):
+        b.tally(at(20), -30.0)                          # 8:30 pm: evening
+        b.tally(at(2), 10.0)                            # 2:30 am: overnight
     assert a.slot(17, 23) == (1, 0, -30.0) and a.slot(23, 5) == (1, 1, 10.0)
     again = ll.Lab(state={"accounts": {"volume_spike": a.to_dict()}}).accts["volume_spike"]
     assert again.by_hour == a.by_hour
-    lab.accts["snipe"].cash = 197.0                      # busted: a short line, and no time-of-day line
+    lab.accts["snipe"].cash = 197.0                      # busted: in the one "staying dead" line
     board = lab.board(now=at(21))
-    assert "By time of day" in board and "midday 11a-5p 5 trades, 60% won, +100" in board
-    assert "evening 5-11p 1 trades, 0% won, -30" in board and "overnight 11p-5a 1 trades" in board
-    assert "busted" in board.split("Snipe every new coin")[1].split("\n")[0]
-    assert "Snipe every new coin" not in board.split("By time of day")[1]
-    assert "window vs the rest" not in board            # nothing inside 11a-3:40p yet
-    a.tally(at(15) - 20 * 60, 25.0)                     # 3:10 pm: inside the window
-    a.tally(at(15) + 15 * 60, -5.0)                     # 3:45 pm: just after it
-    assert a.window == {"in": [1, 1, 25.0], "out": [3, 1, -25.0]}
-    board = lab.board(now=at(21))
-    assert "in it 1 trades, 100% won, +25 | rest 3 trades, 33% won, -25" in board
-    assert ll.Lab(state={"accounts": {"volume_spike": a.to_dict()}}).accts["volume_spike"].window == a.window
+    assert "• Busted, staying dead (1): Snipe every new coin +0" in board
+    assert "• Volume spike: mid +100/5 (60%) | eve -30/1 (0%) | night +10/1 (100%)" in board
+    assert "• All strategies together (not random): mid +100/5 (60%) | eve -30/1 (0%)" in board
+    assert "| win " not in board                       # nothing inside 11a-3:40p yet
+    g.tally(at(15) - 20 * 60, 25.0)                     # 3:10 pm: inside the window
+    g.tally(at(15) + 15 * 60, -5.0)                     # 3:45 pm: just after it
+    assert g.window == {"in": [1, 1, 25.0], "out": [3, 1, -25.0]}
+    assert "| win +25/1 (100%)" in lab.board(now=at(21))
+    assert ll.Lab(state=lab.snapshot()).ghosts["volume_spike"].window == g.window
+
+
+def test_launch_lab_ghost_keeps_trading_after_the_real_account_busts():
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=200.0)
+    lab.accts["whale_follow"].cash = 100.0               # busted for real
+    lab.ghosts["whale_follow"].cash = 100.0
+    mint = "G" * 32
+    e = {"kind": "trade", "mint": mint, "sol": 1.0, "tokens": 1e6, "buy": True, "user": "u1", "ts": 0,
+         "vsol": 31.0, "vtok": 1.0e9, "real_sol": 1.0, "fee": 0.0}
+    lab.event(1000.0, e)
+    lab.order("whale_follow", mint, 1000.0, "buy", "a 6.0 SOL buy")
+    assert mint not in lab.accts["whale_follow"].pending      # the dead account stays dead
+    assert mint in lab.ghosts["whale_follow"].pending          # the ghost tops itself up and keeps score
+    lab.event(1002.0, dict(e, user="u2"))
+    lab.event(1003.0, dict(e, user="u3", vsol=60.0, vtok=0.52e9))
+    lab.event(1004.5, dict(e, user="u4", vsol=60.0, vtok=0.52e9))
+    g = lab.ghosts["whale_follow"]
+    assert g.n == 1 and g.pnl > 0 and lab.accts["whale_follow"].n == 0
 
 
 def test_launch_lab_measures_how_busy_pump_fun_is_by_the_hour():
@@ -2781,7 +2802,7 @@ def test_launch_lab_measures_how_busy_pump_fun_is_by_the_hour():
             lab.watch(t0 + i, {"kind": "create"})
     lab.watch(t0 + 5000, {"kind": "trade", "buy": False, "sol": 1.0})    # after a gap: the gap isn't counted
     lines = lab.busy_lines()
-    assert lines[0] == "• How busy pump.fun is, a minute: midday 11a-5p 60 trades, 1.0 new coins"
+    assert lines[0] == "• How busy pump.fun is, a minute: mid 60 trades, 1 new coins"
     assert lines[1] == "• Busiest hours so far: 3p (60 trades)"
     saved = ll.Lab(state=lab.snapshot())
     assert saved.activity[15][1] == 1200 and saved.busy_lines() == lines
@@ -2796,7 +2817,7 @@ def test_launch_lab_super_bot_copies_a_strategy_only_in_hours_it_won_on_earlier_
     tz = ZoneInfo("America/Chicago")
     at = lambda d, h, m=0: datetime.datetime(2026, 11, d, h, m, tzinfo=tz).timestamp()
     lab = ll.Lab()
-    whale, spike = lab.accts["whale_follow"], lab.accts["volume_spike"]
+    whale, spike = lab.ghosts["whale_follow"], lab.ghosts["volume_spike"]     # judged on the ghost records
     for day in (8, 9):                                   # whale: won at 3 pm on both earlier days
         for _ in range(12):
             whale.tally(at(day, 15, 5), 20.0)
@@ -2805,7 +2826,7 @@ def test_launch_lab_super_bot_copies_a_strategy_only_in_hours_it_won_on_earlier_
     for _ in range(40):
         spike.tally(at(10, 15, 1), 50.0)                 # spike: a great 3 pm, but only today (Nov 10) -> not yet
     for _ in range(30):
-        lab.accts["random"].tally(at(8, 15), 9.0); lab.accts["random"].tally(at(9, 15), 9.0)    # luck: never
+        lab.ghosts["random"].tally(at(8, 15), 9.0); lab.ghosts["random"].tally(at(9, 15), 9.0)    # luck: never
     assert lab.timing_on(at(10, 15, 30)) == ["whale_follow"]
     assert lab.timing_on(at(10, 20, 30)) == []
     assert lab.timing_on(at(9, 15, 30)) == []           # on Nov 9 only one earlier day: not enough
@@ -2823,8 +2844,8 @@ def test_launch_lab_super_bot_copies_a_strategy_only_in_hours_it_won_on_earlier_
     board = lab.board(now=at(10, 15, 40))
     assert "Super bot this hour (3p): copying Follow a 5+ SOL buy" in board
     assert "Super bot this hour (8p): sitting out" in lab.board(now=at(10, 20, 40))
-    again = ll.Lab(state={"accounts": {"whale_follow": whale.to_dict()}})
-    assert again.accts["whale_follow"].days == whale.days
+    again = ll.Lab(state=lab.snapshot())
+    assert again.ghosts["whale_follow"].days == whale.days and "trades" not in lab.snapshot()["shadow"]["whale_follow"]
 
 
 def test_launch_lab_super_bot_sells_with_the_copied_strategys_rules():

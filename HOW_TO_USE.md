@@ -488,8 +488,12 @@ hourly report like the copy bot's; `launch-lab-status` prints it with each strat
 evening 5-11p, overnight 11p-5a, morning 5-11a, by when the coin was bought), to test the midday hunch from copy
 trading. It also shows how busy pump.fun is each hour, and the owner's 11a-3:40p window against the rest of the day.
 
-**Super bot** (`timing`): its own pretend $1,000. Each hour it copies the buys of every strategy that made money in that
-same hour on earlier days: 2+ days with trades in that hour, 20+ trades, a profit overall and on more than half of those
+**Ghost records:** every strategy also has a ghost that makes the same buys and sells but never runs out of money.
+Busted accounts stay dead, but their ghosts keep counting what they would have made, so the time-of-day split shows every
+strategy, and the super bot can still use a strategy at its good hours.
+
+**Super bot** (`timing`): its own pretend $1,000. Each hour it copies the buys of every strategy whose ghost made money in
+that same hour on earlier days: 2+ days with trades in that hour, 20+ trades, a profit overall and on more than half of those
 days. Today's trades never count for today, so its results are a fair test, not hindsight. Random coins is never
 copied. Each copied bet sells with the rules of the strategy it came from. The report says which strategies it's
 copying this hour, or that it's sitting out. A second one (`timing_5k`) makes the same picks at the owner's planned

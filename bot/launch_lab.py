@@ -213,12 +213,13 @@ class Account:
         self.n, self.wins, self.pnl = int(d.get("n", 0)), int(d.get("wins", 0)), float(d.get("pnl", 0.0))
         self.best, self.worst = float(d.get("best", 0.0)), float(d.get("worst", 0.0))
         self.pending: dict = {}
+        self.ghost = False
         # every trade by the hour it was bought (Milwaukee time): [trades, wins, profit]; not cut off like `trades`
         self.by_hour = [list(b) for b in d["by_hour"]] if d.get("by_hour") else self._rebuild_hours()
         # by day and hour, for the super bot: {"2026-11-08": 24 x [trades, wins, profit]}. A save from before this
         # was all one day (the lab's first, Nov 7), so its hour tally becomes that day.
         self.days = {k: [list(b) for b in v] for k, v in (d.get("days") or {}).items()}
-        if not d.get("days") and d.get("by_hour") and self.trades:
+        if not d.get("days") and self.trades:
             self.days[local_time(self.trades[-1]["t"]).strftime("%Y-%m-%d")] = [list(b) for b in self.by_hour]
         # inside the owner's window vs the rest of the day; starts empty (only trades from Nov 8 on)
         self.window = {k: list(v) for k, v in (d.get("window") or {"in": [0, 0, 0.0], "out": [0, 0, 0.0]}).items()}
@@ -277,6 +278,13 @@ class Lab:
         self.names: dict[str, str] = {}
         self.sol_usd, self.lb, self.ls = sol_usd, latency_buy, latency_sell
         self.accts = {k: Account(k, (state.get("accounts") or {}).get(k)) for k in STRATEGIES}
+        # a ghost of every strategy: the same buys and sells, but it never runs out of money, so its records keep
+        # counting after the real account busts (busted accounts stay dead). The super bot judges strategies on these.
+        saved = state.get("shadow") or {}
+        self.ghosts = {k: Account(k, saved.get(k) or (state.get("accounts") or {}).get(k))
+                       for k in STRATEGIES if k not in SUPER}
+        for g in self.ghosts.values():
+            g.ghost = True
         self.rng = random.Random(seed)
         self.random_plan: dict[str, float] = {}
         self.events = int(state.get("events", 0))
@@ -295,8 +303,8 @@ class Lab:
         day, h = lt.strftime("%Y-%m-%d"), lt.hour
         if self._timing[0] != (day, h):
             on = []
-            for k, a in self.accts.items():
-                if k == "random" or k in SUPER:
+            for k, a in self.ghosts.items():
+                if k == "random":
                     continue
                 rows = [a.days[d][h] for d in a.days if d < day and a.days[d][h][0]]
                 if (len(rows) >= SUPER_DAYS and sum(r[0] for r in rows) >= SUPER_TRADES and sum(r[2] for r in rows) > 0
@@ -305,22 +313,34 @@ class Lab:
             self._timing = ((day, h), [k for _, k in sorted(on, reverse=True)])
         return self._timing[1]
 
-    def order(self, key: str, mint: str, now: float, side: str, why: str = "", via: str | None = None):
-        a = self.accts[key]
-        if side == "buy":
-            if key not in SUPER and key in self.timing_on(now):
+    def books(self) -> list[Account]:
+        return list(self.accts.values()) + list(self.ghosts.values())
+
+    def order(self, key: str, mint: str, now: float, side: str, why: str = ""):
+        if side != "buy":
+            return self._sell(self.accts[key], mint, now, why)
+        if key not in SUPER:
+            if key in self.timing_on(now):
                 for sk in SUPER:
-                    self.order(sk, mint, now, "buy", f"{STRATEGIES[key]['label']}: {why}", via=key)
-            if not a.can_buy(mint):
-                return
-            a.pending[mint] = {"side": "buy", "at": now + self.lb, "why": why, "signal": now, "via": via}
-            a.cash -= a.per_trade                                       # reserved
-        elif mint in a.positions and not a.positions[mint].get("selling"):
+                    self._buy(self.accts[sk], mint, now, f"{STRATEGIES[key]['label']}: {why}", via=key)
+            self._buy(self.ghosts[key], mint, now, why)
+        self._buy(self.accts[key], mint, now, why)
+
+    def _buy(self, a: Account, mint: str, now: float, why: str, via: str | None = None):
+        if a.ghost and a.cash < a.per_trade:
+            a.cash += CASH                                              # a ghost never runs out: it only keeps score
+        if not a.can_buy(mint):
+            return
+        a.pending[mint] = {"side": "buy", "at": now + self.lb, "why": why, "signal": now, "via": via}
+        a.cash -= a.per_trade                                           # reserved
+
+    def _sell(self, a: Account, mint: str, now: float, why: str):
+        if mint in a.positions and not a.positions[mint].get("selling"):
             a.positions[mint]["selling"] = {"at": now + self.ls, "why": why}
 
     def fill(self, now: float, coin: Coin, stale: bool = False):
         """Fill every order on this coin whose time has come, at the coin's current reserves."""
-        for a in self.accts.values():
+        for a in self.books():
             o = a.pending.get(coin.mint)
             if o and now >= o["at"]:
                 a.pending.pop(coin.mint)
@@ -400,11 +420,11 @@ class Lab:
 
     def exits(self, now: float, coin: Coin):
         px = coin.price
-        for key, a in self.accts.items():
+        for a in self.books():
             p = a.positions.get(coin.mint)
             if not p or p.get("selling"):
                 continue
-            rules, ch = STRATEGIES[p.get("via") or key], px / p["entry"] - 1 if p["entry"] else 0.0
+            rules, ch = STRATEGIES[p.get("via") or a.key], px / p["entry"] - 1 if p["entry"] else 0.0
             p["peak"] = max(p["peak"], px)
             why = None
             if "tp" in rules and ch >= rules["tp"]:
@@ -424,7 +444,7 @@ class Lab:
             if coin.done:
                 why = f"graduated {ch:+.0%}"
             if why:
-                self.order(key, coin.mint, now, "sell", why)
+                self._sell(a, coin.mint, now, why)
 
     def watch(self, now: float, e: dict):
         m = int(now // 60)
@@ -449,8 +469,9 @@ class Lab:
                 return None
             return (sum(self.activity[h][1] for h in hours) * 60 / secs,
                     sum(self.activity[h][2] for h in hours) * 60 / secs)
-        slots = [(label, rate(slot_hours(s, e))) for _, label, s, e in SLOTS]
-        slots = [f"{label} {r[0]:,.0f} trades, {r[1]:.1f} new coins" for label, r in slots if r]
+        shorts = {"midday": "mid", "evening": "eve", "overnight": "night", "morning": "morn"}
+        slots = [(shorts[key], rate(slot_hours(s, e))) for key, _, s, e in SLOTS]
+        slots = [f"{label} {r[0]:,.0f} trades, {r[1]:.0f} new coins" for label, r in slots if r]
         if not slots:
             return []
         hours = sorted(((rate([h]), h) for h in range(24) if rate([h])), key=lambda x: -x[0][0])[:3]
@@ -502,19 +523,17 @@ class Lab:
         return a.cash + sum(p["cost"] for p in a.positions.values()) + a.per_trade * len(a.pending)
 
     def board(self, now: float | None = None, hours: float = 1.0) -> str:
-        """Like the copy bot's reports: per strategy, the last hour and since it started, and the account; then the
-        same strategies split by time of day."""
+        """Like the copy bot's reports: per account still trading, the last hour and since it started; the busted
+        ones in one line; what the super bot is doing; then every strategy by time of day (its ghost record)."""
         now = now or time.time()
         lines = ["Pretend $1,000 per strategy, $250 trades ($5,000 and $1,000 trades for your-plan super bot), "
                  "1-second charts, real delays and fees:"]
         rows = sorted(self.accts.items(), key=lambda kv: -kv[1].pnl)
-        alive = [(k, a) for k, a in rows if self.value(a) >= a.per_trade or a.positions or a.pending]
-        living = {k for k, _ in alive}
+        dead = []
         for k, a in rows:
             value = self.value(a)
-            if k not in living:                      # busted strategies stay dead: one short line
-                lines.append(f"• {STRATEGIES[k]['label']}: busted at ${value:,.0f} ({a.n} trades, "
-                             f"{a.wins / max(a.n, 1):.0%} won, {a.pnl:+,.0f})")
+            if value < a.per_trade and not a.positions and not a.pending:
+                dead.append(f"{STRATEGIES[k]['label']} {a.pnl:+,.0f}")      # busted strategies stay dead
                 continue
             recent = [t for t in a.trades if now - (t["t"] + t["s"]) <= hours * 3600]
             won = sum(t["profit"] > 0 for t in recent)
@@ -523,51 +542,44 @@ class Lab:
             since = (f"Since it started: {a.n} trades, {a.wins / a.n:.0%} won, {a.pnl:+,.2f}; account about ${value:,.0f}"
                      if a.n else "Since it started: no trades yet")
             lines.append(f"• {STRATEGIES[k]['label']}: {last}{since}.")
+        if dead:
+            lines.append(f"• Busted, staying dead ({len(dead)}): " + ", ".join(dead))
         on = self.timing_on(now)
         hour = local_time(now).hour
         hour = f"{hour % 12 or 12}{'a' if hour < 12 else 'p'}"
         lines.append(f"• Super bot this hour ({hour}): " + (
             "copying " + ", ".join(STRATEGIES[k]["label"] for k in on) if on else
             f"sitting out (no strategy has made money at {hour} on {SUPER_DAYS}+ earlier days yet)"))
-        tod = self.busy_lines() + self.times_of_day(alive)
+        tod = self.busy_lines() + self.times_of_day()
         if tod:
-            lines += ["", "By time of day (Milwaukee time, when the coin was bought):"] + tod
-        win = self.window_lines(alive)
-        if win:
-            lines += ["", f"Your {WINDOW_LABEL} window vs the rest of the day (from Nov 8 on):"] + win
+            lines += ["", "By time of day, profit/trades (% won). Busted ones keep counting what they would have made. "
+                          f"Milwaukee time: mid 11a-5p, eve 5-11p, night 11p-5a, morn 5-11a; win = your {WINDOW_LABEL} "
+                          "window (from Nov 8):"] + tod
         return "\n".join(lines)
 
-    def window_lines(self, alive: list) -> list[str]:
-        """Each strategy still trading: inside the owner's window vs outside it. Shown once a trade lands inside."""
-        if not any(a.window["in"][0] for _, a in alive):
-            return []
-        def piece(b):
-            return f"{b[0]} trades, {b[1] / b[0]:.0%} won, {b[2]:+,.0f}" if b[0] else "no trades"
-        return [f"• {STRATEGIES[k]['label']}: in it {piece(a.window['in'])} | rest {piece(a.window['out'])}"
-                for k, a in alive if a.window["in"][0] or a.window["out"][0]]
+    def times_of_day(self) -> list[str]:
+        """Every strategy's ghost record by time slot and in the owner's window, plus all of them together."""
+        def piece(short, n, w, pnl):
+            return f"{short} {pnl:+,.0f}/{n} ({w / n:.0%})"
 
-    def times_of_day(self, alive: list) -> list[str]:
-        """One line per strategy still trading, plus all of them together; only the time slots it has traded in."""
-        def piece(n, w, pnl, label):
-            return f"{label} {n} trades, {w / n:.0%} won, {pnl:+,.0f}"
-
+        shorts = {"midday": "mid", "evening": "eve", "overnight": "night", "morning": "morn"}
         out, total = [], {key: [0, 0, 0.0] for key, *_ in SLOTS}
-        for k, a in alive:
+        for k, g in sorted(self.ghosts.items(), key=lambda kv: -kv[1].pnl):
             parts = []
-            for key, label, s, e in SLOTS:
-                n, w, pnl = a.slot(s, e)
+            for key, _, s, e in SLOTS:
+                n, w, pnl = g.slot(s, e)
                 if n:
-                    parts.append(piece(n, w, pnl, label))
-                    if k != "random" and k not in SUPER:    # not the luck baseline; the super bots only copy
+                    parts.append(piece(shorts[key], n, w, pnl))
+                    if k != "random":                    # the luck baseline isn't a strategy
                         t = total[key]
                         t[0], t[1], t[2] = t[0] + n, t[1] + w, t[2] + pnl
+            if g.window["in"][0]:
+                parts.append(piece("win", *g.window["in"]))
             if parts:
                 out.append(f"• {STRATEGIES[k]['label']}: " + " | ".join(parts))
-        both = [piece(*total[key], label) for key, label, *_ in SLOTS if total[key][0]]
-        if len(both) > 1 or out:
-            m = sum(k != "random" and k not in SUPER for k, _ in alive)    # busted ones are left out
-            out.insert(0, f"• The {m} still trading, together (not random, the super bot or busted ones): "
-                          + (" | ".join(both) or "no trades yet"))
+        both = [piece(shorts[key], *total[key]) for key, *_ in SLOTS if total[key][0]]
+        if both:
+            out.insert(0, "• All strategies together (not random): " + " | ".join(both))
         return out
 
     def snapshot(self) -> dict:
@@ -578,11 +590,21 @@ class Lab:
             d["cash"] = self.value(a)
             accts[k] = d
         return {"accounts": accts, "events": self.events, "t": time.time(), "hello": self.hello_done,
-                "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity]}
+                "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
+                "shadow": self.ghost_state()}
+
+    def ghost_state(self) -> dict:
+        out = {}
+        for k, g in self.ghosts.items():
+            d = g.to_dict()
+            d.pop("trades")
+            d["cash"] = self.value(g)
+            out[k] = d
+        return out
 
     def to_state(self, now: float | None = None) -> dict:
         now = now or time.time()
-        for a in self.accts.values():                   # a run ends: sell what's open at today's curve price
+        for a in self.books():                          # a run ends: sell what's open at today's curve price
             for mint in list(a.positions):
                 c = self.coins.get(mint)
                 if c:
@@ -593,7 +615,8 @@ class Lab:
             a.pending = {}
         return {"accounts": {k: a.to_dict() for k, a in self.accts.items()}, "events": self.events, "t": time.time(),
                 "hello": self.hello_done,
-                "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity]}
+                "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
+                "shadow": self.ghost_state()}
 
 
 async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180,
@@ -652,7 +675,8 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
                                     f"{len(lab.coins):,} coins being watched")
                             print(head, flush=True)
                             print(lab.board(), flush=True)
-                            lab.tell("🧪 Launch lab: hourly report", (head + "\n" + lab.board(now))[:3500])
+                            lab.tell("🧪 Launch lab: hourly report",      # ntfy's limit is 4,096 bytes
+                                     (head + "\n" + lab.board(now)).encode()[:4000].decode(errors="ignore"))
         except Exception as e:
             log.warning("feed dropped (%s); reconnecting", e)
             await asyncio.sleep(3)
@@ -667,7 +691,7 @@ def peek(lab: "Lab", now: float):
     import requests
 
     try:
-        requests.post(f"https://ntfy.sh/{PEEK_TOPIC}", data=lab.board(now).encode(), timeout=10,
+        requests.post(f"https://ntfy.sh/{PEEK_TOPIC}", data=lab.board(now).encode()[:4000], timeout=10,
                       headers={"Title": f"launch lab {time.strftime('%H:%M UTC', time.gmtime(now))}", "Priority": "min"})
     except Exception as ex:
         log.debug("peek failed: %s", ex)
