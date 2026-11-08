@@ -30,7 +30,7 @@ const CARS_RENDER=null;
 const GRAV=24;
 const C={x:0,y:0,z:0,yaw:0,vx:0,vz:0,vy:0,pitch:0,roll:0,px:0,py:0,pz:0,pyaw:0,ppitch:0,proll:0,spin:0,steerVis:0,wyaw:0,bob:0,
   gs:0,gsp:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0};
-const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:true,assist:true,respawn:0};
+const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
 const WB=1.35,TR=.8,RADIUS=1.05;
 function carPlace(x,z,yaw,yh){C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6}
 function respawn(){const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1}

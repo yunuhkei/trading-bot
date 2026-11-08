@@ -30,13 +30,14 @@ function startRun(){$('load').classList.add('off');running=true;last=performance
 function renderOnce(w,h){R.alpha=1;viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.tz,CAM.fov,w||UI.cw,h||UI.ch);renderFrame(w||UI.cw,h||UI.ch)}
 function frame(ms){
   uiInputs(ms/1000);
-  if(!UI.paused){acc+=Math.min(ms/1000,.1);let n=0;while(acc>=DT&&n<14){carStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
-  R.alpha=UI.paused?1:acc/DT;if(R.alpha>1)R.alpha=1;
+  const halt=UI.paused||UI.mapOpen;
+  if(!halt){acc+=Math.min(ms/1000,.1);let n=0;while(acc>=DT&&n<14){carStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
+  R.alpha=halt?1:acc/DT;if(R.alpha>1)R.alpha=1;
   /* camera follows the interpolated state */
-  camStep(UI.paused?0:ms/1000,false);
-  R.time+=UI.paused?0:ms/1000;
-  viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.tz,CAM.fov,UI.cw,UI.ch);renderFrame(UI.cw,UI.ch);
-  if((UI.hf=(UI.hf|0)+1)&1||UI.paused||UI.ms>24)hudDraw();audioUpdate()}
+  camStep(halt?0:ms/1000,false);
+  R.time+=halt?0:ms/1000;
+  if(!UI.mapOpen){viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.tz,CAM.fov,UI.cw,UI.ch);renderFrame(UI.cw,UI.ch)}
+  if((UI.hf=(UI.hf|0)+1)&1||UI.paused||UI.mapOpen||UI.ms>24)hudDraw();audioUpdate()}
 function loop(now){if(!running)return;const ms=Math.min(100,now-last);last=now;if(ms>0){Q.frame(ms);try{frame(ms)}catch(e){showErr('Frame error: '+(e&&e.message||e));running=false;console.error(e);return}}requestAnimationFrame(loop)}
 window.addEventListener('resize',()=>{if(UI.hud){uiResize()}});
 window.addEventListener('load',boot);
