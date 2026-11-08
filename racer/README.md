@@ -1,0 +1,21 @@
+# Racer prototype
+
+A free-roam arcade racer in **one self-contained HTML file** (`Racer_Prototype.html`, no libraries, no network).
+It is built from the modules in `racer/src` by `python3 racer/build.py` (the output is committed so you can just open it).
+
+* **Map**: one fixed county (about 6 km square): downtown grid, a 10 km highway ring, a mountain pass with switchbacks,
+  a coast road, a long southern straight, an east link, two overpasses, sea on the west. Roads are authored in plan view only
+  (`src/20_map.js`); heights follow the land and the land is carved around the roads. Everything is deterministic.
+* **Rendering**: terrain is a GPU clip-map (6 rings, one draw each) displaced from a 16-bit height texture; roads are ribbons with analytic
+  lane markings; buildings/trees/barriers are merged per 128 m cell and culled by distance + frustum; sky, fog and water are shaders.
+  About 40-110 draw calls and 60-90k triangles per frame. No shadows or reflections. A render-scale governor keeps frame time near 16 ms.
+* **Car**: the Surge Sport mesh baked from the Close Call garage (`src/car_nitro.js`, made with `tools/`), wheels separate so they spin and steer.
+* **Driving**: arcade model (grip, handbrake drift, nitro filled by drifting, steering assist on roads), building/barrier/bank collisions, respawn.
+* **Controls**: touch (drag left half to steer, NITRO / DRIFT / BRAKE on the right, AUTO = automatic gas) or keyboard
+  (arrows/WASD, Space drift, Shift nitro, R respawn, F fps, P pause, G auto-gas, M big map).
+
+Modules, in load order: `00_util` math/noise, `10_gl` GL helpers and all shaders, `20_map` roads + terrain function,
+`21_terrain` height map/carving/ground colours, `22_build` static geometry + spatial queries, `30_render` frame, `40_car` car/physics/camera/effects,
+`50_ui` input/HUD/minimap/audio/quality, `90_main` boot + loop.
+
+`tools/` documents how the car was extracted from the garage (needs the Close Call test harness; not needed to build the racer).
