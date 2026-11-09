@@ -91,7 +91,7 @@ copytrade:                # needs the HELIUS_API_KEY secret
   stop_loss: 0.20
   max_hold_hours: 48      # sell after this long even if the wallet hasn't
   live:                   # REAL money from the bot's wallet (SOLANA_BOT_KEY), same rules as above plus these
-    enabled: true
+    enabled: false        # off since Nov 9: HDgh stopped trading Nov 6, and the wallet's money went to the sniper
     budget: 100           # its own $100 (plus or minus what it makes); other money in the wallet is never used
     per_trade: 10         # dollars a trade (about 10% of the $100, like practice's $30 of $300)
     follow_all: true      # copy every wallet practice copies (not only the finder's approved ones); `only` overrides it
