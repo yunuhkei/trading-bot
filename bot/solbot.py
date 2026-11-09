@@ -100,8 +100,9 @@ def cost(o: dict) -> float:
     return 1 - out / i if i > 0 and out > 0 else 0.0
 
 
-def sign(tx_b64: str, kp) -> str:
-    """Sign Jupiter's transaction with the wallet key (only our own signature slot)."""
+def sign_with_sig(tx_b64: str, kp) -> tuple[str, str]:
+    """Sign Jupiter's transaction with the wallet key (only our own signature slot): (signed transaction, our
+    signature). The signature identifies the transaction on chain, so it can be looked up even if sending times out."""
     from solders.message import to_bytes_versioned
     from solders.transaction import VersionedTransaction
 
@@ -110,8 +111,14 @@ def sign(tx_b64: str, kp) -> str:
     if kp.pubkey() not in keys[: raw.message.header.num_required_signatures]:
         raise TradeError("the swap isn't for this wallet")
     sigs = list(raw.signatures)
-    sigs[keys.index(kp.pubkey())] = kp.sign_message(to_bytes_versioned(raw.message))
-    return base64.b64encode(bytes(VersionedTransaction.populate(raw.message, sigs))).decode()
+    mine = kp.sign_message(to_bytes_versioned(raw.message))
+    sigs[keys.index(kp.pubkey())] = mine
+    return base64.b64encode(bytes(VersionedTransaction.populate(raw.message, sigs))).decode(), str(mine)
+
+
+def sign(tx_b64: str, kp) -> str:
+    """Sign Jupiter's transaction with the wallet key (only our own signature slot)."""
+    return sign_with_sig(tx_b64, kp)[0]
 
 
 class KeyProblem(Exception):

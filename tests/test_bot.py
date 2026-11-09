@@ -3627,10 +3627,9 @@ def test_direct_buyer_gate_is_strict_and_sells_that_arrive_mid_buy_still_happen(
     d.queue.clear()
     asyncio.run(d._handle(None, ("buy", "M", 0.0, None)))
     assert list(d.queue) == [("sell", "M", 1.0, "stop")] and "M" not in d.buying
-    d.open["Z"] = {"mint": "Z", "in": 100, "tok": 5, "prog": "x"}
-    d.queue.clear()
-    d.lab_result("Z", -0.1)                             # the lab closed Z without a sell (its run ended): sell it too
-    assert list(d.queue)[0][:2] == ("sell", "Z")
+    d.trades = [{"mint": "g", "in": 100, "out": 180, "sell_ok": True, "done_curve": True, "sold": 1000}]
+    n, ret = d.recent(3, now=1000)                      # graduated: counted at its real Jupiter price
+    assert n == 1 and ret == 0.8
 
 
 def test_launch_lab_ignores_coins_priced_in_something_other_than_sol():
@@ -3639,12 +3638,12 @@ def test_launch_lab_ignores_coins_priced_in_something_other_than_sol():
 
     from bot import launch_lab as ll
 
-    def trade(quote: bytes):
+    def trade(quote: bytes, vsol: float = 40.0):
         raw = bytearray(400)
         raw[:8] = next(k for k, v in ll.DISC.items() if v == "TradeEvent")
         raw[8:40] = b"\x03" * 32
         struct.pack_into("<QQ", raw, 40, int(0.5e9), int(1e12)); raw[56] = 1
-        struct.pack_into("<QQQ", raw, 97, int(40e9), int(8e14), int(5e9))
+        struct.pack_into("<QQQ", raw, 97, int(vsol * 1e9), int(8e14), int(5e9))
         struct.pack_into("<I", raw, 258, 6); raw[262:268] = b"buy_v3"
         q = 268 + 1 + 32
         struct.pack_into("<I", raw, q, 1)                 # one shareholder entry (34 bytes)
@@ -3652,10 +3651,16 @@ def test_launch_lab_ignores_coins_priced_in_something_other_than_sol():
         return ll.decode("Program data: " + base64.b64encode(bytes(raw)).decode())
 
     sol = trade(bytes(32))                               # the zero key: priced in SOL
-    other = trade(b"\x09" * 32)                          # priced in another coin
-    assert sol["quote_sol"] is True and ll.sane(sol)
-    assert other["quote_sol"] is False and not ll.sane(other)
-
+    other = trade(b"\x09" * 32, vsol=0.0)                # priced in another coin
+    assert sol["quote_sol"] is True and other["quote_sol"] is False
+    lab = ll.Lab()
+    lab.event(1.0, other)
+    assert other["mint"] not in lab.coins                 # dropped: its amounts aren't SOL
+    lab.event(1.0, sol)
+    assert sol["mint"] in lab.coins
+    for _ in range(600):                                  # if most trades suddenly look non-SOL, the layout probably
+        lab.quote_guard(dict(other))                       # changed: the check switches itself off instead of blinding
+    assert lab.quote_guard(dict(other)) is True and lab._quote_warned
 
 def test_launch_lab_clean_start_resets_the_super_bots_paper_marks():
     from bot import launch_lab as ll
@@ -3666,3 +3671,61 @@ def test_launch_lab_clean_start_resets_the_super_bots_paper_marks():
     old["plan"]["ghost_start"], old["plan"]["ghost_at"] = 4000.0, 3500.0
     fresh = ll.Lab(state=old)
     assert fresh.plan["ghost_start"] == 0.0 and fresh.plan["ghost_at"] == 0.0
+
+
+def test_sniper_follows_up_a_buy_even_if_the_network_errors_while_it_waits():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    s = sn.Sniper(kp, sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True})
+    s.program_of = lambda m: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    s.curve = lambda m, lam: 6_000_000.0
+
+    class Resp:
+        def __init__(self, d): self.d = d
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def json(self, content_type=None): return self.d
+
+    class Flaky:                                          # the buy is sent, then the network errors while it waits
+        def post(self, url, json=None, timeout=None):
+            m = json["method"]
+            if m == "getBalance":
+                return Resp({"result": {"value": 5_000_000_000}})
+            if m == "getLatestBlockhash":
+                return Resp({"result": {"value": {"blockhash": "11111111111111111111111111111111"}}})
+            if m == "sendTransaction":
+                return Resp({"result": "ignored"})
+            raise TimeoutError("the node didn't answer")
+    real, quick = _quick_sleep()
+    asyncio.sleep = quick
+    try:
+        asyncio.run(s.buy(Flaky(), "So11111111111111111111111111111111111111112", 0.0))
+    finally:
+        asyncio.sleep = real
+    u = s.unconfirmed.get("So11111111111111111111111111111111111111112")
+    assert u and len(u["sig"]) > 60                       # its signature (known before sending) is kept to follow up
+
+
+def test_sniper_needs_two_readings_before_calling_a_coin_gone():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    s = sn.Sniper(Keypair(), cfg={**sn.DEFAULTS, "live": True})
+    answers = [0, 1000]                                   # a lagging node says "gone", the next reading says it's there
+    async def held(session, mint, prog):
+        return answers.pop(0)
+    s._held = held
+    real, quick = _quick_sleep()
+    asyncio.sleep = quick
+    try:
+        assert asyncio.run(s._gone(None, "M", "P")) is False
+    finally:
+        asyncio.sleep = real

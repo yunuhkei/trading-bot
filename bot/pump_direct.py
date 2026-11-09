@@ -178,8 +178,6 @@ class DirectBuyer:
                 return
         if mint in self.open:
             self.open[mint]["lab_ret"] = round(lab_return, 4)
-            if not self.open[mint].get("sell_q"):      # the lab closed it without a sell decision (a run ended)
-                self.lab_sell(mint, time.time(), "the lab closed it")
 
     async def _rpc(self, session, method: str, params: list):
         try:
@@ -267,10 +265,30 @@ class DirectBuyer:
                 r2, e2 = await self._rpc(session, "simulateTransaction",
                                          simulate_params(round_trip_tx(mint, b["prog"], b["in"], check), []))
                 ok = e2 is None and ((r2 or {}).get("value") or {}).get("err") is None
+            if st and st[2] and b["tok"] > 0:                # graduated: the real sniper sells these through Jupiter,
+                got = await self._jupiter_quote(session, mint, b["tok"])    # so ask Jupiter what they really fetch
+                if got:
+                    out, ok = got, True
+                    self.stats["sell ok (graduated, Jupiter quote)"] += 1
             self.lat.append(round(time.time() - t0, 3))
-            self.stats["sell ok" if ok else ("sell failed" if out else "sell: curve finished or gone")] += 1
+            if not (st and st[2] and ok):
+                self.stats["sell ok" if ok else ("sell failed" if out else "sell: curve finished or gone")] += 1
             b.update(sold=round(time.time()), why=why, sell_ok=ok, out=out if ok else 0, done_curve=bool(st and st[2]))
             self.trades.append(b)
+
+    async def _jupiter_quote(self, session, mint: str, tokens: int) -> int | None:
+        """What Jupiter would really pay for these tokens right now (lamports), or None."""
+        from .fast_buyer import SOL_MINT, base
+
+        url, headers = base()
+        try:
+            async with session.get(f"{url}/swap/v1/quote", headers=headers, timeout=8,
+                                   params={"inputMint": mint, "outputMint": SOL_MINT, "amount": str(tokens),
+                                           "slippageBps": "1500", "restrictIntermediateTokens": "true"}) as r:
+                d = await r.json(content_type=None)
+            return int(d["outAmount"]) if isinstance(d, dict) and d.get("outAmount") else None
+        except Exception:
+            return None
 
     async def run(self, session, stop_at: float):
         tasks = set()
@@ -293,6 +311,7 @@ class DirectBuyer:
         priority fees, as a share of its trade) comes off every bet."""
         now = now or time.time()
         done = [t for t in self.trades if "out" in t and now - t.get("sold", 0) <= hours * 3600]
+        # sold on the curve or (graduated) at a real Jupiter price: what it brought; couldn't be sold at all: a total loss
         ret = lambda t: ((t["out"] - t["in"]) / t["in"] if t.get("sell_ok") else -1.0) - fixed_cost
         return len(done), (sum(map(ret, done)) / len(done) if done else None)
 

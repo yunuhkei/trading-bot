@@ -43,10 +43,11 @@ class FastBuyer:
     def __init__(self, state: dict | None = None, sol_usd: float = 150.0, usd: float = USD):
         st = state or {}
         self.sol_usd, self.usd = sol_usd, usd
-        self.queue: deque = deque()
+        self.queue: deque = deque()               # ("buy" | "sell", mint, when decided, lab info), filled by the lab
         self.buying: set = set()                  # buys still being checked
-        self.sell_later: dict = {}                # mint -> (decided, why): the lab sold while the buy was being checked              # ("buy" | "sell", mint, when decided, lab info), filled by the lab
-        self.open: dict = {}                      # mint -> the real-price buy, waiting for the lab's sell
+        self.sell_later: dict = {}                # mint -> (decided, why): the lab sold while the buy was being checked
+        self.open: dict = {}                      # mint -> the real-price buy, waiting for the lab's sell (bets still
+                                                  # open when a run ends aren't recorded: an unbiased cut, not a result)
         self.trades: list = st.get("trades", [])[-500:]
         self.stats = Counter(st.get("stats", {}))
         self.lat: list = st.get("lat", [])[-500:]
@@ -87,8 +88,6 @@ class FastBuyer:
                 return
         if mint in self.open:
             self.open[mint]["lab_ret"] = round(lab_return, 4)
-            if not self.open[mint].get("sell_q"):      # the lab closed it without a sell decision (a run ended)
-                self.lab_sell(mint, time.time(), "the lab closed it")
         elif self.missed.pop(mint, None) is not None:
             self.missed_ret.append(round(lab_return, 4))
 

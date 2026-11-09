@@ -179,8 +179,6 @@ def sane(e: dict) -> bool:
     no fee rate, and dropping them left the lab blind to those coins crashing.)"""
     if e["kind"] != "trade":
         return True
-    if e.get("quote_sol") is False:              # priced in USDC or another pump coin: its amounts aren't SOL
-        return False
     return 0 <= e["sol"] <= 500 and e["vsol"] > 0.1 and 0 < e["vtok"] <= 2e9 and e["real_sol"] >= -1
 
 
@@ -407,6 +405,8 @@ class Lab:
                          else [[0.0, 0, 0, 0.0] for _ in range(24)])
         self._clock, self._last_seen = (None, 0), None
         self._timing: tuple = (None, [])
+        self._quotes: deque = deque()                     # the last trades: priced in something other than SOL?
+        self._quote_warned = False
         self.fast = None                                  # the fast buyer (real Jupiter prices, practice), set by run()
         self._fast_state = state.get("fast")
         self.direct = None                                # the direct buyer (pump.fun test-runs, practice), set by run()
@@ -422,9 +422,9 @@ class Lab:
         # after 2 losing days in a row stop using the money (paper only) until the owner's next check
         self.plan = state.get("plan") or {"mode": "plan", "streak": 0, "put_in": CASH, "banked": 0.0, "start": None,
                                           "n": None, "day": None, "ghost_start": 0.0, "log": []}
-        if reset:                                         # the super bot's paper marks were on the old ghost totals
-            self.plan["ghost_start"] = 0.0
-            if "ghost_at" in self.plan:
+        if reset or not state.get("marks_reset"):         # the super bot's paper marks were on the old ghost totals
+            self.plan["ghost_start"] = 0.0                # (once, also for a save made between the clean start and
+            if "ghost_at" in self.plan:                   # this fix)
                 self.plan["ghost_at"] = 0.0
         self.hello_done = bool(state.get("hello")) or self.events > 0       # a lab that already ran said hello
         self.tell = tell or (lambda t, m: None)
@@ -757,7 +757,27 @@ class Lab:
         return ["• How busy pump.fun is, a minute: " + " | ".join(slots),
                 "• Busiest hours so far: " + ", ".join(f"{name(h)} ({r[0]:,.0f} trades)" for r, h in hours)]
 
+    def quote_guard(self, e: dict) -> bool:
+        """Drop a trade priced in something other than SOL. Those report 0 SOL, so the basic filter usually drops them
+        first and almost none reach here. If more than 60% of the last 2,000 trades that do reach here are flagged,
+        pump.fun's event layout has probably changed under us, so the check switches itself off (and says so) rather
+        than blinding the lab."""
+        if e.get("kind") != "trade" or "quote_sol" not in e:
+            return True
+        q = self._quotes
+        q.append(not e["quote_sol"])
+        if len(q) > 2000:
+            q.popleft()
+        if len(q) >= 500 and sum(q) > 0.6 * len(q):
+            if not self._quote_warned:
+                self._quote_warned = True
+                log.warning("over 60%% of trades look priced in something other than SOL: ignoring that check")
+            return True
+        return e["quote_sol"]
+
     def event(self, now: float, e: dict):
+        if not self.quote_guard(e):
+            return
         self.events += 1
         self.watch(now, e)
         if e.get("mayhem"):
@@ -1020,7 +1040,7 @@ class Lab:
         return {"accounts": accts, "events": self.events, "t": time.time(), "hello": self.hello_done,
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
                 "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs, "clean_since": self.clean_since,
-                "fast": self.fast.to_state() if self.fast else self._fast_state,
+                "marks_reset": True, "fast": self.fast.to_state() if self.fast else self._fast_state,
                 "direct": self.direct.to_state() if self.direct else self._direct_state,
                 "sniper": self.sniper.to_state() if self.sniper else self._sniper_state}
 
@@ -1048,7 +1068,7 @@ class Lab:
                 "hello": self.hello_done,
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
                 "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs, "clean_since": self.clean_since,
-                "fast": self.fast.to_state() if self.fast else self._fast_state,
+                "marks_reset": True, "fast": self.fast.to_state() if self.fast else self._fast_state,
                 "direct": self.direct.to_state() if self.direct else self._direct_state,
                 "sniper": self.sniper.to_state() if self.sniper else self._sniper_state}
 
