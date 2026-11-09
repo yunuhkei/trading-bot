@@ -1156,6 +1156,7 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
         print("DIRECT " + json.dumps(lab.direct.summary()), flush=True)
         print(lab.direct.line(), flush=True)
         print("SNIPER " + json.dumps(lab.sniper.to_state()), flush=True)
+        print("DIRECT_TRADES " + json.dumps(lab.direct.trades), flush=True)
         print(lab.sniper.line(), flush=True)
         for k, a in lab.accts.items():
             for t in a.trades[-5:]:
