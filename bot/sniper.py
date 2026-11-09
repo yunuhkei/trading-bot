@@ -292,6 +292,21 @@ class Sniper:
         o["selling"] = True
         c, owner = self.cfg, self.owner
         m, tp = Pubkey.from_string(mint), Pubkey.from_string(o["prog"])
+        # first: does the wallet still hold it? (a sale that landed just before a run was stopped may not have been
+        # saved; trying to sell a coin that's gone would fail and still pay its fee, again and again)
+        try:
+            bal = await self._rpc(session, "getTokenAccountBalance", [str(pd.ata(owner, m, tp)), {"commitment": "confirmed"}])
+            held = int(((bal or {}).get("value") or {}).get("amount") or 0)
+        except RuntimeError as ex:                                  # "could not find account": it was sold and closed
+            held = 0 if "could not find" in str(ex).lower() or "invalid param" in str(ex).lower() else None
+        except Exception:
+            held = None
+        if held == 0:
+            self.open.pop(mint, None)
+            self.count("sell: already gone from the wallet")
+            return
+        if held:
+            o["tokens"] = held
         floor_frac = [1 - c["slippage_sell"], 0.25, 0.0]           # each retry accepts less, the last anything
         for attempt, frac in enumerate(floor_frac):
             try:
@@ -352,8 +367,8 @@ class Sniper:
                 t = asyncio.create_task(coro)
                 tasks.add(t)
                 t.add_done_callback(tasks.discard)
-            for mint, o in list(self.open.items()):                 # stuck coins: try again every 2 minutes
-                if o.get("stuck") and not o.get("selling") and time.time() - o.get("retry_t", 0) > 120:
+            for mint, o in list(self.open.items()):                 # stuck coins: try again every 2 minutes, 10 times
+                if o.get("stuck") and o["stuck"] <= 10 and not o.get("selling") and time.time() - o.get("retry_t", 0) > 120:
                     o["retry_t"] = time.time()
                     t = asyncio.create_task(self.sell(session, mint, time.time(), "retry"))
                     tasks.add(t)

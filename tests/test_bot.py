@@ -3242,7 +3242,7 @@ def test_direct_buyer_test_runs_the_snipes_and_reads_the_live_curve():
     assert "Nothing is ever sent" in d.line()
 
 
-def _fake_chain(owner, mint, sol_change, token_change, fail_first_sends=0, balance=(5_000_000_000,)):
+def _fake_chain(owner, mint, sol_change, token_change, fail_first_sends=0, balance=(5_000_000_000,), held=(1000,)):
     """A stand-in for the network: sends confirm, and the transaction shows the wallet's SOL and token change."""
     import base64
     import struct
@@ -3266,6 +3266,10 @@ def _fake_chain(owner, mint, sol_change, token_change, fail_first_sends=0, balan
                 return Resp({"result": {"value": {"blockhash": "11111111111111111111111111111111"}}})
             if m == "getBalance":
                 return Resp({"result": {"value": balance[0]}})
+            if m == "getTokenAccountBalance":
+                if held[0] is None:
+                    return Resp({"error": {"message": "Invalid param: could not find account"}})
+                return Resp({"result": {"value": {"amount": str(held[0])}}})
             if m == "sendTransaction":
                 sends[0] += 1
                 return Resp({"result": f"SIG{sends[0]}"})
@@ -3455,3 +3459,20 @@ def test_sniper_only_goes_live_in_its_hours_when_the_owners_condition_is_met():
     results["sold"] = 12
     s.plan["gate"] = None
     assert s.window(at(12, 2, 0)) == "the condition wasn't met"                      # too few snipes to judge
+
+
+def test_sniper_never_tries_to_sell_a_coin_the_wallet_no_longer_holds():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    mint = "So11111111111111111111111111111111111111112"
+    s = sn.Sniper(kp, sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True})
+    s.open[mint] = {"mint": mint, "tokens": 1000, "spent": 250_000_000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}
+    session, calls = _fake_chain(str(kp.pubkey()), mint, [0], [0], held=(None,))    # its token account is gone
+    asyncio.run(s.sell(session, mint, 0.0, "left from the last run"))
+    assert "sendTransaction" not in calls and mint not in s.open
+    assert s.stats == {"sell: already gone from the wallet": 1}
