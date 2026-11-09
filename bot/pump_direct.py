@@ -166,6 +166,8 @@ class DirectBuyer:
 
     def lab_sell(self, mint: str, now: float, why: str = ""):
         if mint in self.open:
+            if self.open[mint].get("sell_q"):         # already being sold
+                return
             self.open[mint]["sell_q"] = True
             self.queue.append(("sell", mint, now, why))
         elif mint in self.buying:                 # the buy is still being checked: sell right after it
@@ -244,7 +246,7 @@ class DirectBuyer:
             self.open[mint] = {"mint": mint, "t": round(decided), "late": round(time.time() - decided, 2), "in": lam,
                                "tok": tok, "prog": prog, "units": val.get("unitsConsumed")}
         elif mint in self.open:
-            b = self.open.pop(mint)
+            b = self.open[mint]                     # stays open until it's priced (cut off = not recorded at all)
             m, tp = Pubkey.from_string(mint), Pubkey.from_string(b["prog"])
             curve = pda(b"bonding-curve", bytes(m))
             # what the sale brings: the coin's live curve, read from the chain, with our own buy still in it
@@ -265,18 +267,20 @@ class DirectBuyer:
                 r2, e2 = await self._rpc(session, "simulateTransaction",
                                          simulate_params(round_trip_tx(mint, b["prog"], b["in"], check), []))
                 ok = e2 is None and ((r2 or {}).get("value") or {}).get("err") is None
-            if st and st[2] and b["tok"] > 0:                # graduated: the real sniper sells these through Jupiter,
+            graduated = bool(st and st[2] and b["tok"] > 0)
+            if graduated:                                   # graduated: the real sniper sells these through Jupiter,
                 got = await self._jupiter_quote(session, mint, b["tok"])    # so ask Jupiter what they really fetch
                 if got:
                     out, ok = got, True
                     self.stats["sell ok (graduated, Jupiter quote)"] += 1
-                else:                                       # no price at all (the free service kept refusing): left
-                    self.stats["graduated, no Jupiter price: left out"] += 1     # out, neither a win nor a loss
-                    return
+                else:                                       # no price: the real sniper couldn't sell it either, so
+                    out, ok = 0, False                      # the strict check counts it as a total loss
+                    self.stats["sell: graduated, no Jupiter price"] += 1
             self.lat.append(round(time.time() - t0, 3))
-            if not (st and st[2] and ok):
+            if not graduated:
                 self.stats["sell ok" if ok else ("sell failed" if out else "sell: curve finished or gone")] += 1
             b.update(sold=round(time.time()), why=why, sell_ok=ok, out=out if ok else 0, done_curve=bool(st and st[2]))
+            self.open.pop(mint, None)
             self.trades.append(b)
 
     async def _jupiter_quote(self, session, mint: str, tokens: int) -> int | None:
@@ -307,6 +311,8 @@ class DirectBuyer:
                 tasks.add(t)
                 t.add_done_callback(tasks.discard)
             await asyncio.sleep(0.05)
+        if tasks:                                   # let sales already under way finish, then stop
+            await asyncio.wait(list(tasks), timeout=30)
         for t in list(tasks):
             t.cancel()
 

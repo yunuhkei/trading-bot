@@ -75,6 +75,8 @@ class FastBuyer:
 
     def lab_sell(self, mint: str, now: float, why: str = ""):
         if mint in self.open:
+            if self.open[mint].get("sell_q"):         # already being sold
+                return
             self.open[mint]["sell_q"] = True
             self.queue.append(("sell", mint, now, why))
         elif mint in self.buying:                 # the buy is still being checked: sell right after it
@@ -152,7 +154,7 @@ class FastBuyer:
                                    "in": lamports, "tok": int(q["outAmount"]), "route": route,
                                    "vs_lab": (round(int(q["outAmount"]) / 1e6 / info - 1, 4) if info else None)}
         elif mint in self.open:
-            b = self.open.pop(mint)
+            b = self.open[mint]                     # stays open until it's priced (cut off = not recorded at all)
             for attempt in range(4):                # a real bot retries a sale; only "nobody can buy it" is a total loss
                 q, took, how = await self._quote(session, mint, SOL_MINT, b["tok"])
                 self.lat.append(round(took, 3))
@@ -164,6 +166,7 @@ class FastBuyer:
             factor = (self.own_buy(mint, b["tok"] / 1e6, b["in"]) or 1.0) if (q and self.own_buy) else 1.0
             b.update(sold=round(time.time()), why=info, sell_ok=bool(q), raw_out=raw, own_buy=round(factor, 4),
                      out=int(raw * factor))
+            self.open.pop(mint, None)
             self.trades.append(b)
 
     async def run(self, session, stop_at: float):
@@ -175,6 +178,8 @@ class FastBuyer:
                 tasks.add(t)
                 t.add_done_callback(tasks.discard)
             await asyncio.sleep(0.05)
+        if tasks:                                   # let sales already under way finish, then stop
+            await asyncio.wait(list(tasks), timeout=30)
         for t in list(tasks):
             t.cancel()
 

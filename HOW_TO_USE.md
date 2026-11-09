@@ -556,6 +556,15 @@ total loss), sells everything at the floor, sells graduated coins through Jupite
 that arrive mid-buy and close what the lab closes at a run's end; the go/no-go check counts unsellable coins as total
 losses and takes off the sniper's own network fees.
 
+**More fixes (Nov 9, evening):** a buy left over from an earlier run is checked on the chain and in the wallet before
+it's given up on; one still unclear after 30 minutes is counted as spent (the safe way for the floor) and the owner is
+told; only one check of unsettled buys runs at a time. A sale is never sent without a minimum price: if the coin's curve
+can't be read, it waits and tries again. A sale that landed but can't be read is booked at what it was expected to bring,
+and the owner is told (the wallet's balance is the real number). If the lab's feed looks wrong (most trades suddenly look
+priced in something other than SOL, which would mean pump.fun changed its data layout), the sniper stops buying and
+sells what it holds. The practice direct buyer counts a graduated coin with no Jupiter price as a total loss (strict),
+and both practice buyers finish sales already under way when a run ends.
+
 **Known limit:** the free public feed misses some pump.fun trades (in two samples, about 1 in 10 normal coins had
 trades it never delivered, likely bots that route through lookup tables). Real-price checks read the chain directly, so
 they aren't affected; strategies that count every trade (volume spikes, momentum) see slightly less than really

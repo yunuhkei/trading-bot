@@ -151,8 +151,8 @@ def b58(b: bytes) -> str:
 
 
 # the share of recent trades priced in something other than SOL (normally about 16%). If it's ever most of them, pump.fun's
-# event layout has probably changed under us: those trades are still dropped (a quiet lab means no snipes, so the real
-# sniper's go/no-go check keeps it off) and QUOTE_ALARM says so in the reports, rather than guessing.
+# event layout has probably changed under us: those trades are still dropped, QUOTE_ALARM says so in the reports, and
+# the real sniper stops buying and sells what it holds while it's on (rather than trading blind or guessing).
 _QUOTE_RECENT: deque = deque(maxlen=2000)
 _QUOTE_FLAGGED = [0]
 QUOTE_ALARM = [False]
@@ -179,7 +179,7 @@ def pump_events(logs: list[str]):
         if line.startswith("Program data: "):
             if stack and stack[-1] == PUMP:
                 e = decode(line)
-                if e and e["kind"] == "trade" and "quote_sol" in e:
+                if e and e["kind"] in ("trade", "create") and "quote_sol" in e:
                     _note_quote(not e["quote_sol"])
                 if e and sane(e):
                     yield e
@@ -199,10 +199,10 @@ def sane(e: dict) -> bool:
     """Drop only nonsense. (Until Nov 9 this also dropped trades with no fee or an unusual curve as "spam": those were
     real trades on mayhem-mode coins, which pump.fun's own agent trades for their first day on a different curve with
     no fee rate, and dropping them left the lab blind to those coins crashing.)"""
+    if e.get("quote_sol") is False:              # priced in USDC or another pump coin (about 1 in 8 new coins): its
+        return False                             # amounts aren't SOL, and a SOL buy of it can't go through
     if e["kind"] != "trade":
         return True
-    if e.get("quote_sol") is False:              # priced in USDC or another pump coin: its amounts aren't SOL
-        return False
     return 0 <= e["sol"] <= 500 and e["vsol"] > 0.1 and 0 < e["vtok"] <= 2e9 and e["real_sol"] >= -1
 
 
@@ -249,6 +249,8 @@ def decode(line: str) -> dict | None:
                 ev["token_program"] = b58(raw[o + 168:o + 200])
             if len(raw) > o + 200:                     # then is_mayhem_mode
                 ev["mayhem"] = bool(raw[o + 200])
+            if len(raw) >= o + 234:                    # then is_cashback_enabled, then what it's priced in
+                ev["quote_sol"] = b58(raw[o + 202:o + 234]) in (WSOL_MINT, ZERO_KEY)
             return ev
         if kind == "CompleteEvent":
             return {"kind": "complete", "mint": b58(raw[40:72]) if len(raw) >= 72 else ""}
@@ -1146,9 +1148,11 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
         except Exception as e:
             log.warning("feed dropped (%s); reconnecting", e)
             await asyncio.sleep(3)
-    for t in (fast_task, direct_task):
-        if t:
-            t.cancel()
+    shadows = [t for t in (fast_task, direct_task) if t]
+    if shadows:                                             # they finish the sales already under way (30 s at most)
+        await asyncio.wait(shadows, timeout=35)
+    for t in shadows:
+        t.cancel()
     if sniper_task:
         await asyncio.wait([sniper_task], timeout=30)
         await lab.sniper.sell_all(sniper_session, "the run ended")
@@ -1206,6 +1210,7 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
     lab.sniper = Sniper(kp, state.get("sniper"), lab.sol_usd, tell, sniper_config())
     lab.sniper.curve, lab.sniper.program_of = lab.curve_tokens, lab.token_programs.get
     lab.sniper.gate = lab.direct.recent
+    lab.sniper.feed_ok = lambda: not QUOTE_ALARM[0]        # the lab can't see trades properly: no buys, sell what it holds
     lab.sniper.fee = lambda mint: lab.coins[mint].fee if mint in lab.coins else None
     if resume_super:                                    # the owner's check said go
         was = lab.plan["mode"]

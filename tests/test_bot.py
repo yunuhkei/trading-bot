@@ -3731,3 +3731,186 @@ def test_sniper_needs_two_readings_before_calling_a_coin_gone():
         assert asyncio.run(s._gone(None, "M", "P")) is False
     finally:
         asyncio.sleep = real
+
+
+def _resp(d):
+    class Resp:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def json(self, content_type=None): return d
+    return Resp()
+
+
+def test_sniper_checks_the_chain_before_giving_up_on_an_old_buy():
+    import asyncio
+    import time as _t
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    owner, mint = str(kp.pubkey()), "So11111111111111111111111111111111111111112"
+    told = []
+    s = sn.Sniper(kp, sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True}, tell=lambda t, b: told.append(t))
+    session, calls = _fake_chain(owner, mint, [-252_000_000], [5_900_000_000_000])
+    s.unconfirmed[mint] = {"sig": "SIGX", "lamports": 250_000_000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                           "t": 0.0, "sent": _t.time() - 3600}         # from a run an hour ago: it did land
+    asyncio.run(s.check_unconfirmed(session))
+    assert mint in s.open and s.open[mint]["spent"] == 252_000_000 and not told
+
+
+def test_sniper_counts_an_old_buy_it_cant_settle_as_spent():
+    import asyncio
+    import time as _t
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    told = []
+    s = sn.Sniper(Keypair(), sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True}, tell=lambda t, b: told.append(t))
+
+    class Down:                                           # the network doesn't answer at all
+        def post(self, url, json=None, timeout=None):
+            raise TimeoutError("no answer")
+    s.unconfirmed["M"] = {"sig": "SIGX", "lamports": 250_000_000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                          "t": 0.0, "sent": _t.time() - 3600}
+    before = s.money()
+    asyncio.run(s.check_unconfirmed(Down()))
+    assert "M" not in s.unconfirmed and told == ["🎯 Sniper: a buy it couldn't settle"]
+    assert round(before - s.money(), 2) == 25.4 and s.trades[-1]["ret"] == -1.0     # $25 + the account rent, to be safe
+    s._checking = True                                    # a pass already running: a second one does nothing
+    s.unconfirmed["N"] = {**s.trades[-1], "lamports": 1, "sent": 0.0, "prog": "x"}
+    asyncio.run(s.check_unconfirmed(Down()))
+    assert "N" in s.unconfirmed
+
+
+def test_sniper_never_sends_a_sale_without_a_price_to_protect_it():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    owner, mint = str(kp.pubkey()), "So11111111111111111111111111111111111111112"
+    s = sn.Sniper(kp, sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True}, tell=lambda t, b: None)
+    inner, calls = _fake_chain(owner, mint, [240_000_000], [-1000])
+
+    class NoCurve:                                        # the curve can't be read right now
+        def post(self, url, json=None, timeout=None):
+            if json["method"] == "getAccountInfo":
+                calls.append("getAccountInfo")
+                return _resp({"result": {"value": None}})
+            return inner.post(url, json=json, timeout=timeout)
+    s.open[mint] = {"mint": mint, "spent": 250_000_000, "tokens": 1000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                    "t": 0.0}
+    real, quick = _quick_sleep()
+    asyncio.sleep = quick
+    try:
+        asyncio.run(s.sell(NoCurve(), mint, 0.0, "time's up"))
+    finally:
+        asyncio.sleep = real
+    assert "sendTransaction" not in calls and s.open[mint]["stuck"] == 1
+    assert s.stats["sell: couldn't read the curve"] == 3
+
+
+def test_sniper_books_a_sale_it_cant_read_at_what_it_was_expected_to_bring():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    told = []
+    s = sn.Sniper(Keypair(), sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True}, tell=lambda t, b: told.append(t))
+    s.open["M"] = o = {"mint": "M", "spent": 250_000_000, "tokens": 1000, "prog": "x", "t": 0.0,
+                       "sell_sigs": ["S1"], "sell_expect": {"S1": 270_000_000}}
+
+    async def status(session, sig): return {"confirmationStatus": "confirmed", "err": None}
+    async def tx(session, sig): return None                 # landed, but the node can't hand it over
+    s._status, s._tx = status, tx
+    real, quick = _quick_sleep()
+    asyncio.sleep = quick
+    try:
+        asyncio.run(s._find_sale(None, "M", o, "time's up", 0.0))
+    finally:
+        asyncio.sleep = real
+    assert s.trades[-1]["received"] == 270_000_000 and round(s.trades[-1]["pnl"], 2) == 2.0
+    assert told == ["🎯 Sniper: a sale it couldn't read"]
+
+
+def test_sniper_stops_buying_and_gets_out_when_the_lab_feed_looks_wrong():
+    import asyncio
+    import time as _t
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    s = sn.Sniper(Keypair(), sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True}, tell=lambda t, b: None)
+    assert s.can_buy("A") is None
+    s.feed_ok = lambda: False
+    assert s.can_buy("A") == "the lab's feed looks wrong"
+    s.open["M"] = {"mint": "M", "spent": 1, "tokens": 1, "prog": "x", "t": _t.time()}
+    sold = []
+
+    async def sell(session, mint, decided, why=""):
+        sold.append(why)
+        s.open.pop(mint, None)
+    s.sell = sell
+    asyncio.run(s.run(None, _t.time() + 0.2))
+    assert sold == ["the lab's feed looks wrong"]
+
+
+def test_direct_buyer_counts_a_graduated_coin_with_no_price_as_a_loss_and_finishes_sales_at_the_end():
+    import asyncio
+    import base64
+    import struct
+    import time as _t
+
+    from bot import pump_direct as pd
+
+    d = pd.DirectBuyer(sol_usd=100.0)
+    mint = "So11111111111111111111111111111111111111112"
+    d.open[mint] = {"mint": mint, "in": 500_000_000, "tok": 1000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}
+    raw = bytearray(160)
+    struct.pack_into("<QQ", raw, 8, int(800_000_000 * 1e6), int(40 * 1e9)); raw[48] = 1     # its curve finished
+
+    async def rpc(session, method, params):
+        return {"value": {"data": [base64.b64encode(bytes(raw)).decode(), "base64"]}}, None
+    async def no_price(session, mint, tokens):
+        await asyncio.sleep(0.3)                          # slow: still pricing when the run ends
+        return None
+    d._rpc, d._jupiter_quote = rpc, no_price
+    d.lab_sell(mint, _t.time() - 5, "time's up")
+    d.lab_sell(mint, _t.time() - 5, "time's up")           # a second sell for the same bet is ignored
+    assert len(d.queue) == 1
+    asyncio.run(d.run(None, _t.time() + 0.05))
+    assert mint not in d.open and len(d.trades) == 1 and d.trades[0]["sell_ok"] is False
+    assert d.recent(1) == (1, -1.0)                        # the strict check counts it as a total loss
+
+
+def test_launch_lab_never_snipes_a_new_coin_priced_in_something_other_than_sol():
+    import base64
+    import struct
+
+    from solders.pubkey import Pubkey
+
+    from bot import launch_lab as ll
+
+    def create(mint: bytes, quote: bytes):
+        raw = bytearray(8)
+        raw[:8] = next(k for k, v in ll.DISC.items() if v == "CreateEvent")
+        for txt in (b"Coin", b"CN", b"https://x"):
+            raw += struct.pack("<I", len(txt)) + txt
+        raw += mint + b"\x05" * 96 + bytes(40)              # bonding curve, user, creator; timestamp + 4 numbers
+        raw += bytes(Pubkey.from_string("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")) + b"\x00\x00" + quote + bytes(30)
+        return ll.decode("Program data: " + base64.b64encode(bytes(raw)).decode())
+
+    sol = create(b"\x01" * 32, bytes(Pubkey.from_string(ll.WSOL_MINT)))
+    usdc = create(b"\x02" * 32, b"\x09" * 32)
+    assert sol["quote_sol"] is True and usdc["quote_sol"] is False
+    assert sol["token_program"] == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and sol["mayhem"] is False
+    assert ll.sane(sol) and not ll.sane(usdc)            # a SOL buy of it can't go through: it's never seen
