@@ -3274,7 +3274,7 @@ def _fake_chain(owner, mint, sol_change, token_change, fail_first_sends=0, balan
                 sends[0] += 1
                 return Resp({"result": f"SIG{sends[0]}"})
             if m == "getSignatureStatuses":
-                bad = sends[0] <= fail_first_sends
+                bad = fail_first_sends > 0 and sends[0] <= fail_first_sends
                 return Resp({"result": {"value": [{"confirmationStatus": "confirmed", "err": {"x": 1} if bad else None}]}})
             if m == "getTransaction":
                 tok_pre = [] if token_change[0] > 0 else [{"owner": owner, "mint": mint, "uiTokenAmount": {"amount": str(-token_change[0])}}]
@@ -3446,7 +3446,7 @@ def test_sniper_only_goes_live_in_its_hours_when_the_owners_condition_is_met():
     cfg = {**sn.DEFAULTS, "live": True, "live_hours": [2, 3]}
     s = sn.Sniper(None, tell=lambda t, m: told.append((t, m)), cfg=cfg)
     results = {"sold": 45, "ret": -0.04}
-    s.gate = lambda hours: (results["sold"], results["ret"])
+    s.gate = lambda hours, fixed=0.0: (results["sold"], results["ret"])
     assert s.window(at(10, 1, 59)) == "outside its hours"
     assert s.window(at(10, 2, 0)) == "the condition wasn't met"           # real prices were losing: stays off
     assert told[-1][0] == "🎯 Sniper stays off tonight" and "-4.0% a bet on 45 sold snipes" in told[-1][1]
@@ -3475,7 +3475,8 @@ def test_sniper_never_tries_to_sell_a_coin_the_wallet_no_longer_holds():
     session, calls = _fake_chain(str(kp.pubkey()), mint, [0], [0], held=(None,))    # its token account is gone
     asyncio.run(s.sell(session, mint, 0.0, "left from the last run"))
     assert "sendTransaction" not in calls and mint not in s.open
-    assert s.stats == {"sell: already gone from the wallet": 1}
+    t = s.trades[-1]                                      # no sale found: booked as a total loss, never just dropped
+    assert t["pnl"] == -25.0 and "booked as a total loss" in t["why"] and s.plan["pnl"] == -25.0
 
 
 def test_launch_lab_starts_the_learning_over_from_the_mayhem_fix():
@@ -3496,3 +3497,172 @@ def test_launch_lab_starts_the_learning_over_from_the_mayhem_fix():
     assert kept.clean_since == ll.CLEAN_SINCE and kept.ghosts["snipe"].n == 0
     f.tally(ll.CLEAN_SINCE + 600, 10.0); f.n = 1
     assert ll.Lab(state=fresh.snapshot()).ghosts["snipe"].n == 1
+
+
+def _quick_sleep():
+    import asyncio
+
+    real = asyncio.sleep
+
+    async def quick(t):
+        await real(0)
+    return real, quick
+
+
+def test_sniper_sells_right_after_a_buy_lands_if_the_lab_already_sold():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    owner, mint = str(kp.pubkey()), "So11111111111111111111111111111111111111112"
+    s = sn.Sniper(kp, sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True})
+    s.program_of = lambda m: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    s.curve = lambda m, lam: 6_000_000.0
+    session, calls = _fake_chain(owner, mint, [-252_000_000], [5_900_000_000_000])
+    s.lab_buy(mint, 0.0)
+    s.queue.clear()
+    s.lab_sell(mint, 1.0, "stop -40%")                    # the lab sells while our buy is still landing
+    assert mint in s.sell_later and not s.queue
+    real, quick = _quick_sleep()
+    asyncio.sleep = quick
+    try:
+        asyncio.run(s.buy(session, mint, 0.0))
+    finally:
+        asyncio.sleep = real
+    assert mint in s.open and s.queue == [("sell", mint, 1.0, "stop -40%")] and mint not in s.sell_later
+
+
+def test_sniper_tracks_a_buy_that_lands_late():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    owner, mint = str(kp.pubkey()), "So11111111111111111111111111111111111111112"
+    s = sn.Sniper(kp, sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True})
+    session, calls = _fake_chain(owner, mint, [-252_000_000], [5_900_000_000_000])
+    s.unconfirmed[mint] = {"sig": "SIGX", "lamports": 250_000_000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                           "t": 0.0, "sent": 0.0}
+    s.sell_later[mint] = (5.0, "time's up")
+    asyncio.run(s.check_unconfirmed(session))             # it landed after all: tracked, and sold since the lab sold
+    assert mint not in s.unconfirmed and s.open[mint]["note"] == "landed late" and s.open[mint]["spent"] == 252_000_000
+    assert s.queue == [("sell", mint, 5.0, "time's up")]
+    assert s.can_buy("Other") is None or s.can_buy("Other") != "already holding it"
+
+
+def test_sniper_sells_everything_at_the_floor_and_frees_a_cut_off_sale():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    s = sn.Sniper(kp, sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True, "budget": 40.0, "floor": 15.0})
+    for m in ("A", "B", "C"):
+        s.open[m] = {"mint": m, "tokens": 1, "spent": 250_000_000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}
+    s._closed("A", 0, "rug", None, 0.0)                   # -$25: $40 -> $15, the floor
+    assert s.plan["stopped"] and sorted(q[1] for q in s.queue) == ["B", "C"]
+    s.open["B"]["selling"] = True                          # a sale cut off when the run was stopped...
+    assert "selling" not in s.to_state()["open"]["B"]      # ...isn't saved as still selling
+    again = sn.Sniper(kp, s.to_state(), sol_usd=100.0, cfg=s.cfg)
+    assert "selling" not in again.open["B"]                # and the next run can sell it
+
+    class Hang:                                            # a sale that's cancelled mid-way frees the coin too
+        def post(self, *a, **k):
+            raise asyncio.CancelledError
+    try:
+        asyncio.run(again.sell(Hang(), "C", 0.0, "x"))
+    except BaseException:
+        pass
+    assert "selling" not in again.open["C"]
+
+
+def test_sniper_gives_up_on_a_coin_after_ten_rounds_without_blocking_new_trades():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    owner, mint = str(kp.pubkey()), "So11111111111111111111111111111111111111112"
+    told = []
+    s = sn.Sniper(kp, sol_usd=100.0, tell=lambda t, m: told.append(t), cfg={**sn.DEFAULTS, "live": True})
+    s.open[mint] = {"mint": mint, "tokens": 1000, "spent": 250_000_000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                    "stuck": 9}
+    session, calls = _fake_chain(owner, mint, [0], [0], fail_first_sends=99)
+    real, quick = _quick_sleep()
+    asyncio.sleep = quick
+    try:
+        asyncio.run(s.sell(session, mint, 0.0, "retry"))
+    finally:
+        asyncio.sleep = real
+    assert mint not in s.open and mint in s.stuck and s.trades[-1]["pnl"] == -25.0
+    assert "🎯 Sniper: gave up on a coin" in told and s.can_buy("New") is None
+
+
+def test_direct_buyer_gate_is_strict_and_sells_that_arrive_mid_buy_still_happen():
+    import asyncio
+
+    from bot import pump_direct as pd
+
+    d = pd.DirectBuyer(sol_usd=100.0)
+    d.trades = [{"mint": "a", "in": 100, "out": 110, "sell_ok": True, "sold": 1000},    # +10%
+                {"mint": "b", "in": 100, "out": 0, "sell_ok": False, "sold": 1000}]     # couldn't sell: a total loss
+    n, ret = d.recent(3, fixed_cost=0.005, now=1000)
+    assert n == 2 and round(ret, 4) == round((0.10 - 1.0) / 2 - 0.005, 4)
+    d.lab_buy("M", 0.0)
+    d.lab_sell("M", 1.0, "stop")                       # the lab sells while the test buy is still being checked
+    assert d.sell_later["M"] == (1.0, "stop")
+
+    async def fake(session, item):                      # the buy check finishes: it went through
+        d.open["M"] = {"mint": "M", "in": 100, "tok": 5, "prog": "x"}
+    d._handle_one = fake
+    d.queue.clear()
+    asyncio.run(d._handle(None, ("buy", "M", 0.0, None)))
+    assert list(d.queue) == [("sell", "M", 1.0, "stop")] and "M" not in d.buying
+    d.open["Z"] = {"mint": "Z", "in": 100, "tok": 5, "prog": "x"}
+    d.queue.clear()
+    d.lab_result("Z", -0.1)                             # the lab closed Z without a sell (its run ended): sell it too
+    assert list(d.queue)[0][:2] == ("sell", "Z")
+
+
+def test_launch_lab_ignores_coins_priced_in_something_other_than_sol():
+    import base64
+    import struct
+
+    from bot import launch_lab as ll
+
+    def trade(quote: bytes):
+        raw = bytearray(400)
+        raw[:8] = next(k for k, v in ll.DISC.items() if v == "TradeEvent")
+        raw[8:40] = b"\x03" * 32
+        struct.pack_into("<QQ", raw, 40, int(0.5e9), int(1e12)); raw[56] = 1
+        struct.pack_into("<QQQ", raw, 97, int(40e9), int(8e14), int(5e9))
+        struct.pack_into("<I", raw, 258, 6); raw[262:268] = b"buy_v3"
+        q = 268 + 1 + 32
+        struct.pack_into("<I", raw, q, 1)                 # one shareholder entry (34 bytes)
+        raw[q + 4 + 34:q + 4 + 34 + 32] = quote
+        return ll.decode("Program data: " + base64.b64encode(bytes(raw)).decode())
+
+    sol = trade(bytes(32))                               # the zero key: priced in SOL
+    other = trade(b"\x09" * 32)                          # priced in another coin
+    assert sol["quote_sol"] is True and ll.sane(sol)
+    assert other["quote_sol"] is False and not ll.sane(other)
+
+
+def test_launch_lab_clean_start_resets_the_super_bots_paper_marks():
+    from bot import launch_lab as ll
+
+    lab = ll.Lab()
+    old = lab.snapshot()
+    old.pop("clean_since")
+    old["plan"]["ghost_start"], old["plan"]["ghost_at"] = 4000.0, 3500.0
+    fresh = ll.Lab(state=old)
+    assert fresh.plan["ghost_start"] == 0.0 and fresh.plan["ghost_at"] == 0.0

@@ -170,12 +170,17 @@ def pump_events(logs: list[str]):
                 stack.pop()
 
 
+WSOL_MINT, ZERO_KEY = "So11111111111111111111111111111111111111112", "11111111111111111111111111111111"
+
+
 def sane(e: dict) -> bool:
     """Drop only nonsense. (Until Nov 9 this also dropped trades with no fee or an unusual curve as "spam": those were
     real trades on mayhem-mode coins, which pump.fun's own agent trades for their first day on a different curve with
     no fee rate, and dropping them left the lab blind to those coins crashing.)"""
     if e["kind"] != "trade":
         return True
+    if e.get("quote_sol") is False:              # priced in USDC or another pump coin: its amounts aren't SOL
+        return False
     return 0 <= e["sol"] <= 500 and e["vsol"] > 0.1 and 0 < e["vtok"] <= 2e9 and e["real_sol"] >= -1
 
 
@@ -202,6 +207,14 @@ def decode(line: str) -> dict | None:
                 n = struct.unpack_from("<I", raw, 258)[0]
                 if n < 64 and len(raw) > 262 + n:
                     ev["mayhem"] = bool(raw[262 + n])
+                    # then 2 fee rates and amounts, the shareholders (a list of 34-byte entries), then quote_mint: what
+                    # the coin is priced in. Coins priced in USDC or another pump coin report amounts in that coin.
+                    q = 262 + n + 1 + 32
+                    if len(raw) >= q + 4:
+                        k = struct.unpack_from("<I", raw, q)[0]
+                        q += 4 + 34 * k
+                        if k < 50 and len(raw) >= q + 32:
+                            ev["quote_sol"] = b58(raw[q:q + 32]) in (WSOL_MINT, ZERO_KEY)
             return ev
         if kind == "CreateEvent":
             o, out = 8, []
@@ -377,7 +390,8 @@ class Lab:
         for g in self.ghosts.values():
             g.ghost = True
         self.clean_since = state.get("clean_since")
-        if self.clean_since != CLEAN_SINCE:               # records from before the fix: start the learning over
+        reset = self.clean_since != CLEAN_SINCE
+        if reset:                                         # records from before the fix: start the learning over
             for g in self.ghosts.values():
                 g.n, g.wins, g.pnl, g.best, g.worst, g.trades = 0, 0, 0.0, 0.0, 0.0, []
                 g.by_hour = [[0, 0, 0.0] for _ in range(24)]
@@ -408,6 +422,10 @@ class Lab:
         # after 2 losing days in a row stop using the money (paper only) until the owner's next check
         self.plan = state.get("plan") or {"mode": "plan", "streak": 0, "put_in": CASH, "banked": 0.0, "start": None,
                                           "n": None, "day": None, "ghost_start": 0.0, "log": []}
+        if reset:                                         # the super bot's paper marks were on the old ghost totals
+            self.plan["ghost_start"] = 0.0
+            if "ghost_at" in self.plan:
+                self.plan["ghost_at"] = 0.0
         self.hello_done = bool(state.get("hello")) or self.events > 0       # a lab that already ran said hello
         self.tell = tell or (lambda t, m: None)
 

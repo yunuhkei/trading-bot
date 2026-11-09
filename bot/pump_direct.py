@@ -145,6 +145,8 @@ class DirectBuyer:
         st = state or {}
         self.sol_usd, self.usd, self.rpc = sol_usd, usd, rpc
         self.queue: deque = deque()
+        self.buying: set = set()                  # buys still being checked
+        self.sell_later: dict = {}                # mint -> (decided, why): the lab sold while the buy was being checked
         self.open: dict = {}
         self.trades: list = st.get("trades", [])[-500:]
         self.stats = Counter(st.get("stats", {}))
@@ -159,10 +161,15 @@ class DirectBuyer:
                 "attempts": list(self.attempts)[-2000:]}
 
     def lab_buy(self, mint: str, now: float, lab_tokens: float | None = None):
+        self.buying.add(mint)
         self.queue.append(("buy", mint, now, None))
 
     def lab_sell(self, mint: str, now: float, why: str = ""):
-        self.queue.append(("sell", mint, now, why))
+        if mint in self.open:
+            self.open[mint]["sell_q"] = True
+            self.queue.append(("sell", mint, now, why))
+        elif mint in self.buying:                 # the buy is still being checked: sell right after it
+            self.sell_later[mint] = (now, why)
 
     def lab_result(self, mint: str, lab_return: float):
         for t in reversed(self.trades[-50:]):
@@ -171,6 +178,8 @@ class DirectBuyer:
                 return
         if mint in self.open:
             self.open[mint]["lab_ret"] = round(lab_return, 4)
+            if not self.open[mint].get("sell_q"):      # the lab closed it without a sell decision (a run ended)
+                self.lab_sell(mint, time.time(), "the lab closed it")
 
     async def _rpc(self, session, method: str, params: list):
         try:
@@ -199,6 +208,16 @@ class DirectBuyer:
         return self.programs.get(mint)
 
     async def _handle(self, session, item):
+        try:
+            await self._handle_one(session, item)
+        finally:
+            if item[0] == "buy":
+                self.buying.discard(item[1])
+                later = self.sell_later.pop(item[1], None)
+                if later and item[1] in self.open:
+                    self.lab_sell(item[1], *later)
+
+    async def _handle_one(self, session, item):
         side, mint, decided, why = item
         delay = (BUY_AFTER if side == "buy" else SELL_AFTER) - (time.time() - decided)
         if delay > 0:
@@ -268,11 +287,14 @@ class DirectBuyer:
         """The last hour: buys tried and how many could go through; sales, and what they made vs the lab."""
         return hour_stats(self.attempts, self.trades, now or time.time(), self.sol_usd)
 
-    def recent(self, hours: float, now: float | None = None) -> tuple[int, float | None]:
-        """(sold snipes, their average real return) over the last `hours`: the sniper's go/no-go check."""
+    def recent(self, hours: float, fixed_cost: float = 0.0, now: float | None = None) -> tuple[int, float | None]:
+        """(finished snipes, their average real return) over the last `hours`: the sniper's go/no-go check. Strict on
+        purpose: a coin that couldn't be sold counts as a total loss, and `fixed_cost` (the real sniper's network and
+        priority fees, as a share of its trade) comes off every bet."""
         now = now or time.time()
-        sold = [t for t in self.trades if t.get("sell_ok") and now - t.get("sold", 0) <= hours * 3600]
-        return len(sold), (sum((t["out"] - t["in"]) / t["in"] for t in sold) / len(sold) if sold else None)
+        done = [t for t in self.trades if "out" in t and now - t.get("sold", 0) <= hours * 3600]
+        ret = lambda t: ((t["out"] - t["in"]) / t["in"] if t.get("sell_ok") else -1.0) - fixed_cost
+        return len(done), (sum(map(ret, done)) / len(done) if done else None)
 
     def summary(self) -> dict:
         done = [t for t in self.trades if t.get("sell_ok")]

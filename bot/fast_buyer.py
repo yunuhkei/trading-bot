@@ -43,7 +43,9 @@ class FastBuyer:
     def __init__(self, state: dict | None = None, sol_usd: float = 150.0, usd: float = USD):
         st = state or {}
         self.sol_usd, self.usd = sol_usd, usd
-        self.queue: deque = deque()              # ("buy" | "sell", mint, when decided, lab info), filled by the lab
+        self.queue: deque = deque()
+        self.buying: set = set()                  # buys still being checked
+        self.sell_later: dict = {}                # mint -> (decided, why): the lab sold while the buy was being checked              # ("buy" | "sell", mint, when decided, lab info), filled by the lab
         self.open: dict = {}                      # mint -> the real-price buy, waiting for the lab's sell
         self.trades: list = st.get("trades", [])[-500:]
         self.stats = Counter(st.get("stats", {}))
@@ -67,10 +69,15 @@ class FastBuyer:
 
     # the lab calls these (no waiting): they only queue the decision
     def lab_buy(self, mint: str, now: float, lab_tokens: float | None = None):
+        self.buying.add(mint)
         self.queue.append(("buy", mint, now, lab_tokens))
 
     def lab_sell(self, mint: str, now: float, why: str = ""):
-        self.queue.append(("sell", mint, now, why))
+        if mint in self.open:
+            self.open[mint]["sell_q"] = True
+            self.queue.append(("sell", mint, now, why))
+        elif mint in self.buying:                 # the buy is still being checked: sell right after it
+            self.sell_later[mint] = (now, why)
 
     def lab_result(self, mint: str, lab_return: float):
         """The lab's own result for the same bet (profit / cost), to compare with the real-price one."""
@@ -80,6 +87,8 @@ class FastBuyer:
                 return
         if mint in self.open:
             self.open[mint]["lab_ret"] = round(lab_return, 4)
+            if not self.open[mint].get("sell_q"):      # the lab closed it without a sell decision (a run ended)
+                self.lab_sell(mint, time.time(), "the lab closed it")
         elif self.missed.pop(mint, None) is not None:
             self.missed_ret.append(round(lab_return, 4))
 
@@ -113,6 +122,16 @@ class FastBuyer:
         return None, took, msg[:40]
 
     async def _handle(self, session, item):
+        try:
+            await self._handle_one(session, item)
+        finally:
+            if item[0] == "buy":
+                self.buying.discard(item[1])
+                later = self.sell_later.pop(item[1], None)
+                if later and item[1] in self.open:
+                    self.lab_sell(item[1], *later)
+
+    async def _handle_one(self, session, item):
         side, mint, decided, info = item
         delay = (BUY_AFTER if side == "buy" else SELL_AFTER) - (time.time() - decided)
         if delay > 0:

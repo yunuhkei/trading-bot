@@ -548,6 +548,19 @@ normal coins the lab and real prices agreed within a point (snipes: -5.3% vs -4.
 signs log) was wiped and started over at the mayhem fix (`CLEAN_SINCE`), because the records before it were built on
 the blind spot (fake wins) or the stuck bets. The super bot learns only from clean data from then on.
 
+**Review fixes (Nov 9):** coins priced in USDC or another pump coin are ignored (their amounts aren't SOL; about 16%
+of normal-coin trades); the sniper never leaves a coin marked "selling" after a stopped run, sells right after a buy
+lands if the lab already sold, tracks buys that confirm late, books a coin that's gone by finding its sale (or as a
+total loss), sells everything at the floor, sells graduated coins through Jupiter, gives up on a coin after 10 rounds
+(booked as a loss, so it can't block new trades) and never holds a coin past 5 minutes; the practice buyers keep sells
+that arrive mid-buy and close what the lab closes at a run's end; the go/no-go check counts unsellable coins as total
+losses and takes off the sniper's own network fees.
+
+**Known limit:** the free public feed misses some pump.fun trades (in two samples, about 1 in 10 normal coins had
+trades it never delivered, likely bots that route through lookup tables). Real-price checks read the chain directly, so
+they aren't affected; strategies that count every trade (volume spikes, momentum) see slightly less than really
+happens. A complete feed would need a paid data source.
+
 **Sniper hours and the owner's condition:** `live_hours` limits it to some hours ([2, 3] = 2-3 am); at the start of
 them it goes live only if the practice direct buyer's real prices over the last `gate_hours` were at least
 `gate_min_ret` a bet on `gate_min_sold`+ sold snipes, and pings either way.

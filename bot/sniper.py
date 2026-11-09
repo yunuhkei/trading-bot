@@ -39,6 +39,7 @@ DEFAULTS = {"live": False, "per_trade": 25.0, "max_open": 3, "budget": 95.0, "fl
             # results over the last `gate_hours` were at least `gate_min_ret` a bet on `gate_min_sold`+ sold snipes
             "gate_hours": 3, "gate_min_sold": 30, "gate_min_ret": 0.0}
 PUBLIC_RPC = "https://api.mainnet-beta.solana.com"
+HOLD_LIMIT_S = 300                    # a backstop: no coin is held longer than 5 minutes (the lab's snipe holds 90 s)
 
 
 def config(path: Path = CONFIG) -> dict:
@@ -83,6 +84,11 @@ class Sniper:
         self.sol_usd, self.tell = sol_usd, tell or (lambda t, m: None)
         self.cfg = cfg or config()
         self.open: dict = st.get("open", {})            # mint -> {tokens, spent (lamports), prog, t, ...}
+        for o in self.open.values():                      # a sale cut off by a stopped run: free to try again
+            o.pop("selling", None)
+        self.unconfirmed: dict = st.get("unconfirmed", {})    # mint -> a buy that was sent but not seen confirming yet
+        self.stuck: dict = st.get("stuck", {})            # mint -> a coin it couldn't sell (booked as a loss; sell by hand)
+        self.sell_later: dict = {}                        # mint -> (decided, why): the lab sold while our buy was landing
         self.trades: list = st.get("trades", [])[-1000:]
         self.plan: dict = st.get("plan") or {"day": None, "day_pnl": 0.0, "streak": 0, "paused": None,
                                              "set_aside": 0.0, "pnl": 0.0, "stopped": None}
@@ -96,7 +102,9 @@ class Sniper:
         self._bal = (0.0, None)                          # (when, the wallet's SOL in lamports), checked every 20 s
 
     def to_state(self) -> dict:
-        return {"open": self.open, "trades": self.trades[-1000:], "plan": self.plan, "stats": self.stats}
+        return {"open": {m: {k: v for k, v in o.items() if k != "selling"} for m, o in self.open.items()},
+                "unconfirmed": self.unconfirmed, "stuck": self.stuck, "trades": self.trades[-1000:], "plan": self.plan,
+                "stats": self.stats}
 
     # ---- the rules ----
     def money(self) -> float:
@@ -120,7 +128,10 @@ class Sniper:
         key = f"{(lt - datetime.timedelta(hours=(lt.hour - a) % 24)).strftime('%Y-%m-%d')} {a}"
         g = self.plan.get("gate") or {}
         if g.get("key") != key:
-            sold, ret = self.gate(self.cfg["gate_hours"]) if self.gate else (0, None)
+            # its own fixed costs a trade (priority fees for the buy and the sale, plus base fees) as a share of a trade
+            fees_sol = (self.cfg["priority_microlamports"] * (150_000 + 120_000) / 1e6 + 10_000) / 1e9
+            sold, ret = (self.gate(self.cfg["gate_hours"], fees_sol * self.sol_usd / self.cfg["per_trade"])
+                         if self.gate else (0, None))
             ok = sold >= self.cfg["gate_min_sold"] and ret is not None and ret >= self.cfg["gate_min_ret"]
             g = self.plan["gate"] = {"key": key, "ok": ok, "sold": sold, "ret": ret}
             span = f"{a % 12 or 12}-{b % 12 or 12} {'am' if b <= 12 else 'pm'}"
@@ -146,11 +157,12 @@ class Sniper:
             return "stopped at the floor"
         if p.get("paused"):
             return "paused after 2 losing days"
-        if mint in self.open or mint in self.busy:
+        if mint in self.open or mint in self.busy or mint in self.unconfirmed or mint in self.stuck:
             return "already holding it"
-        if len(self.open) + len(self.busy) >= c["max_open"]:
+        if len(self.open) + len(self.busy) + len(self.unconfirmed) >= c["max_open"]:
             return "full"
-        in_coins = sum(o["spent"] for o in self.open.values()) / 1e9 * self.sol_usd + c["per_trade"] * len(self.busy)
+        in_coins = (sum(o["spent"] for o in self.open.values()) / 1e9 * self.sol_usd
+                    + c["per_trade"] * (len(self.busy) + len(self.unconfirmed)))
         if self.money() - in_coins < c["per_trade"]:
             return "not enough left in its budget"
         return None
@@ -192,6 +204,8 @@ class Sniper:
     def lab_sell(self, mint: str, now: float, why: str = ""):
         if mint in self.open:
             self.queue.append(("sell", mint, now, why))
+        elif mint in self.busy or mint in self.unconfirmed:      # our buy is still landing: sell right after it lands
+            self.sell_later[mint] = (now, why)
 
     def lab_result(self, mint: str, ret: float):
         for t in reversed(self.trades[-30:]):
@@ -200,6 +214,14 @@ class Sniper:
                 return
         if mint in self.open:
             self.open[mint]["lab_ret"] = round(ret, 4)
+
+    def _adopt(self, mint: str, info: dict | None, spent: int, tokens: int, prog: str, decided: float, sig: str, note=""):
+        """A buy that landed: track it, and if the lab already sold that coin, sell it now."""
+        self.open[mint] = {"mint": mint, "tokens": tokens, "spent": spent, "prog": prog, "t": round(decided),
+                           "landed_s": round(time.time() - decided, 2), "buy_sig": sig, **({"note": note} if note else {})}
+        if mint in self.sell_later:
+            d, why = self.sell_later.pop(mint)
+            self.queue.append(("sell", mint, d, why))
 
     # ---- talking to the network ----
     async def _rpc(self, session, method: str, params: list):
@@ -266,22 +288,115 @@ class Sniper:
             tx = signed(self.kp, [pd.create_token_account(owner, owner, m, tp), pd.buy_ix(m, owner, tp, lamports, min_tok)],
                         await self._blockhash(session), 150_000, c["priority_microlamports"])
             sig, how, info = await self._send(session, tx)
-            if how != "ok" or not info:
-                self.count(f"buy {how[:50]}")
-                return
-            sol, tokens = wallet_change(info, str(owner), mint)
-            if tokens <= 0:
-                self.count("buy: landed but no tokens")
-                return
-            self.count("buy ok")
-            self._bal = (time.time(), (self._bal[1] or 0) + sol)
-            self.open[mint] = {"mint": mint, "tokens": tokens, "spent": -sol, "prog": prog, "t": round(decided),
-                               "landed_s": round(time.time() - decided, 2), "buy_sig": sig}
+            if how == "ok" and info:
+                sol, tokens = wallet_change(info, str(owner), mint)
+                if tokens <= 0:
+                    self.count("buy: landed but no tokens")
+                    return
+                self.count("buy ok")
+                self._bal = (time.time(), (self._bal[1] or 0) + sol)
+                self._adopt(mint, info, -sol, tokens, prog, decided, sig)
+            elif how.startswith("failed"):
+                self.count(f"buy {how[:50]}")                  # it didn't go through: nothing bought
+            else:                                               # not seen confirming yet: it may still land
+                self.count("buy: waiting to see if it landed")
+                self.unconfirmed[mint] = {"sig": sig, "lamports": lamports, "prog": prog, "t": decided, "sent": time.time()}
         except Exception as ex:
             self.count(f"buy error: {type(ex).__name__}")
             log.warning("buy %s: %s", mint, ex)
         finally:
             self.busy.discard(mint)
+            if mint not in self.open and mint not in self.unconfirmed:
+                self.sell_later.pop(mint, None)
+
+    async def _status(self, session, sig: str) -> dict | None:
+        return (await self._rpc(session, "getSignatureStatuses", [[sig], {"searchTransactionHistory": True}]))["value"][0]
+
+    async def _tx(self, session, sig: str) -> dict | None:
+        return await self._rpc(session, "getTransaction", [sig, {"encoding": "jsonParsed", "commitment": "confirmed",
+                                                                 "maxSupportedTransactionVersion": 0}])
+
+    async def _held(self, session, mint: str, prog: str) -> int | None:
+        """The wallet's raw balance of a coin: 0 if its token account is gone, None if it couldn't tell."""
+        m, tp = Pubkey.from_string(mint), Pubkey.from_string(prog)
+        try:
+            bal = await self._rpc(session, "getTokenAccountBalance", [str(pd.ata(self.owner, m, tp)), {"commitment": "confirmed"}])
+            return int(((bal or {}).get("value") or {}).get("amount") or 0)
+        except RuntimeError as ex:                                  # "could not find account": sold and closed
+            return 0 if "could not find" in str(ex).lower() or "invalid param" in str(ex).lower() else None
+        except Exception:
+            return None
+
+    async def check_unconfirmed(self, session):
+        """Buys that weren't seen confirming in time: did they land after all? If so, track them (and sell)."""
+        for mint, u in list(self.unconfirmed.items()):
+            if time.time() - u["sent"] < 20:
+                continue
+            try:
+                st = await self._status(session, u["sig"])
+                if st and st.get("confirmationStatus") in ("confirmed", "finalized"):
+                    self.unconfirmed.pop(mint)
+                    if st.get("err"):
+                        self.count("buy: failed after all")
+                        self.sell_later.pop(mint, None)
+                        continue
+                    info = await self._tx(session, u["sig"])
+                    if info:
+                        sol, tokens = wallet_change(info, str(self.owner), mint)
+                        if tokens > 0:
+                            self.count("buy: landed late")
+                            self._adopt(mint, info, -sol, tokens, u["prog"], u["t"], u["sig"], "landed late")
+                            continue
+                    held = await self._held(session, mint, u["prog"])
+                    if held:
+                        self._adopt(mint, None, u["lamports"] + int(0.004e9), held, u["prog"], u["t"], u["sig"],
+                                    "landed late; cost estimated")
+                elif time.time() - u["sent"] > 120:             # the network forgot it: only the wallet can tell
+                    self.unconfirmed.pop(mint)
+                    held = await self._held(session, mint, u["prog"])
+                    if held:
+                        self.count("buy: landed late")
+                        self._adopt(mint, None, u["lamports"] + int(0.004e9), held, u["prog"], u["t"], u["sig"],
+                                    "landed late; cost estimated")
+                    else:
+                        self.count("buy: never landed")
+                        self.sell_later.pop(mint, None)
+            except Exception as ex:
+                log.warning("checking a buy %s: %s", mint, ex)
+
+    async def _find_sale(self, session, mint: str, o: dict, why: str, decided: float):
+        """The coin is gone from the wallet: find the sale that landed and book what it really brought back. If none
+        is found, book it as a total loss (the safe way to count it for the floor and the losing days)."""
+        for sig in reversed(o.get("sell_sigs", [])):
+            try:
+                st = await self._status(session, sig)
+                if st and not st.get("err") and st.get("confirmationStatus") in ("confirmed", "finalized"):
+                    info = await self._tx(session, sig)
+                    if info:
+                        sol, _ = wallet_change(info, str(self.owner), mint)
+                        self._closed(mint, sol, why + " (the sale landed late)", sig, decided)
+                        return
+            except Exception as ex:
+                log.warning("finding a sale %s: %s", mint, ex)
+        self._closed(mint, 0, why + " (gone from the wallet, no sale found: booked as a total loss)", None, decided)
+
+    async def _sell_graduated(self, mint: str, tokens: int) -> int | None:
+        """A coin whose curve finished trades on pump.fun's exchange now: sell it there through Jupiter."""
+        import asyncio
+
+        from .solbot import SOL_MINT, jup, order, sign
+
+        def go():
+            o = order(mint, SOL_MINT, tokens, str(self.owner))
+            if not o.get("transaction"):
+                return None
+            res = jup("/ultra/v1/execute", body={"signedTransaction": sign(o["transaction"], self.kp), "requestId": o["requestId"]})
+            return int(res.get("outputAmountResult") or o["outAmount"]) if res.get("status") == "Success" else None
+        try:
+            return await asyncio.to_thread(go)
+        except Exception as ex:
+            log.warning("selling graduated %s: %s", mint, ex)
+            return None
 
     async def sell(self, session, mint: str, decided: float, why: str = ""):
         import asyncio
@@ -291,57 +406,66 @@ class Sniper:
             return
         o["selling"] = True
         c, owner = self.cfg, self.owner
-        m, tp = Pubkey.from_string(mint), Pubkey.from_string(o["prog"])
-        # first: does the wallet still hold it? (a sale that landed just before a run was stopped may not have been
-        # saved; trying to sell a coin that's gone would fail and still pay its fee, again and again)
         try:
-            bal = await self._rpc(session, "getTokenAccountBalance", [str(pd.ata(owner, m, tp)), {"commitment": "confirmed"}])
-            held = int(((bal or {}).get("value") or {}).get("amount") or 0)
-        except RuntimeError as ex:                                  # "could not find account": it was sold and closed
-            held = 0 if "could not find" in str(ex).lower() or "invalid param" in str(ex).lower() else None
-        except Exception:
-            held = None
-        if held == 0:
-            self.open.pop(mint, None)
-            self.count("sell: already gone from the wallet")
-            return
-        if held:
-            o["tokens"] = held
-        floor_frac = [1 - c["slippage_sell"], 0.25, 0.0]           # each retry accepts less, the last anything
-        for attempt, frac in enumerate(floor_frac):
-            try:
-                res = await self._rpc(session, "getAccountInfo", [str(pd.pda(b"bonding-curve", bytes(m))),
-                                                                  {"encoding": "base64", "commitment": "processed"}])
-                st = pd.curve_state((res or {}).get("value"))
-                if st and st[2]:
-                    break                                           # the curve finished: it can't be sold here
-                expect = 0
-                if st:
-                    vsol, vtok, _ = st
-                    fee = (self.fee(mint) if self.fee else None) or 0.0125
-                    tok = o["tokens"] / 1e6
-                    expect = (vsol - vsol * vtok / (vtok + tok)) * (1 - fee)
-                tx = signed(self.kp, [pd.sell_ix(m, owner, tp, o["tokens"], int(expect * 1e9 * frac)),
-                                      close_ix(pd.ata(owner, m, tp), owner, tp)],
-                            await self._blockhash(session), 120_000, c["priority_microlamports"])
-                sig, how, info = await self._send(session, tx)
-                if how == "ok" and info:
-                    sol, tokens = wallet_change(info, str(owner), mint)
-                    self._closed(mint, sol, why, sig, decided)
+            m, tp = Pubkey.from_string(mint), Pubkey.from_string(o["prog"])
+            floor_frac = [1 - c["slippage_sell"], 0.25, 0.0]       # each retry accepts less, the last anything
+            for attempt, frac in enumerate(floor_frac):
+                # first, every time: does the wallet still hold it? (a sale may have landed late; selling a coin
+                # that's gone fails and still pays its fee)
+                held = await self._held(session, mint, o["prog"])
+                if held == 0:
+                    await self._find_sale(session, mint, o, why, decided)
                     return
-                self.count(f"sell try {attempt + 1}: {how[:40]}")
-            except Exception as ex:
-                self.count(f"sell error: {type(ex).__name__}")
-                log.warning("sell %s: %s", mint, ex)
-            await asyncio.sleep(2)
-        o["selling"] = False
-        o["stuck"] = o.get("stuck", 0) + 1
-        self.count("sell: stuck")
-        if o["stuck"] == 1:
-            self.tell("🎯 Sniper: couldn't sell a coin", f"{mint}: 3 tries failed (or its curve finished). It's still in the "
-                      "wallet; it will keep trying, or sell it in Solflare.")
+                if held:
+                    o["tokens"] = held
+                try:
+                    res = await self._rpc(session, "getAccountInfo", [str(pd.pda(b"bonding-curve", bytes(m))),
+                                                                      {"encoding": "base64", "commitment": "processed"}])
+                    st = pd.curve_state((res or {}).get("value"))
+                    if st and st[2]:                                # the curve finished: sell on pump.fun's exchange
+                        got = await self._sell_graduated(mint, o["tokens"])
+                        if got:
+                            self._closed(mint, got, why + " (graduated: sold through Jupiter)", None, decided)
+                            return
+                        self.count("sell: graduated, Jupiter sale failed")
+                    else:
+                        expect = 0
+                        if st:
+                            vsol, vtok, _ = st
+                            fee = (self.fee(mint) if self.fee else None) or 0.0125
+                            tok = o["tokens"] / 1e6
+                            expect = (vsol - vsol * vtok / (vtok + tok)) * (1 - fee)
+                        tx = signed(self.kp, [pd.sell_ix(m, owner, tp, o["tokens"], int(expect * 1e9 * frac)),
+                                              close_ix(pd.ata(owner, m, tp), owner, tp)],
+                                    await self._blockhash(session), 120_000, c["priority_microlamports"])
+                        sig, how, info = await self._send(session, tx)
+                        o.setdefault("sell_sigs", []).append(sig)
+                        if how == "ok" and info:
+                            sol, _ = wallet_change(info, str(owner), mint)
+                            self._closed(mint, sol, why, sig, decided)
+                            return
+                        self.count(f"sell try {attempt + 1}: {how[:40]}")
+                except Exception as ex:
+                    self.count(f"sell error: {type(ex).__name__}")
+                    log.warning("sell %s: %s", mint, ex)
+                await asyncio.sleep(2)
+            o["stuck"] = o.get("stuck", 0) + 1
+            self.count("sell: stuck")
+            if o["stuck"] == 1:
+                self.tell("🎯 Sniper: couldn't sell a coin", f"{mint}: 3 tries failed. It's still in the wallet; it keeps "
+                          "trying every 2 minutes.")
+            if o["stuck"] >= 10:                                # give up: book it as a loss so it can't block new trades
+                held = await self._held(session, mint, o["prog"])
+                self._closed(mint, 0, why + " (couldn't sell: booked as a total loss)", None, decided)
+                if held:
+                    self.stuck[mint] = {**o, "tokens": held}
+                    self.tell("🎯 Sniper: gave up on a coin", f"{mint}: it couldn't sell it after 10 rounds of tries, so "
+                              "it's booked as a total loss and set aside. It's still in your wallet: sell it in Solflare.")
+        finally:
+            if mint in self.open:                               # cut off or failed: free to try again
+                self.open[mint].pop("selling", None)
 
-    def _closed(self, mint: str, received: int, why: str, sig: str, decided: float):
+    def _closed(self, mint: str, received: int, why: str, sig: str | None, decided: float):
         o = self.open.pop(mint)
         pnl = (received - o["spent"]) / 1e9 * self.sol_usd
         self.plan["pnl"] += pnl
@@ -353,26 +477,37 @@ class Sniper:
         self.count("sell ok")
         if self.money() <= self.cfg["floor"] and not self.plan.get("stopped"):
             self.plan["stopped"] = round(time.time())
+            for m in list(self.open):                           # the floor: sell everything it still holds
+                self.queue.append(("sell", m, time.time(), "the floor"))
             self.tell("🎯 Sniper stopped at its floor", f"Its money fell to ${self.money():,.2f} (floor ${self.cfg['floor']:,.0f}). "
-                      "It sold what it held and stopped buying. Tell Claude when you've looked.")
+                      f"It stopped buying and is selling the {len(self.open)} coin(s) it still holds. Tell Claude when you've looked.")
 
     async def run(self, session, stop_at: float):
         import asyncio
 
-        tasks = set()
+        tasks, last_check = set(), 0.0
+
+        def start(coro):
+            t = asyncio.create_task(coro)
+            tasks.add(t)
+            t.add_done_callback(tasks.discard)
+
         while time.time() < stop_at:
             while self.queue:
                 item = self.queue.pop(0)
-                coro = self.buy(session, item[1], item[2]) if item[0] == "buy" else self.sell(session, *item[1:])
-                t = asyncio.create_task(coro)
-                tasks.add(t)
-                t.add_done_callback(tasks.discard)
-            for mint, o in list(self.open.items()):                 # stuck coins: try again every 2 minutes, 10 times
-                if o.get("stuck") and o["stuck"] <= 10 and not o.get("selling") and time.time() - o.get("retry_t", 0) > 120:
-                    o["retry_t"] = time.time()
-                    t = asyncio.create_task(self.sell(session, mint, time.time(), "retry"))
-                    tasks.add(t)
-                    t.add_done_callback(tasks.discard)
+                start(self.buy(session, item[1], item[2]) if item[0] == "buy" else self.sell(session, *item[1:]))
+            now = time.time()
+            for mint, o in list(self.open.items()):
+                if o.get("selling"):
+                    continue
+                if o.get("stuck") and now - o.get("retry_t", 0) > 120:      # stuck coins: try again every 2 minutes
+                    o["retry_t"] = now
+                    start(self.sell(session, mint, now, "retry"))
+                elif not o.get("stuck") and now - o.get("t", now) > HOLD_LIMIT_S:   # never held past the limit
+                    start(self.sell(session, mint, now, "held too long"))
+            if self.unconfirmed and now - last_check > 10:
+                last_check = now
+                start(self.check_unconfirmed(session))
             await asyncio.sleep(0.05)
         if tasks:
             await asyncio.wait(tasks, timeout=20)
