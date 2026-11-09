@@ -6,7 +6,7 @@ sniper:
   per_trade: 25                  # dollars a trade
   max_open: 3                    # coins held at once
   budget: 95                     # its money: it never spends more than this; profit above it is set aside each midnight
-  floor: 50                      # if its money falls to this: sell everything, stop, ping the phone
+  floor: 15                      # if its money falls to this: sell everything, stop, ping the phone (the owner's pick)
   slippage_buy: 0.30             # don't buy if the price ran more than 30% past the lab's by the time the buy lands
   slippage_sell: 0.50            # first try: accept down to half the expected sale; then 25%; then anything
   priority_microlamports: 5000000  # priority fee: about 0.0007 SOL (~6 cents) a trade, to land fast
