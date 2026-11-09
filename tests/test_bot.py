@@ -3183,3 +3183,73 @@ def test_fast_buyer_retries_a_refused_sale_and_counts_our_own_buy():
         asyncio.sleep = real_sleep
     t = f.trades[-1]
     assert len(calls) == 2 and t["sell_ok"] and t["out"] == int(lam * factor)
+
+
+def test_pump_direct_builds_v3_trades_from_pump_funs_layout():
+    import struct
+
+    from solders.pubkey import Pubkey
+
+    from bot import pump_direct as pd
+
+    mint, user = Pubkey.from_string("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"), pd.SIM_PAYER
+    ix = pd.buy_ix(mint, user, pd.TOKEN_2022, 575_000_000, 10)
+    assert ix.program_id == pd.PUMP and ix.data[:8] == pd.BUY_EXACT_QUOTE_IN_V3
+    assert struct.unpack("<QQ", ix.data[8:24]) == (575_000_000, 10)
+    acc = ix.accounts
+    assert len(acc) == 17 and acc[0].pubkey == pd.GLOBAL and acc[-1].pubkey == pd.PUMP
+    assert acc[5].pubkey == pd.pda(b"bonding-curve", bytes(mint)) and acc[5].is_writable
+    assert acc[8].pubkey == user and acc[8].is_signer and acc[3].pubkey == pd.TOKEN_2022
+    assert acc[12].pubkey == pd.FEE_CONFIG and acc[13].pubkey == pd.BUYBACK
+    sell = pd.sell_ix(mint, user, pd.TOKEN, 1000, 0)
+    assert sell.data[:8] == pd.SELL_V3 and [a.pubkey for a in sell.accounts][:3] == [pd.GLOBAL, mint, pd.WSOL]
+    tx = pd.buy_tx(str(mint), str(pd.TOKEN_2022), 1_000_000)
+    params = pd.simulate_params(tx, [user])
+    assert params[1]["sigVerify"] is False and params[1]["replaceRecentBlockhash"] is True    # a test-run, never sent
+
+
+def test_direct_buyer_test_runs_the_snipes_and_reads_the_live_curve():
+    import asyncio
+    import base64
+    import struct
+
+    from bot import pump_direct as pd
+
+    curve = bytearray(160)
+    struct.pack_into("<QQ", curve, 8, int(800_000_000 * 1e6), int(40 * 1e9))     # 800M tokens, 40 SOL virtual
+    curve_b64 = base64.b64encode(bytes(curve)).decode()
+    token_acc = bytearray(165)
+    struct.pack_into("<Q", token_acc, 64, int(14_000_000 * 1e6))                  # the buy gets 14M tokens
+    calls = []
+
+    class Resp:
+        def __init__(self, d): self.d = d
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def json(self, content_type=None): return self.d
+
+    class Session:
+        def post(self, url, json=None, timeout=None):
+            calls.append(json["method"])
+            if json["method"] == "getAccountInfo":
+                if json["params"][0] == "MINT1111111111111111111111111111111111111111"[:44]:
+                    return Resp({"result": {"value": {"owner": str(pd.TOKEN_2022)}}})
+                return Resp({"result": {"value": {"data": [curve_b64, "base64"]}}})
+            return Resp({"result": {"value": {"err": None, "unitsConsumed": 75000,
+                                               "accounts": [{"data": [base64.b64encode(bytes(token_acc)).decode(), "base64"]}]}}})
+
+    mint = "So11111111111111111111111111111111111111112"
+    d = pd.DirectBuyer(sol_usd=100.0)
+    d.programs[mint] = str(pd.TOKEN_2022)
+    d.fee = lambda m: 0.0125
+    pd.BUY_AFTER = pd.SELL_AFTER = 0.0
+    asyncio.run(d._handle(Session(), ("buy", mint, 0.0, None)))
+    assert d.open[mint]["tok"] == int(14_000_000 * 1e6) and calls == ["simulateTransaction"]
+    asyncio.run(d._handle(Session(), ("sell", mint, 0.0, "time's up")))
+    t = d.trades[-1]
+    assert t["sell_ok"] and 0 < t["out"] and calls[1:] == ["getAccountInfo", "simulateTransaction"]
+    d.lab_result(mint, -0.02)
+    s = d.summary()
+    assert s["signals"] == 1 and s["bought"] == 1 and s["finished"] == 1 and s["lab_ret"] == -0.02
+    assert "Direct buyer (pump.fun test-runs, no money): 1 snipes, 1 would have gone through" in d.line()
+    assert "Nothing is ever sent" in d.line()

@@ -518,6 +518,16 @@ First live check: on coins it could trade, real prices matched the lab's within 
 of brand-new coins aren't tradable through Jupiter in the first seconds, and a few couldn't be sold through it later.
 A real sniper would need to trade pump.fun directly, not through Jupiter.
 
+**Direct buyer** (`bot/pump_direct.py`, practice only): the same snipes, straight on pump.fun instead of through
+Jupiter. For each buy it builds the real pump.fun transaction (`buy_exact_quote_in_v3`, from pump.fun's published
+program definition, `pump-fun/pump-public-docs`) and has the Solana network test-run it ("simulate"): that shows whether
+it would go through and the exact tokens it would get, without sending anything. The pretend buyer in a test-run is
+pump.fun's own fee wallet, since the network checks the buyer could pay; no key is used and nothing is sent. For each
+sell it reads the coin's live curve from the chain (with our own buy counted) and test-runs a buy-then-sell to prove a
+sale goes through. First live check, 18 snipes side by side: through Jupiter 11 could be bought, real -2.9% a bet;
+direct 15 would have gone through, +23.2% a bet against the lab's +19.1% on the same bets. Not tested yet: how fast a
+real transaction lands when other bots are racing for the same coin (only real sends can show that).
+
 **The owner's money plan** (the super bot follows it): $1,000 stays in, no trade over $250. At midnight (Milwaukee time) a
 winning day takes out everything above $1,000; a losing day isn't topped up; after 2 losing days in a row it goes into
 practice mode: it stops using its money and only trades on paper (its ghost) until the owner's next check. The phone gets
