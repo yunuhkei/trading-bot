@@ -3243,7 +3243,7 @@ def test_direct_buyer_test_runs_the_snipes_and_reads_the_live_curve():
     assert "Nothing is ever sent" in d.line()
 
 
-def _fake_chain(owner, mint, sol_change, token_change, fail_first_sends=0):
+def _fake_chain(owner, mint, sol_change, token_change, fail_first_sends=0, balance=(5_000_000_000,)):
     """A stand-in for the network: sends confirm, and the transaction shows the wallet's SOL and token change."""
     import base64
     import struct
@@ -3265,6 +3265,8 @@ def _fake_chain(owner, mint, sol_change, token_change, fail_first_sends=0):
             calls.append(m)
             if m == "getLatestBlockhash":
                 return Resp({"result": {"value": {"blockhash": "11111111111111111111111111111111"}}})
+            if m == "getBalance":
+                return Resp({"result": {"value": balance[0]}})
             if m == "sendTransaction":
                 sends[0] += 1
                 return Resp({"result": f"SIG{sends[0]}"})
@@ -3350,7 +3352,7 @@ def test_sniper_buys_and_sells_for_real_on_a_stand_in_network():
     try:
         asyncio.run(s.buy(session, mint, 0.0))
         assert s.open[mint]["tokens"] == 5_900_000_000_000 and s.open[mint]["spent"] == 252_000_000
-        assert calls[:2] == ["getLatestBlockhash", "sendTransaction"] and mint not in s.busy
+        assert calls[:3] == ["getBalance", "getLatestBlockhash", "sendTransaction"] and mint not in s.busy
         sol[0], tok[0] = 240_000_000, -5_900_000_000_000         # the sale: 0.24 SOL back (incl. the account's rent)
         asyncio.run(s.sell(session, mint, 0.0, "time's up"))
     finally:
@@ -3385,3 +3387,18 @@ def test_sniper_retries_a_failed_sale_and_reports_a_stuck_coin():
         asyncio.sleep = real_sleep
     assert calls.count("sendTransaction") == 3 and mint in s.open and s.open[mint]["stuck"] == 1
     assert told[-1][0] == "🎯 Sniper: couldn't sell a coin"
+
+
+def test_sniper_never_tries_a_buy_the_wallet_cant_cover():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    s = sn.Sniper(kp, sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True})
+    s.program_of = lambda m: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    session, calls = _fake_chain(str(kp.pubkey()), "M", [0], [0], balance=(200_000_000,))    # 0.2 SOL: under $25 + reserve
+    asyncio.run(s.buy(session, "M", 0.0))
+    assert "sendTransaction" not in calls and s.stats == {"buy skipped: not enough SOL in the wallet": 1}

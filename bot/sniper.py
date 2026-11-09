@@ -87,6 +87,7 @@ class Sniper:
         self.fee = None
         self.queue: list = []
         self.busy: set = set()
+        self._bal = (0.0, None)                          # (when, the wallet's SOL in lamports), checked every 20 s
 
     def to_state(self) -> dict:
         return {"open": self.open, "trades": self.trades[-1000:], "plan": self.plan, "stats": self.stats}
@@ -195,16 +196,29 @@ class Sniper:
 
         return Hash.from_string((await self._rpc(session, "getLatestBlockhash", [{"commitment": "confirmed"}]))["value"]["blockhash"])
 
+    async def wallet_lamports(self, session) -> int | None:
+        if time.time() - self._bal[0] > 20 or self._bal[1] is None:
+            try:
+                self._bal = (time.time(), (await self._rpc(session, "getBalance", [str(self.owner), {"commitment": "processed"}]))["value"])
+            except Exception as ex:
+                log.warning("balance: %s", ex)
+        return self._bal[1]
+
     async def buy(self, session, mint: str, decided: float):
         c, owner = self.cfg, self.owner
         try:
+            lamports = int(c["per_trade"] / self.sol_usd * 1e9)
+            have = await self.wallet_lamports(session)
+            # the buy, its token account (~0.002 SOL), fees, and the SOL always kept back
+            if have is None or have < lamports + 0.004e9 + c["reserve_sol"] * 1e9:
+                self.count("buy skipped: not enough SOL in the wallet")
+                return
             prog = (self.program_of(mint) if self.program_of else None) or (
                 (await self._rpc(session, "getAccountInfo", [mint, {"encoding": "base64", "commitment": "processed"}]))
                 .get("value") or {}).get("owner")
             if not prog:
                 self.count("buy: coin not found")
                 return
-            lamports = int(c["per_trade"] / self.sol_usd * 1e9)
             expect = self.curve(mint, lamports) if self.curve else None
             min_tok = int(expect * 1e6 * (1 - c["slippage_buy"])) if expect else 1
             m, tp = Pubkey.from_string(mint), Pubkey.from_string(prog)
@@ -219,6 +233,7 @@ class Sniper:
                 self.count("buy: landed but no tokens")
                 return
             self.count("buy ok")
+            self._bal = (time.time(), (self._bal[1] or 0) + sol)
             self.open[mint] = {"mint": mint, "tokens": tokens, "spent": -sol, "prog": prog, "t": round(decided),
                                "landed_s": round(time.time() - decided, 2), "buy_sig": sig}
         except Exception as ex:
