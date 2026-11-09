@@ -2869,43 +2869,32 @@ def test_launch_lab_simple_ping_says_it_in_plain_words():
     from zoneinfo import ZoneInfo
 
     from bot import launch_lab as ll
+    from bot.fast_buyer import FastBuyer
+    from bot.pump_direct import DirectBuyer
 
-    at = lambda h: datetime.datetime(2026, 11, 8, h, 30, tzinfo=ZoneInfo("America/Chicago")).timestamp()
-    lab = ll.Lab()
-    for _ in range(10):
-        lab.ghosts["whale_follow"].tally(at(13), 160.0)          # midday +1,600
-        lab.ghosts["whale_follow"].tally(at(19), -260.0)         # evening -2,600
-        lab.ghosts["volume_spike_tp30"].tally(at(19), 66.0)      # evening +660
-        lab.ghosts["random"].tally(at(13), 500.0)                # luck never counts
-    lab.ghosts["breakout"].trades += [{"t": at(10) - 600, "s": 60, "profit": -20.0, "name": "?"},     # the last hour
-                                      {"t": at(10) - 300, "s": 60, "profit": 25.0, "name": "?"},
-                                      {"t": at(10) - 9000, "s": 60, "profit": 99.0, "name": "?"}]     # older
-    msg = lab.simple(now=at(10))
-    assert msg.splitlines() == [
-        "Super bot: no trades yet. It starts once a strategy wins the same hour on 2 different days.",
-        "Super bot 2 (copies what's winning right now): $1,000 (+0 on 0 trades). Now copying: nothing is hot",
-        "Super bot this hour (10a): sitting out",
-        "",
-        "Last hour: 1 strategies traded (2 trades)",
-        "✅ Breakout to new highs: +5 on 2 trades (1 won)",
-        "Biggest win: Breakout to new highs on ?, +25",
-        "",
-        "Best hours so far:",
-        "1. Follow a 5+ SOL buy at 1p: +1,600 on 10 trades (100% won; up 1 of 1 days)",
-        "2. Volume spike, quick (+30%/-15%) at 7p: +660 on 10 trades (100% won; up 1 of 1 days)",
-        "Repeat winners (up in the same hour on 2+ days): none yet"]
-    for _ in range(3):
-        lab.ghosts["whale_follow"].tally(at(13) + 86400, 50.0)     # the next day, the same hour: up again
-    assert ("• Follow a 5+ SOL buy at 1p: +1,750 on 13 trades (100% won; up 2 of 2 days)"
-            in lab.simple(now=at(10) + 86400))
-    lab.ghosts["dip_bounce"].trades += [{"t": at(10) - 900, "s": 60, "profit": -80.0, "name": "X"}]
-    lab.ghosts["snipe"].trades += [{"t": at(10) - 900, "s": 60, "profit": -20.0, "name": "Y"}]
-    assert "❌ 2 lost money: -50 each on average (worst: Second-chart dip bounce, -80)" in lab.simple(now=at(10))
-    sup = lab.accts["timing"]
-    sup.n, sup.wins, sup.pnl, sup.cash = 14, 6, 120.0, 1120.0
-    assert lab.simple(now=at(10)).splitlines()[1] == \
-        "Your plan so far: taken out $0, account $1,120, net +120 (14 trades, 43% won)"
-
+    at = lambda h, m=0: datetime.datetime(2026, 11, 9, h, m, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    now = at(10)
+    lab = ll.Lab(sol_usd=100.0)
+    snipe = lab.ghosts["snipe"]
+    snipe.trades += [{"t": now - 1800, "s": 60, "profit": 90.0, "name": "a"}, {"t": now - 900, "s": 60, "profit": -10.0, "name": "b"}]
+    for h in (7, 8, 9):
+        snipe.tally(at(h, 5), 50.0 if h != 8 else -20.0)               # up 2 of the last 3 hours
+    lab.ghosts["breakout"].trades += [{"t": now - 600, "s": 60, "profit": -40.0, "name": "c"}]
+    lab.direct, lab.fast = DirectBuyer(sol_usd=100.0), FastBuyer(sol_usd=100.0)
+    lab.direct.attempts.extend([(now - 100, True)] * 9 + [(now - 100, False)])
+    lab.direct.trades += [{"mint": "m", "in": 500_000_000, "out": 560_000_000, "sell_ok": True, "sold": now - 60, "lab_ret": 0.10}]
+    lab.fast.attempts.extend([(now - 100, True)] * 4 + [(now - 100, False)] * 6)
+    msg = lab.simple(now=now)
+    assert msg.splitlines()[0] == "The last hour (9:00 am - 10:00 am):"
+    assert "• Snipes (buy every new coin): +80 on 2 trades. Up in 2 of the last 3 hours." in msg
+    assert ("• Real-world check, straight on pump.fun: 9 of 10 snipes would have gone through. The 1 that sold made "
+            "+12.0% a bet (the lab said +10.0%), about +6 at $50 a trade.") in msg
+    assert "• Through Jupiter only 4 of 10 could be bought in time." in msg
+    assert "• Super bot: no trades yet; it starts once a strategy wins the same hour on 2 days. This hour it's sitting out." in msg
+    assert "• 1 of 2 strategies made money. Best: Snipe every new coin +80. Worst: Breakout to new highs -40." in msg
+    assert msg.splitlines()[-1] == "Bottom line: snipes are still winning, and real prices are keeping up."
+    lab.direct.trades[-1]["out"] = 450_000_000
+    assert lab.simple(now=now).splitlines()[-1] == "Bottom line: snipes won in the lab, but real prices didn't keep up this hour."
 
 def test_launch_lab_versions_get_their_familys_signals_as_ghosts_only():
     from bot import launch_lab as ll
@@ -2959,10 +2948,9 @@ def test_launch_lab_super_bot_follows_the_owners_money_plan():
     lab.order("whale_follow", "MINT", at(12, 15), "buy", "a 6.0 SOL buy")
     assert "MINT" not in sup.pending and "MINT" in ghost.pending
     ghost.pnl += 75.0
-    assert lab.simple(now=at(12, 16)).splitlines()[:2] == [
-        "Super bot: PRACTICE MODE since 2026-11-11 (2 losing days in a row). On paper since then: +75. "
-        "Tell Claude to restart it at your next check.",
-        "Your plan so far: taken out $340, account $750, net +90"]
+    msg = lab.simple(now=at(12, 16))
+    assert "• Super bot: in PRACTICE MODE since 2026-11-11 after 2 losing days in a row" in msg
+    assert "taken out $340, account $750, net +90" in msg
 
     ghost.pending.clear()
     sup.cash = 750.0

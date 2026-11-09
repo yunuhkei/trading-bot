@@ -483,7 +483,7 @@ strategies side by side, each with its own **pretend $1,000 and $250 trades**:
 curve's own math (price impact included), paying each trade's fee (~1%) plus 0.001 SOL a transaction. The feed itself is
 about a second behind the chain, so the bot is ~2.5 s behind the first block, where real snipers buy. That's the point:
 it shows whether a bot this fast can win. Open bets are sold at the curve price when a job ends. The phone gets an
-hourly ping in plain words (the super bot, what it's doing this hour, the best strategy-and-time so far, and what trading only at the good times would have made, which is hindsight); the full scoreboard is in the run's log and `launch-lab-status` prints it with each strategy's latest trades. Busted strategies
+hourly ping written the way Claude explains a check (the last hour of snipes, the real-world check straight on pump.fun and through Jupiter, the super bots, the best and worst strategy, repeat winners and a bottom line; before: the super bot, what it's doing this hour, the best strategy-and-time so far, and what trading only at the good times would have made, which is hindsight); the full scoreboard is in the run's log and `launch-lab-status` prints it with each strategy's latest trades. Busted strategies
 (under $250) stay dead. The report also splits every strategy by time of day in Milwaukee time (midday 11a-5p,
 evening 5-11p, overnight 11p-5a, morning 5-11a, by when the coin was bought), to test the midday hunch from copy
 trading. It also shows how busy pump.fun is each hour, and the owner's 11a-3:40p window against the rest of the day.

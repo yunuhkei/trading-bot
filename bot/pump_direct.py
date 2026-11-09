@@ -118,6 +118,8 @@ import asyncio  # noqa: E402
 import time  # noqa: E402
 from collections import Counter, deque  # noqa: E402
 
+from .fast_buyer import hour_stats  # noqa: E402
+
 RPC = "https://api.mainnet-beta.solana.com"
 USD = 50.0
 BUY_AFTER, SELL_AFTER = 1.0, 0.6     # a real order lands about this long after the decision
@@ -147,12 +149,14 @@ class DirectBuyer:
         self.trades: list = st.get("trades", [])[-500:]
         self.stats = Counter(st.get("stats", {}))
         self.lat: list = st.get("lat", [])[-500:]
+        self.attempts: deque = deque(st.get("attempts", [])[-2000:], maxlen=2000)    # (time, could buy)
         self.programs: dict = {}                 # mint -> its token program (looked up once)
         self.fee = None                           # (mint) -> the coin's fee from the lab's feed
         self.program_of = None                    # (mint) -> its token program, from the coin's launch event
 
     def to_state(self) -> dict:
-        return {"trades": self.trades[-500:], "stats": dict(self.stats), "lat": self.lat[-500:]}
+        return {"trades": self.trades[-500:], "stats": dict(self.stats), "lat": self.lat[-500:],
+                "attempts": list(self.attempts)[-2000:]}
 
     def lab_buy(self, mint: str, now: float, lab_tokens: float | None = None):
         self.queue.append(("buy", mint, now, None))
@@ -205,6 +209,7 @@ class DirectBuyer:
             prog = await self._program(session, mint)
             if not prog:
                 self.stats["buy coin not found"] += 1
+                self.attempts.append((time.time(), False))
                 return
             lam = int(self.usd / self.sol_usd * 1e9)
             m, tp = Pubkey.from_string(mint), Pubkey.from_string(prog)
@@ -212,7 +217,9 @@ class DirectBuyer:
                                        simulate_params(buy_tx(mint, prog, lam), [ata(SIM_PAYER, m, tp)]))
             self.lat.append(round(time.time() - t0, 3))
             val = (res or {}).get("value") or {}
-            if err or val.get("err") is not None:
+            ok = not err and val.get("err") is None
+            self.attempts.append((time.time(), ok))
+            if not ok:
                 self.stats[f"buy failed: {str(err or val.get('err'))[:40]}"] += 1
                 return
             tok = token_amount((val.get("accounts") or [None])[0])
@@ -256,6 +263,10 @@ class DirectBuyer:
             await asyncio.sleep(0.05)
         for t in list(tasks):
             t.cancel()
+
+    def hour(self, now: float | None = None) -> dict:
+        """The last hour: buys tried and how many could go through; sales, and what they made vs the lab."""
+        return hour_stats(self.attempts, self.trades, now or time.time(), self.sol_usd)
 
     def summary(self) -> dict:
         done = [t for t in self.trades if t.get("sell_ok")]

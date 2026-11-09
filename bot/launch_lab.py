@@ -828,69 +828,107 @@ class Lab:
         return "\n".join(lines)
 
     def simple(self, now: float | None = None) -> str:
-        """The phone's hourly ping in plain words: the super bot; last hour per strategy (which ones made money and
-        how much, the rest as an average, the biggest win); the best hours so far, and the ones that keep winning."""
+        """The phone's hourly ping, said the way Claude would say it when asked to check: the snipes, the real-world
+        check (straight on pump.fun, and through Jupiter), the super bots, the strategies, the repeat winners, and a
+        bottom line. The full scoreboard is in the run's log and the board."""
         now = now or time.time()
-        lines = self.plan_lines(now)
-        for sh in (self.fast, self.direct):
-            if sh:
-                lines.append(sh.line())
-        s2 = self.accts["streak"]
-        hot = self.streak_on(now)
-        lines.append(f"Super bot 2 (copies what's winning right now): ${self.value(s2):,.0f} ({s2.pnl:+,.0f} on {s2.n} "
-                     f"trades). Now copying: " + (", ".join(STRATEGIES[k]["label"] for k in hot) or "nothing is hot"))
+        clock = lambda t: (lambda lt: f"{lt.hour % 12 or 12}:{lt.minute:02d} {'am' if lt.hour < 12 else 'pm'}")(local_time(t))
+        hr = lambda h: f"{h % 12 or 12}{'a' if h < 12 else 'p'}"
+        last_hour = lambda g: [t for t in g.trades if now - (t["t"] + t["s"]) <= 3600]
+        lines = [f"The last hour ({clock(now - 3600)} - {clock(now)}):"]
+
+        # snipes: the last hour, and how many of the last 24 hours they were up
+        g = self.ghosts.get("snipe")
+        if g:
+            rec = last_hour(g)
+            up = tot = 0
+            for i in range(1, 25):
+                lt = local_time(now - i * 3600)
+                cell = (g.days.get(lt.strftime("%Y-%m-%d")) or [[0, 0, 0.0]] * 24)[lt.hour]
+                if cell[0]:
+                    tot += 1
+                    up += cell[2] > 0
+            lines.append(f"• Snipes (buy every new coin): {sum(t['profit'] for t in rec):+,.0f} on {len(rec)} trades."
+                         + (f" Up in {up} of the last {tot} hours." if tot else ""))
+
+        # the real-world check
+        d = self.direct.hour(now) if self.direct else None
+        if d and d["tried"]:
+            txt = f"• Real-world check, straight on pump.fun: {d['ok']} of {d['tried']} snipes would have gone through."
+            if d["sold"]:
+                txt += f" The {d['sold']} that sold made {d['real']:+.1%} a bet"
+                txt += f" (the lab said {d['lab']:+.1%})" if d["lab"] is not None else ""
+                txt += f", about {d['pnl'] * 50 / self.direct.usd:+,.0f} at $50 a trade."
+            else:
+                txt += " None sold yet."
+            lines.append(txt)
+        f = self.fast.hour(now) if self.fast else None
+        if f and f["tried"]:
+            lines.append(f"• Through Jupiter only {f['ok']} of {f['tried']} could be bought in time.")
+
+        # the super bots
+        p, sup = self.plan, self.accts["timing"]
         on = self.timing_on(now)
-        hour = local_time(now).hour
-        hour = f"{hour % 12 or 12}{'a' if hour < 12 else 'p'}"
-        lines.append(f"Super bot this hour ({hour}): " + ("copying " + ", ".join(STRATEGIES[k]["label"] for k in on)
-                                                         if on else "sitting out"))
-        # the last hour, strategy by strategy (the ghosts: every strategy, always running)
-        hour_of = {}
-        for k, g in self.ghosts.items():
+        doing = (f"Right now it's copying {', '.join(STRATEGIES[k]['label'] for k in on)}." if on
+                 else "This hour it's sitting out.")
+        value = self.value(sup)
+        net = p["banked"] + value - p["put_in"]
+        if p["mode"] == "practice":
+            lines.append(f"• Super bot: in PRACTICE MODE since {p.get('since')} after 2 losing days in a row; tell me to "
+                         f"restart it when you've checked. Your plan so far: taken out ${p['banked']:,.0f}, account "
+                         f"${value:,.0f}, net {net:+,.0f}. {doing}")
+        elif sup.n == 0 and not sup.positions and not sup.pending:
+            lines.append(f"• Super bot: no trades yet; it starts once a strategy wins the same hour on 2 days. {doing}")
+        else:
+            start = p["start"] if p["start"] is not None else value
+            lines.append(f"• Super bot today: {value - start:+,.0f}. Your plan so far: taken out ${p['banked']:,.0f}, "
+                         f"account ${value:,.0f}, net {net:+,.0f}. {doing}")
+        s2, g2 = self.accts["streak"], self.ghosts.get("streak")
+        if g2 and self.value(s2) < s2.per_trade and not s2.positions:
+            lines.append(f"• Super bot 2 (copies what's hot) is out of money; on paper it made "
+                         f"{sum(t['profit'] for t in last_hour(g2)):+,.0f} this hour.")
+        elif g2:
+            lines.append(f"• Super bot 2 (copies what's hot): ${self.value(s2):,.0f}, {s2.pnl:+,.0f} so far.")
+
+        # the strategies, and the ones that keep winning the same hour
+        pnl = {}
+        for k, gh in self.ghosts.items():
             if k == "random" or k in SUPER:
                 continue
-            rec = [t for t in g.trades if now - (t["t"] + t["s"]) <= 3600]
+            rec = last_hour(gh)
             if rec:
-                hour_of[k] = rec
-        if hour_of:
-            pnl = {k: sum(t["profit"] for t in r) for k, r in hour_of.items()}
-            won, lost = [k for k in pnl if pnl[k] > 0], [k for k in pnl if pnl[k] <= 0]
-            lines += ["", f"Last hour: {len(hour_of)} strategies traded ({sum(len(r) for r in hour_of.values())} trades)"]
-            for k in sorted(won, key=lambda k: -pnl[k])[:6]:
-                lines.append(f"✅ {STRATEGIES[k]['label']}: {pnl[k]:+,.0f} on {len(hour_of[k])} trades "
-                             f"({sum(t['profit'] > 0 for t in hour_of[k])} won)")
-            if len(won) > 6:
-                lines.append(f"✅ ...and {len(won) - 6} more made money")
-            if lost:
-                worst = min(lost, key=lambda k: pnl[k])
-                lines.append(f"❌ {len(lost)} lost money: {sum(pnl[k] for k in lost) / len(lost):+,.0f} each on average "
-                             f"(worst: {STRATEGIES[worst]['label']}, {pnl[worst]:+,.0f})")
-            k, t = max(((k, t) for k, r in hour_of.items() for t in r), key=lambda kt: kt[1]["profit"])
-            if t["profit"] > 0:
-                lines.append(f"Biggest win: {STRATEGIES[k]['label']} on {t['name']}, {t['profit']:+,.0f}")
-        # the best hours so far (strategy + hour of the day, Milwaukee time), and the ones that keep winning there
-        cells = []
-        for k, g in self.ghosts.items():
+                pnl[k] = sum(t["profit"] for t in rec)
+        if pnl:
+            best, worst = max(pnl, key=pnl.get), min(pnl, key=pnl.get)
+            lines.append(f"• {sum(v > 0 for v in pnl.values())} of {len(pnl)} strategies made money. Best: "
+                         f"{STRATEGIES[best]['label']} {pnl[best]:+,.0f}. Worst: {STRATEGIES[worst]['label']} "
+                         f"{pnl[worst]:+,.0f}.")
+        rep = []
+        for k, gh in self.ghosts.items():
             if k == "random" or k in SUPER:
                 continue
             for h in range(24):
-                n, w, pnl_ = g.by_hour[h]
-                if n:
-                    rows = [g.days[d][h] for d in g.days if g.days[d][h][0]]
-                    cells.append((pnl_, n, w, k, h, sum(r[2] > 0 for r in rows), len(rows)))
-        hr = lambda h: f"{h % 12 or 12}{'a' if h < 12 else 'p'}"
-        piece = lambda c: (f"{STRATEGIES[c[3]]['label']} at {hr(c[4])}: {c[0]:+,.0f} on {c[1]} trades "
-                           f"({c[2] / c[1]:.0%} won; up {c[5]} of {c[6]} days)")
-        good = sorted((c for c in cells if c[0] > 0), reverse=True)
-        if good:
-            lines += ["", "Best hours so far:"] + [f"{i}. {piece(c)}" for i, c in enumerate(good[:3], 1)]
-        elif cells:
-            lines += ["", "Best hours so far: none yet, every strategy is losing in every hour"]
-        repeat = [c for c in good if c[6] >= 2 and c[5] == c[6]]       # up in that hour every day it traded, 2+ days
-        if repeat:
-            lines += ["Repeat winners (up in the same hour every day, 2+ days):"] + [f"• {piece(c)}" for c in repeat[:3]]
-        elif cells:
-            lines.append("Repeat winners (up in the same hour on 2+ days): none yet")
+                rows = [gh.days[day][h] for day in gh.days if gh.days[day][h][0]]
+                if len(rows) >= 2 and all(r[2] > 0 for r in rows):
+                    rep.append((sum(r[2] for r in rows), k, h, len(rows)))
+        if rep:
+            top = max(rep)
+            lines.append(f"• Repeat winners (won the same hour on 2+ days): {len(rep)}. Best: {STRATEGIES[top[1]]['label']} "
+                         f"at {hr(top[2])}, {top[0]:+,.0f} over {top[3]} days.")
+
+        # the bottom line
+        snipes = sum(t["profit"] for t in last_hour(g)) if g else 0.0
+        if snipes > 0 and d and d["sold"] and d["real"] > 0:
+            bottom = "snipes are still winning, and real prices are keeping up."
+        elif snipes > 0 and d and d["sold"]:
+            bottom = "snipes won in the lab, but real prices didn't keep up this hour."
+        elif snipes > 0:
+            bottom = "snipes are winning in the lab."
+        else:
+            bottom = "a slow hour for snipes."
+        if sup.n and (sup.pending or sup.positions or on):
+            bottom += " The super bot is trading."
+        lines.append(f"Bottom line: {bottom}")
         return "\n".join(lines).encode()[:4000].decode(errors="ignore")
 
     def times_of_day(self, top: int | None = None) -> list[str]:

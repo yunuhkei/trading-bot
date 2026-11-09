@@ -29,6 +29,16 @@ def base() -> tuple[str, dict]:
     return ("https://api.jup.ag", {"x-api-key": key}) if key else ("https://lite-api.jup.ag", {})
 
 
+def hour_stats(attempts, trades, now: float, sol_usd: float, fee_sol: float = 0.001) -> dict:
+    att = [a for a in attempts if now - a[0] <= 3600]
+    sold = [t for t in trades if t.get("sell_ok") and now - t.get("sold", 0) <= 3600]
+    both = [t for t in sold if "lab_ret" in t]
+    return {"tried": len(att), "ok": sum(1 for a in att if a[1]), "sold": len(sold),
+            "real": sum((t["out"] - t["in"]) / t["in"] for t in sold) / len(sold) if sold else None,
+            "lab": sum(t["lab_ret"] for t in both) / len(both) if both else None,
+            "pnl": sum((t["out"] - t["in"]) / 1e9 * sol_usd - 2 * fee_sol * sol_usd for t in sold)}
+
+
 class FastBuyer:
     def __init__(self, state: dict | None = None, sol_usd: float = 150.0, usd: float = USD):
         st = state or {}
@@ -38,6 +48,7 @@ class FastBuyer:
         self.trades: list = st.get("trades", [])[-500:]
         self.stats = Counter(st.get("stats", {}))
         self.lat: list = st.get("lat", [])[-500:]
+        self.attempts: deque = deque(st.get("attempts", [])[-2000:], maxlen=2000)    # (time, could buy)
         # the lab's results on the coins Jupiter couldn't buy in time: if the snipes' profit is mostly there, a bot
         # that trades through Jupiter would miss it
         self.missed: dict = {}
@@ -51,6 +62,7 @@ class FastBuyer:
 
     def to_state(self) -> dict:
         return {"trades": self.trades[-500:], "stats": dict(self.stats), "lat": self.lat[-500:],
+                "attempts": list(self.attempts)[-2000:],
                 "missed_ret": self.missed_ret[-1000:]}
 
     # the lab calls these (no waiting): they only queue the decision
@@ -113,6 +125,7 @@ class FastBuyer:
                 info = self.curve(mint, lamports)          # the lab's price at the moment the quote came back
             self.lat.append(round(took, 3))
             self.stats[f"buy {how}"] += 1
+            self.attempts.append((time.time(), bool(q)))
             if not q:
                 self.missed[mint] = decided
             if q:
@@ -146,6 +159,10 @@ class FastBuyer:
             await asyncio.sleep(0.05)
         for t in list(tasks):
             t.cancel()
+
+    def hour(self, now: float | None = None) -> dict:
+        """The last hour: buys tried and how many could go through; sales, and what they made vs the lab."""
+        return hour_stats(self.attempts, self.trades, now or time.time(), self.sol_usd)
 
     def summary(self) -> dict:
         # a coin Jupiter can't sell isn't worth nothing (pump.fun itself always takes a sale): it's counted on its own,
