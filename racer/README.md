@@ -3,7 +3,7 @@
 A free-roam arcade racer in **one self-contained HTML file** (`Racer_Prototype.html`, no libraries, no network).
 It is built from the modules in `racer/src` by `python3 racer/build.py` (the output is committed so you can just open it).
 
-* **Map**: one fixed county (about 6 km square), roads authored in plan view only (`src/20_map.js`), heights follow the land and the land is carved around the roads:
+* **Map**: one fixed county (a 10.2 km square heightmap with 5 m cells, 8.5 km of it land: the sea is to the west and south, cliffs and a beach to the east and north), roads authored in plan view only (`src/20_map.js`), heights follow the land and the land is carved around the roads:
   a ~10 km highway ring with sweeping bends (and a long straight), a mountain pass with switchbacks, a twisty coast road (Highway 1 style) with an overpass,
   a long straight on the southern plains, an east link, and the county's districts, inspired by San Francisco and California:
   **Downtown** = two street grids (one axis-aligned, one rotated to follow the diagonal **Market Street**, like SF), a tower district with a pyramid tower,
@@ -12,6 +12,10 @@ It is built from the modules in `racer/src` by `python3 racer/build.py` (the out
   **Mulholland** = a very twisty ridge road in the hills; **Santa Cruz** = a beach town on the south coast (bungalows, motels, a boardwalk with a Ferris wheel,
   lifeguard towers, umbrellas and a pier you can drive out on); **Palm Springs** = a desert resort town of wide palm boulevards (mid-century hotels round pools,
   a golf course, villas with pools).
+  **The wider county** (`src/20_world.js`, terrain in `baseH`): a northern range with snow above about 360 m, a 75 m mesa in the north-east cut by a winding canyon (the canyon road follows the floor to a turnaround on the rim),
+  a desert lake, a farm lake, and five small towns plus two industrial areas that fill the gaps (**Pacifica** on the coast road, **Fresno** farm town, **Barstow** desert town, **Big Pines** mountain village on a terrace in the foothills,
+  the **harbour** industrial area, **Mojave Works**), each a street grid ringed by a boulevard like the districts (`makeTown`), with farms (barn, silo, house, shed, field) along the farm roads, more suburbs round the Valley and the towns,
+  and 17 **safe houses** (a garage with a tall green sign, green dots on the map; behaviour comes later). New highways: the east highway to Barstow and the loop back through the refinery and the southern highway, the north highway over the mountain-pass loop to Big Pines, the farm roads.
   **Network** (one connected road system, checked by a script that reports roads lying on top of each other, dead ends and disconnected pieces): every district is ringed
   by a boulevard (`perimeter()`), every street of the district ends on it, and the highways join the boulevards: Geary and the park drive meet downtown's boulevard,
   the boulevard road runs from downtown across the hills to the ring, the Valley joins it and the ring, the coast road runs from Market Street's south-west end

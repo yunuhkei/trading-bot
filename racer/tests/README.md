@@ -41,6 +41,6 @@ Small differences from rounding are fine; a change of more than about 10 percent
 * `rbot` at 24 and 34 m/s: all 81 roads completed, no stuck, no falls; the only 'below-road' frames (1-8) are on the steepest San Francisco streets; flights only on the jump hills and the San Francisco crests.
 * `rpen` worst wheel below ground: Nob Hill crest 12 cm, Russian Hill 5 cm, mountain 6 cm, Mulholland 27 cm, mountain pass 11 cm, steep street sfsu4 51 cm (1 percent of frames over 25 cm);
   the 'off-road up Twin Peaks' case starts against a street's cut bank and shows 140 cm (known, not a hill-climb failure).
-* `netcheck`: 4 short 'overlaps' that are T-junction widths and Lombard Street's ends, 2 dead ends (the pier head), one connected group of 81 roads.
+* `netcheck`: 4 short 'overlaps' that are T-junction widths and Lombard Street's ends, 2 dead ends (the pier head), one connected group (135 roads since the wider county was added).
 * `raudit`: every road renders the markings it should (0.6 km without lane markings = Lombard Street and the pier, which are patches). It re-implements the shader's decode, so also LOOK at `rgal.js` screenshots after touching the road shader.
 * `rdrive`: steering sign and response, nitro, head-on into a building, off the pass into a slope, dropped in the sea; its 'speed after 30 s' number is not meaningful (the car has no steering input and leaves the road).

@@ -1,7 +1,7 @@
 'use strict';
 /* ===== the county: terrain function, road network (plan view only; heights follow the land), carving, ground colours =====
    x = east, z = south, y = up, metres. Everything here is deterministic. */
-const W={half:3072,T:4,N:1536,sea:0,hmin:-60,hrange:720,hm:null,col:null,CN:1024,city:null};
+const W={half:5120,T:5,N:2048,sea:0,hmin:-60,hrange:720,hm:null,col:null,CN:1536,city:null};   /* 10.2 km square heightmap, 5 m cells; the sea is to the west and south, the land runs out to the north and east */
 W.size=W.half*2;
 /* ---- the county's districts (San Francisco / California inspired). All coordinates in metres. ---- */
 const CITY={x0:-1330,z0:-170,x1:-470,z1:700};          /* the downtown box (two street grids meeting at Market Street), ringed by a boulevard */
@@ -11,9 +11,27 @@ const VALLEY={x0:230,z0:520,x1:1050,z1:1290};           /* LA style: wide boulev
 const BEACH={x0:-520,z0:2540,x1:-130,z1:2780};          /* Santa Cruz style beach town on the south coast, boardwalk + pier */
 const RESORT={x0:1380,z0:1420,x1:1860,z1:1900};         /* Palm Springs style desert resort: wide palm boulevards, pools, golf */
 const HILLS=[[-860,0,40,230],[-1100,-90,52,210],[-640,790,56,250],[-520,850,40,190],[-1390,250,22,150]];   /* Nob Hill, Russian Hill, Twin Peaks */
-const LAKES=[[-1235,412,22,-3]];
+const LAKES=[[-1235,412,22,-3],[4100,650,420,-3],[-1950,-2500,200,-3]];   /* Golden Gate Park, the desert lake, the farm lake */
 const RIDGES=[[1580,-250,560,-70,74,130]];              /* the Mulholland ridge: x0,z0,x1,z1,height,half-width */
-const PEAKS=[[1950,-1950,330,900],[2550,-1000,200,600]];
+const PEAKS=[[1950,-1950,330,900],[2550,-1000,200,600],
+  /* the northern range (snow above about 360 m) and the north-east mountains */
+  [-300,-4150,440,700],[1000,-4200,490,720],[2300,-3950,430,700],[3500,-3700,390,700],[-1500,-3950,330,700],[600,-3750,300,500],[4300,-2700,370,750]];
+/* the mesa and its canyon in the north-east desert: a plateau with a winding trench cut through it (the canyon road follows the trench) */
+const MESA={x0:2900,z0:-3100,x1:4700,z1:300,h:75};
+const CANYON=[[3000,350],[3250,-100],[3500,-350],[3550,-800],[3800,-1200],[4000,-1700],[3900,-2300],[3600,-2700]];
+function canyonDist(x,z){let d=1e9;for(let i=0;i<CANYON.length-1;i++){const a=CANYON[i],b=CANYON[i+1],ex=b[0]-a[0],ez=b[1]-a[1];let t=((x-a[0])*ex+(z-a[1])*ez)/(ex*ex+ez*ez);t=t<0?0:t>1?1:t;const q=Math.hypot(x-a[0]-ex*t,z-a[1]-ez*t);if(q<d)d=q}return d}
+/* the new towns and industrial areas that fill the gaps (each a street grid ringed by a boulevard) */
+const TOWN_PAC={x0:-1800,z0:1380,x1:-1480,z1:1640};     /* Pacifica: a coastal village on the coast road */
+const TOWN_FRE={x0:-1650,z0:-2250,x1:-1350,z1:-2030};   /* Fresno: the farm town */
+const TOWN_BAR={x0:3500,z0:1250,x1:3860,z1:1560};       /* Barstow: a desert town */
+const TOWN_BIG={x0:-350,z0:-3250,x1:-30,z1:-3000};      /* Big Pines: a mountain village in the northern foothills */
+const IND_HAR={x0:900,z0:2560,x1:1500,z1:2760};         /* the harbour industrial area on the south coast */
+const IND_MOJ={x0:3150,z0:2150,x1:3600,z1:2420};        /* Mojave Works: a desert refinery and warehouses */
+const TERRACES=[[-190,-3125,380,85]];                   /* flattened sites: x,z,radius,height */
+const ZONES=[{b:TOWN_PAC,c:[.30,.27,.22]},{b:TOWN_FRE,c:[.26,.24,.19]},{b:TOWN_BAR,c:[.33,.27,.19]},{b:TOWN_BIG,c:[.2,.2,.19]},{b:IND_HAR,c:[.2,.2,.2]},{b:IND_MOJ,c:[.25,.23,.2]}];   /* ground colour (linear) inside each */
+const FIELDS=[];                                        /* farm fields: {b,c:[[r,g,b],[r,g,b]]} (filled in with the farm roads) */
+const FARMS=[];                                         /* {x,z,cs,sn}: a barn, silo, house and shed */
+const SAFEHOUSES=[];                                    /* {id,name,x,z,yaw} filled in by defineWorld */
 const inBox=(x,z,B,m)=>x>B.x0-m&&x<B.x1+m&&z>B.z0-m&&z<B.z1+m;
 function baseH(x,z){
   let h=9+(fbm(x*.0011,z*.0011,3,4)-.5)*15;
@@ -26,10 +44,14 @@ function baseH(x,z){
   /* coast to the west: beach slope from the waterline, then sea */
   const cx=-2150+(fbm(z*.0008,2.3,13,3)-.5)*560,dc=x-cx;
   h=dc<-700?-40:(dc<0?lerp(-40,0,sstep(-700,0,dc)):(dc<300?lerp(0,h,sstep(0,300,dc)*.85+.15*sstep(0,300,dc)):h));
+  for(let i=0;i<TERRACES.length;i++){const q=TERRACES[i],d=Math.hypot(x-q[0],z-q[1]);if(d<q[2])h=lerp(h,q[3],1-sstep(q[2]*.55,q[2],d))}
   /* lakes: a bowl dipping below sea level (the water plane then shows) */
   for(let i=0;i<LAKES.length;i++){const q=LAKES[i],d=Math.hypot(x-q[0],z-q[1]);if(d<q[2])h=lerp(h,q[3],1-sstep(q[2]*.55,q[2],d))}
-  /* the island ends in sea on every side */
-  const e=Math.max(Math.abs(x),Math.abs(z));h-=sstep(2760,3062,e)*(h+45);
+  /* the mesa: a 75 m plateau with the canyon cut through it */
+  {const m=sstep(MESA.x0-250,MESA.x0+150,x)*(1-sstep(MESA.x1-150,MESA.x1+250,x))*sstep(MESA.z0-250,MESA.z0+150,z)*(1-sstep(MESA.z1-150,MESA.z1+250,z));
+   if(m>0){const d=canyonDist(x,z);h+=m*MESA.h*(.85+.3*fbm(x*.003,z*.003,61,3))*sstep(38,98,d)}}
+  /* the land ends in sea: the west coast is above, the south coast here, cliffs on the east coast, a beach to the north */
+  h-=Math.max(sstep(2760,3062,z),sstep(4650,4760,x),sstep(4650,4950,-z))*(h+45);
   return h}
 /* ---------- roads ---------- */
 const ROADS=[];            /* built roads: {id,n,X,Z,Y,S,HW,mk,rail,br,st,lanes,len,closed,lift} */
@@ -121,7 +143,7 @@ function minRadius(r,k){const n=r.n,lo=r.closed?0:Math.max(k,30),hi=r.closed?n:n
 function landOK(r){for(let i=0;i<r.n;i+=2)if(baseH(r.X[i],r.Z[i])<2.4)return false;return true}
 function segX(ax,az,bx,bz,cx,cz,dx,dz){const den=(bx-ax)*(dz-cz)-(bz-az)*(dx-cx);if(Math.abs(den)<1e-9)return null;const t=((cx-ax)*(dz-cz)-(cz-az)*(dx-cx))/den,u=((cx-ax)*(bz-az)-(cz-az)*(bx-ax))/den;return(t>=0&&t<=1&&u>=0&&u<=1)?[ax+t*(bx-ax),az+t*(bz-az)]:null}
 function trimTo(pts,par){for(let i=0;i<pts.length-1;i++)for(let k=0;k<par.n-1;k++){const p=segX(pts[i][0],pts[i][1],pts[i+1][0],pts[i+1][1],par.X[k],par.Z[k],par.X[k+1],par.Z[k+1]);if(p)return pts.slice(0,i+1).concat([[p[0],p[1]]])}return pts}
-const DISTRICT_BOXES=[CITY,VALLEY,BEACH,RESORT,PARK];
+const DISTRICT_BOXES=[CITY,VALLEY,BEACH,RESORT,PARK,TOWN_PAC,TOWN_FRE,TOWN_BAR,TOWN_BIG,IND_HAR,IND_MOJ];
 function clearOf(r){const lo=r.closed?0:170;for(let i=0;i<r.n;i+=2){if(!r.closed&&(r.S[i]<lo||r.len-r.S[i]<lo))continue;for(const B of DISTRICT_BOXES)if(inBox(r.X[i],r.Z[i],B,46))return false}return true}
 function buildCurvy(def){
   const w=def.wig;if(!w)return buildRoad(def);
@@ -137,7 +159,7 @@ function cutRect(ax,az,bx,bz,R){/* remove the part of a segment inside the recta
   let t0=0,t1=1;const dx=bx-ax,dz=bz-az;for(const[p,d,lo,hi]of[[ax,dx,R.x0,R.x1],[az,dz,R.z0,R.z1]]){if(Math.abs(d)<1e-9){if(p<lo||p>hi)return[[0,1]];continue}let u0=(lo-p)/d,u1=(hi-p)/d;if(u0>u1){const q=u0;u0=u1;u1=q}t0=Math.max(t0,u0);t1=Math.min(t1,u1)}
   if(t0>=t1)return[[0,1]];const out=[];if(t0>0)out.push([0,t0]);if(t1<1)out.push([t1,1]);return out}
 function gridStreets(g){
-  const cs=g.cs=Math.cos(g.ang),sn=g.sn=Math.sin(g.ang),toW=(u,v)=>[g.ox+u*cs-v*sn,g.oz+u*sn+v*cs],B=3000;g.roads=[];let idx=0;
+  const cs=g.cs=Math.cos(g.ang),sn=g.sn=Math.sin(g.ang),toW=(u,v)=>[g.ox+u*cs-v*sn,g.oz+u*sn+v*cs],B=9000;g.roads=[];let idx=0;
   const add=(tag,p0,p1)=>{const c=clipSeg(p0[0],p0[1],p1[0],p1[1],g.planes);if(!c)return;const ax=p0[0]+(p1[0]-p0[0])*c[0],az=p0[1]+(p1[1]-p0[1])*c[0],bx=p0[0]+(p1[0]-p0[0])*c[1],bz=p0[1]+(p1[1]-p0[1])*c[1];
     let pieces=[[0,1]];for(const R of(g.cut||[])){const next=[];for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1;for(const[c0,c1]of cutRect(sx,sz,ex,ez,R))next.push([a0+(a1-a0)*c0,a0+(a1-a0)*c1])}pieces=next}
     for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1;if(Math.hypot(ex-sx,ez-sz)<34)continue;
@@ -183,7 +205,7 @@ function perimeter(id,B,hw,lift){const r=30,P=[];
 /* a small turnaround loop at the end of a road */
 function loopRoad(id,cx,cz,r,hw,lift){const P=[];for(let k=0;k<8;k++){const a=k*TAU/8;P.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}return buildRoad({id,closed:1,hw,lanes:1,style:0,lift,pts:P})}
 function defineRoads(){
-  ROADS.length=0;GRIDS.length=0;cityEnds.length=0;_cj=null;
+  ROADS.length=0;GRIDS.length=0;cityEnds.length=0;_cj=null;SAFEHOUSES.length=0;FARMS.length=0;FIELDS.length=0;
   const ring=buildCurvy({id:'ring',closed:1,hw:13,lanes:3,style:1,smooth:120,minR:75,humps:[{f:.64,n:3,len:68,amp:6}],wig:{a1:430,l1:900,a2:120,l2:360,seed:3,straight:[[.60,.72]]},
     pts:[[-1640,120],[-1560,-520],[-1180,-980],[-620,-1260],[-60,-1380],[560,-1290],[1130,-1020],[1520,-540],[1680,60],[1560,700],[1320,1260],[700,1580],[-30,1560],[-640,1400],[-1160,1050],[-1500,600]]});
   const ramp=(par,hx,hz,nx,nz,hw)=>rampPts(par,jn(par,hx,hz),nx,nz,hw);          /* leave a road at the sample nearest (hx,hz), heading for (nx,nz) */
@@ -253,6 +275,7 @@ function defineRoads(){
   perimeter('psp',RESORT,11,.055);
   buildCurvy({id:'psl',hw:9,lanes:1,style:0,to:'el',yFrom:'psp',lift:.1,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:43,fade:120},pts:[[RESORT.x1,1660],[1980,1650],[2100,1610],tIn(el,2100,1610)]});
   buildCurvy({id:'pss',hw:9,lanes:1,style:0,to:'sh',yFrom:'psp',lift:.1,minR:50,wig:{a1:40,l1:320,a2:10,l2:130,seed:47,fade:140},pts:[[1620,RESORT.z1],[1612,2060],[1630,2250],tIn(sh,1630,2250)]});
+  defineWorld(ring,sh,{ramp,rampIn,tIn});
   const fixed=fixCrossings();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;findJumps();
   return GRIDS}
 let BRIDGES_ADDED=[];

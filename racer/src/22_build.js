@@ -12,7 +12,7 @@ class MB{constructor(){this.cap=512;this.f=new Float32Array(this.cap*7);this.u=n
 /* a set of meshes keyed by 128 m cell + category; splits automatically before the 16-bit index limit */
 const PCELL=128,PCATS=3;/* 0 street furniture, 1 buildings, 2 trees */
 const PSET=new Map();
-function pmb(x,z,cat,need){const k=(Math.floor((x+W.half)/PCELL)*64+Math.floor((z+W.half)/PCELL))*4+cat;let L=PSET.get(k);if(!L){L=[new MB()];PSET.set(k,L)}let m=L[L.length-1];if(m.n+need>60000){m=new MB();L.push(m)}return m}
+function pmb(x,z,cat,need){const k=(Math.floor((x+W.half)/PCELL)*128+Math.floor((z+W.half)/PCELL))*4+cat;let L=PSET.get(k);if(!L){L=[new MB()];PSET.set(k,L)}let m=L[L.length-1];if(m.n+need>60000){m=new MB();L.push(m)}return m}
 /* box with flat-shaded faces, ambient-occlusion gradient on the walls, optional window tiling */
 function pbox(cat,cx,y0,cz,hx,y1,hz,r,g,b,win,ao){const m=pmb(cx,cz,cat,24),h=y1-y0,a0=ao==null?.62:ao;const sc=(k)=>Math.round(k);
   const wall=(ax,az,bx,bz,nx,nz,len)=>{const u1=len/3.2,v1=h/3.4;const i0=m.v(ax,y0,az,nx,0,nz,r*a0,g*a0,b*a0,0,v1,win),i1=m.v(bx,y0,bz,nx,0,nz,r*a0,g*a0,b*a0,u1,v1,win),i2=m.v(bx,y1,bz,nx,0,nz,r,g,b,u1,0,win),i3=m.v(ax,y1,az,nx,0,nz,r,g,b,0,0,win);m.q(i0,i1,i2,i3)};
@@ -126,14 +126,16 @@ const PASTEL=[[236,190,170],[170,200,222],[232,218,160],[204,170,204],[182,214,1
 const BRICK=[[168,112,92],[190,150,120],[150,120,104],[120,126,140]];
 /* every block of a rotated street grid: calls fn with its local extents */
 function forBlocks(g,fn){const hw=g.hw+3.8,pl=g.planes,Wd=(u,v)=>[g.ox+u*g.cs-v*g.sn,g.oz+u*g.sn+v*g.cs],sf=g.kind!='la';
-  for(let i=0;i<g.us.length-1;i++)for(let j=0;j<g.vs.length-1;j++){const u0=g.us[i]+hw,u1=g.us[i+1]-hw,v0=g.vs[j]+hw,v1=g.vs[j+1]-hw;if(u1-u0<14||v1-v0<14)continue;
+  /* a town (g.box) also has blocks between its outer streets and the boulevard round it */
+  const bx=g.box,ph=(g.phw||7)+3.8,us=bx?[bx.x0].concat(g.us,[bx.x1]):g.us,vs=bx?[bx.z0].concat(g.vs,[bx.z1]):g.vs,hu=(k,n)=>bx&&(k==0||k==n-1)?ph:hw;
+  for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){const u0=us[i]+hu(i,us.length),u1=us[i+1]-hu(i+1,us.length),v0=vs[j]+hu(j,vs.length),v1=vs[j+1]-hu(j+1,vs.length);if(u1-u0<14||v1-v0<14)continue;
     let ok=true,x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const[u,v]of[[u0,v0],[u1,v0],[u1,v1],[u0,v1]]){const p=Wd(u,v);x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);z0=Math.min(z0,p[1]);z1=Math.max(z1,p[1]);
-      for(let k=0;k<pl.length;k++){const m=(sf&&k==4)?MARKET.hw+12:18;if(pl[k][0]*p[0]+pl[k][1]*p[1]>pl[k][2]-m)ok=false}}
+      for(let k=0;k<pl.length;k++){const m=(sf&&k==4)?MARKET.hw+12:(bx?6:18);if(pl[k][0]*p[0]+pl[k][1]*p[1]>pl[k][2]-m)ok=false}}
     if(g.cut)for(const R of g.cut)if(x1>R.x0&&x0<R.x1&&z1>R.z0&&z0<R.z1)ok=false;
     if(ok)fn({i,j,u0,u1,v0,v1,W:Wd,g})}}
 const URB=[CITY,VALLEY];
-const inUrban=(x,z,m)=>inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PARK,m)||inBox(x,z,BEACH,m)||inBox(x,z,RESORT,m);
+const inUrban=(x,z,m)=>{if(inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PARK,m)||inBox(x,z,BEACH,m)||inBox(x,z,RESORT,m))return true;for(const zn of ZONES)if(inBox(x,z,zn.b,m))return true;for(const fl of FIELDS)if(inBox(x,z,fl.b,m*.3))return true;return false};
 function buildCity(){
   const rng=mulberry(1337);let nb=0,pyramid=false;const CORE={x:-870,z:310};
   const reg=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
@@ -212,6 +214,30 @@ function buildCity(){
       for(const r of g.roads.concat(ROADS.filter(q=>q.id=='psp'))){for(let i=3;i<r.n-3;i+=6){const a=(i+1<r.n?i+1:(i+1)%r.n),b=(i>0?i-1:r.n-1);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;if(r.mk[i]<.6)continue;
         for(const sd of[-1,1]){const px=r.X[i]-tz*sd*(r.hw+RSH+3.4),pz=r.Z[i]+tx*sd*(r.hw+RSH+3.4);if(nearRoadXZ(px,pz,1.5))continue;palmAt(px,pz)}}}
       continue}
+    if(g.kind=='town'){/* a small town: houses, a row of shops, trees, one landmark (church, water tower or lodge) */
+      const TH={coast:{pal:PASTEL,rf:0},farm:{pal:[[240,238,230],[230,226,214],[196,64,56],[186,198,206],[232,220,170]],rf:0},desert:{pal:[[214,184,146],[226,200,160],[196,164,128],[232,214,180]],rf:1},pines:{pal:[[110,80,60],[130,96,70],[92,70,56],[150,112,80]],rf:2}}[g.theme]||{pal:PASTEL,rf:0};
+      const SHOP=[[236,120,110],[250,200,96],[96,170,196],[240,240,232],[130,200,150],[214,150,90]];let lm=false;
+      const tree=(x,z)=>{const y=terrainH(x,z);if(y<2)return;if(g.theme=='desert'||g.theme=='coast')ppalm(x,z,rng,y);else ptree(x,z,rng,y);COLC.push(x,z,.5,y-.5,y+12)};
+      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,r=rng();
+        if(!lm&&r<.22){lm=true;const[px,pz]=B.W(cu,cv),y=terrainH(px,pz);
+          if(g.theme=='desert'){for(const sx of[-3,3])for(const sz of[-3,3])pbox(1,px+sx,y-.4,pz+sz,.35,y+12,.35,150,150,156,false,.8);pbox(1,px,y+12,pz,5,y+19,5,196,196,200,false,.9);COLC.push(px,pz,4.8,y-.5,y+19)}
+          else if(g.theme=='pines'){const gy=bld(px,pz,Math.min(13,wu*.3),Math.min(9,wv*.28),cs,sn,5.5,[122,90,66],true);proofR(1,px,pz,Math.min(13,wu*.3),Math.min(9,wv*.28),cs,sn,gy+5.5,7,236,238,242,true)}
+          else{const gy=bld(px,pz,6,10,cs,sn,8,[236,232,222],true);proofR(1,px,pz,6,10,cs,sn,gy+8,2.6,150,92,76,false);ppyramid(1,...B.W(cu,cv-6),2.6,gy+8,9,cs,sn)}
+          return}
+        if(r<.6){const cols=wu>58?3:2,lw=wu/cols,ld=wv/2;for(let a=0;a<cols;a++)for(let c=0;c<2;c++){const u=B.u0+lw*(a+.5),v=B.v0+ld*(c+.5),[px,pz]=B.W(u,v),hx0=Math.min(8,lw*.36),hz0=Math.min(6.5,ld*.34),h=3.2+rng()*1.5,col=TH.pal[(rng()*TH.pal.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,col,true);
+            if(TH.rf==0)proofR(1,px,pz,hx0,hz0,cs,sn,gy+h,1.9+rng()*.7,150,92,76,rng()<.5);else if(TH.rf==2)proofR(1,px,pz,hx0,hz0,cs,sn,gy+h,4+rng()*1.2,226,230,236,rng()<.5);else pboxR(1,px,pz,hx0+.6,hz0+.6,cs,sn,gy+h,gy+h+.4,226,214,190,false,1);
+            if(rng()<.6){const p=B.W(u+hx0+3,v+hz0+2.5);tree(p[0],p[1])}}}
+        else if(r<.8){const n=3,lw=wu/n;for(let a=0;a<n;a++){const u=B.u0+lw*(a+.5),[px,pz]=B.W(u,cv),hx0=lw/2-1.5,hz0=Math.min(7,wv*.22),h=4.5+rng()*2.5,col=SHOP[(rng()*SHOP.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,col,true);pboxR(1,px,pz,hx0+.3,hz0+.3,cs,sn,gy+h,gy+h+.5,92,96,104,false,1)}}
+        else{for(let k=0;k<12;k++){const p=B.W(lerp(B.u0+4,B.u1-4,rng()),lerp(B.v0+4,B.v1-4,rng()));if(!nearRoadXZ(p[0],p[1],5))tree(p[0],p[1])}}});
+      continue}
+    if(g.kind=='ind'){/* industrial: warehouses, tanks with a chimney, container yards */
+      const CONT=[[200,64,52],[52,110,170],[220,170,50],[70,140,90],[180,180,184]];
+      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,r=rng();
+        if(r<.45){const hx0=Math.min(48,wu*.42),hz0=Math.min(26,wv*.38),h=8+rng()*5,[px,pz]=B.W(cu,cv),col=[[150,156,166],[176,170,160],[120,134,150],[170,150,130]][(rng()*4)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,col,false);pboxR(1,px,pz,hx0+.5,hz0+.5,cs,sn,gy+h,gy+h+.6,92,96,104,false,1)}
+        else if(r<.75){for(let a=0;a<2;a++)for(let c=0;c<2;c++){const[px,pz]=B.W(B.u0+wu*(.25+.5*a),B.v0+wv*(.28+.44*c)),h=10+rng()*8;bld(px,pz,7,7,cs,sn,h,[210,212,214],false)}
+          const[cx0,cz0]=B.W(cu,cv),y=terrainH(cx0,cz0);ptrunk(1,cx0,y-.4,cz0,1.6,38,150,140,130);COLC.push(cx0,cz0,1.7,y-.5,y+38)}
+        else{for(let k=0;k<10;k++){const[px,pz]=B.W(B.u0+wu*(.12+.76*((k%5)/4)),B.v0+wv*(.3+.4*((k/5)|0)));bld(px,pz,6,1.3,cs,sn,2.6+(rng()<.4?2.6:0),CONT[(rng()*CONT.length)|0],false)}}});
+      continue}
     /* San Francisco blocks */
     forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,[cx,cz]=B.W(cu,cv),cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,dcore=Math.hypot(cx-CORE.x,cz-CORE.z),th=terrainH(cx,cz),r=rng();
       if(g.skip&&g.skip.indexOf(B.i+','+B.j)>=0){treesIn(B,5);return}                  /* the Lombard Street block */
@@ -232,16 +258,27 @@ function buildCity(){
           const [rx,rz]=B.W(cu,v);reg(rx,rz,wu/2,depth/2,cs,sn,maxH);nb++}}
       else{/* mid-rise apartments in brick and stucco */
         const lots=2,lw=wu/lots;for(let a=0;a<lots;a++){const u=B.u0+lw*(a+.5),[px,pz]=B.W(u,cv),c=rng()<.5?BRICK[(rng()*4)|0]:PASTEL[(rng()*PASTEL.length)|0];bld(px,pz,lw/2-3,wv/2-3,cs,sn,16+rng()*16,c,true)}}})}
+  /* farms: barn, silo, house, shed */
+  for(const f of FARMS){const cs=f.cs,sn=f.sn,Wd=(lx,lz)=>[f.x+lx*cs-lz*sn,f.z+lx*sn+lz*cs];let p=Wd(0,0);
+    let gy=bld(p[0],p[1],8,6,cs,sn,6,[176,52,44],true);proofR(1,p[0],p[1],8,6,cs,sn,gy+6,3,110,56,48,true);
+    p=Wd(-16,10);{const y=terrainH(p[0],p[1]);ptrunk(1,p[0],y-.4,p[1],2.4,11,200,200,204);pcone(1,p[0],y+11,p[1],2.8,2.4,170,60,52,8,0);COLC.push(p[0],p[1],2.6,y-.5,y+13)}
+    p=Wd(14,14);gy=bld(p[0],p[1],5,4.2,cs,sn,4.4,[238,234,226],true);proofR(1,p[0],p[1],5,4.2,cs,sn,gy+4.4,2.2,150,90,76,true);
+    p=Wd(-8,-16);bld(p[0],p[1],4,3,cs,sn,3,[160,150,140],false)}
+  /* safe houses: a small garage with a tall green sign you can see from far away */
+  for(const s of SAFEHOUSES){const cs=s.cs,sn=s.sn,gy=bld(s.x,s.z,8,6,cs,sn,4.2,[196,198,204],false);pboxR(1,s.x,s.z,8.6,6.6,cs,sn,gy+4.2,gy+4.8,40,200,120,false,1);
+    pboxR(1,s.x-sn*6.1,s.z+cs*6.1,4.5,.2,cs,sn,gy,gy+3.4,60,66,76,false,1);          /* the roller door */
+    const px=s.x+cs*11,pz=s.z+sn*11,y=terrainH(px,pz);pbox(1,px,y-.4,pz,.3,y+13,.3,200,200,206,false,.8);pbox(1,px,y+10,pz,2.4,y+14,.45,60,235,130,false,1);COLC.push(px,pz,.5,y-.5,y+13)}
   /* Golden Gate Park: dense trees round a lake, kept clear of the drive */
   {const pr=mulberry(909),lk=LAKES[0];let np=0;for(let x=PARK.x0+4;x<PARK.x1-4;x+=8)for(let z=PARK.z0+4;z<PARK.z1-4;z+=8){const px=x+(pr()-.5)*7,pz=z+(pr()-.5)*7;if(Math.hypot(px-lk[0],pz-lk[1])<lk[2]+5)continue;
     const gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(W.D8[gj*W.N+gi]<5||pr()<.25||nearRoadXZ(px,pz,8))continue;ptree(px,pz,pr,terrainH(px,pz));COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);np++}}
   /* suburb: low houses on a loose grid around the city, clear of every road and of the districts */
   const sub=mulberry(77);let ns=0;
-  for(let x=CITY.x0-420;x<CITY.x1+420;x+=34)for(let z=CITY.z0-380;z<CITY.z1+380;z+=34){
+  for(const[SB,mx,mz]of[[CITY,420,380],[VALLEY,380,380],[TOWN_BAR,300,300],[TOWN_PAC,300,300],[TOWN_FRE,320,320],[TOWN_BIG,240,240]])
+  for(let x=SB.x0-mx;x<SB.x1+mx;x+=34)for(let z=SB.z0-mz;z<SB.z1+mz;z+=34){
     if(inUrban(x,z,50))continue;
     const px=x+(sub()-.5)*20,pz=z+(sub()-.5)*20,gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(gi<2||gj<2||gi>=W.N-2||gj>=W.N-2)continue;
     const dr=W.D8[gj*W.N+gi];if(dr<9||sub()<.45||nearRoadXZ(px,pz,12))continue;const h0=terrainH(px,pz);if(h0<5||terrainSlope(px,pz)>.12)continue;
-    const dcity=Math.max(CITY.x0-px,px-CITY.x1,CITY.z0-pz,pz-CITY.z1,0);if(sub()>.9-dcity*.0014)continue;
+    const dcity=Math.max(SB.x0-px,px-SB.x1,SB.z0-pz,pz-SB.z1,0);if(sub()>.9-dcity*(.58/mx))continue;
     const hx=4.5+sub()*3,hz=4+sub()*3,h=3.4+sub()*2.4,wall=PASTEL[(sub()*PASTEL.length)|0];
     pbox(1,px,h0-.4,pz,hx,h0+h,hz,wall[0],wall[1],wall[2],true,.7);proof(1,px,h0+h,pz,hx,hz,2.2+sub(),120+sub()*40,70,58,hx>hz);COLR.push(px-hx,pz-hz,px+hx,pz+hz,h0+h);ns++}
   /* trees: forests and a few roadside trees */

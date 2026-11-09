@@ -1,6 +1,6 @@
 const fs=require('fs');const R=require('path').join(__dirname,'..','src')+'/';
 global.window={addEventListener(){}};global.document={getElementById(){return null}};
-const src=['00_util.js','20_map.js'].map(f=>fs.readFileSync(R+f,'utf8').replace(/^'use strict';/,'')).join('\n');
+const src=['00_util.js','20_map.js','20_world.js'].map(f=>fs.readFileSync(R+f,'utf8').replace(/^'use strict';/,'')).join('\n');
 const f=new Function(src+';defineRoads();return {ROADS,minRadius,landOK,clearOf,baseH,DISTRICT_BOXES,inBox}');const M=f();
 for(const r of M.ROADS){if(r.city||r.def.id=='lookout'||r.n<60)continue;const want=r.def.minR==null?60:r.def.minR;const n=r.n,k=5,lo=r.closed?0:Math.max(k,30),hi=r.closed?n:n-Math.max(k,30);
   // list all places where radius < want (merge)
