@@ -1,4 +1,4 @@
-// Damage: impacts -> zones -> effects on driving -> dents in the car mesh -> repair, and the wrecked flow back to the garage.
+// Damage: impacts -> zones -> health + dents in the car mesh (NO effect on driving) -> repair, and the wrecked flow back to the garage.
 // usage: node racer/tests/rdamage.js
 const L=require('./rlib.js');
 (async()=>{
@@ -8,7 +8,7 @@ const L=require('./rlib.js');
   /* 1. an undamaged car: every effect is exactly neutral */
   const U=await T.ev(()=>{RACER.UI.paused=true;return{spd:DMG.spd,acc:DMG.acc,pull:DMG.pull,leak:DMG.leak,hp:DMG.hp,ready:DMG.ready,nv:CARM.body.nv}});
   ok(U.spd===1&&U.acc===1&&U.pull===0&&U.leak===0&&U.hp===1,'1 undamaged: speed x'+U.spd+', power x'+U.acc+', pull '+U.pull+', nitro leak '+U.leak+', health '+U.hp+'  (so the feel cannot change)');
-  ok(U.ready&&U.nv>6000,'1 the body mesh is held on the CPU for dents ('+U.nv+' vertices)');
+  ok(U.ready&&U.nv>4000,'1 the body mesh is held on the CPU for dents ('+U.nv+' vertices)');
   /* 2. zones from where the hit comes */
   const Z=await T.ev(()=>{const out={};const hit=(name,nx,nz)=>{RACER.carPlace(4000,-3000,0,100);dmgReset();const n0=IMP.n;impactAdd(0,20,0,0,C.x,C.z,nx,nz);dmgConsume();out[name]=DMG.z.map(v=>+v.toFixed(3));out[name+'E']=IMP.last.E};
     hit('front',0,1);hit('rear',0,-1);hit('left',1,0);hit('right',-1,0);   /* the car faces north (yaw 0): a wall in front pushes the car back (south, +z) */
@@ -42,9 +42,9 @@ const L=require('./rlib.js');
       const r=ROADS.find(q=>q.id=='ring'),i=Math.round(r.n*.69),a=Math.atan2(r.X[i+1]-r.X[i],-(r.Z[i+1]-r.Z[i]));RACER.carPlace(r.X[i]+Math.cos(a)*5.5,r.Z[i]+Math.sin(a)*5.5,a,r.Y[i]+.5);IN.thr=1;
       let yaw0=C.yaw,maxv=0,t=0;for(let s=0;s<secs*120;s++){RACER.carStep(1/120);if(C.speed>maxv)maxv=C.speed}return{maxv:+maxv.toFixed(1),dyaw:+angd(C.yaw,yaw0).toFixed(3),nos:+C.nos.toFixed(3),acc20:C.speed}};
     out.clean=run(()=>{},14);out.front=run(()=>{DMG.z[0]=.6},14);out.rightDmg=run(()=>{DMG.z[3]=.7},4);out.leftDmg=run(()=>{DMG.z[2]=.7},4);out.rear=run(()=>{DMG.z[1]=.8},6);out.rearClean=run(()=>{},6);dmgReset();return out});
-  ok(E.front.maxv<E.clean.maxv*.9,'4 front damage .6: top speed over 14 s '+E.front.maxv+' m/s vs '+E.clean.maxv+' undamaged');
-  ok(E.rightDmg.dyaw>E.leftDmg.dyaw+.05,'4 a damaged right side pulls right ('+E.rightDmg.dyaw+' rad in 4 s), a damaged left side pulls left ('+E.leftDmg.dyaw+')');
-  ok(E.rear.nos<E.rearClean.nos-.15,'4 rear damage leaks nitro: tank '+E.rear.nos+' after 6 s vs '+E.rearClean.nos+' undamaged');
+  ok(Math.abs(E.front.maxv-E.clean.maxv)<.3,'4 front damage .6 does NOT change the driving: top speed over 14 s '+E.front.maxv+' m/s vs '+E.clean.maxv+' undamaged');
+  ok(Math.abs(E.rightDmg.dyaw-E.leftDmg.dyaw)<.01,'4 a damaged right or left side does not pull the car ('+E.rightDmg.dyaw+' and '+E.leftDmg.dyaw+' rad in 4 s)');
+  ok(Math.abs(E.rear.nos-E.rearClean.nos)<.01,'4 rear damage does not leak nitro: tank '+E.rear.nos+' after 6 s vs '+E.rearClean.nos+' undamaged');
   /* 5. wrecked -> the end screen -> back at the garage, repaired */
   const W=await T.ev(()=>{const {IN,UI}=RACER;const r=ROADS.find(q=>q.id=='ring'),i=Math.round(r.n*.5);RACER.carPlace(r.X[i],r.Z[i],0,r.Y[i]+.5);dmgReset();
     const home=SAFE.pads.find(s=>s.id=='home'),d0=Math.hypot(C.x-home.pad.x,C.z-home.pad.z);

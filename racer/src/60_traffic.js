@@ -256,7 +256,15 @@ function trResolve(a,b,e,mu){
   const mu_=a.m*b.m/(a.m+b.m);HIT.vn=-vn;HIT.jn=j;HIT.E=.5*mu_*(1-e*e)*vn*vn;return HIT.E}
 function trBody(B,c){B.x=c.x;B.z=c.z;B.yaw=c.yaw;if(c.state==0){B.vx=Math.sin(c.yaw)*c.v;B.vz=-Math.cos(c.yaw)*c.v;B.om=0}else{B.vx=c.vx;B.vz=c.vz;B.om=c.om}B.m=c.m;B.I=c.m*(c.hl*c.hl+c.hw*c.hw)/3;B.hl=c.hl;B.hw=c.hw}
 /* write a body back into a car: a hard hit (or any hit on a wreck) makes it a wreck, a light bump just changes its speed */
+/* a crash leaves a dent in the car: where (on its body), how deep and how wide; two dents are kept per car and a new one near an old one deepens it. The shader (trV) pushes the metal in. */
+function trDent(c,wx,wz,E){
+  if(E<4000)return;const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
+  const q=Math.sqrt(E/180000),dep=Math.min(.42,.05+.33*q),rad=.42+.4*q,d=c.dn||(c.dn=new Float32Array(8));let slot=-1;
+  for(let s=0;s<2;s++)if(d[s*4+2]>0&&Math.hypot(d[s*4]-lr,d[s*4+1]-lf)<.8){slot=s;break}
+  if(slot<0)slot=d[2]<=0?0:d[6]<=0?1:(d[2]<=d[6]?0:1);
+  if(d[slot*4+2]>0&&Math.hypot(d[slot*4]-lr,d[slot*4+1]-lf)<.8){d[slot*4+2]=Math.min(.5,d[slot*4+2]+dep*.7);d[slot*4+3]=Math.max(d[slot*4+3],rad)}else{d[slot*4]=lr;d[slot*4+1]=lf;d[slot*4+2]=dep;d[slot*4+3]=rad}}
 function trBack(B,c,E){
+  trDent(c,HIT.cx,HIT.cz,E);
   if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>110000&&c.kind==1){c.state=1;c.siren=1;c.wt=0;c.block=0;TR.stat.wrecks++}return}
   if(c.state==0&&E<2500){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.v=Math.max(0,B.vx*hx+B.vz*hz);c.x=B.x;c.z=B.z;return}
   if(c.state==0){c.state=1;c.wt=0;c.brake=0;c.L=null;TR.stat.wrecks++;c.kind=c.kind}
@@ -306,7 +314,7 @@ function trSeen(x,z){const dx=x-C.x,dz=z-C.z,d=Math.hypot(dx,dz);if(d<TR.visMin)
 /* put a car on lane edge e at index u */
 function trPlace(e,u,type,col,v,seed){
   let c=null;for(const q of TR.cars)if(!q.alive){c=q;break}if(!c)return null;
-  const T=TTYPES[type];c.alive=1;c.state=0;c.kind=0;c.type=type;c.col=col;c.m=T.m;c.hl=T.hl;c.hw=T.hw;c.I=T.m*(T.hl*T.hl+T.hw*T.hw)/3;c.e=e;c.u=u;c.L=null;c.lu=0;c.seed=seed|0;
+  const T=TTYPES[type];c.alive=1;c.state=0;c.kind=0;if(c.dn)c.dn.fill(0);c.type=type;c.col=col;c.m=T.m;c.hl=T.hl;c.hw=T.hw;c.I=T.m*(T.hl*T.hl+T.hw*T.hw)/3;c.e=e;c.u=u;c.L=null;c.lu=0;c.seed=seed|0;
   trPt(e,u);c.x=_pt.x;c.z=_pt.z;c.y=_pt.y;c.yaw=Math.atan2(_pt.tx,-_pt.tz);c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.v=v;c.vx=Math.sin(c.yaw)*v;c.vz=-Math.cos(c.yaw)*v;c.om=0;c.pitch=c.roll=0;
   c.acc=0;c.v0f=.86+trHash(seed,7)*.22;c.A=1.9+trHash(seed,11)*.9;c.T=1.0+trHash(seed,13)*.7;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.pickL=null;c.role=0;c.ramCd=0;c.los=null;c.stk=0;
   TR.nAlive++;TR.stat.spawn++;return c}

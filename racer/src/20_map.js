@@ -91,6 +91,13 @@ function crossPoint(r,o){const rc=r.closed?r.n:r.n-1,oc=o.closed?o.n:o.n-1;
     for(let k=0;k<oc;k++){const l=(k+1)%o.n,cx=o.X[k],cz=o.Z[k],dx=o.X[l],dz=o.Z[l],den=(bx-ax)*(dz-cz)-(bz-az)*(dx-cx);if(Math.abs(den)<1e-9)continue;
       const t=((cx-ax)*(dz-cz)-(cz-az)*(dx-cx))/den,u=((cx-ax)*(bz-az)-(cz-az)*(bx-ax))/den;if(t>=0&&t<=1&&u>=0&&u<=1)return[ax+t*(bx-ax),az+t*(bz-az)]}}
   return null}
+/* smooth a road's height profile (binomial filter, about 30 m wide): the slope clamps that follow the terrain leave kinks (a slope that flips from +22 % to +6 % again and again, a crest only 15 m in radius that throws a car into the air).
+   The first and last few samples keep their heights, so a road still meets the road it joins flush. */
+function vSmooth(Y,ds,closed,pins){const n=Y.length,passes=Math.round(Math.pow(28/ds,2));let A=Float32Array.from(Y),B=new Float32Array(n);
+  /* beyond the ends the profile continues as a point reflection (2 y0 - y), which keeps the end height and the end slope exactly while the inside is smoothed */
+  const at=(a,i)=>closed?a[(i%n+n)%n]:(i<0?2*a[0]-a[-i]:i>=n?2*a[n-1]-a[2*(n-1)-i]:a[i]);
+  for(let p=0;p<passes;p++){for(let i=0;i<n;i++)B[i]=(at(A,i-2)+4*at(A,i-1)+6*A[i]+4*at(A,i+1)+at(A,i+2))/16;const t=A;A=B;B=t}
+  for(let i=0;i<n;i++)Y[i]=A[i]}
 function buildRoad(d,dry){
   const ds=4,sp=catmull(d.pts,!!d.closed,ds),n=sp.n,X=sp.X,Z=sp.Z;
   let Y=new Float32Array(n);
@@ -108,6 +115,7 @@ function buildRoad(d,dry){
   const yf=d.from||d.yFrom,yt=d.to||d.yTo;if(d.yLine)for(let i=0;i<n;i++)Y[i]=lerp(d.yLine[0],d.yLine[1],r.S[i]/r.len);
   if(yf)blend(yf,0,true);if(yt)blend(yt,0,false);
   if((yf||yt)&&d.flat==null&&!d.cityField&&!d.yLine){const g=(d.grade||.085)*ds,p0=Y[0],p1=Y[n-1];for(let it=0;it<3;it++){if(yf)Y[0]=p0;for(let i=1;i<n;i++)Y[i]=clamp(Y[i],Y[i-1]-g,Y[i-1]+g);if(yt)Y[n-1]=p1;for(let i=n-2;i>=0;i--)Y[i]=clamp(Y[i],Y[i+1]-g,Y[i+1]+g)}}
+  if(d.flat==null&&!d.cityField&&!d.yLine)vSmooth(Y,ds,!!d.closed,(yf?1:0)|(yt?2:0));
   /* jump hills: a run of n sin^2 crests of the given length and height starting f of the way along the road. A crest of height h and length L has a crest radius of about L^2/(2 pi^2 h),
      and a car leaves the ground over it once v^2/radius > gravity (so a 6 m, 68 m crest launches a car at about 68 mph) */
   if(d.humps)for(const h of d.humps){const s0=h.f*r.len;for(let i=0;i<n;i++){const t=(r.S[i]-s0)/h.len;if(t>0&&t<h.n)Y[i]+=h.amp*Math.pow(Math.sin(Math.PI*t),2)}}

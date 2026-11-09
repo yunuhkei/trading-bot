@@ -58,6 +58,8 @@ function fxDraw(){
   const lampK=Math.max(T.glow,T.pool),nl=gfxNearLamps(x,z,300,lampK,fwx,fwz);
   const nPool=Math.min(nl,T.pool);
   for(let i=0;i<nPool;i++){const j=_lampPick[i],lx=LAMPS[j],ly=LAMPS[j+1]-6.95,lz=LAMPS[j+2];flat(lx,ly+.03,lz,7.5,7.5,1,.78,.45,.34)}
+  /* red and blue wash on the road round a police car with its siren on */
+  if(TR.on)for(const c of TR.cars){if(!c.alive||!c.siren)continue;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz;if(dx*dx+dz*dz>40000)continue;const ph=Math.sin(R.time*12)>0;flat(px,lerp(c.py,c.y,a)+.05,pz,11,11,ph?1:.12,ph?.1:.32,ph?.08:1,.42)}
   batch(6);
   /* the car's headlights: a pool of light on the road ahead, wider the further it goes (uv runs across, then along: mode 6 is the beam shape) */
   {const hx=sy,hz=-cy,rxc=cy,rzc=sy,gy2=C.gs+.05,x0=x+hx*2.0,z0=z+hz*2.0,len=26;
@@ -68,7 +70,7 @@ function fxDraw(){
       quad(x0-rr*.8,py,z0-rs*.8,x0+rr*.8,py,z0+rs*.8,x0+hx*20+rr*5.5,py,z0+hz*20+rs*5.5,x0+hx*20-rr*5.5,py,z0+hz*20-rs*5.5,1,.92,.72,.32)}}
   /* ---- additive: glows ---- */
   batch(4);
-  let ng=0;const gMax=T.glow;
+  const SRN=[];let ng=0;const gMax=T.glow;
   /* lamp heads along the road, shrinking with distance but never to nothing, so a line of lights runs away into the haze */
   for(let i=0;i<nl&&ng<gMax;i++){const j=_lampPick[i],dx=LAMPS[j]-gcx,dy=LAMPS[j+1]-R.cy,dz=LAMPS[j+2]-gcz,d=Math.sqrt(dx*dx+dy*dy+dz*dz);if(dx*R.fw[0]+dy*R.fw[1]+dz*R.fw[2]<-2)continue;
     const s=.9+d*.012,al=Math.min(.95,1.25-d/330);if(al<=.02)continue;sprite(LAMPS[j],LAMPS[j+1]+.1,LAMPS[j+2],s,1,.78,.45,al);ng++}
@@ -85,7 +87,10 @@ function fxDraw(){
       for(const sd of[-1,1]){const w=sd*c.hw*.68;
         sprite(px-hx*(c.hl-.12)+rr*w,py+.66,pz-hz*(c.hl-.12)+rs*w,(c.brake?.75:.45)+d*.004,1,.1,.06,(c.brake?.95:.55)*k);
         sprite(px+hx*(c.hl-.12)+rr*w,py+.62,pz+hz*(c.hl-.12)+rs*w,.5+d*.004,1,.93,.74,.5*k)}
-      if(c.siren){const ph=Math.sin(R.time*12)>0;sprite(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),2.4+d*.006,ph?1:.2,ph?.12:.4,ph?.1:1,Math.min(1,k*1.6))}}}
+      if(c.siren){const ph=Math.sin(R.time*12)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),2.6+d*.016,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(1,k*2.6))}
+      else if(c.kind===1&&c.cm===0&&c.type===4){const ph=Math.sin(R.time*2.6)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),1.1+d*.01,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(.9,k*2))}}}
+  /* police lights are drawn with plain blending (a saturated red or blue even against the bright sky), the other glows are added */
+  batch(8);for(let q=0;q<SRN.length;q+=8)sprite(SRN[q],SRN[q+1],SRN[q+2],SRN[q+3],SRN[q+4],SRN[q+5],SRN[q+6],SRN[q+7]);SRN.length=0;
   /* a lit garage door sign etc. could go here */
   batch(7);
   for(const s of SPARK){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sp=Math.hypot(s.vx,s.vy,s.vz)||1,l=Math.min(.7,sp*.045)+.05,w=.035*(1-t);
@@ -97,7 +102,7 @@ function fxDraw(){
   gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.bindBuffer(gl.ARRAY_BUFFER,R.fx);gl.bufferSubData(gl.ARRAY_BUFFER,0,F.subarray(0,n*36));gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,R.fxIx);attrs(3);
   gl.vertexAttribPointer(0,3,gl.FLOAT,false,36,0);gl.vertexAttribPointer(1,4,gl.FLOAT,false,36,12);gl.vertexAttribPointer(2,2,gl.FLOAT,false,36,28);gl.disable(gl.CULL_FACE);
   gl.uniform1f(P.u.uQ,T.hi?1:0);let add=false;
-  for(let i=0;i<B.length;i+=3){const m=B[i],f=B[i+1],t=B[i+2],ad=m>=4;
+  for(let i=0;i<B.length;i+=3){const m=B[i],f=B[i+1],t=B[i+2],ad=m>=4&&m!=8;
     if(ad!==add){add=ad;gl.blendFunc(gl.SRC_ALPHA,add?gl.ONE:gl.ONE_MINUS_SRC_ALPHA)}
     gl.uniform1f(P.u.uMode,m);gl.drawElements(gl.TRIANGLES,(t-f)*6,gl.UNSIGNED_SHORT,f*12);R.draws++}
   if(add)gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);R.fxN=n}

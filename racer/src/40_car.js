@@ -1,21 +1,13 @@
 'use strict';
 /* ===== the car: baked Surge Sport mesh, arcade driving model, chase camera ===== */
 const CARM={body:null,wheels:[],mat:null};
-function carGLInit(){
-  const gl=G.gl,bin=atob(CAR_NITRO_B64),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
-  const mk=d=>{const nv=d.nv,o=d.off;let p=o;const P=new Int16Array(u8.slice(p,p+nv*6).buffer);p+=nv*6;const N=new Int8Array(u8.slice(p,p+nv*3).buffer);p+=nv*3;const C=u8.subarray(p,p+nv*3);p+=nv*3;const M=u8.subarray(p,p+nv);p+=nv;
-    const T=new Uint16Array(u8.slice(p,p+d.nt*6).buffer);const ab=new ArrayBuffer(nv*16),i16=new Int16Array(ab),i8=new Int8Array(ab),b8=new Uint8Array(ab);
-    for(let v=0;v<nv;v++){i16[v*8]=P[v*3];i16[v*8+1]=P[v*3+1];i16[v*8+2]=P[v*3+2];i16[v*8+3]=0;i8[v*16+8]=N[v*3];i8[v*16+9]=N[v*3+1];i8[v*16+10]=N[v*3+2];i8[v*16+11]=M[v];b8[v*16+12]=C[v*3];b8[v*16+13]=C[v*3+1];b8[v*16+14]=C[v*3+2];b8[v*16+15]=255}
-    return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,T),n:d.nt*3,ab}};
-  CARM.body=mk(CAR_NITRO.parts[0]);CARM.wheels=CAR_NITRO.wheels.map(w=>Object.assign(mk(w),{x:w.x,R:w.R,lat:w.lat}));
-  const mat=new Float32Array(160);CAR_NITRO.mat.forEach((m,i)=>{for(let k=0;k<4;k++)mat[i*4+k]=m[k]/255});CARM.mat=mat;
-  dmgInit();R.carDraw=carDraw;R.fxDraw=fxDraw}
+function carGLInit(){carLoad();carSelect(CARSEL.cur);R.carDraw=carDraw;R.fxDraw=fxDraw}
 const _mb=new Float32Array(16),_mw=new Float32Array(16),_mf=new Float32Array(16);
 function drawCarMesh(m,M){const gl=G.gl,P=G.P.car;gl.uniformMatrix4fv(P.u.uM,false,M);gl.bindBuffer(gl.ARRAY_BUFFER,m.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib);
   gl.vertexAttribPointer(0,4,gl.SHORT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,8);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,16,12);gl.drawElements(gl.TRIANGLES,m.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=m.n/3}
 function carDraw(){
   if(!CARM.body)return;const gl=G.gl,P=G.P.car,a=R.alpha,q=CARS_RENDER;
-  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);attrs(3);gl.disable(gl.CULL_FACE);
+  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);gl.uniform3fv(P.u.uPaint,CARM.paint);attrs(3);gl.disable(gl.CULL_FACE);
   /* the model is stored in 1/8192 m units */const S=1/8192;
   const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a);
   gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);
@@ -29,7 +21,7 @@ const CARS_RENDER=null;
 /* ---------- state ---------- */
 const GRAV=24;
 const C={dActive:0,dCombo:0,dTime:0,dGrace:0,dStart:0,dEnd:0,dLast:null,jump:null,jx:0,jz:0,slideT:0,kv:0,liftT:0,ke:0,E:0,handT:0,hk:0,handOn:0,slideDir:1,lastSteer:1,airMax:0,x:0,y:0,z:0,yaw:0,vx:0,vz:0,vy:0,pitch:0,roll:0,px:0,py:0,pz:0,pyaw:0,ppitch:0,proll:0,spin:0,steerVis:0,wyaw:0,bob:0,
-  gs:0,gsp:0,gf:0,ax:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0};
+  gs:0,gsp:0,gf:0,ax:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0,boostK:0,camDr:0,camYV:0};
 const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
 /* impacts: everything the car hits (src 0 a building/pole/tree, 1 a steep bank, 2 a hard landing, 3 traffic) is recorded with its energy for the damage system.
    E = energy lost in the crash in joules (1/2 m v^2 style: for a wall 1/2 m_player (1-e^2) vn^2, for a car 1/2 mu (1-e^2) vn^2 with mu the reduced mass), zone 0 front 1 rear 2 left 3 right (-1 unknown/underside) */
@@ -50,7 +42,7 @@ function carStep(dt){
   const sy=Math.sin(C.yaw),cy=Math.cos(C.yaw),fx=sy,fz=-cy,rx=cy,rz=sy;
   let f=C.vx*fx+C.vz*fz,s=C.vx*rx+C.vz*rz;const af=Math.abs(f),f0=f;
   /* sample the surface under the four wheels */
-  const hw=.68,fo=1.38,ro=1.33;let sum=0,g0,g1,g2,g3;
+  const hw=CD.hw,fo=CD.fo,ro=CD.ro;let sum=0,g0,g1,g2,g3;
   g0=gw(C.x+fx*fo-rx*hw,C.z+fz*fo-rz*hw,C.y);const on0=RQ.on;g1=gw(C.x+fx*fo+rx*hw,C.z+fz*fo+rz*hw,C.y);const on1=RQ.on;
   g2=gw(C.x-fx*ro-rx*hw,C.z-fz*ro-rz*hw,C.y);const on2=RQ.on;g3=gw(C.x-fx*ro+rx*hw,C.z-fz*ro+rz*hw,C.y);const on3=RQ.on;
   const gy=(g0+g1+g2+g3)*.25;C.onRoad=(on0+on1+on2+on3)>=2;
@@ -89,10 +81,12 @@ function carStep(dt){
   /* nitro is a latch: one tap starts it, it runs until the tank is empty (or you brake / tap again), and it pushes even if you are not on the gas */
   if(IN.nitro&&(C.nos<=.015||brk>0))IN.nitro=0;
   const nitroOn=IN.nitro?1:0;C.boosting=nitroOn;if(nitroOn){C.nos=Math.max(0,C.nos-dt*.30);thr=1}
-  const vmax=(C.onRoad?80:62)*(nitroOn?1.26:1)*DMG.spd,surf=C.onRoad?1:HND.grass;
+  /* the boost fades in and out (about 0.15 s in, 0.3 s out) instead of switching: the push, the top speed and the camera all follow this one number */
+  C.boostK+=((nitroOn?1:0)-C.boostK)*(1-Math.exp(-dt*(nitroOn?7:3.5)));
+  const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*C.boostK)*DMG.spd,surf=C.onRoad?1:HND.grass;
   /* ---- longitudinal: weighty launch, strong but not instant braking ---- */
   if(gr){
-    let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(f<14?1:0))*(nitroOn?1.9:1)*DMG.acc}
+    let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(f<14?1:0))*(1+.9*C.boostK)*DMG.acc}
     if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8}   /* brake, then reverse */
     a-=Math.sign(f)*(.35+af*af*.0004);                 /* rolling + air drag */
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */
@@ -112,7 +106,7 @@ function carStep(dt){
   const dr=C.drift;let beta=0;
   if(gr){
     /* the most sideways acceleration the tyres give: a little aero grip at speed, much less on grass */
-    const A=(HND.aBase+HND.aAero*af*af)*surf;
+    const A=(HND.aBase+HND.aAero*af*af)*surf*(1-HND.powerOS*thr*Math.max(0,1-af/45));   /* rear-drive cars with a lot of power break traction under throttle at low speed */
     /* steering target: yaw rate limited by that budget, so at speed full lock just gives you the tightest line (understeer), not a slide */
     const omN=steer*Math.min(HND.omLow*Math.min(1,af/6),A/Math.max(af,4))*(f<-1?-1:1);
     /* drift assist: the stick chooses the slide angle, the assist holds it and straightens the car the moment you let go */
@@ -192,16 +186,20 @@ function collide(fx,fz){
 /* ---------- chase camera ---------- */
 const CAM={x:0,y:0,z:0,tx:0,ty:0,tz:0,fov:1.08};
 function camStep(dt,snap){
-  const sp=Math.min(1,C.speed/70),tgtYaw=C.speed>6?Math.atan2(C.vx,-C.vz):C.yaw;
+  /* the camera follows the car exactly as it is DRAWN (interpolated between the 120 Hz physics steps), otherwise the car jitters against the camera by up to one step of travel (0.7 m at 80 m/s) */
+  const a=snap?1:R.alpha,px=lerp(C.px,C.x,a),py=lerp(C.py,C.y,a),pz=lerp(C.pz,C.z,a),pyaw=C.pyaw+angd(C.yaw,C.pyaw)*a;
+  const sp=Math.min(1,C.speed/70),tgtYaw=Math.atan2(C.vx,-C.vz),vw=sstep(3,8,C.speed);   /* the direction of travel only means something once the car is moving: faded in, no jump */
   /* look a little towards where the car points and a little towards where it is going, so drifts are visible */
-  const want=C.yaw+clamp(angd(tgtYaw,C.yaw),-.8,.8)*(.12+.5*Math.min(1,C.drift*1.2));
-  C.camYaw+=angd(want,C.camYaw)*(snap?1:1-Math.exp(-dt*(5.5+sp*3)));
-  const dist=5.7+sp*1.9+(C.boosting?1.1:0),h=1.95+sp*.55;
-  const cyw=C.camYaw,x=C.x-Math.sin(cyw)*dist,z=C.z+Math.cos(cyw)*dist;let y=C.y+h;
-  const gh=groundAt(x,z,C.y)+1.3;if(y<gh)y=gh;
+  C.camDr=snap?C.drift:C.camDr+(C.drift-C.camDr)*(1-Math.exp(-dt*3));   /* the drift look-ahead eases in and out over about a third of a second */
+  const want=pyaw+clamp(angd(tgtYaw,pyaw),-.8,.8)*vw*(.12+.5*Math.min(1,C.camDr*1.2));
+  /* a critically damped spring (not a plain low-pass): the camera's turning speed starts from zero, so a sudden slide never makes it jerk */
+  if(snap){C.camYaw=want;C.camYV=0}else{const w=5.2+sp*2.2,d=Math.min(dt,.05),acc=w*w*angd(want,C.camYaw)-2*w*C.camYV;C.camYV+=acc*d;C.camYaw+=C.camYV*d}
+  const dTarget=5.7+sp*1.9+C.boostK*1.1,h=1.95+sp*.55;C.camDist=snap?dTarget:C.camDist+(dTarget-C.camDist)*(1-Math.exp(-dt*6));const dist=C.camDist;
+  const cyw=C.camYaw,x=px-Math.sin(cyw)*dist,z=pz+Math.cos(cyw)*dist;let y=py+h;
+  const gh=groundAt(x,z,py)+1.3;if(y<gh)y=gh;
   const k=snap?1:1-Math.exp(-dt*(10));C.camY+=(y-C.camY)*k;if(snap)C.camY=y;
   CAM.x=x;CAM.y=C.camY;CAM.z=z;
-  const la=9+sp*8;CAM.tx=C.x+Math.sin(cyw)*la;CAM.tz=C.z-Math.cos(cyw)*la;CAM.ty=C.y+1.15+(C.camY-(C.y+h))*.2+C.vy*.02;
+  const la=9+sp*8;CAM.tx=px+Math.sin(cyw)*la;CAM.tz=pz-Math.cos(cyw)*la;CAM.ty=py+1.15+(C.camY-(py+h))*.2+C.vy*.02;
   const shk=C.shake*.12;if(shk>.002){CAM.x+=(Math.random()-.5)*shk;CAM.y+=(Math.random()-.5)*shk;CAM.z+=(Math.random()-.5)*shk}
-  const tf=1.05+sp*.22+(C.boosting?.1:0);C.fov+=(tf-C.fov)*(snap?1:1-Math.exp(-dt*3));CAM.fov=C.fov}
+  const tf=1.05+sp*.22+C.boostK*.1;C.fov+=(tf-C.fov)*(snap?1:1-Math.exp(-dt*3));CAM.fov=C.fov}
 /* (the effects - shadow blob, skid marks, smoke, spray, sparks, light glows and beams - are in 41_fx.js) */

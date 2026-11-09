@@ -10,8 +10,9 @@ const DMG={z:[0,0,0,0,0],hp:1,wrecked:0,spd:1,acc:1,pull:0,leak:0,cur:0,scale:1,
 function dmgInit(){const B=CARM.body;if(!B||!B.ab)return;DMG.pris=new Uint8Array(B.ab.slice(0));DMG.pf16=new Int16Array(DMG.pris.buffer);DMG.pi8=new Int8Array(DMG.pris.buffer);
   B.f16=new Int16Array(B.ab);B.i8=new Int8Array(B.ab);B.u8=new Uint8Array(B.ab);B.nv=B.ab.byteLength/16;DMG.ready=1;DMG.cur=IMP.n}
 function dmgHp(){const z=DMG.z;return 1-(.32*z[0]+.22*z[1]+.17*z[2]+.17*z[3]+.12*z[4])}
+/* damage is health and looks (dents, smoke) only: it NEVER changes how the car drives. The multipliers stay at 1 / 0 so the physics code does not have to know. */
 function dmgEffects(){const z=DMG.z,f=z[0],r=z[1];DMG.hp=dmgHp();
-  DMG.spd=Math.max(.4,1-.40*f-.10*r-.08*z[4]);DMG.acc=Math.max(.35,1-.45*f-.15*r);DMG.pull=(z[3]-z[2])*.30;DMG.leak=r>.2?.06*r:0;DMG.fire=f>.82?1:0;
+  DMG.spd=1;DMG.acc=1;DMG.pull=0;DMG.leak=0;DMG.fire=f>.82?1:0;
   DMG.wrecked=(f>=1||r>=1||DMG.hp<=.16)?1:0}
 function dmgReset(){DMG.z.fill(0);DMG.pend.length=0;DMG.cur=IMP.n;dmgEffects();DMG.wrecked=0;DMG.total=0;
   if(DMG.ready&&DMG.dirty){const B=CARM.body;new Uint8Array(B.ab).set(DMG.pris);dentUpload();DMG.dirty=0}}
@@ -36,8 +37,8 @@ function dentFromImpact(r){
   else{/* crush direction = the way the other body pushed the car (the contact normal), in model coordinates (x right, z backwards) */
     const nf=r.nx*sy+r.nz*-cy,nr=r.nx*cy+r.nz*sy,l=Math.hypot(nf,nr)||1;dx=nr/l;dy=0;dz=-nf/l;
     /* where: the point on the car's box in the direction the other body came from */
-    let lf,lr;if(r.src==3){const px=r.x-C.x,pz=r.z-C.z;lf=px*sy+pz*-cy;lr=px*cy+pz*sy}else{lf=-(nf/l)*3;lr=-(nr/l)*3}
-    const k=Math.max(Math.abs(lr)/.95,Math.abs(lf)/2.2,1e-3);cx=lr/k;cz=-lf/k;cy2=.55}
+    let lf,lr;if(r.src==3){const px=r.x-C.x,pz=r.z-C.z;lf=px*sy+pz*-cy;lr=px*cy+pz*sy}else{lf=-(nf/l)*(CARM.hl||2.2)*1.4;lr=-(nr/l)*(CARM.hw||.95)*3}
+    const k=Math.max(Math.abs(lr)/(CARM.hw||.95),Math.abs(lf)/(CARM.hl||2.2),1e-3);cx=lr/k;cz=-lf/k;cy2=.55}
   dentApply(cx,cy2,cz,dx,dy,dz,Math.max(r.E*DMG.scale,12000))}
 function dentApply(cx,cy,cz,dx,dy,dz,E){
   const B=CARM.body,f=B.f16,i8=B.i8,u8=B.u8,pf=DMG.pf16,pn=DMG.pi8,nv=B.nv,sig=.32+.5*Math.min(1,Math.sqrt(E/220e3)),s2=2*sig*sig,R2=(2.4*sig)*(2.4*sig),depth=Math.min(.34,.07+.30*Math.sqrt(E/260e3)),hit=++DMG.dentN;
@@ -61,15 +62,9 @@ function dmgFx(dt){
   while(_dmgCool<=0){_dmgCool+=rate;const s=SMOKE[smokeHead++%SMOKE.length],sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
     s.x=C.x+sy*1.5+cy*(Math.random()-.5)*.6;s.z=C.z-cy*1.5+sy*(Math.random()-.5)*.6;s.y=C.y+.8;s.vx=C.vx*.3+(Math.random()-.5)*.8;s.vz=C.vz*.3+(Math.random()-.5)*.8;s.vy=1.6+Math.random()*1.4;s.age=0;s.life=.9+Math.random()*.7;
     s.k=0;s.sz=.5+f*.6;s.a=.35+f*.3;s.fire=(DMG.fire||DMG.wrecked)&&Math.random()<.45?1:0;s.dark=1}}
-/* ---- the small health display (a car seen from above, five zones, and a bar) ---- */
-function dmgHud(c,x,y,u){
-  const w=u*.52,h=u*1.12,r=w*.22,z=DMG.z,col=d=>{d=Math.min(1,d);const g=d<.5?[75+d*2*170,224,122-d*2*60]:[245,224-(d-.5)*2*160,62-(d-.5)*2*10];return'rgb('+(g[0]|0)+','+(g[1]|0)+','+(g[2]|0)+')'};
-  c.save();c.translate(x,y);c.globalAlpha=.92;
-  c.fillStyle='rgba(8,10,14,.55)';rr(c,-w*.6,-h*.58,w*1.2,h*1.16,r*1.4);c.fill();
-  const part=(px,py,pw,ph,d)=>{c.fillStyle=col(d);rr(c,px,py,pw,ph,r*.6);c.fill()};
-  part(-w/2,-h/2,w,h*.28,z[0]);part(-w/2,h/2-h*.28,w,h*.28,z[1]);part(-w/2,-h/2+h*.3,w*.28,h*.4,z[2]);part(w/2-w*.28,-h/2+h*.3,w*.28,h*.4,z[3]);part(-w*.2,-h/2+h*.3,w*.4,h*.4,z[4]);
-  c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=1.2;rr(c,-w/2,-h/2,w,h,r);c.stroke();
-  /* a bar to the right: the whole car */
-  const bx=w*.85,bw=u*.14,bh=h,hp=Math.max(0,DMG.hp);c.fillStyle='rgba(0,0,0,.5)';c.fillRect(bx,-h/2,bw,bh);c.fillStyle=col(1-hp);c.fillRect(bx,h/2-bh*hp,bw,bh*hp);
-  if(DMG.fire&&((C.t*6)|0)%2==0){c.fillStyle='#ff5a1a';c.beginPath();c.arc(0,-h/2-u*.14,u*.1,0,TAU);c.fill()}
-  c.restore()}
+/* ---- the health bar (one bar for the whole car; the five zones only decide where the dents go) ---- */
+function dmgHud(c,x,y,w,u){
+  const h=u*.17,hp=Math.max(0,Math.min(1,DMG.hp)),col=hp>.5?'#4be07a':hp>.25?'#ffc23d':'#ff4a3a';
+  c.save();c.fillStyle='rgba(0,0,0,.45)';c.fillRect(x-2,y-2,w+4,h+4);c.fillStyle=col;c.fillRect(x,y,w*hp,h);
+  if(hp<.25&&((C.t*5)|0)%2==0){c.strokeStyle='#ff3b3b';c.lineWidth=2;c.strokeRect(x-3,y-3,w+6,h+6)}
+  c.textAlign='left';c.fillStyle='rgba(255,255,255,.75)';c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillText('HEALTH',x,y-5);c.restore()}

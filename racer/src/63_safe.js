@@ -7,6 +7,7 @@ const ECON={money:0,
   canBuy(id){return false},                                       /* no economy yet: a locked garage cannot be bought */
   buy(id){return false},                                          /* hook: pay, then call safeUnlock(id) */
   repairCost(dmgTotal){return 0},                                 /* repairs are free for now */
+  carPrice(id){return null},onCarUnlock(id){},                  /* cars: what a car costs / is earned by is not decided either */
   onBusted(){},onWrecked(){},onRepair(cost){},onUnlock(id){}};    /* hooks called by the game */
 const SAFE={owned:{},price:{},pads:[],t:0,svc:0,at:null,msg:'',msgT:0,last:'home',visit:null,key:'racer.save'};
 /* the pad in front of each garage door: centre, half sizes, and the heading that leaves the garage towards the road */

@@ -4,9 +4,9 @@
    2 free chase (state 3: steers straight at its slot round you, over the grass if it must, stopped by buildings and trees), 3 roadblock (parked across the road, a wreck that never moves unless you hit it).
    Everything about how hard they are is in COPD (one table per difficulty); the default is Forgiving. */
 const COPD={
-  forgiving:{name:'Forgiving',top:46,accel:6.5,react:1.4,chaseN:[0,1,2,2,3,4],patrol:2,ramLevel:5,blockLevel:5,bustT:5,bustSpd:6,bustN:2,loseT:8,decay:22,ev:.7,rbGap:6.5,chaseSpd:2,thr:[0,28,80,160,280,450]},
-  medium:{name:'Medium',top:56,accel:8,react:.9,chaseN:[0,2,3,4,5,6],patrol:3,ramLevel:3,blockLevel:4,bustT:3,bustSpd:7,bustN:2,loseT:6,decay:16,ev:1,rbGap:0,chaseSpd:2.2,thr:[0,25,70,140,250,400]},
-  hard:{name:'Hard',top:66,accel:10,react:.5,chaseN:[1,3,4,5,6,7],patrol:4,ramLevel:2,blockLevel:3,bustT:2,bustSpd:8,bustN:2,loseT:5,decay:12,ev:1.3,rbGap:0,chaseSpd:2.4,thr:[0,22,60,120,220,350]}};
+  forgiving:{name:'Forgiving',top:46,accel:6.5,react:1.4,chaseN:[0,1,2,2,3,4],patrol:3,ramLevel:5,blockLevel:5,bustT:5,bustSpd:6,bustN:2,loseT:8,decay:22,ev:.7,rbGap:6.5,chaseSpd:2,thr:[0,28,80,160,280,450]},
+  medium:{name:'Medium',top:56,accel:8,react:.9,chaseN:[0,2,3,4,5,6],patrol:4,ramLevel:3,blockLevel:4,bustT:3,bustSpd:7,bustN:2,loseT:6,decay:16,ev:1,rbGap:0,chaseSpd:2.2,thr:[0,25,70,140,250,400]},
+  hard:{name:'Hard',top:66,accel:10,react:.5,chaseN:[1,3,4,5,6,7],patrol:5,ramLevel:2,blockLevel:3,bustT:2,bustSpd:8,bustN:2,loseT:5,decay:12,ev:1.3,rbGap:0,chaseSpd:2.4,thr:[0,22,60,120,220,350]}};
 const COP={on:true,D:COPD.forgiving,diff:'forgiving',heat:0,w:0,t:0,sightT:99,minD:1e9,bust:0,spawnT:2,nC:0,nP:0,sirenVol:0,lastBlock:-99,warnT:0,heatT:0,seenNow:false,rbN:0};
 function copSetDiff(n){if(COPD[n]){COP.D=COPD[n];COP.diff=n}}
 /* ---- heat ---- */
@@ -67,12 +67,12 @@ function copPick(c,g,e){
 function trSpawnCop(chase){
   const rng=TR.rng,P=C;let ux=C.vx,uz=C.vz;const l=Math.hypot(ux,uz);if(l<2){ux=Math.sin(C.yaw);uz=-Math.cos(C.yaw)}else{ux/=l;uz/=l}
   for(let tries=0;tries<16;tries++){
-    const ang=chase?Math.atan2(-uz,-ux)+(rng()-.5)*2.2:rng()*TAU,r=chase?150+rng()*120:150+rng()*280,x=P.x+Math.cos(ang)*r,z=P.z+Math.sin(ang)*r;
+    const ahead=!chase&&rng()<.7,ang=chase?Math.atan2(-uz,-ux)+(rng()-.5)*2.2:(ahead?Math.atan2(uz,ux)+(rng()-.5)*1.3:rng()*TAU),r=chase?120+rng()*100:(ahead?230+rng()*150:140+rng()*200),x=P.x+Math.cos(ang)*r,z=P.z+Math.sin(ang)*r;
     if(!trProbe(x,z))continue;
     const ri=TRP.ri,o=LG.ofRoad[ri],r0=ROADS[ri],i=TRP.i,j=i+1<r0.n?i+1:i,tx=r0.X[j]-r0.X[i],tz=r0.Z[j]-r0.Z[i];
     const toward=(P.x-x)*tx+(P.z-z)*tz,di=chase?(toward>0?0:1):(rng()<.5?0:1),k=Math.min(o[di].length-1,Math.floor(rng()*o[di].length)),e=o[di][k];
     let u=e.dir>0?i+(TRP.t>.5?1:0):r0.n-1-i-(TRP.t>.5?1:0);if(e.closed)u=((u%e.n)+e.n)%e.n;else if(u<6||u>e.n-8)continue;
-    trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz))continue;
+    trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||(trSeen(sx,sz)&&!(ahead&&d>=225)))continue;   /* a patrol 230 m or more ahead may appear in view: the haze hides it popping in, and you will meet it */
     let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
     const c=trPlace(e,u,4,12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*(chase?1.0:.85),Math.floor(rng()*1e9));if(!c)return null;
     c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;if(chase)copAlert(c);return c}
@@ -134,5 +134,11 @@ function copHud(c,W_,H_,u){
   if(L>0||COP.w>0){const r=u*.2,gap=r*2.3,x0=W_*.5-gap*2,y=u*.62,flash=COP.sightT<.4&&((C.t*5)|0)%2==0;c.save();c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;
     for(let i=0;i<5;i++)copStar(c,x0+i*gap,y,r,i<L,i<L?(COP.sightT<.4?(flash?'#ff4a3a':'#4a7aff'):'#ffd24a'):'rgba(0,0,0,0)');c.restore();
     if(L>0&&COP.sightT>.6){const k=Math.min(1,COP.sightT/COP.D.loseT),w=u*2.6,h=u*.12;c.save();c.fillStyle='rgba(0,0,0,.5)';c.fillRect(W_*.5-w/2,y+r*1.8,w,h);c.fillStyle='#7dffb0';c.fillRect(W_*.5-w/2,y+r*1.8,w*k,h);c.textAlign='center';c.font='800 '+Math.round(u*.2)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.85)';c.fillText('LOSING THEM',W_*.5,y+r*1.8+h+u*.2);c.restore()}}
+  /* where the chasing cops are when you cannot see them: a flashing marker along the top edge, left or right of the middle for the side they are on, at the ends if they are behind, with the distance */
+  if(L>0){const cy=C.camYaw;let n=0;c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;
+    for(const k of TR.cars){if(!k.alive||k.kind!==1||k.cm<1||k.cm>2||k.state===1||n>=4)continue;const dx=k.x-C.x,dz=k.z-C.z,d=Math.hypot(dx,dz);if(d>320)continue;const rel=angd(Math.atan2(dx,-dz),cy);if(Math.abs(rel)<.62&&d<260)continue;   /* in front of you: you can see it */
+      const x=W_*.5+Math.max(-1,Math.min(1,rel/1.6))*W_*.4,y=u*1.55,fl=((C.t*6+n)|0)%2==0;n++;
+      c.fillStyle=fl?'#ff4a3a':'#4a7aff';c.beginPath();const s=u*.2,beh=Math.abs(rel)>1.9;if(beh){c.moveTo(x-s,y-s*.7);c.lineTo(x+s,y-s*.7);c.lineTo(x,y+s*.8)}else if(rel>0){c.moveTo(x-s*.7,y-s);c.lineTo(x-s*.7,y+s);c.lineTo(x+s*.9,y)}else{c.moveTo(x+s*.7,y-s);c.lineTo(x+s*.7,y+s);c.lineTo(x-s*.9,y)}c.closePath();c.fill();
+      c.fillStyle='#fff';c.fillText(Math.round(d)+' m',x,y+u*.5)}c.restore()}
   if(COP.bust>.05){const k=Math.min(1,COP.bust/COP.D.bustT),w=u*3,h=u*.2,y=H_*.74;c.save();c.fillStyle='rgba(0,0,0,.55)';c.fillRect(W_*.5-w/2,y,w,h);c.fillStyle=((C.t*8)|0)%2?'#ff4a3a':'#4a7aff';c.fillRect(W_*.5-w/2,y,w*k,h);c.textAlign='center';c.font='800 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#fff';c.fillText('BUSTED?  keep moving!',W_*.5,y-u*.12);c.restore()}
   if(COP.warnT>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('ROADBLOCK AHEAD',W_*.5,H_*.3);c.restore()}}
