@@ -55,7 +55,7 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
   }
 
   /* ---- 3 the car menu, owning and unlocking ---- */
-  const mn=await ev(()=>{const {MENU,CAROWN,CARSEL,HND,CARM,CAR_ROSTER}=RACER;localStorage.removeItem('racer.cars');CAROWN.all=false;Object.keys(CAROWN.owned).forEach(k=>delete CAROWN.owned[k]);CAROWN.owned.k1=true;RACER.carSelect(0);
+  const mn=await ev(()=>{const {MENU,CAROWN,CARSEL,HND,CARM,CAR_ROSTER}=RACER;const defAll=CAROWN.all,defOwned=CAR_ROSTER.filter((d,i)=>carOwned(i)).length;localStorage.removeItem('racer.cars');CAROWN.all=false;Object.keys(CAROWN.owned).forEach(k=>delete CAROWN.owned[k]);CAROWN.owned.k1=true;RACER.carSelect(0);
     const r={};r.owned=CAR_ROSTER.filter((d,i)=>carOwned(i)).length;const v0=HND.vmax,id0=CARM.def.id;
     menuOpen();r.open=MENU.open;menuPreview(12);r.expId=CAR_ROSTER[12].id;r.prevId=CARM.def.id;r.vmaxPrev=HND.vmax;r.curPrev=CARSEL.cur;                    /* looking is not choosing */
     menuChoose();r.lockedStill=CARSEL.cur;r.still=MENU.open;                                                                  /* a locked car cannot be chosen */
@@ -64,8 +64,9 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
     const j=JSON.parse(localStorage.getItem('racer.cars')||'{}');r.saved=j.cur;r.savedOwned=Object.keys(j.owned||{});
     CAROWN.all=true;menuOpen();menuPreview(29);menuChoose();r.allCur=CARSEL.cur;
     menuOpen();menuPaint(4);const pk=Array.from(CARM.paint);r.paint=pk;menuClose();
-    CAROWN.all=false;RACER.carSelect(0);return Object.assign(r,{v0,id0})});
-  ok(mn.owned==1,'only the starter is owned at the start ('+mn.owned+' of 30)');
+    CAROWN.all=false;RACER.carSelect(0);return Object.assign(r,{v0,id0,defAll,defOwned})});
+  ok(mn.defAll&&mn.defOwned==30,'for now every car is unlocked from the start ('+mn.defOwned+' of 30 owned)');
+  ok(mn.owned==1,'with the unlock-all switch off only the starter is owned (the earning rule will use this: '+mn.owned+' of 30)');
   ok(mn.open==1&&mn.prevId==mn.expId&&mn.vmaxPrev===mn.v0&&mn.curPrev==0,'browsing the showroom only shows the car (preview "'+mn.prevId+'"), the handling and the chosen car stay the same');
   ok(mn.lockedStill==0&&mn.still==1,'a locked car cannot be chosen (the menu says how to earn it is not decided yet)');
   ok(mn.backId==mn.id0&&mn.open2==0,'closing without choosing puts your own car back ('+mn.backId+')');

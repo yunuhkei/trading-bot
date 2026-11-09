@@ -1966,9 +1966,11 @@ function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.s
 /* HOW CARS ARE EARNED IS NOT DECIDED (like the money system): CAROWN says which cars you own, carUnlock(id) is the hook the game will call, ECON.carPrice(id) is null (not set), and the menu says so
    plainly. "UNLOCK ALL (testing)" in the menu lets you try every car now. Only the first car is owned. */
 const CAR_PAINTS=[null,[236,236,232],[20,20,24],[176,180,186],[30,60,150],[250,200,10],[240,110,20],[40,140,80],[200,30,40]];
-const CAROWN={owned:{k1:true},all:false,color:{},key:'racer.cars'};
+/* FOR NOW EVERY CAR IS UNLOCKED (CAR_ALL_DEFAULT): the game starts with all 30 open. The earning system will switch this off and call carUnlock(id) as cars are earned. */
+const CAR_ALL_DEFAULT=true;
+const CAROWN={owned:{k1:true},all:CAR_ALL_DEFAULT,color:{},key:'racer.cars'};
 const MENU={open:0,i:0,t:0,btns:[],pi:0};
-function carLoad(){try{const j=JSON.parse(localStorage.getItem(CAROWN.key)||'null');if(j){if(j.owned)Object.assign(CAROWN.owned,j.owned);CAROWN.all=!!j.all;if(j.color)Object.assign(CAROWN.color,j.color);if(j.cur!=null&&j.cur>=0&&j.cur<CAR_ROSTER.length)CARSEL.cur=j.cur}}catch(e){}CAROWN.owned.k1=true}
+function carLoad(){try{const j=JSON.parse(localStorage.getItem(CAROWN.key)||'null');if(j){if(j.owned)Object.assign(CAROWN.owned,j.owned);CAROWN.all=CAR_ALL_DEFAULT;if(j.color)Object.assign(CAROWN.color,j.color);if(j.cur!=null&&j.cur>=0&&j.cur<CAR_ROSTER.length)CARSEL.cur=j.cur}}catch(e){}CAROWN.owned.k1=true}
 function carSave(){try{localStorage.setItem(CAROWN.key,JSON.stringify({owned:CAROWN.owned,all:CAROWN.all,color:CAROWN.color,cur:CARSEL.cur}))}catch(e){}}
 const carOwned=i=>CAROWN.all||!!CAROWN.owned[CAR_ROSTER[i].id];
 /* the hook for the earning system: call this when a car has been earned or bought */
@@ -2007,7 +2009,7 @@ function menuDraw(c,W_,H_,u){
   for(let k=0;k<CAR_ROSTER.length;k++){const bt=L.b.find(q=>q.id=='dot'+k),o=carOwned(k);c.fillStyle=k==MENU.i?'#fff':o?'#4be07a':'rgba(255,255,255,.25)';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,k==MENU.i?bt.w*.55:bt.w*.38,0,TAU);c.fill()}
   c.fillStyle='rgba(255,255,255,.5)';c.font=fs(.18);c.fillText('PAINT',x0,L.paintLabel);
   for(let k=0;k<CAR_PAINTS.length;k++){const bt=L.b.find(q=>q.id=='paint'+k),pc=CAR_PAINTS[k]||d.paint,sel=(CAROWN.color[d.id]|0)==k;c.fillStyle='rgb('+pc[0]+','+pc[1]+','+pc[2]+')';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,bt.w/2,0,TAU);c.fill();c.strokeStyle=sel?'#fff':'rgba(255,255,255,.35)';c.lineWidth=sel?2.5:1;c.stroke()}
-  const sb=L.b.find(q=>q.id=='all');c.fillStyle=CAROWN.all?'#4be07a':'rgba(255,255,255,.18)';rr(c,sb.x,sb.y,sb.w,sb.h,u*.1);c.fill();c.fillStyle=CAROWN.all?'#102016':'rgba(255,255,255,.85)';c.font=fs(.19,700);c.textAlign='center';c.fillText(CAROWN.all?'ALL CARS UNLOCKED (testing) - tap to lock':'UNLOCK ALL CARS (testing)',sb.x+sb.w/2,sb.y+sb.h*.68);
+  const sb=L.b.find(q=>q.id=='all');c.fillStyle=CAROWN.all?'#4be07a':'rgba(255,255,255,.18)';rr(c,sb.x,sb.y,sb.w,sb.h,u*.1);c.fill();c.fillStyle=CAROWN.all?'#102016':'rgba(255,255,255,.85)';c.font=fs(.19,700);c.textAlign='center';c.fillText(CAROWN.all?'ALL CARS UNLOCKED (for now) - tap to lock':'UNLOCK ALL CARS (for now)',sb.x+sb.w/2,sb.y+sb.h*.68);
   for(const id of['select','close']){const bt=L.b.find(q=>q.id==id),sel=id=='select';c.fillStyle=sel&&own?'#ff7a1a':'rgba(255,255,255,.18)';rr(c,bt.x,bt.y,bt.w,bt.h,u*.14);c.fill();c.fillStyle=sel&&own?'#111':'#fff';c.font=fs(.26,800);c.fillText(sel?(own?(cur?'DRIVE IT':'DRIVE THIS'):'LOCKED'):'BACK',bt.x+bt.w/2,bt.y+bt.h*.66)}
   if(!own){c.fillStyle='#ff9a4a';c.font=fs(.18);c.fillText('How to earn this car is not decided yet',L.px+L.pw/2,L.by+u*.66)}
   /* the arrows next to the car */
