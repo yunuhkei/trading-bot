@@ -52,15 +52,15 @@ function trBuildType(S,hw){
 /* the smooth bodies (near cars): the same loft generator as the player's cars, a plain family car's proportions. Materials are mapped to the traffic material table:
    0 body (palette), 1 glass, 2 trim, 3 headlight, 4 tail light (brake), 5 plate/rim, 6 dark, 7 / 8 siren red / blue, 9 black lower body (police) */
 const TRGEN=[
- {L:4.62,W:1.82,H:1.46,wb:2.75,fo:.95,nose:.72,hood:.86,cowl:1.3,roofF:1.88,roofR:2.95,rearS:3.64,deck:.98,tail:.95,hw0:.78,hwMax:.89,hwMaxS:2.4,hwTail:.83,crown:.07,tum:.07,rf:.31,rr:.31,wf:.215,wr:.215,rimF:.2,rimR:.2,tf:.72,tr:.72,sill:.2,gw:.84,gt:.74,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.35},   /* sedan */
- {L:4.0,W:1.76,H:1.5,wb:2.52,fo:.78,nose:.68,hood:.82,cowl:1.12,roofF:1.62,roofR:3.15,rearS:3.78,deck:1.05,tail:1.0,hw0:.76,hwMax:.86,hwMaxS:2.4,hwTail:.8,crown:.07,tum:.07,rf:.3,rr:.3,wf:.2,wr:.2,rimF:.19,rimR:.19,tf:.7,tr:.7,sill:.2,gw:.84,gt:.74,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.3},       /* hatchback */
- {L:4.75,W:1.92,H:1.76,wb:2.85,fo:.95,nose:.86,hood:1.03,cowl:1.38,roofF:1.98,roofR:3.62,rearS:4.12,deck:1.14,tail:1.1,hw0:.84,hwMax:.95,hwMaxS:2.5,hwTail:.9,crown:.06,tum:.07,rf:.37,rr:.37,wf:.25,wr:.25,rimF:.24,rimR:.24,tf:.8,tr:.8,sill:.27,gw:.86,gt:.78,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.3},     /* SUV */
- {L:5.2,W:1.98,H:2.06,wb:3.2,fo:.88,nose:1.0,hood:1.08,cowl:1.05,roofF:1.45,roofR:4.2,rearS:5.0,deck:1.5,tail:1.5,hw0:.88,hwMax:.96,hwMaxS:2.5,hwTail:.94,crown:.05,tum:.05,rf:.36,rr:.36,wf:.23,wr:.23,rimF:.22,rimR:.22,tf:.82,tr:.82,sill:.28,gw:.9,gt:.88,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.25},       /* van */
+ {L:4.62,W:1.82,H:1.46,wb:2.75,fo:.95,nose:.72,hood:.86,cowl:1.3,roofF:1.88,roofR:2.95,rearS:3.64,deck:.98,tail:.95,hw0:.78,hwMax:.89,hwMaxS:2.4,hwTail:.83,crown:.07,tum:.07,rf:.31,rr:.31,wf:.215,wr:.215,rimF:.2,rimR:.2,tf:.72,tr:.72,sill:.2,gw:.84,gt:.74,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.35,grille:'wide',chromeTrim:1,exh:1,exhOff:.55},   /* sedan */
+ {L:4.0,W:1.76,H:1.5,wb:2.52,fo:.78,nose:.68,hood:.82,cowl:1.12,roofF:1.62,roofR:3.15,rearS:3.78,deck:1.05,tail:1.0,hw0:.76,hwMax:.86,hwMaxS:2.4,hwTail:.8,crown:.07,tum:.07,rf:.3,rr:.3,wf:.2,wr:.2,rimF:.19,rimR:.19,tf:.7,tr:.7,sill:.2,gw:.84,gt:.74,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.3,grille:'wide',wing:'lip',exh:1,exhOff:.5},       /* hatchback */
+ {L:4.75,W:1.92,H:1.76,wb:2.85,fo:.95,nose:.86,hood:1.03,cowl:1.38,roofF:1.98,roofR:3.62,rearS:4.12,deck:1.14,tail:1.1,hw0:.84,hwMax:.95,hwMaxS:2.5,hwTail:.9,crown:.06,tum:.07,rf:.37,rr:.37,wf:.25,wr:.25,rimF:.24,rimR:.24,tf:.8,tr:.8,sill:.27,gw:.86,gt:.78,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.3,grille:'wide',roofRails:1,cladding:.33,exh:1,exhOff:.6},     /* SUV */
+ {L:5.2,W:1.98,H:2.06,wb:3.2,fo:.88,nose:1.0,hood:1.08,cowl:1.05,roofF:1.45,roofR:4.2,rearS:5.0,deck:1.5,tail:1.5,hw0:.88,hwMax:.96,hwMaxS:2.5,hwTail:.94,crown:.05,tum:.05,rf:.36,rr:.36,wf:.23,wr:.23,rimF:.22,rimR:.22,tf:.82,tr:.82,sill:.28,gw:.9,gt:.88,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.25,grille:'wide',cladding:.22},       /* van */
  null];                                                                                                                                                                                                                                                                               /* police: the sedan with a dark lower body */
-const TRMATMAP=[0,1,2,2,5,3,4,6,5,2,2,5,0,6,2];
+const TRMATMAP=[0,1,2,2,5,3,4,6,5,2,2,12,0,6,2,6,5,13,6];      /* generator material -> traffic material (11 plate -> white, 17 amber, 18 grille -> dark) */
 function trGenType(i){
   const base=TRGEN[i==4?0:i],spec=Object.assign({noSkirt:1},base);if(i==4)spec.lowerDark=.66;
-  const R=cgBuild(spec,{lo:1}),S=R.S,P=[],N=[],M=[],I=[];let o=0;
+  const R=cgBuild(spec,{lo:1,mid:1}),S=R.S,P=[],N=[],M=[],I=[];let o=0;
   /* the police livery: white doors, roof and pillars, black bonnet, wings and boot (x, y, z in generator coordinates, front negative) */
   const copLivery=(x,y,z,S)=>{const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
   const add=(mb,dx,dy,dz,mirX,mapM)=>{const n=mb.nv;for(let v=0;v<n;v++){const x=mb.P[v*3]*(mirX?-1:1)+dx,y=mb.P[v*3+1]+dy,z=-(mb.P[v*3+2]+dz);P.push(x,y,z);N.push(mb.N[v*3]*(mirX?-1:1),mb.N[v*3+1],-mb.N[v*3+2]);const m=TRMATMAP[mb.M[v]];
@@ -89,7 +89,7 @@ function trGenType(i){
 function trGLInit(){
   const gl=G.gl;TRM.pal=new Float32Array(TCOLS.length*3);TCOLS.forEach((c,i)=>{TRM.pal[i*3]=c[0];TRM.pal[i*3+1]=c[1];TRM.pal[i*3+2]=c[2]});
   /* materials: rgb albedo, alpha = glow (-1: the body colour of the car) */
-  TRM.mat=new Float32Array([0,0,0,-1, .03,.045,.06,0, .015,.015,.017,0, .85,.8,.62,1.5, .5,.02,.02,.5, .5,.5,.52,0, .015,.015,.015,0, .8,.1,.05,0, .1,.2,.9,0, .035,.035,.04,0, .04,.09,.45,0, .62,.5,.12,0, .72,.72,.74,0]);
+  TRM.mat=new Float32Array([0,0,0,-1, .03,.045,.06,0, .015,.015,.017,0, .85,.8,.62,1.5, .5,.02,.02,.5, .5,.5,.52,0, .015,.015,.015,0, .8,.1,.05,0, .1,.2,.9,0, .035,.035,.04,0, .04,.09,.45,0, .62,.5,.12,0, .72,.72,.74,0, .95,.52,.08,1.1]);
   const upload=(B)=>{const nv=B.P.length/3,ab=new ArrayBuffer(nv*16),f=new Float32Array(ab),b=new Int8Array(ab);
     for(let v=0;v<nv;v++){f[v*4]=B.P[v*3];f[v*4+1]=B.P[v*3+1];f[v*4+2]=B.P[v*3+2];b[v*16+12]=Math.round(B.N[v*3]*127);b[v*16+13]=Math.round(B.N[v*3+1]*127);b[v*16+14]=Math.round(B.N[v*3+2]*127);b[v*16+15]=B.M[v]}
     return{vb:mkBuf(gl.ARRAY_BUFFER,ab),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(B.I)),n:B.I.length,nv}};
@@ -106,7 +106,7 @@ function trShadows(quad){
 /* collect the visible cars into the instance buffer (once per frame; the colour pass and the shadow pass both draw from it). 16 floats per car: x y z yaw | pitch roll colour flags | dent 1 | dent 2 */
 function trPrep(){
   TRM.nv=0;if(!TR.on||!TRM.ready||!TR.nAlive)return 0;
-  const gl=G.gl,a=R.alpha,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,vis=TRM.vis,cars=TR.cars,lod2=Math.pow(GFX.cur.name=='Low'?34:52,2);cnt.fill(0);let nv=0;
+  const gl=G.gl,a=R.alpha,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,vis=TRM.vis,cars=TR.cars,lod2=Math.pow(GFX.cur.name=='Low'?30:46,2);cnt.fill(0);let nv=0;
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const x=lerp(c.px,c.x,a),y=lerp(c.py,c.y,a),z=lerp(c.pz,c.z,a),dx=x-R.cx,dz=z-R.cz,d2=dx*dx+dz*dz;if(d2>490000||!M4.sphereIn(R.PL,x,y+1,z,3.6))continue;c.gi=c.type*2+(d2<lod2?0:1);vis[nv++]=i;cnt[c.gi]++}
   if(!nv)return 0;
   let s0=0;const fill=new Int16Array(10);for(let g=0;g<10;g++){off[g]=s0;fill[g]=s0;s0+=cnt[g]}

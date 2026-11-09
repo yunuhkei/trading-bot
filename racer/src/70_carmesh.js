@@ -2,10 +2,10 @@
 /* ===== procedural car bodies: smooth lofted bodywork, wheel wells, real wheels, lights, intakes, wings, exhausts, mirrors =====
    Nothing here is a real car: every body is made from numbers (a spec) by the same code, in the style of the cars it takes its inspiration from.
    Model axes: x to the right, y up, z BACKWARDS (the nose is at -L/2), metres, origin on the ground under the middle of the wheelbase's centre of the body (z = 0 half way along). */
-const CGM={paint:0,glass:1,trim:2,carbon:3,chrome:4,head:5,tail:6,rubber:7,rim:8,caliper:9,exh:10,plate:11,stripe:12,under:13,disc:14,inter:15,steel:16};
+const CGM={paint:0,glass:1,trim:2,carbon:3,chrome:4,head:5,tail:6,rubber:7,rim:8,caliper:9,exh:10,plate:11,stripe:12,under:13,disc:14,inter:15,steel:16,amber:17,grille:18};
 /* per material: colour (sRGB bytes) and [metal, roughness, emissive, clear coat] / 255 for the car shader */
-const CGCOL=[[255,255,255],[8,10,14],[20,20,22],[34,35,40],[205,210,216],[255,244,190],[255,34,24],[14,14,15],[188,192,198],[205,28,28],[120,124,130],[230,230,224],[240,240,240],[18,18,20],[150,152,158],[34,34,38],[160,164,170]];
-const CGMAT=[[140,66,0,255],[215,22,0,0],[0,170,0,0],[70,80,0,160],[235,60,0,0],[0,40,255,60],[0,40,255,60],[0,205,0,0],[215,80,0,40],[70,90,0,140],[240,70,0,0],[0,150,0,0],[120,70,0,230],[0,200,0,0],[200,110,0,0],[0,150,0,40],[225,90,0,0]];
+const CGCOL=[[255,255,255],[8,10,14],[20,20,22],[34,35,40],[205,210,216],[255,244,190],[255,34,24],[14,14,15],[188,192,198],[205,28,28],[178,182,188],[230,230,224],[240,240,240],[18,18,20],[150,152,158],[34,34,38],[160,164,170],[255,150,24],[30,30,32]];
+const CGMAT=[[140,66,0,255],[215,22,0,0],[0,170,0,0],[70,80,0,160],[235,60,0,0],[0,40,255,60],[0,40,255,60],[0,205,0,0],[215,80,0,40],[70,90,0,140],[240,70,0,0],[0,150,0,0],[120,70,0,230],[0,200,0,0],[200,110,0,0],[0,150,0,40],[225,90,0,0],[0,60,150,0],[110,255,0,0]];
 class CGB{constructor(){this.P=[];this.N=[];this.M=[];this.I=[];this.S=[];this.Pt=[];this.cur=0}
   v(x,y,z,nx,ny,nz,m,sh){this.P.push(x,y,z);this.N.push(nx,ny,nz);this.M.push(m);this.S.push(sh==null?1:sh);this.Pt.push(this.cur);return this.M.length-1}
   t(a,b,c){this.I.push(a,b,c)}q(a,b,c,d){this.t(a,b,c);this.t(a,c,d)}
@@ -34,11 +34,12 @@ function cgSpec(o){
   S.zs=s=>s-S.L/2;                                         /* s measured from the nose -> z */
   S.hwF=S.W/2;return S}
 /* ---------------- the body ---------------- */
-function cgTubRing(S,s,K){K=K||S.K||10;
+function cgTubRing(S,s,K){K=K||S.K||16;
   const f=S.curves,hw=f.half(s)+S.flare*(Math.exp(-Math.pow((s-S.fo)/.5,2))+Math.exp(-Math.pow((s-(S.fo+S.wb))/.5,2))),yb=f.bot(s),yt=f.top(s),crown=S.crown*(s>S.gs0&&s<S.gs1?.35:1),ys=yt-crown,tum=S.tum,rb=Math.min(.06,(ys-yb)*.35);
   const pts=[];pts.push([0,yb]);pts.push([hw*.78,yb]);
   for(let k=1;k<=2;k++){const a=-Math.PI/2+k*Math.PI/6;pts.push([hw-rb+rb*Math.cos(a),yb+rb+rb*Math.sin(a)])}
-  const y0=yb+rb,hs=ys-y0;for(let k=0;k<=K;k++){const t=k/K;pts.push([hw*(1-tum*t*t),y0+hs*t])}
+  const y0=yb+rb,hs=ys-y0,cf=(S.crease==null?1:S.crease)*sstep(.9,1.7,s)*(1-sstep(S.L-1.3,S.L-.45,s))*(K>8?1:0);
+  for(let k=0;k<=K;k++){const t=k/K,rid=cf*(.012*Math.exp(-Math.pow((t-.68)/.07,2))-.008*Math.exp(-Math.pow((t-.37)/.06,2)));pts.push([hw*(1-tum*t*t)+rid,y0+hs*t])}      /* a shoulder crease and a groove above the sill: the flank catches light along them like a pressed panel */
   const xs=hw*(1-tum);const n=3.15;for(let k=1;k<=5;k++){const a=k/5*Math.PI/2,c=Math.cos(a),sn=Math.sin(a);pts.push([xs*Math.pow(c,2/n),ys+(yt-ys)*Math.pow(sn,2/n)])}
   return pts}
 function cgBodyCurves(S){
@@ -47,10 +48,10 @@ function cgBodyCurves(S){
   const bot=[[0,S.sill+.03],[.4,S.sill],[L-.7,S.sill+.01],[L-.25,S.sill+.07],[L,S.sill+.12]];
   S.curves={top:cgCurve(top),half:cgCurve(half),bot:cgCurve(bot)};return S.curves}
 function cgBody(S,mb,opt){
-  const L=S.L,K=S.K=opt.lo?5:10;S.gs0=S.cowl;S.gs1=S.rearS;cgBodyCurves(S);const zc=S.curves;
+  const L=S.L,K=S.K=opt.lo?(opt.mid?8:5):16;S.gs0=S.cowl;S.gs1=S.rearS;cgBodyCurves(S);const zc=S.curves;
   /* stations along the car: even, with more near the wheels (for the arches) and at the two ends */
-  const set=[];const stp=opt.lo?.3:.1;for(let s=.01;s<L;s+=stp)set.push(s);for(const e of(opt.lo?[.01,.08,.18,L-.01,L-.08,L-.18]:[.006,.02,.045,.09,.16,L-.006,L-.02,L-.045,L-.09,L-.16]))set.push(e);
-  for(const ax of[S.fo,S.fo+S.wb]){const r=(ax==S.fo?S.rf:S.rr)+.12;for(let s=ax-r;s<=ax+r+1e-6;s+=opt.lo?.13:.04)set.push(s)}
+  const set=[];const stp=opt.lo?(opt.mid?.21:.3):.1;for(let s=.01;s<L;s+=stp)set.push(s);for(const e of(opt.lo?[.01,.08,.18,L-.01,L-.08,L-.18]:[.006,.02,.045,.09,.16,L-.006,L-.02,L-.045,L-.09,L-.16]))set.push(e);
+  for(const ax of[S.fo,S.fo+S.wb]){const r=(ax==S.fo?S.rf:S.rr)+.12;for(let s=ax-r;s<=ax+r+1e-6;s+=opt.lo?(opt.mid?.09:.13):.04)set.push(s)}
   set.sort((a,b)=>a-b);const ss=[];for(const s of set){if(s<=0||s>=L)continue;if(!ss.length||s-ss[ss.length-1]>.018)ss.push(s)}
   const ni=ss.length,rings=[],capF=(S.capF||.34)*.88,capR=(S.capR||.5)*.62;
   for(const s of ss){const r=cgTubRing(S,s,K);let sc=1;const d0=s,d1=L-s;if(d0<capF)sc=Math.pow(1-Math.pow((capF-d0)/capF,2.4),1/2.4);else if(d1<capR)sc=Math.pow(1-Math.pow((capR-d1)/capR,2.2),1/2.2);
@@ -63,11 +64,14 @@ function cgBody(S,mb,opt){
   /* wheel wells: the side of the body is pushed in where a wheel is (the wheel sits in the opening), and those cells are painted dark */
   const wheels=[[S.fz,S.rf,S.wf,S.tf],[S.rz,S.rr,S.wr,S.tr]];
   for(let i=0;i<ni;i++)for(let j=0;j<nj;j++){const k=(i*nj+j)*3,x=P[k],y=P[k+1],z=P[k+2];
-    for(const[wz,R,w,tx]of wheels){const ra=R+.045,dz=z-wz,dy=y-R,dd=Math.sqrt(dz*dz+dy*dy)-ra;if(dd<.02&&Math.abs(x)>tx-w/2-.01){const xin=tx-w/2-.035,t=_cl(-(dd-.02)/.09,0,1),e=t*t*(3-2*t);P[k]=Math.sign(x)*(Math.abs(x)*(1-e)+Math.min(Math.abs(x),xin)*e);flag[i*nj+j]=1}   /* a smooth slope into the arch, not a step */
+    for(const[wz,R,w,tx]of wheels){const ra=R+.062,dz=z-wz,dy=y-R,dd=Math.sqrt(dz*dz+dy*dy)-ra;if(dd<.02&&Math.abs(x)>tx-w/2-.01){const xin=tx-w/2-.035,t=_cl(-(dd-.02)/.09,0,1),e=t*t*(3-2*t);P[k]=Math.sign(x)*(Math.abs(x)*(1-e)+Math.min(Math.abs(x),xin)*e);flag[i*nj+j]=1}   /* a smooth slope into the arch, not a step */
       /* the arch edge is shaded dark with a smooth ramp (a gradient of the vertex colour, not a ring of dark squares) */
-      if(Math.abs(x)>tx-w/2-.06){const t=_cl(.5-dd/.055,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t))}}
+      if(Math.abs(x)>tx-w/2-.06){const t=_cl(.5-dd/.075,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t))}}
     /* a livery with a dark lower body (police cars) */
     if(S.lowerDark&&Math.abs(P[k])>.3){const t=_cl((S.lowerDark-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.96)}
+    /* dark lower valances at the nose and the tail */
+    if(!S.noSkirt){const sN=z+L/2,t=_cl((S.sill+.27-y)/.07,0,1)*Math.max(_cl((.75-sN)/.25,0,1),_cl((sN-(L-.65))/.25,0,1));if(t>0)dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.9)}
+    if(S.cladding){const t=_cl((S.sill+S.cladding-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.93)}
     /* black side skirts: a ramp up the lower side */
     if(!S.noSkirt&&Math.abs(P[k])>.35){const t=_cl((S.sill+.23-y)/.1,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}}
   const Nn=cgGridNormals(P,ni,nj,true,ctr);
@@ -96,7 +100,7 @@ function cgSide(S,s,y,sg){const r=cgTubRing(S,s,S.K);let x=r[Math.min(r.length-1
 function cgTopAt(S,s,x){const r=cgTubRing(S,s,S.K);let y=r[r.length-1][1];for(let k=r.length-1;k>0;k--){if(r[k-1][0]>=Math.abs(x)){const a=r[k-1],b=r[k],t=_cl((a[0]-Math.abs(x))/Math.max(1e-6,a[0]-b[0]),0,1);y=a[1]+(b[1]-a[1])*t;break}}return y}
 /* the greenhouse: glass, pillars and roof */
 function cgGlasshouse(S,mb,opt){
-  const s0=S.gs0,s1=S.gs1,K2=opt.lo?3:5,stp=opt.lo?.25:.09,ss=[];for(let s=s0;s<s1-1e-6;s+=stp)ss.push(s);ss.push(s1);
+  const s0=S.gs0,s1=S.gs1,K2=opt.lo?(opt.mid?4:3):5,stp=opt.lo?(opt.mid?.14:.25):.09,ss=[];for(let s=s0;s<s1-1e-6;s+=stp)ss.push(s);ss.push(s1);
   const roof=cgCurve([[s0,0],[S.cowl+(S.roofF-S.cowl)*.3,.3],[S.cowl+(S.roofF-S.cowl)*.7,.8],[S.roofF,1],[S.roofR,1],[S.roofR+(s1-S.roofR)*.4,.8],[S.roofR+(s1-S.roofR)*.75,.3],[s1,0]]);
   const ni=ss.length,rings=[];
   for(const s of ss){const hw=S.curves.half(s),wb=hw*S.gw,wt=wb*S.gt,yb0=cgTopAt(S,s,wb)-.025,u=roof(s),yr=yb0+(S.H-yb0)*u;const pts=[];
@@ -147,37 +151,57 @@ function cgRowAt(S,s,y,xMax,n){const pts=[];for(let i=0;i<n;i++){const x=-xMax+2
   /* the nearest vertex jumps from row to row of the grid: smooth the line so a light bar is not a zigzag */
   for(let it=0;it<4;it++)for(let i=1;i<n-1;i++){const a=pts[i-1],b=pts[i],c=pts[i+1];b.y=(a.y+2*b.y+c.y)/4;b.z=(a.z+2*b.z+c.z)/4}
   return pts}
+/* a lamp built in layers (bezel, chrome ring, dark reflector, glowing lens, a bright spot) so it reads as a lamp and not as a coloured dot. kind 0 round projector, 1 slim strip, 2 tail lamp (lens, dark inner ring, lens again) */
+function cgLamp(mb,p,rx,ry,rot,m,kind){
+  const d=(sx,sy,mat,off,seg)=>cgDisc(mb,p,rx*sx,ry*sy,mat,seg||18,off,rot);
+  d(1.2,1.25,CGM.trim,.004);
+  if(kind==1){d(1.04,1.1,CGM.chrome,.0055);d(.94,.9,CGM.grille,.0066);d(.86,.7,m,.0078);d(.6,.26,CGM.chrome,.0095,12)}
+  else if(kind==2){d(1.0,1.0,m,.0058);d(.64,.64,CGM.trim,.0072,14);d(.42,.42,m,.0086,14);d(.14,.14,CGM.chrome,.0102,8)}
+  else{d(1.03,1.03,CGM.chrome,.0055);d(.9,.9,CGM.grille,.0066);d(.74,.74,m,.0078);d(.42,.42,CGM.chrome,.0095,14);d(.2,.2,m,.0112,10)}}
+/* a flat quad on a plane of constant z (a character on a plate) */
+function cgQuadZ(mb,x0,y0,x1,y1,z,dir,m){const a=mb.v(x0,y0,z,0,0,dir,m),b=mb.v(x1,y0,z,0,0,dir,m),c=mb.v(x1,y1,z,0,0,dir,m),d=mb.v(x0,y1,z,0,0,dir,m);mb.q(a,b,c,d)}
+/* a number plate with six characters (blocky seven-segment letters picked by a seeded generator) and a blue strip; dir -1 faces the front, +1 the rear */
+function cgPlate(mb,cx,cy,cz,dir,seed){
+  cgBox(mb,cx,cy,cz,.25,.062,.006,CGM.plate,0);const z=cz+dir*.0072,rg=mulberry((seed*7919+13)|0),sx=dir>0?1:-1;
+  for(let g=0;g<6;g++){const gx=cx+sx*(-.19+g*.075),w=.026,h=.05,t=.0085;let mask=0;while(mask==0||mask==127)mask=(rg()*127)|0;
+    const S7=[[-w,h-t,w,h],[w-t,0,w,h],[w-t,-h,w,0],[-w,-h,w,-h+t],[-w,-h,-w+t,0],[-w,0,-w+t,h],[-w,-t/2,w,t/2]];
+    for(let k=0;k<7;k++)if(mask&(1<<k)){const q=S7[k];cgQuadZ(mb,gx+sx*q[0],cy+q[1],gx+sx*q[2],cy+q[3],z,dir,CGM.carbon)}}}
 function cgDetails(S,mb,opt){
   const L=S.L,hw=S.W/2,lights={};
   /* ---- front lights ---- */
   const hy=S.nose+.03,hx=S.hw0*.66;
   for(const sg of[-1,1]){
-    if(S.head=='round'){const p=S.near(sg*hx,hy+.02,S.zs(.2));cgDisc(mb,p,.105,.105,CGM.trim,16,.004);cgDisc(mb,p,.082,.082,CGM.head,16,.009)}
-    else if(S.head=='oval'){const p=S.near(sg*hx*.95,hy+.01,S.zs(.2));cgDisc(mb,p,.15,.075,CGM.trim,16,.004,sg*.25);cgDisc(mb,p,.125,.055,CGM.head,16,.009,sg*.25)}
-    else if(S.head=='slit'){const p=S.near(sg*hx*.95,hy+.03,S.zs(.22));cgDisc(mb,p,.24,.05,CGM.trim,16,.004,sg*.32);cgDisc(mb,p,.21,.03,CGM.head,16,.009,sg*.32)}
-    else if(S.head=='led'){const p=S.near(sg*hx*.9,hy+.04,S.zs(.22));cgDisc(mb,p,.2,.06,CGM.trim,16,.004,sg*.28);const p2=S.near(sg*hx*.9,hy-.02,S.zs(.22));cgDisc(mb,p,.17,.018,CGM.head,12,.009,sg*.28);cgDisc(mb,p2,.12,.015,CGM.head,12,.009,sg*.28)}
-    else if(S.head=='pop'){const p=S.near(sg*hx*.8,S.hood*.88,S.zs(S.cowl*.34));cgDisc(mb,p,.12,.06,CGM.trim,14,.003);cgDisc(mb,p,.095,.045,CGM.head,14,.006)}}
+    if(S.head=='round'){const p=S.near(sg*hx,hy+.02,S.zs(.2));cgLamp(mb,p,.105,.105,0,CGM.head,0)}
+    else if(S.head=='oval'){const p=S.near(sg*hx*.95,hy+.01,S.zs(.2));cgLamp(mb,p,.15,.075,sg*.25,CGM.head,0)}
+    else if(S.head=='slit'){const p=S.near(sg*hx*.95,hy+.03,S.zs(.22));cgLamp(mb,p,.24,.05,sg*.32,CGM.head,1)}
+    else if(S.head=='led'){const p=S.near(sg*hx*.9,hy+.04,S.zs(.22));cgLamp(mb,p,.2,.06,sg*.28,CGM.head,1);const p2=S.near(sg*hx*.9,hy-.02,S.zs(.22));cgDisc(mb,p2,.12,.015,CGM.head,12,.009,sg*.28)}
+    else if(S.head=='pop'){const p=S.near(sg*hx*.8,S.hood*.88,S.zs(S.cowl*.34));cgLamp(mb,p,.12,.06,0,CGM.head,0)}
+    /* an amber indicator at the outer corner */
+    {const p3=S.head!='pop'?S.near(sg*(hx+.16),hy-.012,S.zs(.17)):S.near(sg*(hx+.12),S.nose*.55,S.zs(.1));cgDisc(mb,p3,.05,.013,CGM.amber,10,.0085,sg*.45)}}
   lights.hx=hx;lights.hy=hy;lights.hz=-L/2+.1;
   /* ---- front intake and side intakes ---- */
-  if(S.intake!='none'){const p=S.near(0,S.sill+.13,S.zs(.1));const wI=S.intake=='wide'?.62:S.intake=='mid'?.42:.3;cgDisc(mb,p,hw*wI,.075,CGM.under,16,.005);
-    for(const sg of[-1,1]){const q=S.near(sg*hw*.82,S.sill+.1,S.zs(.14));cgDisc(mb,q,.09,.06,CGM.under,10,.005,sg*.3)}}
-  if(S.duct){const p=S.near(0,S.hood,S.zs(S.cowl*.55));cgDisc(mb,p,.12,.2,CGM.under,12,.004)}      /* a bonnet vent */
+  if(S.intake!='none'){const p=S.near(0,S.sill+.13,S.zs(.1));const wI=S.intake=='wide'?.62:S.intake=='mid'?.42:.3;cgDisc(mb,p,hw*wI,.075,CGM.grille,16,.005);
+    for(const sg of[-1,1]){const q=S.near(sg*hw*.82,S.sill+.1,S.zs(.14));cgDisc(mb,q,.09,.06,CGM.grille,10,.005,sg*.3)}}
+  if(S.duct){const p=S.near(0,S.hood,S.zs(S.cowl*.55));cgDisc(mb,p,.12,.2,CGM.grille,12,.004)}      /* a bonnet vent */
   /* ---- side intakes behind the doors (mid-engine cars) ---- */
-  if(S.sideIntake){for(const sg of[-1,1]){const s=S.roofR+.1,y=cgTopAt(S,s,hw*.85)-.18,p=S.near(sg*hw*.97,y,S.zs(s));cgDisc(mb,p,S.sideIntake*.55,.045,CGM.under,12,.005,-.3*sg)}}
+  if(S.sideIntake){for(const sg of[-1,1]){const s=S.roofR+.1,y=cgTopAt(S,s,hw*.85)-.18,p=S.near(sg*hw*.97,y,S.zs(s));cgDisc(mb,p,S.sideIntake*.55,.045,CGM.grille,12,.005,-.3*sg)}}
   /* ---- door lines ---- */
-  for(const sg of[-1,1]){const x0=S.near(sg*hw*.96,S.sill+.4,S.zs(S.cowl+.05)),pts=[];for(let k=0;k<=3;k++){const y=S.sill+.2+k*.18,s=S.cowl+.05+k*.01;pts.push(S.near(sg*hw*.99,y,S.zs(s)))}cgStrip(mb,pts,.008,CGM.trim,.003);void x0}
+  for(const sg of[-1,1]){const x0=S.near(sg*hw*.96,S.sill+.4,S.zs(S.cowl+.05)),pts=[];for(let k=0;k<=18;k++){const y=S.sill+.2+k*.03,s=S.cowl+.05+k*.0033;pts.push(cgSide(S,s,y,sg))}cgStrip(mb,pts,.011,CGM.trim,.007);void x0}
   /* ---- rear lights ---- */
   const tz=S.zs(L-.08),ty=S.deck-.06;
-  if(S.tail_=='bar'){const pts=cgRowAt(S,L-.1,ty,S.hwTail*.82,9);cgStrip(mb,pts,.045,CGM.tail,.005);const pts2=cgRowAt(S,L-.1,ty-.07,S.hwTail*.8,9);cgStrip(mb,pts2,.02,CGM.trim,.004)}
-  else if(S.tail_=='round'){for(const sg of[-1,1]){const p=S.near(sg*S.hwTail*.64,ty,tz);cgDisc(mb,p,.08,.08,CGM.trim,14,.004);cgDisc(mb,p,.062,.062,CGM.tail,14,.009)}}
-  else if(S.tail_=='quad'){for(const sg of[-1,1])for(const dx of[.5,.78]){const p=S.near(sg*S.hwTail*dx,ty-.02,tz);cgDisc(mb,p,.062,.062,CGM.tail,12,.007)}}
-  else if(S.tail_=='slit'){for(const sg of[-1,1]){const p=S.near(sg*S.hwTail*.62,ty,tz);cgDisc(mb,p,.22,.035,CGM.tail,12,.007,sg*-.12)}}
-  else if(S.tail_=='wide'){const pts=cgRowAt(S,L-.1,ty+.02,S.hwTail*.9,11);cgStrip(mb,pts,.07,CGM.tail,.005)}
+  const chips=(pts,r)=>{for(const q of pts)cgDisc(mb,q,r,r,CGM.chrome,8,.0095)};            /* the LED chips of a light bar */
+  if(S.tail_=='bar'){const pts=cgRowAt(S,L-.1,ty,S.hwTail*.82,9);cgStrip(mb,pts,.07,CGM.trim,.004);cgStrip(mb,pts,.05,CGM.tail,.0062);chips(pts,.0085);const pts2=cgRowAt(S,L-.1,ty-.075,S.hwTail*.8,9);cgStrip(mb,pts2,.018,CGM.tail,.005);const pts3=cgRowAt(S,L-.1,ty-.11,S.hwTail*.78,9);cgStrip(mb,pts3,.012,CGM.trim,.004)}
+  else if(S.tail_=='round'){for(const sg of[-1,1]){const p=S.near(sg*S.hwTail*.64,ty,tz);cgLamp(mb,p,.08,.08,0,CGM.tail,2);cgDisc(mb,S.near(sg*S.hwTail*.64,ty-.09,tz),.02,.02,CGM.amber,8,.008)}}
+  else if(S.tail_=='quad'){for(const sg of[-1,1])for(const dx of[.5,.78]){const p=S.near(sg*S.hwTail*dx,ty-.02,tz);cgLamp(mb,p,.062,.062,0,CGM.tail,2)}}
+  else if(S.tail_=='slit'){for(const sg of[-1,1]){const p=S.near(sg*S.hwTail*.62,ty,tz);cgLamp(mb,p,.22,.035,sg*-.12,CGM.tail,1);const pp=[-.6,-.2,.2,.6].map(f=>S.near(sg*S.hwTail*.62+f*.2*sg*-1,ty,tz));chips(pp,.008)}}
+  else if(S.tail_=='wide'){const pts=cgRowAt(S,L-.1,ty+.02,S.hwTail*.9,11);cgStrip(mb,pts,.09,CGM.trim,.004);cgStrip(mb,pts,.07,CGM.tail,.0062);chips(pts,.01);cgStrip(mb,cgRowAt(S,L-.1,ty-.07,S.hwTail*.88,11),.016,CGM.tail,.005)}
   lights.tx=S.hwTail*.64;lights.ty=ty;lights.tz=L/2-.08;
   /* ---- engine cover louvres ---- */
-  if(S.louvres){for(let k=0;k<S.louvres;k++){const s=S.roofR+.08+k*.13,pts=[];for(let q=0;q<7;q++){const x=-hw*.4+hw*.8*q/6;pts.push(S.near(x,cgTopAt(S,s,x),S.zs(s)))}cgStrip(mb,pts,.028,CGM.under,.004)}}
+  if(S.louvres){for(let k=0;k<S.louvres;k++){const s=S.roofR+.08+k*.13,pts=[];for(let q=0;q<7;q++){const x=-hw*.4+hw*.8*q/6;pts.push(S.near(x,cgTopAt(S,s,x),S.zs(s)))}cgStrip(mb,pts,.028,CGM.grille,.004)}}
   /* ---- mirrors ---- */
-  if(S.mirror){for(const sg of[-1,1]){const s=S.cowl+.28,x=hw*S.gw+.1,y=cgTopAt(S,s,hw*S.gw)+.12;mb.cur=sg>0?7:8;cgBox(mb,sg*x,y,S.zs(s),.055,.04,.07,CGM.paint,0);cgBox(mb,sg*(x-.05),y-.075,S.zs(s)+.02,.03,.03,.02,CGM.trim,0);mb.cur=0}}
+  if(S.mirror){for(const sg of[-1,1]){const s=S.cowl+.28,x=hw*S.gw+.1,y=cgTopAt(S,s,hw*S.gw)+.12;mb.cur=sg>0?7:8;cgBox(mb,sg*x,y,S.zs(s),.055,.04,.07,CGM.paint,0);cgBox(mb,sg*(x-.05),y-.075,S.zs(s)+.02,.03,.03,.02,CGM.trim,0);cgBox(mb,sg*x,y,S.zs(s)+.0715,.048,.033,.003,CGM.carbon,0);cgBox(mb,sg*(x-.07),y-.045,S.zs(s)+.02,.045,.012,.014,CGM.trim,0);mb.cur=0}}
+  /* ---- roof rails (SUVs) ---- */
+  if(S.roofRails){const sm=(S.roofF+S.roofR)/2,x=S.curves.half(sm)*S.gw*S.gt*.66,z0=S.zs(S.roofF+.15),z1=S.zs(S.roofR-.1);for(const sg of[-1,1]){cgBox(mb,sg*x,S.H+.008,(z0+z1)/2,.02,.018,Math.abs(z1-z0)/2,CGM.chrome,0);for(const f of[0,1])cgBox(mb,sg*x,S.H-.01,z0+(z1-z0)*f,.024,.03,.02,CGM.trim,0)}}
   /* ---- spoiler / wing ---- */
   const dz=S.zs(L-.2);
   if(S.wing=='duck'){cgBox(mb,0,S.deck+.04,S.zs(L-.16),S.hwTail*.78,.035,.1,CGM.paint,.15)}
@@ -187,7 +211,7 @@ function cgDetails(S,mb,opt){
     for(const sg of[-1,1]){cgBox(mb,sg*ww,hy2,S.zs(L-(big?.28:.22)),.012,big?.1:.07,ch+.02,CGM.carbon,-.05);cgBox(mb,sg*S.hwTail*.5,S.deck+(hy2-S.deck)/2,S.zs(L-(big?.3:.24)),.028,(hy2-S.deck)/2+.01,.05,CGM.carbon,0)}}
   /* ---- diffuser and exhaust ---- */
   if(S.diff){cgBox(mb,0,S.sill+.075,S.zs(L-.27),S.hwTail*.6,.012,.14,CGM.carbon,-.14);for(let k=-2;k<=2;k++)cgBox(mb,k*S.hwTail*.25,S.sill+.09,S.zs(L-.28),.008,.04,.12,CGM.carbon,-.14)}
-  const ex=S.exh||0;for(let k=0;k<ex;k++){const px=ex==1?0:S.exhS=='center'?(k-(ex-1)/2)*.15:(k%2?1:-1)*(S.hwTail*(.52+.12*((k>>1)))),py=S.sill+.1+(S.exhS=='high'?.28:0);cgCylZ(mb,px,py,S.zs(L-.09),S.zs(L+.035),.047,CGM.exh,10)}
+  const ex=S.exh||0;for(let k=0;k<ex;k++){const px=ex==1?(S.exhOff||0):S.exhS=='center'?(k-(ex-1)/2)*.15:(k%2?1:-1)*(S.hwTail*(.52+.12*((k>>1)))),py=S.sill+.13+(S.exhS=='high'?.28:0);cgCylZ(mb,px,py,S.zs(L-.09),S.zs(L+.03),.042,CGM.exh,12);cgCylZ(mb,px,py,S.zs(L+.012),S.zs(L+.036),.049,CGM.chrome,14)}
   S._lights=lights}
 /* a torus (the steering wheel) */
 function cgTorus(mb,cx,cy,cz,R,r,tilt,m){const n=14,k=6,ct=Math.cos(tilt),st=Math.sin(tilt),rows=[];
@@ -212,22 +236,26 @@ function cgDetails2(S,mb,opt){
     const sl=S.rearS+.2,h2=s=>cs.half(s)*.7,lid=[];for(let k=0;k<=6;k++)lid.push(cgSurf(S,sl,-h2(sl)+2*h2(sl)*k/6));cgStrip(mb,lid,.012,CGM.trim,.008)}
   /* doors: the cut lines, the handle */
   const sCab=(S.cowl+S.roofR)/2,yB=cgTopAt(S,sCab,cs.half(sCab)*S.gw)-.03,doorF=S.cowl+.16,doorR=S.roofR+.12,y0=S.sill+.2;
-  for(const sg of[-1,1]){const line=pts=>cgStrip(mb,pts,.013,CGM.trim,.008);
-    line([0,1,2,3,4].map(k=>cgSide(S,doorF,y0+(yB-y0)*k/4,sg)));line([0,1,2,3,4].map(k=>cgSide(S,doorR,y0+(yB-y0)*k/4,sg)));line([0,1,2,3,4,5,6].map(k=>cgSide(S,doorF+(doorR-doorF)*k/6,y0,sg)));
+  for(const sg of[-1,1]){const line=pts=>cgStrip(mb,pts,.011,CGM.trim,.007);
+    const NL=Array.from({length:25},(_,k)=>k/24);          /* dense samples: a few points straight across the shoulder crease would sink into it and the line would be dashed */
+    line(NL.map(k=>cgSide(S,doorF,y0+(yB-y0)*k,sg)));line(NL.map(k=>cgSide(S,doorR,y0+(yB-y0)*k,sg)));line(NL.map(k=>cgSide(S,doorF+(doorR-doorF)*k,y0,sg)));
     cgStrip(mb,[cgSide(S,doorR-.3,yB-.09,sg),cgSide(S,doorR-.12,yB-.09,sg)],.028,S.chromeTrim?CGM.chrome:CGM.trim,.004);
     /* window trim along the bottom edge of the side glass */
     const G=S._gh,tp=[];if(G)for(let i=0;i<G.ni;i++){const s=G.ss[i];if(s<doorF+.1||s>S.rearS-.3)continue;const j=sg<0?0:G.nj-1,k=(i*G.nj+j)*3;tp.push({x:G.P[k],y:G.P[k+1],z:G.P[k+2],nx:sg,ny:.2,nz:0})}
     if(tp.length>1)cgStrip(mb,tp,.03,S.chromeTrim?CGM.chrome:CGM.trim,.004);
+    /* the roof rail: a dark strip along the top of the side glass, so the glasshouse has a frame */
+    const tr=[];if(G)for(let i=0;i<G.ni;i++){const s=G.ss[i];if(s<doorF+.05||s>S.rearS-.25)continue;const j=sg<0?G.K2:G.nj-1-G.K2,k=(i*G.nj+j)*3;tr.push({x:G.P[k],y:G.P[k+1],z:G.P[k+2],nx:sg*.75,ny:.66,nz:0})}
+    if(tr.length>1)cgStrip(mb,tr,.034,CGM.trim,.005);
     cgDisc(mb,cgSide(S,L-.95,yB-.12,sg),.065,.065,CGM.trim,10,.004);                                    /* the fuel flap */}
   /* badges and plates */
   cgDisc(mb,S.near(0,S.nose+.02,S.zs(.14)),.035,.035,CGM.chrome,10,.006);cgDisc(mb,S.near(0,S.deck-.1,S.zs(L-.1)),.035,.035,CGM.chrome,10,.006);
-  if(S.plates){const pf=S.near(0,S.sill+.2,S.zs(.12)),pr=S.near(0,S.sill+.43,S.zs(L-.08));cgBox(mb,pf.x,pf.y,pf.z-.01,.25,.062,.006,CGM.plate,0);cgBox(mb,pr.x,pr.y,pr.z+.01,.25,.062,.006,CGM.plate,0)}
+  if(S.plates){const pf=S.near(0,S.sill+.2,S.zs(.12)),pr=S.near(0,S.sill+.43,S.zs(L-.08));cgPlate(mb,pf.x,pf.y,pf.z-.01,-1,(S.L*100)|0);cgPlate(mb,pr.x,pr.y,pr.z+.01,1,((S.L+S.W)*100)|0)}
   /* the grille */
   const ny=S.nose-.2;
-  if(S.grille=='wide'){const p=S.near(0,S.sill+.2,S.zs(.12));cgDisc(mb,p,hw*.46,.1,CGM.under,18,.005);for(const k of[-1,0,1])cgStrip(mb,[-3,-2,-1,0,1,2,3].map(q=>S.near(q*hw*.13,S.sill+.2+k*.04,S.zs(.12))),.012,CGM.chrome,.007)}
-  else if(S.grille=='twin'){for(const sg of[-1,1]){const p=S.near(sg*.2,ny+.1,S.zs(.1));cgDisc(mb,p,.2,.09,CGM.chrome,14,.004);cgDisc(mb,p,.18,.075,CGM.under,14,.007)}}
-  else if(S.grille=='horseshoe'){const pts=[];for(let k=0;k<=10;k++){const a=Math.PI*k/10,x=Math.cos(a)*.26,y=ny+.1+Math.sin(a)*.2-.07;pts.push(S.near(x,y,S.zs(.1)))}cgStrip(mb,pts,.02,CGM.chrome,.006);cgDisc(mb,S.near(0,ny+.09,S.zs(.1)),.22,.14,CGM.under,16,.004)}
-  else if(S.grille=='slit'){cgDisc(mb,S.near(0,S.sill+.2,S.zs(.1)),hw*.36,.032,CGM.under,14,.005)}
+  if(S.grille=='wide'){const p=S.near(0,S.sill+.2,S.zs(.12));cgDisc(mb,p,hw*.46,.1,CGM.grille,18,.005);for(const k of[-1,0,1])cgStrip(mb,[-3,-2,-1,0,1,2,3].map(q=>S.near(q*hw*.13,S.sill+.2+k*.04,S.zs(.12))),.012,CGM.chrome,.007)}
+  else if(S.grille=='twin'){for(const sg of[-1,1]){const p=S.near(sg*.2,ny+.1,S.zs(.1));cgDisc(mb,p,.2,.09,CGM.chrome,14,.004);cgDisc(mb,p,.18,.075,CGM.grille,14,.007)}}
+  else if(S.grille=='horseshoe'){const pts=[];for(let k=0;k<=10;k++){const a=Math.PI*k/10,x=Math.cos(a)*.26,y=ny+.1+Math.sin(a)*.2-.07;pts.push(S.near(x,y,S.zs(.1)))}cgStrip(mb,pts,.02,CGM.chrome,.006);cgDisc(mb,S.near(0,ny+.09,S.zs(.1)),.22,.14,CGM.grille,16,.004)}
+  else if(S.grille=='slit'){cgDisc(mb,S.near(0,S.sill+.2,S.zs(.1)),hw*.36,.032,CGM.grille,14,.005)}
   /* daytime running lights over the headlights */
   if(S.drl){for(const sg of[-1,1]){const hx=S.hw0*.66,pts=[];for(let k=0;k<5;k++)pts.push(S.near(sg*(hx-.12+.06*k),S.nose+.095,S.zs(.2)));cgStrip(mb,pts,.014,CGM.head,.008)}}
   /* fender gills, scoop, canards, shark fin, buttresses */
@@ -238,13 +266,17 @@ function cgDetails2(S,mb,opt){
   if(S.buttress){for(const sg of[-1,1]){const x=sg*(cs.half(S.rearS)*S.gw*.55+hw*.3),y1=S.H-.1,z1=S.zs(S.roofR+.1),y2=S.deck+.01,z2=S.zs(S.rearS+.2),dy=y2-y1,dz=z2-z1,len=Math.hypot(dy,dz);cgBox(mb,x,(y1+y2)/2,(z1+z2)/2,.035,.02,len/2,CGM.paint,-Math.atan2(dy,dz))}}}
 /* ---------------- wheels: tyre, rim with spokes, brake disc, caliper; axis along x, the outer face at +x ---------------- */
 function cgWheel(R,w,rimR,spokes,style,rimCol,lo,tread){
-  const mb=new CGB(),seg=lo?10:32;
+  const mb=new CGB(),seg=lo?(lo==2?14:10):32;
   const revolve=(prof,m)=>{const ni=prof.length,P=new Float32Array(ni*seg*3),ctr=new Float32Array(ni*3);
     for(let i=0;i<ni;i++){for(let j=0;j<seg;j++){const a=j/seg*Math.PI*2,k=(i*seg+j)*3;P[k]=prof[i][1];P[k+1]=Math.cos(a)*prof[i][0];P[k+2]=Math.sin(a)*prof[i][0]}ctr[i*3]=prof[i][1]}
     const Nn=cgGridNormals(P,ni,seg,true,ctr),ids=[];for(let i=0;i<ni;i++){const row=[];for(let j=0;j<seg;j++){const k=(i*seg+j)*3;row.push(mb.v(P[k],P[k+1],P[k+2],Nn[k],Nn[k+1],Nn[k+2],m))}ids.push(row)}
     for(let i=0;i<ni-1;i++)for(let j=0;j<seg;j++){const j1=(j+1)%seg;mb.q(ids[i][j],ids[i][j1],ids[i+1][j1],ids[i+1][j])}};
   const sw=R-rimR,h=w/2;
-  if(lo){revolve([[rimR*.97,-h*.9],[R-.012,-h*.95],[R,-h*.45],[R,h*.45],[R-.012,h*.95],[rimR*.97,h*.9]],CGM.rubber);revolve([[rimR*.97,h*.9],[rimR*.5,h*.92],[0,h*.94]],CGM.rim);mb.rim=rimCol;return mb}
+  if(lo){revolve([[rimR*.97,-h*.9],[R-.012,-h*.95],[R,-h*.45],[R,h*.45],[R-.012,h*.95],[rimR*.97,h*.9]],CGM.rubber);
+    if(lo==2){revolve([[rimR*.97,h*.9],[rimR*.5,h*.92],[0,h*.94]],CGM.under);revolve([[rimR*1.0,h*.85],[rimR*.96,h*.97],[rimR*.9,h*.97]],CGM.rim);   /* a dark dish, a bright rim lip, five spokes */
+      const nsp=spokes>4&&spokes<9?spokes:5,xs=h*.975;for(let k=0;k<nsp;k++){const a=k/nsp*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a),r0=rimR*.2,r1=rimR*.93,w0=.014,w1=.026;const p=(r,wd)=>[mb.v(xs,ca*r-sa*wd,sa*r+ca*wd,1,0,0,CGM.rim),mb.v(xs,ca*r+sa*wd,sa*r-ca*wd,1,0,0,CGM.rim)];const A=p(r0,w0),B=p(r1,w1);mb.q(A[0],A[1],B[1],B[0])}
+      const hc=mb.v(xs,0,0,1,0,0,CGM.rim),rg=[];for(let k=0;k<8;k++){const a=k/8*Math.PI*2;rg.push(mb.v(xs,Math.cos(a)*rimR*.2,Math.sin(a)*rimR*.2,1,0,0,CGM.rim))}for(let k=0;k<8;k++)mb.t(hc,rg[k],rg[(k+1)%8])}
+    else revolve([[rimR*.97,h*.9],[rimR*.5,h*.92],[0,h*.94]],CGM.rim);mb.rim=rimCol;return mb}
   /* the tyre: a rounded sidewall with lettering ribs, a crown with three grooves */
   const g=.005,crown=[];for(const x of[-.72,-.5,-.38,-.26,-.12,-.0,.12,.26,.38,.5,.72])crown.push([R-(x==-.38||x==-.0||x==.38?g*(tread==0?0:1):0)-.002*Math.abs(x),x*h]);
   revolve([[rimR*.97,-h*.9],[rimR+sw*.28,-h*.985],[rimR+sw*.5,-h*1.0],[rimR+sw*.56,-h*.985],[rimR+sw*.8,-h*.99],[R-.014,-h*.9]].concat(crown,[[R-.014,h*.9],[rimR+sw*.8,h*.99],[rimR+sw*.56,h*.985],[rimR+sw*.5,h*1.0],[rimR+sw*.28,h*.985],[rimR*.97,h*.9]]),CGM.rubber);
@@ -319,6 +351,6 @@ function cgSplitGlass(mb){const B=[[],[]];for(let g=0;g<2;g++)for(let p=0;p<9;p+
   mb.I=I;mb.pr=pr;mb.gpr=gpr}
 function cgBuild(o,opt){
   opt=opt||{};const S=cgSpec(o);const body=new CGB();
-  cgBody(S,body,opt);cgGlasshouse(S,body,opt);if(!opt.lo){cgDetails(S,body,opt);cgDetails2(S,body,opt);cgInterior(S,body);cgParts(S,body,opt);cgSplitGlass(body)}else{cgDetails(Object.assign(S,{mirror:0,louvres:0,diff:0,exh:0}),body,opt);cgParts(S,body,opt)}
-  const wf=cgWheel(S.rf,S.wf,S.rimF,S.spoke,S.wheelStyle,null,opt.lo,S.tread),wr=cgWheel(S.rr,S.wr,S.rimR,S.spoke,S.wheelStyle,null,opt.lo,S.tread);
+  cgBody(S,body,opt);cgGlasshouse(S,body,opt);if(!opt.lo){cgDetails(S,body,opt);cgDetails2(S,body,opt);cgInterior(S,body);cgParts(S,body,opt);cgSplitGlass(body)}else if(opt.mid){cgDetails(S,body,opt);cgDetails2(S,body,opt);cgParts(S,body,opt)}else{cgDetails(Object.assign(S,{mirror:0,louvres:0,diff:0,exh:0}),body,opt);cgParts(S,body,opt)}
+  const lw=opt.lo?(opt.mid?2:1):0,wf=cgWheel(S.rf,S.wf,S.rimF,S.spoke,S.wheelStyle,null,lw,S.tread),wr=cgWheel(S.rr,S.wr,S.rimR,S.spoke,S.wheelStyle,null,lw,S.tread);
   return{S,body,wheelF:wf,wheelR:wr}}

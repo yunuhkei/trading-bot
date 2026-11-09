@@ -32,6 +32,7 @@ function fxUpdate(dt){
       s.x=c.x+sy2*c.hl*.7+(Math.random()-.5)*.5;s.z=c.z-cy2*c.hl*.7+(Math.random()-.5)*.5;s.y=c.y+.9;s.vx=(c.vx||0)*.3+(Math.random()-.5)*.7;s.vz=(c.vz||0)*.3+(Math.random()-.5)*.7;s.vy=1.4+Math.random()*1.3;s.age=0;s.life=1+Math.random()*.8;s.sz=.5+dm*.6;s.a=.3+dm*.3;s.fire=dm>.85&&Math.random()<.4;s.dark=1;s.k=0}}
   dmgFx(dt)}
 function fxDraw(){
+  const dayK=1-.78*Math.min(1,ENV.sunC[0]/2.6);                        /* lamp, head light and neon glows are for gloomy light: in bright sun they nearly vanish */
   const gl=G.gl,P=G.P.fx,F=R.fxF,T=GFX.cur,a=R.alpha;let n=0;
   const quad=(x0,y0,z0,x1,y1,z1,x2,y2,z2,x3,y3,z3,r,g,b,al,uo)=>{if(n>=R.fxMax)return;let o=n*36;uo=uo||0;
     F[o]=x0;F[o+1]=y0;F[o+2]=z0;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=al;F[o+7]=uo;F[o+8]=0;o+=9;
@@ -47,6 +48,7 @@ function fxDraw(){
   /* ---- alpha: blob shadow (the soft sun shadow replaces it where the tier has one), skid marks, garage pads, smoke and spray ---- */
   batch(0);
   const gy=C.gs+.04,L=2.6,Wd=1.35;quad(x+sy*-L-cy*Wd,gy,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,gy,z+cy*L+sy*Wd,x+sy*L+cy*Wd,gy,z-cy*L+sy*Wd,x+sy*L-cy*Wd,gy,z-cy*L-sy*Wd,0,0,0,(GFX.shadowOn?.22:.5)/(1+Math.max(0,C.y-C.gs)*.4));
+  {const L2=2.0,W2=.92;quad(x+sy*-L2-cy*W2,gy,z+cy*L2-sy*W2,x+sy*-L2+cy*W2,gy,z+cy*L2+sy*W2,x+sy*L2+cy*W2,gy,z-cy*L2+sy*W2,x+sy*L2-cy*W2,gy,z-cy*L2-sy*W2,0,0,0,.34/(1+Math.max(0,C.y-C.gs)*.8))}      /* a tight dark patch right under the body: the car sits on the road */
   trShadows(quad);
   batch(2);
   const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,al=.55*(1-age/40)*q[6];if(l>6)continue;
@@ -62,37 +64,37 @@ function fxDraw(){
   const gcx=R.cx,gcz=R.cz,fwx=sy,fwz=-cy;
   const lampK=Math.max(T.glow,T.pool),nl=gfxNearLamps(x,z,300,lampK,fwx,fwz);
   const nPool=Math.min(nl,T.pool);
-  for(let i=0;i<nPool;i++){const j=_lampPick[i],lx=LAMPS[j],ly=LAMPS[j+1]-6.95,lz=LAMPS[j+2];flat(lx,ly+.03,lz,7.5,7.5,1,.78,.45,.34)}
+  for(let i=0;i<nPool;i++){const j=_lampPick[i],lx=LAMPS[j],ly=LAMPS[j+1]-6.95,lz=LAMPS[j+2];flat(lx,ly+.03,lz,7.5,7.5,1,.78,.45,.34*dayK)}
   /* red and blue wash on the road round a police car with its siren on */
   if(TR.on)for(const c of TR.cars){if(!c.alive||!c.siren)continue;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz;if(dx*dx+dz*dz>40000)continue;const ph=Math.sin(R.time*12)>0;flat(px,lerp(c.py,c.y,a)+.05,pz,11,11,ph?1:.12,ph?.1:.32,ph?.08:1,.42)}
   batch(6);
   /* the car's headlights: a pool of light on the road ahead, wider the further it goes (uv runs across, then along: mode 6 is the beam shape) */
   {const hx=sy,hz=-cy,rxc=cy,rzc=sy,gy2=C.gs+.05,x0=x+hx*2.0,z0=z+hz*2.0,len=26;
-   const lk=1-.5*(PDM.head[0]+PDM.head[1]);if(lk>0)quad(x0-rxc*1.0,gy2,z0-rzc*1.0,x0+rxc*1.0,gy2,z0+rzc*1.0,x0+hx*len+rxc*6.5,gy2,z0+hz*len+rzc*6.5,x0+hx*len-rxc*6.5,gy2,z0+hz*len-rzc*6.5,1,.92,.7,.5*lk)}
+   const lk=1-.5*(PDM.head[0]+PDM.head[1]);if(lk>0)quad(x0-rxc*1.0,gy2,z0-rzc*1.0,x0+rxc*1.0,gy2,z0+rzc*1.0,x0+hx*len+rxc*6.5,gy2,z0+hz*len+rzc*6.5,x0+hx*len-rxc*6.5,gy2,z0+hz*len-rzc*6.5,1,.92,.7,.5*lk*dayK)}
   /* beams of the cars that come at us */
   if(TR.on&&T.glow>30){let k=0;for(const c of TR.cars){if(!c.alive||k>=10)continue;const dx=c.x-x,dz=c.z-z,d2=dx*dx+dz*dz;if(d2>14400||d2<100)continue;const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);
       if((x-c.x)*hx+(z-c.z)*hz<0)continue;k++;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),py=lerp(c.py,c.y,a)+.06,x0=px+hx*(c.hl-.1),z0=pz+hz*(c.hl-.1),rr=-hz,rs=hx;
-      quad(x0-rr*.8,py,z0-rs*.8,x0+rr*.8,py,z0+rs*.8,x0+hx*20+rr*5.5,py,z0+hz*20+rs*5.5,x0+hx*20-rr*5.5,py,z0+hz*20-rs*5.5,1,.92,.72,.32)}}
+      quad(x0-rr*.8,py,z0-rs*.8,x0+rr*.8,py,z0+rs*.8,x0+hx*20+rr*5.5,py,z0+hz*20+rs*5.5,x0+hx*20-rr*5.5,py,z0+hz*20-rs*5.5,1,.92,.72,.32*dayK)}}
   /* ---- additive: glows ---- */
   batch(4);
   const SRN=[];let ng=0;const gMax=T.glow;
   /* lamp heads along the road, shrinking with distance but never to nothing, so a line of lights runs away into the haze */
   for(let i=0;i<nl&&ng<gMax;i++){const j=_lampPick[i],dx=LAMPS[j]-gcx,dy=LAMPS[j+1]-R.cy,dz=LAMPS[j+2]-gcz,d=Math.sqrt(dx*dx+dy*dy+dz*dz);if(dx*R.fw[0]+dy*R.fw[1]+dz*R.fw[2]<-2)continue;
-    const s=.9+d*.012,al=Math.min(.95,1.25-d/330);if(al<=.02)continue;sprite(LAMPS[j],LAMPS[j+1]+.1,LAMPS[j+2],s,1,.78,.45,al);ng++}
+    const s=.9+d*.012,al=Math.min(.95,1.25-d/330);if(al<=.02)continue;sprite(LAMPS[j],LAMPS[j+1]+.1,LAMPS[j+2],s,1,.78,.45,al*dayK);ng++}
   /* neon */
   for(let i=0;i<NEONS.length&&ng<gMax+24;i+=7){const nx=NEONS[i]-gcx,nz=NEONS[i+2]-gcz,d2=nx*nx+nz*nz;if(d2>56000)continue;if(nx*R.fw[0]+nz*R.fw[2]<-3)continue;const d=Math.sqrt(d2),fl=.82+.18*Math.sin(R.time*(3+(i%5))+i),al=Math.min(.95,1.15-d/240)*fl;
-    sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al);ng++}
+    sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al*(.35+.65*dayK));ng++}
   navBeacon(sprite);
   /* the car's own lights */
   {const hx=sy,hz=-cy,rr=cy,rs=sy,yy=C.y+C.bob;
-   for(const sd of[-1,1]){const si=sd<0?0:1;if(!PDM.head[si])sprite(x+hx*-CARL.hz+rr*sd*CARL.hx,yy+CARL.hy+.12,z+hz*-CARL.hz+rs*sd*CARL.hx,.36,1,.95,.75,.5);
+   for(const sd of[-1,1]){const si=sd<0?0:1;if(!PDM.head[si])sprite(x+hx*-CARL.hz+rr*sd*CARL.hx,yy+CARL.hy+.12,z+hz*-CARL.hz+rs*sd*CARL.hx,.36,1,.95,.75,.5*dayK);
      if(!PDM.tail[si])sprite(x-hx*CARL.tz+rr*sd*CARL.tx,yy+CARL.ty+.12,z-hz*CARL.tz+rs*sd*CARL.tx,C.braking?.9:.45,1,.12,.07,C.braking?.9:.4)}}
   /* traffic: tail lights, headlights, the siren on a police car */
   if(TR.on){const fx=R.fw;for(const c of TR.cars){if(!c.alive)continue;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz,d2=dx*dx+dz*dz;if(d2>62500||dx*fx[0]+dz*fx[2]<-6)continue;
       const d=Math.sqrt(d2),py=lerp(c.py,c.y,a),yaw=c.pyaw+angd(c.yaw,c.pyaw)*a,hx=Math.sin(yaw),hz=-Math.cos(yaw),rr=Math.cos(yaw),rs=Math.sin(yaw),k=1-d/250;if(k<=.02)continue;
       for(const sd of[-1,1]){const w=sd*c.hw*.68;
         sprite(px-hx*(c.hl-.12)+rr*w,py+.66,pz-hz*(c.hl-.12)+rs*w,(c.brake?.75:.45)+d*.004,1,.1,.06,(c.brake?.95:.55)*k);
-        sprite(px+hx*(c.hl-.12)+rr*w,py+.62,pz+hz*(c.hl-.12)+rs*w,.5+d*.004,1,.93,.74,.5*k)}
+        sprite(px+hx*(c.hl-.12)+rr*w,py+.62,pz+hz*(c.hl-.12)+rs*w,.5+d*.004,1,.93,.74,.5*k*dayK)}
       if(c.siren){const ph=Math.sin(R.time*12)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),2.6+d*.016,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(1,k*2.6))}
       else if(c.kind===1&&c.cm===0&&c.type===4){const ph=Math.sin(R.time*2.6)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),1.1+d*.01,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(.9,k*2))}}}
   /* police lights are drawn with plain blending (a saturated red or blue even against the bright sky), the other glows are added */

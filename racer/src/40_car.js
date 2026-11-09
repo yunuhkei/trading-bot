@@ -11,19 +11,20 @@ function carDraw(){
   /* the model is stored in 1/8192 m units */const S=1/8192;
   const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a);
   gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);
-  gl.uniform1f(P.u.uAlpha,1);gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
+  gl.uniform1f(P.u.uAlpha,1);gl.uniform3f(P.u.uWh,0,1,0);gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
   M4.trs(_mf,x,y+C.bob,z,-yaw,pit,rol,1,1,1);if(CARM.body.pr)partsDrawCar(_mf,S,false);else{M4.trs(_mb,x,y+C.bob,z,-yaw,pit,rol,S,S,S);drawCarMesh(CARM.body,_mb,CARM.body.gf)}
   /* wheels: stored in metres-as-int16 too, positions given in metres */
-  for(let w=0;w<CARM.wheels.length;w++){const wh=CARM.wheels[w];for(const sd of[-1,1]){
+  const wblur=Math.min(.8,Math.max(0,(C.speed-22)/40));
+  for(let w=0;w<CARM.wheels.length;w++){const wh=CARM.wheels[w];gl.uniform3f(P.u.uWh,1,wh.R,wblur);for(const sd of[-1,1]){
     const st=w==0?C.steerVis:0;M4.trs(_mw,sd*wh.lat,wh.R,wh.x,st,-C.spin,0,sd*S,S,S);
     /* body transform without its own scale */M4.trs(_mf,x,y+C.bob,z,-yaw,pit,rol,1,1,1);M4.mul(_mb,_mf,_mw);drawCarMesh(wh,_mb)}}
-}
+  gl.uniform3f(P.u.uWh,0,1,0)}
 /* the tinted glass, drawn after the sky with blending (so the seats, the wheel and the dash show through it) */
 function carGlassDraw(){
   const B=CARM.body;if(!B||B.gf>=B.n)return;const gl=G.gl,P=G.P.car,a=R.alpha;
   gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);gl.uniform3fv(P.u.uPaint,CARM.paint);attrs(3);gl.disable(gl.CULL_FACE);
   const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a),S=1/8192;
-  gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);gl.uniform1f(P.u.uAlpha,.66);gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
+  gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);gl.uniform1f(P.u.uAlpha,.66);gl.uniform3f(P.u.uWh,0,1,0);gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
   if(B.gpr){M4.trs(_mf,x,y+C.bob,z,-yaw,pit,rol,1,1,1);partsDrawCar(_mf,S,true)}else{M4.trs(_mb,x,y+C.bob,z,-yaw,pit,rol,S,S,S);drawCarMesh(B,_mb,B.n-B.gf,B.gf)}gl.uniform1f(P.u.uAlpha,1)}
 const CARS_RENDER=null;
 /* ---------- state ---------- */

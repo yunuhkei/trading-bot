@@ -69,7 +69,7 @@ function ptree(x,z,rng,y,hero){const t=rng(),sc=.8+rng()*.7,rot=rng()*6,hh=Math.
     else if(hero){ptrunk(2,x,y-.2,z,.27,4.4*sc,72,54,38);const a=rot*1.7;                                                                            /* an oak: trunk, two boughs, a crown of leaf cards */
       pbar(2,x,y+2.6*sc,z,x+Math.cos(a)*1.8*sc,y+4.6*sc,z+Math.sin(a)*1.8*sc,.16,66,50,36);pbar(2,x,y+3*sc,z,x-Math.cos(a)*1.4*sc,y+4.8*sc,z-Math.sin(a)*1.4*sc,.14,66,50,36);
       pcrown(2,x,y+5.2*sc,z,3.6*sc,2.9*sc,3.6*sc,12,3.1*sc,seed,c[0],c[1],c[2],0)}
-    else{ptrunk(2,x,y-.2,z,.3,3*sc,72,54,38);pcrown(2,x,y+4.6*sc,z,3.3*sc,2.7*sc,3.3*sc,5,3.7*sc,seed,46+q2*30,100+q1*50,40,0)}}}
+    else{ptrunk(2,x,y-.2,z,.3,3*sc,72,54,38);pcrown(2,x,y+4.6*sc,z,3.3*sc,2.7*sc,3.3*sc,5,3.7*sc,seed,48+q2*26,86+q1*44,40,0)}}}
 /* a tuft of tall grass: two crossed cards of the blade tile, darker at the root, swaying in the wind */
 function ptuft(x,y,z,yaw,w,h,r,g,b){const m=pmb(x,z,2,8);for(let k=0;k<2;k++){const a=yaw+k*1.5708,ca=Math.cos(a),sa=Math.sin(a),ids=[];
     for(const[sx,sv]of[[-1,0],[1,0],[1,1],[-1,1]]){const uv=FTILE(3,sx<0?0:1,sv),sh=sv?1:.5;ids.push(m.v(x+ca*sx*w/2,y+sv*h,z+sa*sx*w/2,-sa*.45,.89,ca*.45,Math.min(255,r*sh),Math.min(255,g*sh),Math.min(255,b*sh),uv[0],uv[1],3,sv?255:0))}
@@ -357,12 +357,17 @@ function buildCity(){
   return{buildings:nb,houses:ns,trees:nt,scenery:buildScenery()}}
 /* ---------- scenery along the open roads: poles + wires, gantry signs, billboards, speed + curve signs, fences, groves, bushes, rocks, cacti, wind turbines, gas stations ---------- */
 function buildScenery(){
-  const sr=mulberry(5150),St={poles:0,delin:0,gantry:0,bill:0,chev:0,sign:0,fence:0,groves:0,trees:0,bush:0,rock:0,cactus:0,turb:0,gas:0,farm:0,hv:0,tuft:0,at:{gas:[],farm:[],bill:[],gantry:[],turb:[],hv:[]}};
+  const sr=mulberry(5150),St={poles:0,delin:0,gantry:0,bill:0,chev:0,sign:0,fence:0,groves:0,trees:0,bush:0,rock:0,cactus:0,turb:0,gas:0,farm:0,hv:0,tuft:0,street:0,at:{gas:[],farm:[],bill:[],gantry:[],turb:[],hv:[]}};
   const dryAt=(x,z)=>Math.min(1,sstep(1300,2300,z)*.8+sstep(500,1800,x)*.15+sstep(2600,3800,x)*.9);
   const BB=[[214,64,52],[244,196,44],[44,108,214],[236,236,232],[34,148,92],[238,120,36],[130,60,170]];
   const sideAt=(r,i,tx,tz,sd,g)=>{const o=r.hw*r.wk[i]+RSH+g,px=r.X[i]-tz*sd*o,pz=r.Z[i]+tx*sd*o;return[px,pz,terrainH(px,pz)]};
   const free=(px,pz,y,g,dy)=>{const ty=terrainH(px,pz);return ty>3&&Math.abs(ty-y)<dy&&!nearRoadXZ(px,pz,Math.min(g*.7,6))};
   const quad2=(m,A,B,C,D,nx,ny,nz,r,g,b)=>{const f=[A,B,C,D].map(p=>m.v(p[0],p[1],p[2],nx,ny,nz,r,g,b,.03,.03,0)),k=[D,C,B,A].map(p=>m.v(p[0],p[1],p[2],-nx,-ny,-nz,r*.8,g*.8,b*.8,.03,.03,0));m.q(f[0],f[1],f[2],f[3]);m.q(k[0],k[1],k[2],k[3])};
+  /* street trees along the city streets: broadleaf trees on the sidewalk, every other lamp's distance */
+  ROADS.forEach((r,ri)=>{if(!r.city||r.style==4)return;const n=r.n,rg=mulberry(8800+ri);let d=rg()*20;
+    for(let i=1;i<n-1;i++){d+=Math.hypot(r.X[i]-r.X[i-1],r.Z[i]-r.Z[i-1]);if(d<24)continue;d=0;if(r.br[i]||r.mk[i]<.9||r.wk[i]<.9||rg()<.45)continue;
+      const dx=r.X[i+1]-r.X[i-1],dz=r.Z[i+1]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=rg()<.5?-1:1,o=r.hw*r.wk[i]+RSH+.55,px=r.X[i]+nx*sd*o,pz=r.Z[i]+nz*sd*o,ty=terrainH(px,pz);
+      if(ty<3||Math.abs(ty-r.Y[i])>2.5||nearRoadXZ(px,pz,.2))continue;let c0=0;const q=mulberry((px*7+pz*3)|0),fr=()=>c0++==0?.8:q();ptree(px,pz,fr,ty,true);COLC.push(px,pz,.5,ty-.5,ty+8);St.street++}});
   ROADS.forEach((r,ri)=>{if(r.city)return;const n=r.n,hwy=r.style==1,poleSide=((ri*5+3)&1)?1:-1;
     const nx_={pole:sr()*40,del:sr()*40,gan:250+sr()*700,bill:300+sr()*800,sign:150+sr()*400,grove:0,turb:500+sr()*700,gas:700+sr()*1500,home:600+sr()*1200,hv:300+sr()*2000,hvn:0};
     let d=0,pp=null,lastChev=-1e9;const fence=[{n:0},{n:0}],hv={n:0,sd:1,p:null};
