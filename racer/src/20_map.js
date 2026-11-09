@@ -75,7 +75,7 @@ function buildRoad(d,dry){
   for(let i=0;i<n;i++)Y[i]=d.flat!=null?d.flat:Math.max(baseH(X[i],Z[i]),d.minY==null?3.2:d.minY);
   if(d.cityField){for(let i=0;i<n;i++)Y[i]=Math.max(Hs(X[i],Z[i]),3.2)}
   else if(d.flat==null){Y=smoothArr(Y,Math.round((d.smooth||90)/ds),!!d.closed);gradeLimit(Y,ds,d.grade||.085,!!d.closed)}
-  const r={id:d.id,n,X,Z,Y,ds:sp.step,hw:d.hw,lanes:d.lanes,style:d.style,closed:!!d.closed,lift:d.lift||0,city:!!d.city,def:d};
+  const r={id:d.id,n,X,Z,Y,ds:sp.step,hw:d.hw,lanes:laneInfo(d.hw,d.style).nl,style:d.style,closed:!!d.closed,lift:d.lift||0,city:!!d.city,def:d};
   r.S=new Float32Array(n);for(let i=1;i<n;i++)r.S[i]=r.S[i-1]+Math.hypot(X[i]-X[i-1],Z[i]-Z[i-1]);
   r.len=r.S[n-1]+(r.closed?Math.hypot(X[0]-X[n-1],Z[0]-Z[n-1]):0);
   /* blend heights into the roads we join so the junction is flush */

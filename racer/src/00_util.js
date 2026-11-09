@@ -39,3 +39,8 @@ function showErr(m){const e=$('err');if(!e)return;e.style.display='block';if(e.t
 window.addEventListener('error',ev=>showErr('JS error: '+ev.message+(ev.lineno?' (line '+ev.lineno+')':'')));
 window.addEventListener('unhandledrejection',ev=>showErr('Promise error: '+(ev.reason&&ev.reason.message||ev.reason)));
 const nextTick=()=>new Promise(r=>setTimeout(r,0));
+
+/* lane geometry shared by the road shader (painted lines) and the traffic lane graph: from the road's half width and style.
+   x0 = where the lanes start (half the centre line gap, or the median edge on a divided road), the edge line sits EDGE_IN m inside the half width */
+const LANE_W=3.6,EDGE_IN=.55;
+function laneInfo(hw,style){const div=style==1||style==4,x0=div?1.35:.2,nl=Math.max(1,Math.round((hw-EDGE_IN-x0)/LANE_W));return{x0,nl,lw:(hw-EDGE_IN-x0)/nl,div}}

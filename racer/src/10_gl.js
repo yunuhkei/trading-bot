@@ -52,17 +52,20 @@ const SH={
  rdV:'attribute vec3 aP;attribute vec4 aA;uniform mat4 uVP;varying vec3 vW;varying vec4 vA;void main(){vW=aP;vA=aA;gl_Position=uVP*vec4(aP,1.);}',
  rdF:PRE+'varying vec3 vW;varying vec4 vA;uniform sampler2D uNz;\n'+ENVSRC+
  'float ln(float x,float c,float w,float aa){return 1.-smoothstep(w,w+aa,abs(x-c));}\n'+
- 'void main(){float x=vA.x,v=vA.y,hw=vA.z,fl=vA.w;float lanes=floor(fl/16.),style=fl-lanes*16.;float ax=abs(x);float dist=length(vW-uCam);float aa=.05+dist*.0009;'+
+ 'void main(){float x=vA.x,v=vA.y,hw=vA.z,fl=vA.w;float lanes=floor(fl/16.);float ax=abs(x);float dist=length(vW-uCam);float aa=.05+dist*.0009;'+
   'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;'+
-  'float lw=(hw-.9)/max(lanes,1.);float mk=0.;float wh=0.;float ye=0.;'+
+  /* style (0 two-way, 1 divided, 2 patch, 3 city street, 4 boulevard) and the junction fade mk travel in one number: style + .1 + .8 mk */
+  'float sf=fl-lanes*16.;float style=floor(sf);float mkf=clamp((sf-style-.1)/.8,0.,1.);'+
+  'bool dv=(style>.5&&style<1.5)||style>3.5;bool tw=style<.5||(style>2.5&&style<3.5);'+
+  'float x0=dv?1.35:.2;float lw=(hw-.55-x0)/max(lanes,1.);float wh=0.;float ye=0.;'+
   /* edge lines (solid white) */
   'wh+=ln(ax,hw-.55,.11,aa);'+
-  /* lane dashes between lanes (white), centre double line (yellow) or median */
-  'if(style<.5||(style>2.5&&style<3.5)){ye+=ln(ax,.2,.07,aa);ye+=ln(ax,0.,.0,aa)*0.;ye=min(ye,1.);if(lanes>1.){for(int i=1;i<4;i++){if(float(i)<lanes){float d=fract(v/12.);float on=step(d,.28);wh+=ln(ax,float(i)*lw+.0,.07,aa)*on;}}}'+
-  '}else if(style<1.5||style>3.5){/*divided highway: median strip + dashed lanes*/float md=1.-smoothstep(.95,1.1,ax);asph=mix(asph,vec3(.28,.27,.25),md);ye+=ln(ax,1.35,.08,aa);'+
-   'for(int i=1;i<5;i++){if(float(i)<lanes+.5){float d=fract(v/12.);float on=step(d,.26);wh+=ln(ax,1.3+float(i)*lw,.07,aa)*on;}}}'+
-  'else{/*no markings (junction patch)*/}'+
-  'float fade=clamp(fl*0.+1.,0.,1.);wh*=step(.5,fade);'+
+  /* two-way: double yellow centre line; divided: median strip with a yellow line each side; patch: edge lines only */
+  'if(tw){ye+=ln(ax,.2,.07,aa);}else if(dv){float md=1.-smoothstep(.95,1.1,ax);asph=mix(asph,vec3(.28,.27,.25),md);ye+=ln(ax,1.35,.08,aa);}'+
+  /* dashed white lines between the lanes of each direction (same lane width as the traffic lane graph) */
+  'if(tw||dv){float d=fract(v/12.);float on=step(d,dv?.26:.28);for(int i=1;i<5;i++){if(float(i)<lanes)wh+=ln(ax,x0+float(i)*lw,.07,aa)*on;}}'+
+  /* markings fade out towards junctions */
+  'wh*=mkf;ye*=mkf;'+
   'float shd=smoothstep(hw-.1,hw+.35,ax);/* shoulder: gravel */asph=mix(asph,(style>2.5&&style<4.5?vec3(.46,.45,.43):vec3(.30,.27,.22))*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
   'vec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;'+
   'vec3 n=vec3(0.,1.,0.);vec3 V=normalize(uCam-vW);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,1.)+uSunC*nl;vec3 col=alb*irr;'+

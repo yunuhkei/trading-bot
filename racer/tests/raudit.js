@@ -7,11 +7,11 @@ const L=require('./rlib.js');
     const out=[];
     for(const r of RACER.ROADS){
       let A=0,B=0,Cn=0;const n=r.n;
-      for(let i=0;i<n;i++){const fl=r.lanes*16+r.style+.1+.8*r.mk[i];const st=fl-r.lanes*16;
+      for(let i=0;i<n;i++){const fl=r.lanes*16+r.style+.1+.8*r.mk[i];const st=Math.floor(fl-Math.floor(fl/16)*16);   /* same decode as the road shader */
         const twoWay=(st<.5)||(st>2.5&&st<3.5);const divided=!twoWay&&(st<1.5||st>3.5);
         if(twoWay)A++;else if(divided)B++;else Cn++}
       const intended=r.style==0||r.style==3?'two-way':r.style==1||r.style==4?'divided':'none(patch)';
-      const lw=(r.hw-.9)/Math.max(1,r.lanes);
+      const li=laneInfo(r.hw,r.style),lw=li.lw;
       out.push({id:r.id,style:r.style,city:r.city,lanes:r.lanes,hw:r.hw,len:r.len,A:A/n,B:B/n,C:Cn/n,intended,lw,perDir:Math.round((r.hw-.9)/3.7*10)/10});
     }
     return out});
