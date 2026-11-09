@@ -6,7 +6,7 @@ const QS=new URLSearchParams(location.search);
 async function boot(){
   try{
     loadMsg(.02,'Shaping the land…');
-    const t0=performance.now();defineRoads();await genHeight(p=>loadMsg(.02+p*.18));
+    const t0=performance.now();defineRoads();BOOT.lgMs=0;{const t1=performance.now();lgBuild();BOOT.lgMs=performance.now()-t1}await genHeight(p=>loadMsg(.02+p*.18));
     loadMsg(.2,'Laying roads…');await nextTick();await carveRoads(p=>loadMsg(.2+p*.15));railPass();
     loadMsg(.38,'Painting the ground…');await nextTick();genColors();
     loadMsg(.45,'Starting the graphics…');await nextTick();
@@ -20,10 +20,11 @@ async function boot(){
     if(QS.has('start')){const q=QS.get('start').split(',').map(Number);sx=q[0];sz=q[1];a=(q[2]||0)}
     else{/* start on the ring, in the right-hand carriageway */const nx=-Math.cos(a+0),nz=Math.sin(a);sx+=Math.cos(a)*5.6;sz+=Math.sin(a)*5.6}
     carPlace(sx,sz,a,sp.Y[i0]+.5);camStep(0,true);
+    TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();
     BOOT.genMs=performance.now()-t0;
     loadMsg(1,'Ready  ('+Math.round(BOOT.genMs/100)/10+' s, '+R.stats.buildings+' buildings, '+R.stats.trees+' trees)');
     if(QS.has('go')||window.__autoGo){startRun()}else{const go=$('go');go.style.display='block';go.onclick=()=>{audioStart();startRun()}}
-    window.RACER={C,IN,R,Q,W,ROADS,UI,CAM,G,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
+    window.RACER={C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
   }catch(e){showErr('Startup failed: '+(e&&e.message||e));console.error(e)}}
 let last=0,acc=0,running=false;const DT=1/120;
 function startRun(){$('load').classList.add('off');running=true;last=performance.now();requestAnimationFrame(loop)}
@@ -31,7 +32,7 @@ function renderOnce(w,h){R.alpha=1;viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.t
 function frame(ms){
   uiInputs(ms/1000);
   const halt=UI.paused||UI.mapOpen;
-  if(!halt){acc+=Math.min(ms/1000,.1);let n=0;while(acc>=DT&&n<14){carStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
+  if(!halt){acc+=Math.min(ms/1000,.1);let n=0;while(acc>=DT&&n<14){worldStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
   R.alpha=halt?1:acc/DT;if(R.alpha>1)R.alpha=1;
   /* camera follows the interpolated state */
   camStep(halt?0:ms/1000,false);

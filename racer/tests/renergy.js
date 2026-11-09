@@ -7,7 +7,7 @@ const L=require('./rlib.js');
     const {C,IN,UI,carStep,carPlace}=RACER;UI.paused=true;IN.assist=false;IN.auto=false;const log=[];
     const G0=window.groundAt,R0=window.roadAt,TH0=window.terrainH;let H=(x,z)=>0;
     window.groundAt=(x,z,y)=>{RQ.on=1;RQ.lat=0;return H(x,z)};window.roadAt=()=>false;window.terrainH=(x,z)=>Math.min(H(x,z),50);
-    const GR=24;const coast0=HND.coast;HND.coast=0;
+    const GR=24;const coast0=HND.coast;HND.coast=0;const col0=window.collide;window.collide=function(){};   /* the test ground is synthetic: the real map's trees and houses along z=0 must not stop the car */
     const reset=(x,v,y)=>{carPlace(0,0,0);C.x=C.px=x;C.z=C.pz=0;C.yaw=C.pyaw=Math.PI/2;C.vx=v;C.vz=0;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=H(x,0)+.01;C.steer=0;C.wyaw=0;C.grounded=1;C.drift=0;C.airMax=0;C.air=0;IN.thr=0;IN.brk=0;IN.hand=0;IN.nitro=0;C.pitch=C.roll=0};
     const fwdOK=()=>Math.abs(C.vz)<.5;
     // ---- T1: coasting up and over a hill: kinetic + potential energy minus drag work stays constant ----
@@ -33,7 +33,7 @@ const L=require('./rlib.js');
     for(const m of [-.3,0,.3]){H=(x,z)=>x<200?-0.001*x*0+30:x>1e9?0:30+m*(x-200);reset(0,25,0);C.y=C.py=C.gs=C.gsp=C.gf=H(0,0)+6;C.grounded=0;C.vy=0;C.vx=25;// drop 6 m onto a slope starting under the car
       reset(300,25,0);C.y=C.py=C.gs=C.gsp=C.gf=H(300,0)+.4;C.grounded=0;C.vy=-6;const vs0=Math.hypot(25,6);let landedAt=-1;for(let i=0;i<120*3;i++){carStep(1/120);if(C.grounded&&landedAt<0){landedAt=i;break}}
       log.push('T4 landing on a '+(m*100).toFixed(0)+'% slope at 25 m/s with 6 m/s down: horizontal speed after '+C.speed.toFixed(1)+' m/s (flat gives 25.0)')}
-    HND.coast=coast0;window.groundAt=G0;window.roadAt=R0;window.terrainH=TH0;
+    HND.coast=coast0;window.collide=col0;window.groundAt=G0;window.roadAt=R0;window.terrainH=TH0;
     return log});
   out.forEach(l=>console.log(l));
   console.log('errs',T.errs);await T.close();

@@ -30,12 +30,12 @@ function defineWorld(ring,sh,H){
     pts:[tIn(moj,3380,2080),[3400,1900],[3470,1760],tIn(bar,3520,1650)]});
   /* the canyon road: along the floor of the canyon, up to a turnaround on the rim */
   loopRoad('rim',3600,-2700,40,6,.1);
-  buildRoad({id:'cyr',hw:7,lanes:1,style:0,lift:.06,smooth:40,grade:.12,yFrom:'eh',
+  buildRoad({id:'cyr',hw:7,lanes:1,style:0,lift:.06,smooth:40,grade:.12,yFrom:'eh',yTo:'rim',
     pts:[tIn(R_('eh'),3040,640),[3030,500]].concat(CANYON).slice(0,-1).concat([tIn(R_('rim'),3600,-2600)])});
   /* ---------- north: from the ring over the mountain pass loop to the village in the foothills ---------- */
   buildCurvy({id:'nh1',hw:10,lanes:2,style:1,from:'ring',to:'mp',lift:.075,smooth:100,minR:60,wig:{a1:140,l1:600,a2:40,l2:240,seed:54,fade:200},
     pts:ramp(ring,-100,-1385,-120,-1900,10).concat([[-120,-1900],[-170,-2200]]).concat([tIn(mp,-190,-2380)])});
-  buildCurvy({id:'nh2',hw:10,lanes:2,style:1,yFrom:'mp',to:'bigp',lift:.078,smooth:70,minR:55,wig:{a1:100,l1:420,a2:30,l2:180,seed:55,fade:160},
+  buildCurvy({id:'nh2',hw:10,lanes:2,style:1,yFrom:'mp',to:'bigp',lift:.078,smooth:70,grade:.17,minR:55,wig:{a1:100,l1:420,a2:30,l2:180,seed:55,fade:160},
     pts:[tIn(mp,-170,-2680),[-175,-2780],[-190,-2880],tIn(big,-190,-2950)]});
   /* ---------- north-west: the farm roads ---------- */
   buildCurvy({id:'fr1',hw:7,lanes:1,style:0,yFrom:'mp',to:'frep',lift:.07,smooth:60,minR:40,wig:{a1:40,l1:300,a2:12,l2:120,seed:56,fade:100},
