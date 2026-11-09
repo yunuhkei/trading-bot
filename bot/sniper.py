@@ -32,7 +32,12 @@ from . import pump_direct as pd
 log = logging.getLogger("sniper")
 CONFIG = Path("sniper.yaml")
 DEFAULTS = {"live": False, "per_trade": 25.0, "max_open": 3, "budget": 95.0, "floor": 50.0, "slippage_buy": 0.30,
-            "slippage_sell": 0.50, "priority_microlamports": 5_000_000, "reserve_sol": 0.02}
+            "slippage_sell": 0.50, "priority_microlamports": 5_000_000, "reserve_sol": 0.02,
+            # only trade in these hours (Milwaukee time, [from, until)); none = any hour
+            "live_hours": None,
+            # the owner's condition: at the start of its hours it goes live only if the direct buyer's real-price
+            # results over the last `gate_hours` were at least `gate_min_ret` a bet on `gate_min_sold`+ sold snipes
+            "gate_hours": 3, "gate_min_sold": 30, "gate_min_ret": 0.0}
 PUBLIC_RPC = "https://api.mainnet-beta.solana.com"
 
 
@@ -87,6 +92,7 @@ class Sniper:
         self.fee = None
         self.queue: list = []
         self.busy: set = set()
+        self.gate = None                                  # (hours) -> (sold, average real return): the direct buyer
         self._bal = (0.0, None)                          # (when, the wallet's SOL in lamports), checked every 20 s
 
     def to_state(self) -> dict:
@@ -97,10 +103,45 @@ class Sniper:
         """Its money in dollars: the budget plus results, less what's been set aside."""
         return self.cfg["budget"] + self.plan["pnl"] - self.plan["set_aside"]
 
+    def window(self, now: float | None = None) -> str | None:
+        """None inside its hours (or when it has none); otherwise why not. At the start of each window it checks the
+        owner's condition once and pings the phone either way."""
+        hours = self.cfg.get("live_hours")
+        if not hours:
+            return None
+        import datetime
+        from zoneinfo import ZoneInfo
+
+        lt = datetime.datetime.fromtimestamp(now or time.time(), ZoneInfo("America/Chicago"))
+        a, b = int(hours[0]), int(hours[1])
+        inside = (a <= lt.hour < b) if a < b else (lt.hour >= a or lt.hour < b)
+        if not inside:
+            return "outside its hours"
+        key = f"{(lt - datetime.timedelta(hours=(lt.hour - a) % 24)).strftime('%Y-%m-%d')} {a}"
+        g = self.plan.get("gate") or {}
+        if g.get("key") != key:
+            sold, ret = self.gate(self.cfg["gate_hours"]) if self.gate else (0, None)
+            ok = sold >= self.cfg["gate_min_sold"] and ret is not None and ret >= self.cfg["gate_min_ret"]
+            g = self.plan["gate"] = {"key": key, "ok": ok, "sold": sold, "ret": ret}
+            span = f"{a % 12 or 12}-{b % 12 or 12} {'am' if b <= 12 else 'pm'}"
+            facts = (f"over the last {self.cfg['gate_hours']} hours the practice direct buyer's real prices were "
+                     f"{ret:+.1%} a bet on {sold} sold snipes" if ret is not None else
+                     f"the practice direct buyer sold only {sold} snipes in the last {self.cfg['gate_hours']} hours")
+            if ok:
+                self.tell("🎯 Sniper is live", f"Trading real money {span}: {facts}. Money: ${self.money():,.2f}.")
+            else:
+                self.tell("🎯 Sniper stays off tonight", f"Your condition wasn't met: {facts} (needs "
+                          f"{self.cfg['gate_min_ret']:+.0%} or better on {self.cfg['gate_min_sold']}+). No trades, "
+                          f"money untouched: ${self.money():,.2f}.")
+        return None if g["ok"] else "the condition wasn't met"
+
     def can_buy(self, mint: str) -> str | None:
         c, p = self.cfg, self.plan
         if not c.get("live") or self.kp is None:
             return "off"
+        why = self.window()
+        if why:
+            return why
         if p.get("stopped"):
             return "stopped at the floor"
         if p.get("paused"):

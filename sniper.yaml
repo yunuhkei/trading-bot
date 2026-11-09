@@ -2,12 +2,16 @@
 # buys, straight on pump.fun, and sells when the lab sells. The lab re-reads this file every 5 minutes, so setting
 # `live: false` stops new buys within about 5 minutes (whatever it holds is still sold as usual).
 sniper:
-  live: false                    # OFF again Nov 9 9:35 am: first 6 real trades -$27.93, and real prices ran ~10 points under the lab
+  live: true                     # on, but only in live_hours and only when the owner's condition below is met
   per_trade: 25                  # dollars a trade
   max_open: 3                    # coins held at once
-  budget: 88                     # its money: it never spends more than this; profit above it is set aside each midnight
+  budget: 52                     # its money (about $56 left in the wallet on Nov 9): profit above it is set aside each midnight
   floor: 15                      # if its money falls to this: sell everything, stop, ping the phone (the owner's pick)
   slippage_buy: 0.30             # don't buy if the price ran more than 30% past the lab's by the time the buy lands
   slippage_sell: 0.50            # first try: accept down to half the expected sale; then 25%; then anything
   priority_microlamports: 5000000  # priority fee: about 0.0007 SOL (~6 cents) a trade, to land fast
   reserve_sol: 0.02              # SOL never spent (network fees and the coins' token accounts)
+  live_hours: [2, 3]             # only 2:00-3:00 am Milwaukee time (the snipes' best hour on Nov 9)
+  gate_hours: 3                  # the owner's condition, checked at 2 am: over the last 3 hours, the practice direct
+  gate_min_sold: 30              # buyer's real prices must be at least break-even a bet on 30+ sold snipes;
+  gate_min_ret: 0.0              # if not, it stays off that night and pings why

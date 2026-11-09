@@ -538,6 +538,16 @@ the owner's check; at `floor` it sells everything and stops. What it holds when 
 killed run is sold at the next start. The ping has a "Sniper (REAL money ...)" line. `sniper-check` (the workflow) does
 one tiny real round trip ($1 by default) to prove the path works.
 
+**Mayhem coins (found Nov 9):** about 1 in 5 new pump.fun coins are "mayhem mode" coins, which pump.fun's own agent
+trades for their first day on a much shallower curve with no fee rate. The lab used to drop their trades as "spam", so it
+was blind to them crashing and booked fake profits on them (the snipes' great Sunday night was mostly that). The lab now
+reads them (the mayhem flag in each trade and launch event, checked against the chain) and no strategy buys them. On
+normal coins the lab and real prices agreed within a point (snipes: -5.3% vs -4.7% a bet on Nov 9's morning).
+
+**Sniper hours and the owner's condition:** `live_hours` limits it to some hours ([2, 3] = 2-3 am); at the start of
+them it goes live only if the practice direct buyer's real prices over the last `gate_hours` were at least
+`gate_min_ret` a bet on `gate_min_sold`+ sold snipes, and pings either way.
+
 **The owner's money plan** (the super bot follows it): $1,000 stays in, no trade over $250. At midnight (Milwaukee time) a
 winning day takes out everything above $1,000; a losing day isn't topped up; after 2 losing days in a row it goes into
 practice mode: it stops using its money and only trades on paper (its ghost) until the owner's next check. The phone gets

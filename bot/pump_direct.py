@@ -268,6 +268,12 @@ class DirectBuyer:
         """The last hour: buys tried and how many could go through; sales, and what they made vs the lab."""
         return hour_stats(self.attempts, self.trades, now or time.time(), self.sol_usd)
 
+    def recent(self, hours: float, now: float | None = None) -> tuple[int, float | None]:
+        """(sold snipes, their average real return) over the last `hours`: the sniper's go/no-go check."""
+        now = now or time.time()
+        sold = [t for t in self.trades if t.get("sell_ok") and now - t.get("sold", 0) <= hours * 3600]
+        return len(sold), (sum((t["out"] - t["in"]) / t["in"] for t in sold) / len(sold) if sold else None)
+
     def summary(self) -> dict:
         done = [t for t in self.trades if t.get("sell_ok")]
         out = {"signals": self.stats.get("signals", 0), "bought": self.stats.get("buy ok", 0), "finished": len(done),

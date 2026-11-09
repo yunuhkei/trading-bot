@@ -167,14 +167,12 @@ def pump_events(logs: list[str]):
 
 
 def sane(e: dict) -> bool:
-    """A real trade on pump.fun's normal bonding curve: 30 SOL of virtual SOL at launch, about 115 at graduation, and
-    a fee. About 40% of the feed is spam instead: bots trading a handful of coins back and forth for fractions of a cent
-    with no fee, on curves that don't fit (virtual SOL near 0, or in the thousands). Those would fake volume, buyers and
-    momentum, so they're left out."""
+    """Drop only nonsense. (Until Nov 9 this also dropped trades with no fee or an unusual curve as "spam": those were
+    real trades on mayhem-mode coins, which pump.fun's own agent trades for their first day on a different curve with
+    no fee rate, and dropping them left the lab blind to those coins crashing.)"""
     if e["kind"] != "trade":
         return True
-    return (e["fee"] > 0 and 0 <= e["sol"] <= 200 and 29 <= e["vsol"] <= 120 and 0 < e["vtok"] <= 1.2e9
-            and -1 <= e["real_sol"] <= 100)
+    return 0 <= e["sol"] <= 500 and e["vsol"] > 0.1 and 0 < e["vtok"] <= 2e9 and e["real_sol"] >= -1
 
 
 def decode(line: str) -> dict | None:
@@ -193,9 +191,14 @@ def decode(line: str) -> dict | None:
                 fee_bps = struct.unpack_from("<Q", raw, 161)[0]
                 if len(raw) >= 217:
                     fee_bps += struct.unpack_from("<Q", raw, 209)[0]
-            return {"kind": "trade", "mint": b58(raw[8:40]), "sol": sol / 1e9, "tokens": tok / 1e6, "buy": bool(raw[56]),
-                    "user": b58(raw[57:89]), "ts": ts, "vsol": vs / 1e9, "vtok": vt / 1e6, "real_sol": rs / 1e9,
-                    "fee": min(max(fee_bps, 0), 500) / 1e4}
+            ev = {"kind": "trade", "mint": b58(raw[8:40]), "sol": sol / 1e9, "tokens": tok / 1e6, "buy": bool(raw[56]),
+                  "user": b58(raw[57:89]), "ts": ts, "vsol": vs / 1e9, "vtok": vt / 1e6, "real_sol": rs / 1e9,
+                  "fee": min(max(fee_bps, 0), 500) / 1e4, "mayhem": False}
+            if len(raw) >= 262:                           # ix_name (a string), then mayhem_mode
+                n = struct.unpack_from("<I", raw, 258)[0]
+                if n < 64 and len(raw) > 262 + n:
+                    ev["mayhem"] = bool(raw[262 + n])
+            return ev
         if kind == "CreateEvent":
             o, out = 8, []
             for _ in range(3):
@@ -205,6 +208,8 @@ def decode(line: str) -> dict | None:
             ev = {"kind": "create", "name": out[0], "symbol": out[1], "mint": b58(raw[o:o + 32])}
             if len(raw) >= o + 200:                    # then bonding curve, user, creator, 5 numbers, token program
                 ev["token_program"] = b58(raw[o + 168:o + 200])
+            if len(raw) > o + 200:                     # then is_mayhem_mode
+                ev["mayhem"] = bool(raw[o + 200])
             return ev
         if kind == "CompleteEvent":
             return {"kind": "complete", "mint": b58(raw[40:72]) if len(raw) >= 72 else ""}
@@ -352,6 +357,8 @@ class Lab:
         self.coins: dict[str, Coin] = {}
         self.names: dict[str, str] = {}
         self.token_programs: dict[str, str] = {}          # from the coins' launch events (for the direct buyer)
+        self.mayhem: set = set()                          # mayhem-mode coins: watched, never bought (pump.fun's agent
+                                                          # trades them; for real they lost 10% a bet on Nov 9)
         self.sol_usd, self.lb, self.ls = sol_usd, latency_buy, latency_sell
         self.accts = {k: Account(k, (state.get("accounts") or {}).get(k))
                       for k, r in STRATEGIES.items() if not r.get("ghost_only")}
@@ -722,6 +729,10 @@ class Lab:
     def event(self, now: float, e: dict):
         self.events += 1
         self.watch(now, e)
+        if e.get("mayhem"):
+            self.mayhem.add(e["mint"])
+            if len(self.mayhem) > 20000:
+                self.mayhem.pop()
         if e["kind"] == "create":
             self.names[e["mint"]] = e["symbol"] or e["name"]
             if e.get("token_program"):
@@ -746,7 +757,7 @@ class Lab:
         if c.real_sol >= GRADUATE_SOL:
             c.done = True
         self.fill(now, c)
-        if not c.done:
+        if not c.done and e["mint"] not in self.mayhem:     # mayhem coins are watched (exits still run), never bought
             self.on_trade(now, c, e)
         self.exits(now, c)
         self.fill(now, c)
@@ -1138,6 +1149,7 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
         log.warning("sniper: the wallet key didn't work: %s", ex)
     lab.sniper = Sniper(kp, state.get("sniper"), lab.sol_usd, tell, sniper_config())
     lab.sniper.curve, lab.sniper.program_of = lab.curve_tokens, lab.token_programs.get
+    lab.sniper.gate = lab.direct.recent
     lab.sniper.fee = lambda mint: lab.coins[mint].fee if mint in lab.coins else None
     if resume_super:                                    # the owner's check said go
         was = lab.plan["mode"]

@@ -3069,8 +3069,7 @@ def test_launch_lab_reads_only_pump_funs_own_events():
     ok = {"kind": "trade", "sol": 1.0, "vsol": 40.0, "vtok": 8e8, "real_sol": 10.0, "fee": 0.0125}
     assert ll.sane(ok)
     assert not ll.sane(dict(ok, sol=5e5))                   # a nonsense size
-    assert not ll.sane(dict(ok, fee=0.0))                   # spam bots: no fee
-    assert not ll.sane(dict(ok, vsol=5.07)) and not ll.sane(dict(ok, vsol=1994.1))    # curves that don't fit
+    assert ll.sane(dict(ok, fee=0.0, vsol=2.65))            # a mayhem coin: no fee rate, a shallow curve, but real
 
 
 def test_fast_buyer_shadows_the_snipes_with_real_quotes_and_never_sends():
@@ -3307,7 +3306,9 @@ def test_sniper_stays_off_and_keeps_to_its_limits():
     s.plan["paused"], s.plan["stopped"] = None, 1
     assert s.can_buy("M9") == "stopped at the floor"
     assert sn.Sniper(None, cfg={**sn.DEFAULTS, "live": True}).can_buy("M9") == "off"   # no wallet key: never trades
-    assert sn.config().get("live") is False                                      # sniper.yaml ships switched off
+    c = sn.config()                      # sniper.yaml: either off, or on only in set hours with the owner's condition
+    assert c.get("live") is False or (c.get("live_hours") and c["gate_min_sold"] >= 30 and c["gate_min_ret"] >= 0
+                                      and c["floor"] >= 15)
 
 
 def test_sniper_follows_the_owners_plan_at_midnight():
@@ -3402,3 +3403,55 @@ def test_sniper_never_tries_a_buy_the_wallet_cant_cover():
     session, calls = _fake_chain(str(kp.pubkey()), "M", [0], [0], balance=(200_000_000,))    # 0.2 SOL: under $25 + reserve
     asyncio.run(s.buy(session, "M", 0.0))
     assert "sendTransaction" not in calls and s.stats == {"buy skipped: not enough SOL in the wallet": 1}
+
+
+def test_launch_lab_reads_mayhem_coins_and_never_buys_them():
+    import base64
+    import struct
+
+    from bot import launch_lab as ll
+
+    def trade(mint, sol, mayhem, real_sol=0.2, vsol=30.5):
+        raw = bytearray(300)
+        raw[:8] = next(k for k, v in ll.DISC.items() if v == "TradeEvent")
+        raw[8:40] = mint
+        struct.pack_into("<QQ", raw, 40, int(sol * 1e9), int(1e12)); raw[56] = 1
+        struct.pack_into("<QQQ", raw, 97, int(vsol * 1e9), int(1.05e15), int(real_sol * 1e9))
+        struct.pack_into("<I", raw, 258, 6); raw[262:268] = b"buy_v3"; raw[268] = 1 if mayhem else 0
+        return "Program data: " + base64.b64encode(bytes(raw)).decode()
+
+    m_ev = ll.decode(trade(b"\x01" * 32, 0.3, True))
+    n_ev = ll.decode(trade(b"\x02" * 32, 0.3, False))
+    assert m_ev["mayhem"] is True and n_ev["mayhem"] is False
+    lab = ll.Lab(sol_usd=100.0)
+    lab.event(1000.0, m_ev)
+    lab.event(1000.0, n_ev)
+    assert m_ev["mint"] in lab.mayhem and m_ev["mint"] in lab.coins     # watched...
+    assert not lab.ghosts["snipe"].pending.get(m_ev["mint"])             # ...never bought
+    assert n_ev["mint"] in lab.ghosts["snipe"].pending                  # a normal new coin still gets sniped
+
+
+def test_sniper_only_goes_live_in_its_hours_when_the_owners_condition_is_met():
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    from bot import sniper as sn
+
+    at = lambda d, h, m=0: datetime.datetime(2026, 11, d, h, m, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    told = []
+    cfg = {**sn.DEFAULTS, "live": True, "live_hours": [2, 3]}
+    s = sn.Sniper(None, tell=lambda t, m: told.append((t, m)), cfg=cfg)
+    results = {"sold": 45, "ret": -0.04}
+    s.gate = lambda hours: (results["sold"], results["ret"])
+    assert s.window(at(10, 1, 59)) == "outside its hours"
+    assert s.window(at(10, 2, 0)) == "the condition wasn't met"           # real prices were losing: stays off
+    assert told[-1][0] == "🎯 Sniper stays off tonight" and "-4.0% a bet on 45 sold snipes" in told[-1][1]
+    n = len(told)
+    assert s.window(at(10, 2, 30)) == "the condition wasn't met" and len(told) == n    # checked once a night
+    assert s.window(at(10, 3, 0)) == "outside its hours"
+    results["ret"] = 0.03
+    assert s.window(at(11, 2, 1)) is None and told[-1][0] == "🎯 Sniper is live"     # the next night: met
+    assert "Trading real money 2-3 am" in told[-1][1]
+    results["sold"] = 12
+    s.plan["gate"] = None
+    assert s.window(at(12, 2, 0)) == "the condition wasn't met"                      # too few snipes to judge
