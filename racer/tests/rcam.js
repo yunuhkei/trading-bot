@@ -50,5 +50,15 @@ let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
     const o=out[name];console.log(name.padEnd(10),`car-in-view jerk: along ${o.jA.toFixed(3)} m, sideways ${o.jS.toFixed(3)} m, distance ${o.jD.toFixed(3)} m; camera yaw ${(o.jY*57.3).toFixed(2)} deg, fov ${(o.jF*57.3).toFixed(2)} deg; end speed ${o.v1.toFixed(0)} m/s`)}
   const lim={A:+(process.env.LIMA||.1),S:+(process.env.LIMS||.05),Y:+(process.env.LIMY||.004),F:+(process.env.LIMF||.014)};
   for(const [n,o] of Object.entries(out))ok(o.jA<lim.A&&o.jS<lim.S&&o.jD<lim.A&&o.jY<lim.Y&&o.jF<lim.F,`${n}: the car stays steady in the picture (jerk along ${o.jA.toFixed(3)} / side ${o.jS.toFixed(3)} m, yaw ${(o.jY*57.3).toFixed(2)} deg, fov ${(o.jF*57.3).toFixed(2)} deg)`);
+  /* framing: the car must fill a good part of the picture (a console racer, not a toy in the distance) and never be cut off by the bottom edge, standing still, at 30 m/s and at 70 m/s */
+  const FR=await T.ev(()=>{const {C,IN,ROADS,UI,CAM,CARM}=RACER;UI.paused=true;const out=[];const r=ROADS.find(q=>q.id=='ring'),i0=Math.round(r.n*.3),a=Math.atan2(r.X[i0+1]-r.X[i0],-(r.Z[i0+1]-r.Z[i0]));
+    for(const sp of [0,30,70]){RACER.carPlace(r.X[i0]+Math.cos(a)*5.6,r.Z[i0]+Math.sin(a)*5.6,a,r.Y[i0]+.5);C.vx=Math.sin(a)*sp;C.vz=-Math.cos(a)*sp;C.speed=sp;C.boostK=0;RACER.camStep(0,true);RACER.camStep(0,true);
+      const asp=480/270,th=Math.tan(CAM.fov/2);let fx=CAM.tx-CAM.x,fy=CAM.ty-CAM.y,fz=CAM.tz-CAM.z;const fl=Math.hypot(fx,fy,fz);fx/=fl;fy/=fl;fz/=fl;
+      let rx=-fz,rz=fx;const rl=Math.hypot(rx,rz);rx/=rl;rz/=rl;const ux=-fy*rz,uy=rz*fx-rx*fz,uz=fy*rx;   /* up = right x forward */
+      const pr=(x,y,z)=>{const dx=x-CAM.x,dy=y-CAM.y,dz=z-CAM.z,zc=dx*fx+dy*fy+dz*fz,xc=dx*rx+dz*rz,yc=dx*ux+dy*uy+dz*uz;return[.5+.5*xc/(zc*th*asp),.5-.5*yc/(zc*th)]};
+      const sy=Math.sin(C.yaw),cy=Math.cos(C.yaw),hl=CARM.hl||2.2,hw=CARM.hw||.95,bx=C.x+sy*hl*-1,bz=C.z-cy*hl*-1;   /* behind the car */
+      const L1=pr(bx-cy*hw,C.y,bz-sy*hw),R1=pr(bx+cy*hw,C.y,bz+sy*hw),T1=pr(C.x,C.y+1.2,C.z);
+      out.push({sp,w:Math.abs(R1[0]-L1[0]),bottom:Math.max(L1[1],R1[1]),top:T1[1]})}return out});
+  for(const f of FR)ok(f.w>.14&&f.w<.42&&f.bottom<.93&&f.top>.2,`framing at ${f.sp} m/s: the car is ${(f.w*100).toFixed(0)} % of the picture width, its tyres touch the road at ${(f.bottom*100).toFixed(0)} % of the height, its roof at ${(f.top*100).toFixed(0)} %`);
   console.log('errs',T.errs.slice(0,3));await T.close();process.exit(bad?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});
