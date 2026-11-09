@@ -503,7 +503,7 @@ def main(argv=None):
         from .sniper import check
 
         target = alert_target()
-        tell = (lambda t, m: notify(target, t, m, tag="dart")) if target else (lambda t, m: print(t, m))
+        tell = (lambda t, m: notify(target, t, m, buy=True, tag="dart")) if target else (lambda t, m: print(t, m))
         res = asyncio.run(check(args.usd, args.hold, tell))
         print("SNIPER CHECK " + _json.dumps(res))
         msg = (f"Bought ${args.usd:g} of a brand-new coin straight on pump.fun (landed {res['buy_landed_s']} s after "
