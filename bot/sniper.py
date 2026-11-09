@@ -91,6 +91,8 @@ class Sniper:
         for o in self.open.values():                      # a sale cut off by a stopped run: free to try again
             o.pop("selling", None)
         self.unconfirmed: dict = st.get("unconfirmed", {})    # mint -> a buy that was sent but not seen confirming yet
+        for u in self.unconfirmed.values():               # a buy whose wait was cut off: follow it up as usual
+            u.pop("waiting", None)
         self.stuck: dict = st.get("stuck", {})            # mint -> a coin it couldn't sell (booked as a loss; sell by hand)
         self.sell_later: dict = {}                        # mint -> (decided, why): the lab sold while our buy was landing
         self.trades: list = st.get("trades", [])[-1000:]
@@ -107,7 +109,8 @@ class Sniper:
 
     def to_state(self) -> dict:
         return {"open": {m: {k: v for k, v in o.items() if k != "selling"} for m, o in self.open.items()},
-                "unconfirmed": self.unconfirmed, "stuck": self.stuck, "trades": self.trades[-1000:], "plan": self.plan,
+                "unconfirmed": {m: {k: v for k, v in u.items() if k != "waiting"} for m, u in self.unconfirmed.items()},
+                "stuck": self.stuck, "trades": self.trades[-1000:], "plan": self.plan,
                 "stats": self.stats}
 
     # ---- the rules ----
@@ -361,6 +364,12 @@ class Sniper:
             if u.get("waiting") or age < 20 or now - u.get("checked", 0) < 10:
                 continue
             u["checked"] = now
+            if age > 1800:                                      # still unclear after 30 minutes: hand it to the owner
+                self.unconfirmed.pop(mint)
+                self.sell_later.pop(mint, None)
+                self.tell("🎯 Sniper: a buy it couldn't settle", f"{mint}: a buy was sent (signature {u['sig']}) but "
+                          "after 30 minutes it still can't tell whether it landed. Check the wallet in Solflare.")
+                continue
             try:
                 st = await self._status(session, u["sig"])
                 if st and st.get("confirmationStatus") in ("confirmed", "finalized"):
@@ -386,8 +395,8 @@ class Sniper:
                         self._adopt(mint, None, u["lamports"] + int(0.004e9), held, u["prog"], u["t"], u["sig"],
                                     "landed late; cost estimated")
                         continue
-                    if held == 0 and age > 300:                 # confirmed, but nothing ever reached the wallet
-                        self.unconfirmed.pop(mint)
+                    if held == 0 and age > 300 and await self._gone(session, mint, u["prog"], first=0):
+                        self.unconfirmed.pop(mint)                  # confirmed, but nothing ever reached the wallet
                         self.count("buy: landed but no tokens")
                         self.sell_later.pop(mint, None)
                         continue
@@ -399,16 +408,11 @@ class Sniper:
                         self._adopt(mint, None, u["lamports"] + int(0.004e9), held, u["prog"], u["t"], u["sig"],
                                     "landed late; cost estimated")
                         continue
-                    if held == 0 and age > 300:
+                    if held == 0 and age > 300 and await self._gone(session, mint, u["prog"], first=0):
                         self.unconfirmed.pop(mint)
                         self.count("buy: never landed")
                         self.sell_later.pop(mint, None)
                         continue
-                if age > 1800:                                  # still unclear: hand it to the owner
-                    self.unconfirmed.pop(mint)
-                    self.sell_later.pop(mint, None)
-                    self.tell("🎯 Sniper: a buy it couldn't settle", f"{mint}: a buy was sent (signature {u['sig']}) but "
-                              "after 30 minutes it still can't tell whether it landed. Check the wallet in Solflare.")
             except Exception as ex:
                 log.warning("checking a buy %s: %s", mint, ex)
 
@@ -440,7 +444,7 @@ class Sniper:
                             return
                         await asyncio.sleep(1.5)
                     self._closed(mint, int((o.get("sell_expect") or {}).get(sig) or 0),
-                                 why + " (the sale landed; amount estimated)", sig, decided)
+                                 why + " (the sale landed but couldn't be read: booked at its guaranteed minimum)", sig, decided)
                     return
             except Exception as ex:
                 log.warning("finding a sale %s: %s", mint, ex)
@@ -448,27 +452,35 @@ class Sniper:
         self.tell("🎯 Sniper: a coin left the wallet without a sale it could find", f"{mint}: it's booked as a total "
                   "loss to be safe. If you sold it yourself, that's why.")
 
-    async def _sell_graduated(self, mint: str, tokens: int, o: dict) -> int | None:
+    async def _sell_graduated(self, mint: str, tokens: int, o: dict) -> tuple[int | None, str | None]:
         """A coin whose curve finished trades on pump.fun's exchange now: sell it there through Jupiter. The sale's
-        signature (and Jupiter's quote, as its expected amount) go into the position before it's sent."""
+        signature (and the least Jupiter's order guarantees) go into the position before it's sent. The Jupiter calls
+        run in a worker thread; only this coroutine touches the position. (amount received or None, signature)"""
         import asyncio
 
         from .solbot import SOL_MINT, jup, order, sign_with_sig
 
-        def go():
+        def prepare():
             q = order(mint, SOL_MINT, tokens, str(self.owner))
             if not q.get("transaction"):
                 return None
             signed_tx, sig = sign_with_sig(q["transaction"], self.kp)
-            o.setdefault("sell_sigs", []).append(sig)                # recorded before it's sent
-            o.setdefault("sell_expect", {})[sig] = int(q["outAmount"])
+            return q, signed_tx, sig
+
+        def execute(q, signed_tx):
             res = jup("/ultra/v1/execute", body={"signedTransaction": signed_tx, "requestId": q["requestId"]})
             return int(res.get("outputAmountResult") or q["outAmount"]) if res.get("status") == "Success" else None
         try:
-            return await asyncio.to_thread(go)
+            ready = await asyncio.to_thread(prepare)
+            if not ready:
+                return None, None
+            q, signed_tx, sig = ready
+            o.setdefault("sell_sigs", []).append(sig)                # recorded before it's sent
+            o.setdefault("sell_expect", {})[sig] = int(q.get("otherAmountThreshold") or 0)
+            return await asyncio.to_thread(execute, q, signed_tx), sig
         except Exception as ex:
             log.warning("selling graduated %s: %s", mint, ex)
-            return None
+            return None, None
 
     async def sell(self, session, mint: str, decided: float, why: str = ""):
         import asyncio
@@ -495,9 +507,9 @@ class Sniper:
                                                                       {"encoding": "base64", "commitment": "processed"}])
                     st = pd.curve_state((res or {}).get("value"))
                     if st and st[2]:                                # the curve finished: sell on pump.fun's exchange
-                        got = await self._sell_graduated(mint, o["tokens"], o)
+                        got, jsig = await self._sell_graduated(mint, o["tokens"], o)
                         if got:
-                            self._closed(mint, got, why + " (graduated: sold through Jupiter)", None, decided)
+                            self._closed(mint, got, why + " (graduated: sold through Jupiter)", jsig, decided)
                             return
                         self.count("sell: graduated, Jupiter sale failed")
                     else:
@@ -511,8 +523,8 @@ class Sniper:
                                               close_ix(pd.ata(owner, m, tp), owner, tp)],
                                     await self._blockhash(session), 120_000, c["priority_microlamports"])
                         o.setdefault("sell_sigs", []).append(str(tx.signatures[0]))     # recorded before it's sent
-                        if expect > 0:
-                            o.setdefault("sell_expect", {})[str(tx.signatures[0])] = int(expect * 1e9)
+                        # the least this sale could pay (its own minimum): what it's booked at if it lands unreadable
+                        o.setdefault("sell_expect", {})[str(tx.signatures[0])] = int(expect * 1e9 * frac)
                         sig, how, info = await self._send(session, tx)
                         if how == "ok" and info:
                             sol, _ = wallet_change(info, str(owner), mint)

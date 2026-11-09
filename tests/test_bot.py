@@ -3546,8 +3546,9 @@ def test_sniper_tracks_a_buy_that_lands_late():
     owner, mint = str(kp.pubkey()), "So11111111111111111111111111111111111111112"
     s = sn.Sniper(kp, sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True})
     session, calls = _fake_chain(owner, mint, [-252_000_000], [5_900_000_000_000])
+    import time as _t
     s.unconfirmed[mint] = {"sig": "SIGX", "lamports": 250_000_000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-                           "t": 0.0, "sent": 0.0}
+                           "t": 0.0, "sent": _t.time() - 60}           # sent a minute ago
     s.sell_later[mint] = (5.0, "time's up")
     asyncio.run(s.check_unconfirmed(session))             # it landed after all: tracked, and sold since the lab sold
     assert mint not in s.unconfirmed and s.open[mint]["note"] == "landed late" and s.open[mint]["spent"] == 252_000_000
@@ -3653,14 +3654,15 @@ def test_launch_lab_ignores_coins_priced_in_something_other_than_sol():
     sol = trade(bytes(32))                               # the zero key: priced in SOL
     other = trade(b"\x09" * 32, vsol=0.0)                # priced in another coin
     assert sol["quote_sol"] is True and other["quote_sol"] is False
-    lab = ll.Lab()
-    lab.event(1.0, other)
-    assert other["mint"] not in lab.coins                 # dropped: its amounts aren't SOL
-    lab.event(1.0, sol)
-    assert sol["mint"] in lab.coins
+    assert ll.sane(sol) and not ll.sane(other)            # dropped by the shared filter everything uses
     for _ in range(600):                                  # if most trades suddenly look non-SOL, the layout probably
-        lab.quote_guard(dict(other))                       # changed: the check switches itself off instead of blinding
-    assert lab.quote_guard(dict(other)) is True and lab._quote_warned
+        ll._note_quote(True)                               # changed: they're still dropped, and the reports warn
+    assert ll.QUOTE_ALARM[0] is True
+    lab = ll.Lab()
+    assert "WARNING: most trades look priced in something other than SOL" in lab.simple()
+    for _ in range(2000):
+        ll._note_quote(False)
+    assert ll.QUOTE_ALARM[0] is False
 
 def test_launch_lab_clean_start_resets_the_super_bots_paper_marks():
     from bot import launch_lab as ll

@@ -270,6 +270,9 @@ class DirectBuyer:
                 if got:
                     out, ok = got, True
                     self.stats["sell ok (graduated, Jupiter quote)"] += 1
+                else:                                       # no price at all (the free service kept refusing): left
+                    self.stats["graduated, no Jupiter price: left out"] += 1     # out, neither a win nor a loss
+                    return
             self.lat.append(round(time.time() - t0, 3))
             if not (st and st[2] and ok):
                 self.stats["sell ok" if ok else ("sell failed" if out else "sell: curve finished or gone")] += 1
@@ -277,18 +280,24 @@ class DirectBuyer:
             self.trades.append(b)
 
     async def _jupiter_quote(self, session, mint: str, tokens: int) -> int | None:
-        """What Jupiter would really pay for these tokens right now (lamports), or None."""
+        """What Jupiter would really pay for these tokens right now (lamports), or None. Asked up to 3 times, 1.5 s
+        apart, since the fast buyer may be asking the same free service at the same moment."""
         from .fast_buyer import SOL_MINT, base
 
         url, headers = base()
-        try:
-            async with session.get(f"{url}/swap/v1/quote", headers=headers, timeout=8,
-                                   params={"inputMint": mint, "outputMint": SOL_MINT, "amount": str(tokens),
-                                           "slippageBps": "1500", "restrictIntermediateTokens": "true"}) as r:
-                d = await r.json(content_type=None)
-            return int(d["outAmount"]) if isinstance(d, dict) and d.get("outAmount") else None
-        except Exception:
-            return None
+        for attempt in range(3):
+            if attempt:
+                await asyncio.sleep(1.5)
+            try:
+                async with session.get(f"{url}/swap/v1/quote", headers=headers, timeout=8,
+                                       params={"inputMint": mint, "outputMint": SOL_MINT, "amount": str(tokens),
+                                               "slippageBps": "1500", "restrictIntermediateTokens": "true"}) as r:
+                    d = await r.json(content_type=None)
+                if isinstance(d, dict) and d.get("outAmount"):
+                    return int(d["outAmount"])
+            except Exception:
+                pass
+        return None
 
     async def run(self, session, stop_at: float):
         tasks = set()
