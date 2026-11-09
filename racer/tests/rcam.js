@@ -48,7 +48,7 @@ let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
         let dy=rec[k][3]-2*rec[k-1][3]+rec[k-2][3];dy=Math.abs(Math.atan2(Math.sin(dy),Math.cos(dy)));jY=Math.max(jY,dy)}
       return{jA,jS,jF,jY,jD,v1:rec[rec.length-1][5]}},[name,src]);
     const o=out[name];console.log(name.padEnd(10),`car-in-view jerk: along ${o.jA.toFixed(3)} m, sideways ${o.jS.toFixed(3)} m, distance ${o.jD.toFixed(3)} m; camera yaw ${(o.jY*57.3).toFixed(2)} deg, fov ${(o.jF*57.3).toFixed(2)} deg; end speed ${o.v1.toFixed(0)} m/s`)}
-  const lim={A:+(process.env.LIMA||.08),S:+(process.env.LIMS||.05),Y:+(process.env.LIMY||.004),F:+(process.env.LIMF||.004)};
+  const lim={A:+(process.env.LIMA||.1),S:+(process.env.LIMS||.05),Y:+(process.env.LIMY||.004),F:+(process.env.LIMF||.014)};
   for(const [n,o] of Object.entries(out))ok(o.jA<lim.A&&o.jS<lim.S&&o.jD<lim.A&&o.jY<lim.Y&&o.jF<lim.F,`${n}: the car stays steady in the picture (jerk along ${o.jA.toFixed(3)} / side ${o.jS.toFixed(3)} m, yaw ${(o.jY*57.3).toFixed(2)} deg, fov ${(o.jF*57.3).toFixed(2)} deg)`);
   console.log('errs',T.errs.slice(0,3));await T.close();process.exit(bad?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});

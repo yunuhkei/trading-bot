@@ -72,6 +72,7 @@ function renderFrame(w,h,sky){
   const th=Math.tan(R.fov/2);gl.uniform3fv(P.u.uFw,R.fw);gl.uniform3fv(P.u.uRt,R.rt);gl.uniform3fv(P.u.uUp,R.up);gl.uniform2f(P.u.uTan,th*w/h,th);gl.bindBuffer(gl.ARRAY_BUFFER,R.skyB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);gl.drawArrays(gl.TRIANGLES,0,3);R.draws++;
   /* water + effects (blended, no depth writes) */
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+  if(R.carGlass)R.carGlass();
   P=G.P.wat;gl.useProgram(P.p);setEnvU(P);setMapU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.h);gl.uniform1i(P.u.uH,0);bindTex(2,R.tex.nz);gl.uniform1i(P.u.uNz,2);gl.bindBuffer(gl.ARRAY_BUFFER,R.watB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);gl.drawArrays(gl.TRIANGLES,0,6);R.draws++;
   if(R.fxDraw)R.fxDraw();
   gl.depthMask(true);gl.disable(gl.BLEND);

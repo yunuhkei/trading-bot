@@ -67,8 +67,16 @@ function trGenType(i){
     for(let k=0;k<mb.I.length;k++)I.push(mb.I[k]+o);o+=n};
   add(R.body,0,0,0,false);
   for(const[wz,wr,wheel,tx]of[[S.fz,S.rf,R.wheelF,S.tf],[S.rz,S.rr,R.wheelR,S.tr]])for(const sd of[-1,1])add(wheel,sd*tx,wr,wz,sd<0);
-  if(i==4){/* the light bar on the roof */const bb=new CGB(),yt=S.H+.005,zc=S.zs((S.roofF+S.roofR)/2);cgBox(bb,-.28,yt+.07,zc,.27,.07,.2,CGM.paint);cgBox(bb,.28,yt+.07,zc,.27,.07,.2,CGM.glass);
-    const nv0=P.length/3;for(let v=0;v<bb.nv;v++){P.push(bb.P[v*3],bb.P[v*3+1],-bb.P[v*3+2]);N.push(bb.N[v*3],bb.N[v*3+1],-bb.N[v*3+2]);M.push(bb.M[v]==CGM.paint?7:8)}for(const k of bb.I)I.push(k+nv0)}
+  if(i==4){/* a police car: the light bar (red, clear, blue segments on a black base), a push bar, A-pillar spotlights, an aerial, a rear deck light */
+    const bb=new CGB(),yt=S.H+.005,zc=S.zs((S.roofF+S.roofR)/2),T=(m)=>m;
+    cgBox(bb,0,yt+.025,zc,.62,.025,.22,CGM.trim,0);
+    for(let k=0;k<3;k++){cgBox(bb,-.5+k*.17,yt+.085,zc,.075,.045,.19,CGM.paint,0);cgBox(bb,.5-k*.17,yt+.085,zc,.075,.045,.19,CGM.glass,0)}
+    cgBox(bb,0,yt+.085,zc,.075,.045,.19,CGM.head,0);                                                                                    /* the clear middle segment */
+    cgBox(bb,0,.5,-S.L/2-.05,.55,.018,.03,CGM.trim,0);cgBox(bb,0,.62,-S.L/2-.05,.5,.018,.03,CGM.trim,0);for(const sd of[-1,1])cgBox(bb,sd*.5,.55,-S.L/2-.04,.02,.11,.025,CGM.trim,0);     /* push bar */
+    for(const sd of[-1,1]){cgBox(bb,sd*(S.curves.half(S.cowl)*S.gw+.07),S.H-.32,S.zs(S.cowl+.18),.025,.025,.05,CGM.chrome,0)}                          /* spotlights */
+    cgBox(bb,.35,S.H+.14,S.zs(S.roofR+.25),.006,.12,.006,CGM.trim,0);                                                                    /* aerial */
+    const map2={[CGM.paint]:7,[CGM.glass]:8,[CGM.trim]:2,[CGM.head]:3,[CGM.chrome]:5};
+    const nv0=P.length/3;for(let v=0;v<bb.nv;v++){P.push(bb.P[v*3],bb.P[v*3+1],-bb.P[v*3+2]);N.push(bb.N[v*3],bb.N[v*3+1],-bb.N[v*3+2]);M.push(map2[bb.M[v]]||2)}for(const k of bb.I)I.push(k+nv0)}
   return{P,N,M,I}}
 function trGLInit(){
   const gl=G.gl;TRM.pal=new Float32Array(TCOLS.length*3);TCOLS.forEach((c,i)=>{TRM.pal[i*3]=c[0];TRM.pal[i*3+1]=c[1];TRM.pal[i*3+2]=c[2]});
@@ -79,7 +87,7 @@ function trGLInit(){
     return{vb:mkBuf(gl.ARRAY_BUFFER,ab),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(B.I)),n:B.I.length,nv}};
   /* groups: type * 2 + lod (0 smooth body for the cars near the camera, 1 the 200-triangle body for the rest) */
   TRM.types=[];for(let i=0;i<5;i++){TRM.types.push(upload(trGenType(i)));TRM.types.push(upload(trBuildType(TRSHAPE[i],TTYPES[i].hw)))}
-  TRM.inst=new Float32Array(TRN*16);TRM.ibuf=mkBuf(gl.ARRAY_BUFFER,TRM.inst.byteLength,gl.DYNAMIC_DRAW);TRM.cnt=new Int16Array(10);TRM.off=new Int16Array(10);
+  TRM.inst=new Float32Array(TRN*20);TRM.ibuf=mkBuf(gl.ARRAY_BUFFER,TRM.inst.byteLength,gl.DYNAMIC_DRAW);TRM.cnt=new Int16Array(10);TRM.off=new Int16Array(10);
   R.trDraw=trDraw;TRM.ready=true}
 /* soft blob shadows under the cars (added to the effects batch by fxDraw) */
 function trShadows(quad){
@@ -94,20 +102,20 @@ function trPrep(){
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const x=lerp(c.px,c.x,a),y=lerp(c.py,c.y,a),z=lerp(c.pz,c.z,a),dx=x-R.cx,dz=z-R.cz,d2=dx*dx+dz*dz;if(d2>490000||!M4.sphereIn(R.PL,x,y+1,z,3.6))continue;c.gi=c.type*2+(d2<lod2?0:1);vis[nv++]=i;cnt[c.gi]++}
   if(!nv)return 0;
   let s0=0;const fill=new Int16Array(10);for(let g=0;g<10;g++){off[g]=s0;fill[g]=s0;s0+=cnt[g]}
-  for(let q=0;q<nv;q++){const c=cars[vis[q]],o=fill[c.gi]++*16;
-    I[o]=lerp(c.px,c.x,a);I[o+1]=lerp(c.py,c.y,a);I[o+2]=lerp(c.pz,c.z,a);I[o+3]=c.pyaw+angd(c.yaw,c.pyaw)*a;I[o+4]=c.pitch;I[o+5]=c.roll;I[o+6]=c.col;I[o+7]=(c.brake?1:0)+(c.siren?2:0)+(c.kind===1&&c.cm===0&&c.type===4&&!c.siren?4:0);
-    const d=c.dn;if(d){for(let k=0;k<8;k++)I[o+8+k]=d[k]}else for(let k=8;k<16;k++)I[o+k]=0}
-  gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,I.subarray(0,nv*16));TRM.nv=nv;TR.drawn=nv;return nv}
+  for(let q=0;q<nv;q++){const c=cars[vis[q]],o=fill[c.gi]++*20;
+    I[o]=lerp(c.px,c.x,a);I[o+1]=lerp(c.py,c.y,a);I[o+2]=lerp(c.pz,c.z,a);I[o+3]=c.pyaw+angd(c.yaw,c.pyaw)*a;I[o+4]=c.pitch;I[o+5]=c.roll;I[o+6]=c.col;I[o+7]=(c.brake?1:0)+(c.siren?2:0)+(c.kind===1&&c.cm===0&&c.type===4&&!c.siren?4:0)+((c.dmg||0)>.45?8:0);
+    const d=c.dn;if(d){for(let k=0;k<12;k++)I[o+8+k]=d[k]}else for(let k=8;k<20;k++)I[o+k]=0}
+  gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,I.subarray(0,nv*20));TRM.nv=nv;TR.drawn=nv;return nv}
 /* issue the draws of the collected cars with whatever program is bound (the attribute layout is shared by the colour and the shadow program) */
 function trIssue(){
   const gl=G.gl,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,ext=G.ext.inst;
-  if(ext){attrs(6);for(let k=2;k<6;k++)ext.vertexAttribDivisorANGLE(k,1)}else attrs(2);
+  if(ext){attrs(7);for(let k=2;k<7;k++)ext.vertexAttribDivisorANGLE(k,1)}else attrs(2);
   for(let g=0;g<10;g++){if(!cnt[g])continue;const M=TRM.types[g];
     gl.bindBuffer(gl.ARRAY_BUFFER,M.vb);gl.vertexAttribPointer(0,3,gl.FLOAT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,12);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,M.ib);
-    if(ext){gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);const b=off[g]*64;for(let k=0;k<4;k++)gl.vertexAttribPointer(2+k,4,gl.FLOAT,false,64,b+k*16);ext.drawElementsInstancedANGLE(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0,cnt[g]);R.draws++}
-    else{for(let k=0;k<cnt[g];k++){const o=(off[g]+k)*16;for(let q=0;q<4;q++)gl.vertexAttrib4f(2+q,I[o+q*4],I[o+q*4+1],I[o+q*4+2],I[o+q*4+3]);gl.drawElements(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0);R.draws++}}
+    if(ext){gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);const b=off[g]*80;for(let k=0;k<5;k++)gl.vertexAttribPointer(2+k,4,gl.FLOAT,false,80,b+k*16);ext.drawElementsInstancedANGLE(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0,cnt[g]);R.draws++}
+    else{for(let k=0;k<cnt[g];k++){const o=(off[g]+k)*20;for(let q=0;q<5;q++)gl.vertexAttrib4f(2+q,I[o+q*4],I[o+q*4+1],I[o+q*4+2],I[o+q*4+3]);gl.drawElements(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0);R.draws++}}
     R.tris+=M.n/3*cnt[g]}
-  if(ext){for(let k=2;k<6;k++)ext.vertexAttribDivisorANGLE(k,0)}}
+  if(ext){for(let k=2;k<7;k++)ext.vertexAttribDivisorANGLE(k,0)}}
 function trDraw(){
   if(!TRM.nv)return;const gl=G.gl,P=G.P.tr;
   gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform3fv(P.u.uPal,TRM.pal);gl.uniform4fv(P.u.uMat,TRM.mat);gl.uniform1f(P.u.uT,R.time);gl.disable(gl.CULL_FACE);

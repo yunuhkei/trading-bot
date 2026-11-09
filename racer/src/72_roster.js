@@ -66,6 +66,18 @@ const CAR_ROSTER=[
  {id:'h1',name:'Zonda H',cls:'Mid-engine V12 hypercar',paint:P(170,174,180),rim:P(200,204,210),caliper:P(30,30,34),spec:_C('hyper',{head:'round',tail_:'quad',exh:4,exhS:'center',wing:'lip',tum:.06,wheelStyle:'spoke',spoke:5}),real:{hp:730,kg:1350,drive:'MR',top:370,t100:3.3,lat:1.3,brk:31}},
  {id:'h2',name:'Veyra',cls:'Quad-turbo all-wheel-drive hypercar',paint:P(20,24,36),rim:P(200,204,210),caliper:P(240,100,20),spec:_C('gt',{W:2.0,H:1.2,L:4.55,wb:2.7,cowl:1.8,roofF:2.3,roofR:2.9,rearS:3.8,hwMax:1.0,head:'led',tail_:'wide',exh:2,wing:'lip',stripe:.05}),real:{hp:1500,kg:1995,drive:'AWD',top:420,t100:2.4,lat:1.1,brk:35}},
  {id:'h3',name:'Agate',cls:'Twin-turbo mid-engine hypercar',paint:P(240,240,236),rim:P(30,30,34),caliper:P(30,30,34),spec:_C('hyper',{head:'slit',tail_:'slit',wing:'big',exh:4,H:1.12}),real:{hp:1360,kg:1400,drive:'MR',top:440,t100:2.8,lat:1.3,brk:30}}];
+/* what makes each car look like the kind of car it is (on top of its proportions): grilles, running lights, vents, scoops, buttresses, fins, trim, the interior colour */
+const CAR_EXTRA={
+ k1:{drl:1,grille:'none',int:[58,40,32]},k2:{drl:1,grille:'slit',int:[24,26,34]},k3:{drl:1,canards:1,scoop:1,grille:'slit',int:[20,20,22]},
+ c1:{drl:1,buttress:1,gills:2,grille:'slit',int:[70,50,40]},c2:{gills:3,scoop:1,grille:'slit',int:[60,44,36]},c3:{drl:1,buttress:1,canards:1,gills:2,int:[22,22,26]},c4:{grille:'none',gills:0,int:[60,60,64]},
+ t1:{drl:1,grille:'slit',gills:1,int:[24,24,28]},t2:{drl:1,canards:1,gills:2,grille:'slit',int:[24,24,28]},t3:{scoop:1,grille:'none',int:[70,60,50]},t4:{drl:1,buttress:1,grille:'slit',int:[22,22,24]},
+ s1:{grille:'wide',gills:2,chromeTrim:1,int:[84,60,44]},s2:{grille:'wide',gills:3,chromeTrim:1,drl:1,int:[76,54,40]},
+ u1:{buttress:1,drl:1,canards:1,grille:'slit',int:[22,22,26]},u2:{scoop:1,gills:2,grille:'wide',int:[28,28,30]},u3:{scoop:1,gills:2,grille:'wide',canards:1,int:[30,30,32]},u4:{gills:2,drl:1,grille:'slit',int:[40,34,30]},u5:{scoop:1,grille:'wide',int:[30,30,32]},
+ m1:{drl:1,canards:1,grille:'slit',int:[28,28,32]},m2:{canards:1,buttress:1,drl:1,gills:2,int:[22,22,24]},m3:{seat:'centre',grille:'slit',int:[60,52,40]},
+ l1:{gills:1,grille:'slit',int:[40,40,44]},l2:{drl:1,grille:'slit',int:[34,28,26]},l3:{canards:1,int:[26,26,28]},
+ j1:{scoop:1,grille:'wide',shark:1,int:[26,26,30]},j2:{drl:1,grille:'slit',gills:1,int:[30,30,34]},j3:{grille:'wide',gills:2,int:[44,34,28]},
+ h1:{canards:1,gills:2,chromeTrim:1,int:[84,62,44]},h2:{grille:'horseshoe',chromeTrim:1,shark:1,gills:1,int:[34,28,24]},h3:{drl:1,canards:1,buttress:1,int:[22,22,24]}};
+for(const d of CAR_ROSTER){const e=CAR_EXTRA[d.id]||{};Object.assign(d.spec,e);if(e.int)d.interior=e.int;delete d.spec.int}
 /* ---------------- handling from the real figures ---------------- */
 /* Everything is measured against the first car, so it keeps exactly the old numbers. Top speed, acceleration, grip, braking and agility come from the figures; the drive layout changes how the tail behaves:
    all-wheel drive grips more and slides less, front-engine rear-drive cars light up the rear tyres under power (the more power for the weight, the more), mid-engine cars turn in sharply and let go suddenly. */

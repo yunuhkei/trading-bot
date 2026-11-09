@@ -104,7 +104,7 @@ function gfxComposite(w,h){
   const P=G.P.postv;gl.useProgram(P.p);bindTex(0,GFX.col);gl.uniform1i(P.u.uS,0);if(P.u.uB){bindTex(1,GFX.blT[0]||GFX.col);gl.uniform1i(P.u.uB,1)}gl.uniform2f(P.u.uPx,1/w,1/h);
   gl.uniform4f(P.u.uP,GFX.blurAmt,.6,.5,R.time%100);gl.drawArrays(gl.TRIANGLES,0,3);R.draws++}
 /* speed blur: from about 45 m/s, more with nitro */
-function gfxUpdate(dt){const sp=(C.speed||0)+C.boostK*14,t=Math.max(0,Math.min(1,(sp-38)/60));GFX.blurAmt+=(t*.9-GFX.blurAmt)*Math.min(1,dt*3)}
+function gfxUpdate(dt){const sp=(C.speed||0)+C.boostK*26,t=Math.max(0,Math.min(1,(sp-34)/50));GFX.blurAmt+=(t*1.25-GFX.blurAmt)*Math.min(1,dt*6)}
 /* ---------------- the automatic quality choice ----------------
    The frame rate on a phone is capped at the screen rate, so "frames are on time" says nothing about how much room is left. So every few seconds a short probe times a few frames
    WITH a forced wait for the GPU (a 1-pixel readback), which gives the real cost of a frame (CPU + GPU, not overlapped, so a bit pessimistic). The rules are made so the phone is never run flat out:

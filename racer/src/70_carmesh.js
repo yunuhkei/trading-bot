@@ -2,10 +2,10 @@
 /* ===== procedural car bodies: smooth lofted bodywork, wheel wells, real wheels, lights, intakes, wings, exhausts, mirrors =====
    Nothing here is a real car: every body is made from numbers (a spec) by the same code, in the style of the cars it takes its inspiration from.
    Model axes: x to the right, y up, z BACKWARDS (the nose is at -L/2), metres, origin on the ground under the middle of the wheelbase's centre of the body (z = 0 half way along). */
-const CGM={paint:0,glass:1,trim:2,carbon:3,chrome:4,head:5,tail:6,rubber:7,rim:8,caliper:9,exh:10,plate:11,stripe:12,under:13,disc:14};
+const CGM={paint:0,glass:1,trim:2,carbon:3,chrome:4,head:5,tail:6,rubber:7,rim:8,caliper:9,exh:10,plate:11,stripe:12,under:13,disc:14,inter:15,steel:16};
 /* per material: colour (sRGB bytes) and [metal, roughness, emissive, clear coat] / 255 for the car shader */
-const CGCOL=[[255,255,255],[8,10,14],[20,20,22],[34,35,40],[205,210,216],[255,244,190],[255,34,24],[14,14,15],[188,192,198],[205,28,28],[120,124,130],[230,230,224],[240,240,240],[18,18,20],[150,152,158]];
-const CGMAT=[[140,66,0,255],[215,22,0,0],[0,170,0,0],[70,80,0,160],[235,60,0,0],[0,40,255,60],[0,40,255,60],[0,205,0,0],[215,80,0,40],[70,90,0,140],[240,70,0,0],[0,150,0,0],[120,70,0,230],[0,200,0,0],[200,110,0,0]];
+const CGCOL=[[255,255,255],[8,10,14],[20,20,22],[34,35,40],[205,210,216],[255,244,190],[255,34,24],[14,14,15],[188,192,198],[205,28,28],[120,124,130],[230,230,224],[240,240,240],[18,18,20],[150,152,158],[34,34,38],[160,164,170]];
+const CGMAT=[[140,66,0,255],[215,22,0,0],[0,170,0,0],[70,80,0,160],[235,60,0,0],[0,40,255,60],[0,40,255,60],[0,205,0,0],[215,80,0,40],[70,90,0,140],[240,70,0,0],[0,150,0,0],[120,70,0,230],[0,200,0,0],[200,110,0,0],[0,150,0,40],[225,90,0,0]];
 class CGB{constructor(){this.P=[];this.N=[];this.M=[];this.I=[];this.S=[]}
   v(x,y,z,nx,ny,nz,m,sh){this.P.push(x,y,z);this.N.push(nx,ny,nz);this.M.push(m);this.S.push(sh==null?1:sh);return this.M.length-1}
   t(a,b,c){this.I.push(a,b,c)}q(a,b,c,d){this.t(a,b,c);this.t(a,c,d)}
@@ -29,7 +29,7 @@ function cgGridNormals(P,ni,nj,wrap,ctr){const N=new Float32Array(ni*nj*3);
 function cgSpec(o){
   const S=Object.assign({L:4.5,W:1.86,H:1.28,wb:2.45,fo:.92,nose:.56,hood:.80,cowl:1.62,roofF:2.12,roofR:3.0,rearS:3.5,deck:.97,tail:.80,hw0:.80,hwMax:.93,hwMaxS:3.0,hwTail:.82,crown:.09,tum:.05,flare:.03,
     rf:.335,rr:.345,wf:.255,wr:.305,rimF:.235,rimR:.245,tf:.775,tr:.80,sill:.12,gw:.80,gt:.66,
-    glassRoof:0,rearGlass:1,bpillar:0,spoke:5,wheelStyle:'spoke',head:'round',tail_:'bar',intake:'mid',wing:'none',duct:0,exh:2,exhS:'twin',louvres:0,stripe:0,mirror:1,diff:1,splitter:1,sideIntake:0,quad:1},o||{});
+    glassRoof:0,rearGlass:1,bpillar:0,spoke:5,wheelStyle:'spoke',head:'round',tail_:'bar',intake:'mid',wing:'none',duct:0,exh:2,exhS:'twin',louvres:0,stripe:0,mirror:1,diff:1,splitter:1,sideIntake:0,quad:1,grille:'none',drl:0,gills:0,buttress:0,scoop:0,canards:0,shark:0,plates:1,seat:'two',chromeTrim:0,tread:1,lhd:1},o||{});
   S.fz=-S.L/2+S.fo;S.rz=S.fz+S.wb;                        /* axle positions along z (front is negative) */
   S.zs=s=>s-S.L/2;                                         /* s measured from the nose -> z */
   S.hwF=S.W/2;return S}
@@ -89,6 +89,9 @@ function cgBody(S,mb,opt){
   /* surface lookup: the vertex nearest to a point (used to place the lights and vents on the body) */
   S.near=(x,y,z)=>{let b=-1,bd=1e9;for(let i=0;i<ni;i++){const dz=P[i*nj*3+2]-z;if(dz*dz>bd)continue;for(let j=0;j<nj;j++){const k=(i*nj+j)*3,dx=P[k]-x,dy=P[k+1]-y,d=dx*dx+dy*dy+dz*dz;if(d<bd){bd=d;b=k}}}
     return{x:P[b],y:P[b+1],z:P[b+2],nx:Nn[b],ny:Nn[b+1],nz:Nn[b+2]}}}
+/* a point on the top of the body at distance s from the nose and sideways x, with its normal; and a point on the side at height y */
+function cgSurf(S,s,x){const y=cgTopAt(S,s,x),e=.05,dx=(cgTopAt(S,s,x+e)-cgTopAt(S,s,x-e))/(2*e),dz=(cgTopAt(S,s+e,x)-cgTopAt(S,Math.max(0,s-e),x))/(2*e),l=Math.hypot(dx,1,dz);return{x,y,z:S.zs(s),nx:-dx/l,ny:1/l,nz:-dz/l}}
+function cgSide(S,s,y,sg){const r=cgTubRing(S,s,S.K);let x=r[Math.min(r.length-1,4)][0];for(let k=3;k<r.length;k++){if(r[k][1]>=y){const a=r[k-1],b=r[k],t=_cl((y-a[1])/Math.max(1e-6,b[1]-a[1]),0,1);x=a[0]+(b[0]-a[0])*t;break}}return{x:sg*x,y,z:S.zs(s),nx:sg,ny:0,nz:0}}
 /* height of the top of the body at distance s from the nose, at sideways position x (from the ring) */
 function cgTopAt(S,s,x){const r=cgTubRing(S,s,S.K);let y=r[r.length-1][1];for(let k=r.length-1;k>0;k--){if(r[k-1][0]>=Math.abs(x)){const a=r[k-1],b=r[k],t=_cl((a[0]-Math.abs(x))/Math.max(1e-6,a[0]-b[0]),0,1);y=a[1]+(b[1]-a[1])*t;break}}return y}
 /* the greenhouse: glass, pillars and roof */
@@ -113,7 +116,7 @@ function cgGlasshouse(S,mb,opt){
       else if(s<=S.roofR){m=S.glassRoof?CGM.glass:CGM.paint}
       else m=S.rearGlass?CGM.glass:CGM.paint
       const a=vtx(i,j,m),b=vtx(i,j+1,m),c=vtx(i+1,j+1,m),d=vtx(i+1,j,m);mb.q(a,b,c,d)}}
-  S._gh={P,ni,nj}}
+  S._gh={P,ni,nj,ss,K2,M}}
 /* ---------------- small parts ---------------- */
 function cgBasis(nx,ny,nz){/* tangent u (mostly sideways) and v from a surface normal */
   let ux=ny*0-nz*1,uy=nz*0-nx*0,uz=nx*1-ny*0;ux=-nz;uy=0;uz=nx;let l=Math.hypot(ux,uz);if(l<1e-4){ux=1;uz=0}else{ux/=l;uz/=l}
@@ -180,31 +183,92 @@ function cgDetails(S,mb,opt){
   if(S.diff){cgBox(mb,0,S.sill+.07,S.zs(L-.18),S.hwTail*.62,.012,.2,CGM.carbon,-.14);for(let k=-2;k<=2;k++)cgBox(mb,k*S.hwTail*.26,S.sill+.085,S.zs(L-.19),.008,.04,.18,CGM.carbon,-.14)}
   const ex=S.exh||0;for(let k=0;k<ex;k++){const px=ex==1?0:S.exhS=='center'?(k-(ex-1)/2)*.15:(k%2?1:-1)*(S.hwTail*(.52+.12*((k>>1)))),py=S.sill+.1+(S.exhS=='high'?.28:0);cgCylZ(mb,px,py,S.zs(L-.09),S.zs(L+.035),.047,CGM.exh,10)}
   S._lights=lights}
+/* a torus (the steering wheel) */
+function cgTorus(mb,cx,cy,cz,R,r,tilt,m){const n=14,k=6,ct=Math.cos(tilt),st=Math.sin(tilt),rows=[];
+  for(let i=0;i<n;i++){const a=i/n*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a),row=[];for(let j=0;j<k;j++){const b=j/k*Math.PI*2,cb=Math.cos(b),sb=Math.sin(b),rx=ca*(R+r*cb),ry=sa*(R+r*cb),rz=r*sb,ny=sa*cb;
+      row.push(mb.v(cx+rx,cy+ry*ct-rz*st,cz+ry*st+rz*ct,ca*cb,ny*ct-sb*st,ny*st+sb*ct,m))}rows.push(row)}
+  for(let i=0;i<n;i++){const i2=(i+1)%n;for(let j=0;j<k;j++){const j2=(j+1)%k;mb.q(rows[i][j],rows[i2][j],rows[i2][j2],rows[i][j2])}}}
+/* the inside: dashboard, steering wheel, seats (seen through the tinted glass) */
+function cgInterior(S,mb){
+  const M=CGM.inter,hw=S.curves.half(S.cowl)*S.gw,sCab=(S.cowl+S.roofR)/2+.18,belt=cgTopAt(S,sCab,hw*.5)-.03,sx=Math.min(.42,hw*.55),drv=S.lhd?-1:1,room=Math.max(.2,S.H-belt-.1);
+  /* the seats sit low (their lower half is under the body line); only the backrest and the headrest show through the windows */
+  const seat=(x,sz)=>{const y0=belt-.3;cgBox(mb,x,y0+.05,S.zs(sz),.23,.05,.25,M,0);cgBox(mb,x,y0+.3,S.zs(sz+.26),.22,.27,.06,M,-.28);cgBox(mb,x,y0+.64,S.zs(sz+.33),.085,.075,.045,M,-.28)};
+  if(S.seat=='centre')seat(0,sCab);else{seat(-sx,sCab);seat(sx,sCab)}
+  const sD=S.cowl+.2,yD=cgTopAt(S,sD,0);cgBox(mb,0,yD-.07,S.zs(sD),hw*.82,.05,.2,M,.08);cgBox(mb,drv*sx,yD-.03,S.zs(sD+.05),.26,.04,.1,M,0);       /* dash and instrument hood */
+  cgBox(mb,0,belt-.05,S.zs(sCab+.02),.06,.07,.34,M,0);                                                                                              /* the centre console */
+  cgTorus(mb,S.seat=='centre'?0:drv*sx,yD+Math.min(.16,room*.45),S.zs(sD+.34),.14,.014,.55,M);cgBox(mb,0,belt-.04,S.zs(S.rearS-.1),hw*.8,.04,.1,M,0)}      /* the wheel, the rear shelf */
+/* panel gaps, window trim, door handles, fuel cap, badges, plates, grille, daytime lights, vents, scoops, buttresses, fins */
+function cgDetails2(S,mb,opt){
+  const hw=S.W/2,L=S.L,cs=S.curves;
+  /* bonnet and engine-lid shut lines */
+  {const hx=s=>cs.half(s)*.72,s0=S.cowl-.04,s1=.4,left=[],right=[],front=[];for(let k=0;k<=8;k++){const s=s0-(s0-s1)*k/8;left.push(cgSurf(S,s,-hx(s)));right.push(cgSurf(S,s,hx(s)))}
+    for(let k=0;k<=6;k++)front.push(cgSurf(S,s1,-hx(s1)+2*hx(s1)*k/6));cgStrip(mb,left,.007,CGM.trim,.003);cgStrip(mb,right,.007,CGM.trim,.003);cgStrip(mb,front,.007,CGM.trim,.003);
+    const sl=S.rearS+.2,h2=s=>cs.half(s)*.7,lid=[];for(let k=0;k<=6;k++)lid.push(cgSurf(S,sl,-h2(sl)+2*h2(sl)*k/6));cgStrip(mb,lid,.007,CGM.trim,.003)}
+  /* doors: the cut lines, the handle */
+  const sCab=(S.cowl+S.roofR)/2,yB=cgTopAt(S,sCab,cs.half(sCab)*S.gw)-.03,doorF=S.cowl+.16,doorR=S.roofR+.12,y0=S.sill+.2;
+  for(const sg of[-1,1]){const line=pts=>cgStrip(mb,pts,.007,CGM.trim,.003);
+    line([0,1,2,3,4].map(k=>cgSide(S,doorF,y0+(yB-y0)*k/4,sg)));line([0,1,2,3,4].map(k=>cgSide(S,doorR,y0+(yB-y0)*k/4,sg)));line([0,1,2,3,4,5,6].map(k=>cgSide(S,doorF+(doorR-doorF)*k/6,y0,sg)));
+    cgStrip(mb,[cgSide(S,doorR-.3,yB-.09,sg),cgSide(S,doorR-.12,yB-.09,sg)],.028,S.chromeTrim?CGM.chrome:CGM.trim,.004);
+    /* window trim along the bottom edge of the side glass */
+    const G=S._gh,tp=[];if(G)for(let i=0;i<G.ni;i++){const s=G.ss[i];if(s<doorF+.1||s>S.rearS-.3)continue;const j=sg<0?0:G.nj-1,k=(i*G.nj+j)*3;tp.push({x:G.P[k],y:G.P[k+1],z:G.P[k+2],nx:sg,ny:.2,nz:0})}
+    if(tp.length>1)cgStrip(mb,tp,.03,S.chromeTrim?CGM.chrome:CGM.trim,.004);
+    cgDisc(mb,cgSide(S,L-.95,yB-.12,sg),.065,.065,CGM.trim,10,.004);                                    /* the fuel flap */}
+  /* badges and plates */
+  cgDisc(mb,S.near(0,S.nose+.02,S.zs(.14)),.035,.035,CGM.chrome,10,.006);cgDisc(mb,S.near(0,S.deck-.1,S.zs(L-.1)),.035,.035,CGM.chrome,10,.006);
+  if(S.plates){const pf=S.near(0,S.sill+.2,S.zs(.12)),pr=S.near(0,S.sill+.43,S.zs(L-.08));cgBox(mb,pf.x,pf.y,pf.z-.01,.25,.062,.006,CGM.plate,0);cgBox(mb,pr.x,pr.y,pr.z+.01,.25,.062,.006,CGM.plate,0)}
+  /* the grille */
+  const ny=S.nose-.2;
+  if(S.grille=='wide'){const p=S.near(0,S.sill+.2,S.zs(.12));cgDisc(mb,p,hw*.46,.1,CGM.under,18,.005);for(const k of[-1,0,1])cgStrip(mb,[-3,-2,-1,0,1,2,3].map(q=>S.near(q*hw*.13,S.sill+.2+k*.04,S.zs(.12))),.012,CGM.chrome,.007)}
+  else if(S.grille=='twin'){for(const sg of[-1,1]){const p=S.near(sg*.2,ny+.1,S.zs(.1));cgDisc(mb,p,.2,.09,CGM.chrome,14,.004);cgDisc(mb,p,.18,.075,CGM.under,14,.007)}}
+  else if(S.grille=='horseshoe'){const pts=[];for(let k=0;k<=10;k++){const a=Math.PI*k/10,x=Math.cos(a)*.26,y=ny+.1+Math.sin(a)*.2-.07;pts.push(S.near(x,y,S.zs(.1)))}cgStrip(mb,pts,.02,CGM.chrome,.006);cgDisc(mb,S.near(0,ny+.09,S.zs(.1)),.22,.14,CGM.under,16,.004)}
+  else if(S.grille=='slit'){cgDisc(mb,S.near(0,S.sill+.2,S.zs(.1)),hw*.36,.032,CGM.under,14,.005)}
+  /* daytime running lights over the headlights */
+  if(S.drl){for(const sg of[-1,1]){const hx=S.hw0*.66,pts=[];for(let k=0;k<5;k++)pts.push(S.near(sg*(hx-.12+.06*k),S.nose+.095,S.zs(.2)));cgStrip(mb,pts,.014,CGM.head,.008)}}
+  /* fender gills, scoop, canards, shark fin, buttresses */
+  if(S.gills){for(const sg of[-1,1])for(let k=0;k<S.gills;k++)cgStrip(mb,[cgSide(S,S.fo+.45+k*.06,S.sill+.5,sg),cgSide(S,S.fo+.7+k*.06,S.sill+.44,sg)],.02,CGM.under,.004)}
+  if(S.scoop){const sT=S.cowl*.55,p=cgSurf(S,sT,0);cgBox(mb,0,p.y+.04,p.z,.14,.045,.2,CGM.paint,0);cgDisc(mb,{x:0,y:p.y+.05,z:p.z-.2,nx:0,ny:0,nz:-1},.1,.03,CGM.under,10,.003)}
+  if(S.canards){for(const sg of[-1,1])cgBox(mb,sg*hw*.8,S.sill+.12,S.zs(.34),.09,.007,.06,CGM.carbon,.25*sg)}
+  if(S.shark)cgBox(mb,0,S.H+.035,S.zs(S.roofR-.05),.007,.045,.3,CGM.paint,-.05);
+  if(S.buttress){for(const sg of[-1,1]){const x=sg*(cs.half(S.rearS)*S.gw*.55+hw*.3),y1=S.H-.1,z1=S.zs(S.roofR+.1),y2=S.deck+.01,z2=S.zs(S.rearS+.2),dy=y2-y1,dz=z2-z1,len=Math.hypot(dy,dz);cgBox(mb,x,(y1+y2)/2,(z1+z2)/2,.035,.02,len/2,CGM.paint,-Math.atan2(dy,dz))}}}
 /* ---------------- wheels: tyre, rim with spokes, brake disc, caliper; axis along x, the outer face at +x ---------------- */
-function cgWheel(R,w,rimR,spokes,style,rimCol,lo){
-  const mb=new CGB(),seg=lo?10:36;
-  const revolve=(prof,m,wrapSmooth)=>{const ni=prof.length,P=new Float32Array(ni*seg*3),ctr=new Float32Array(ni*3);
+function cgWheel(R,w,rimR,spokes,style,rimCol,lo,tread){
+  const mb=new CGB(),seg=lo?10:32;
+  const revolve=(prof,m)=>{const ni=prof.length,P=new Float32Array(ni*seg*3),ctr=new Float32Array(ni*3);
     for(let i=0;i<ni;i++){for(let j=0;j<seg;j++){const a=j/seg*Math.PI*2,k=(i*seg+j)*3;P[k]=prof[i][1];P[k+1]=Math.cos(a)*prof[i][0];P[k+2]=Math.sin(a)*prof[i][0]}ctr[i*3]=prof[i][1]}
     const Nn=cgGridNormals(P,ni,seg,true,ctr),ids=[];for(let i=0;i<ni;i++){const row=[];for(let j=0;j<seg;j++){const k=(i*seg+j)*3;row.push(mb.v(P[k],P[k+1],P[k+2],Nn[k],Nn[k+1],Nn[k+2],m))}ids.push(row)}
     for(let i=0;i<ni-1;i++)for(let j=0;j<seg;j++){const j1=(j+1)%seg;mb.q(ids[i][j],ids[i][j1],ids[i+1][j1],ids[i+1][j])}};
   const sw=R-rimR,h=w/2;
   if(lo){revolve([[rimR*.97,-h*.9],[R-.012,-h*.95],[R,-h*.45],[R,h*.45],[R-.012,h*.95],[rimR*.97,h*.9]],CGM.rubber);revolve([[rimR*.97,h*.9],[rimR*.5,h*.92],[0,h*.94]],CGM.rim);mb.rim=rimCol;return mb}
-  revolve([[rimR*.97,-h*.9],[rimR+sw*.3,-h*.985],[rimR+sw*.72,-h],[R-.014,-h*.88],[R-.002,-h*.55],[R,0],[R-.002,h*.55],[R-.014,h*.88],[rimR+sw*.72,h],[rimR+sw*.3,h*.985],[rimR*.97,h*.9]],CGM.rubber);
-  /* rim barrel + lip */
-  revolve([[rimR*.97,h*.88],[rimR,h*.96],[rimR*.985,h*.8],[rimR*.9,h*.62],[rimR*.9,-h*.5]],CGM.rim);
-  const fx=h*.7;                                                    /* the plane of the spokes */
-  if(style=='disc'){revolve([[rimR*.9,fx],[rimR*.55,fx+.01],[.04,fx+.02],[0,fx+.025]],CGM.rim)}
-  else{const n=spokes,th=style=='mesh'?.026:.05;for(let s=0;s<n;s++){const a=s/n*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a),r0=.05,r1=rimR*.92;
-      const pts=[[r0,-th*.5],[r1,-th*.9],[r1,th*.9],[r0,th*.5]];const ids=[];for(const[r,t]of pts){const y=ca*r-sa*t,z=sa*r+ca*t;ids.push(mb.v(fx+.012,y,z,1,0,0,CGM.rim))}mb.q(ids[0],ids[1],ids[2],ids[3]);
-      const ids2=[];for(const[r,t]of pts){const y=ca*r-sa*t,z=sa*r+ca*t;ids2.push(mb.v(fx-.012,y,z,-1,0,0,CGM.rim))}mb.q(ids2[3],ids2[2],ids2[1],ids2[0])}
-    revolve([[.07,fx+.008],[.045,fx+.022],[0,fx+.026]],CGM.rim)}
-  /* brake disc and caliper behind the spokes */
+  /* the tyre: a rounded sidewall with lettering ribs, a crown with three grooves */
+  const g=.005,crown=[];for(const x of[-.72,-.5,-.38,-.26,-.12,-.0,.12,.26,.38,.5,.72])crown.push([R-(x==-.38||x==-.0||x==.38?g*(tread==0?0:1):0)-.002*Math.abs(x),x*h]);
+  revolve([[rimR*.97,-h*.9],[rimR+sw*.28,-h*.985],[rimR+sw*.5,-h*1.0],[rimR+sw*.56,-h*.985],[rimR+sw*.8,-h*.99],[R-.014,-h*.9]].concat(crown,[[R-.014,h*.9],[rimR+sw*.8,h*.99],[rimR+sw*.56,h*.985],[rimR+sw*.5,h*1.0],[rimR+sw*.28,h*.985],[rimR*.97,h*.9]]),CGM.rubber);
+  /* the rim: a deep barrel with a lip, then the face with its spokes */
+  revolve([[rimR*.97,h*.9],[rimR,h*.97],[rimR*.985,h*.82],[rimR*.9,h*.64],[rimR*.9,-h*.5]],CGM.rim);
+  const fx=h*.64;
+  if(style=='disc'){revolve([[rimR*.9,fx],[rimR*.6,fx+.008],[.05,fx+.02],[0,fx+.022]],CGM.rim);for(let k=0;k<spokes*2;k++){const a=k/(spokes*2)*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a),r=rimR*.74;cgDiscW(mb,fx+.012,ca*r,sa*r,.028,CGM.under)}}
+  else{
+    const plate=(pts,x0,sd)=>{const ids=[];for(const[r,t,a]of pts){const ca=Math.cos(a),sa=Math.sin(a);ids.push(mb.v(x0,ca*r-sa*t,sa*r+ca*t,sd,0,0,CGM.rim))}mb.q(ids[0],ids[1],ids[2],ids[3]);return ids};
+    const n=style=='mesh'?spokes*2:spokes;
+    for(let k=0;k<n;k++){const a=k/n*Math.PI*2,r0=.055,r1=rimR*.93;
+      if(style=='mesh'){for(const sg of[-1,1]){const sw2=sg*.5;const pts=[[r0,-.01,a],[r1,-.014+sw2*.0,a+sg*.4],[r1,.014,a+sg*.4],[r0,.01,a]];plate(pts,fx+.01,1);plate(pts.slice().reverse(),fx-.012,-1)}}
+      else if(style=='turbine'){const pts=[[r0,-.03,a],[r1,-.04,a+.32],[r1,.04,a+.32],[r0,.03,a]];plate(pts,fx+.012,1);plate(pts.slice().reverse(),fx-.012,-1)}
+      else if(style=='split'){for(const sg of[-1,1]){const pts=[[r0,sg*.01-.012,a+sg*.035],[r1,sg*.062-.017,a],[r1,sg*.062+.017,a],[r0,sg*.01+.012,a+sg*.035]];plate(pts,fx+.011,1);plate(pts.slice().reverse(),fx-.012,-1)}}
+      else{const pts=[[r0,-.032,a],[r1,-.058,a],[r1,.058,a],[r0,.032,a]];plate(pts,fx+.012,1);plate(pts.slice().reverse(),fx-.012,-1);
+        /* the edge of the spoke, so it has a thickness */const e=[[r0,.032,a],[r1,.058,a]];const i0=mb.v(fx+.012,Math.cos(a)*e[0][0]-Math.sin(a)*e[0][1],Math.sin(a)*e[0][0]+Math.cos(a)*e[0][1],0,0,1,CGM.rim),i1=mb.v(fx+.012,Math.cos(a)*e[1][0]-Math.sin(a)*e[1][1],Math.sin(a)*e[1][0]+Math.cos(a)*e[1][1],0,0,1,CGM.rim),i2=mb.v(fx-.012,Math.cos(a)*e[1][0]-Math.sin(a)*e[1][1],Math.sin(a)*e[1][0]+Math.cos(a)*e[1][1],0,0,1,CGM.rim),i3=mb.v(fx-.012,Math.cos(a)*e[0][0]-Math.sin(a)*e[0][1],Math.sin(a)*e[0][0]+Math.cos(a)*e[0][1],0,0,1,CGM.rim);mb.q(i0,i1,i2,i3)}}
+    revolve([[.08,fx+.004],[.075,fx+.02],[.05,fx+.03],[0,fx+.032]],CGM.rim);                       /* the hub */
+    for(let k=0;k<5;k++){const a=k/5*Math.PI*2+.3;cgDiscW(mb,fx+.026,Math.cos(a)*.052,Math.sin(a)*.052,.011,CGM.chrome)}}                                              /* the lug nuts */
+  /* brake disc (drilled) and caliper behind the spokes */
   revolve([[rimR*.86,fx-.07],[rimR*.86,fx-.09],[.07,fx-.09],[.07,fx-.07]],CGM.disc);
-  const ca=.9;cgBox(mb,fx-.05,Math.cos(ca)*rimR*.7,Math.sin(ca)*rimR*.7,.035,.06,.05,CGM.caliper,0);
+  for(let k=0;k<16;k++){const a=k/16*Math.PI*2,r=rimR*.73;cgDiscW(mb,fx-.0695,Math.cos(a)*r,Math.sin(a)*r,.012,CGM.under)}
+  const ca=.9;cgBox(mb,fx-.05,Math.cos(ca)*rimR*.7,Math.sin(ca)*rimR*.7,.035,.075,.05,CGM.caliper,0);
   mb.rim=rimCol;return mb}
+/* a small flat disc facing +x on a wheel at (y, z) */
+function cgDiscW(mb,x,y,z,r,m){const c=mb.v(x,y,z,1,0,0,m),ring=[];for(let i=0;i<6;i++){const a=i/6*Math.PI*2;ring.push(mb.v(x,y+Math.cos(a)*r,z+Math.sin(a)*r,1,0,0,m))}for(let i=0;i<6;i++)mb.t(c,ring[i],ring[(i+1)%6])}
 /* ---------------- the whole car ---------------- */
+/* triangles of glass last, so the glass can be drawn on its own, blended, after the sky */
+function cgSplitGlass(mb){const op=[],gl=[];for(let t=0;t<mb.I.length;t+=3){const m=mb.M[mb.I[t]];(m==CGM.glass?gl:op).push(mb.I[t],mb.I[t+1],mb.I[t+2])}mb.I=op.concat(gl);mb.glassFrom=op.length}
 function cgBuild(o,opt){
   opt=opt||{};const S=cgSpec(o);const body=new CGB();
-  cgBody(S,body,opt);cgGlasshouse(S,body,opt);if(!opt.lo)cgDetails(S,body,opt);else cgDetails(Object.assign(S,{mirror:0,louvres:0,diff:0,exh:0}),body,opt);
-  const wf=cgWheel(S.rf,S.wf,S.rimF,S.spoke,S.wheelStyle,null,opt.lo),wr=cgWheel(S.rr,S.wr,S.rimR,S.spoke,S.wheelStyle,null,opt.lo);
+  cgBody(S,body,opt);cgGlasshouse(S,body,opt);if(!opt.lo){cgDetails(S,body,opt);cgDetails2(S,body,opt);cgInterior(S,body);cgSplitGlass(body)}else cgDetails(Object.assign(S,{mirror:0,louvres:0,diff:0,exh:0}),body,opt);
+  const wf=cgWheel(S.rf,S.wf,S.rimF,S.spoke,S.wheelStyle,null,opt.lo,S.tread),wr=cgWheel(S.rr,S.wr,S.rimR,S.spoke,S.wheelStyle,null,opt.lo,S.tread);
   return{S,body,wheelF:wf,wheelR:wr}}

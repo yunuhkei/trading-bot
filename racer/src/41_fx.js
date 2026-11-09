@@ -26,6 +26,10 @@ function fxUpdate(dt){
   if(IMP.n!==_spCur){const k=Math.min(IMP.n-_spCur,IMP.q.length);for(let i=IMP.q.length-k;i<IMP.q.length;i++){const r=IMP.q[i];if(r.src==2||r.E<1500)continue;
       const n=Math.min(26,4+Math.round(Math.sqrt(r.E)/40));sparkAt(r.src==3?(r.x+C.x)/2:C.x-r.nx*1.2,C.y+.45,r.src==3?(r.z+C.z)/2:C.z-r.nz*1.2,r.nx||0,r.nz||0,Math.round(n*q),Math.min(14,2+r.vn*.7))}_spCur=IMP.n}
   for(const s of SPARK){if(s.age<s.life){s.age+=dt;s.vy-=14*dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;if(s.y<C.gs+.03){s.y=C.gs+.03;s.vy*=-.3;s.vx*=.6;s.vz*=.6}}}
+  /* damaged cars: smoke from the bonnet (more the worse), fire when nearly finished */
+  if(TR.on){const q2=T.fxq;for(const c of TR.cars){if(!c.alive)continue;const dm=c.state==1?Math.max(c.dmg||0,.5):(c.dmg||0);if(dm<.45)continue;const dx=c.x-C.x,dz=c.z-C.z;if(dx*dx+dz*dz>22500)continue;
+      c.smk=(c.smk||0)-dt;if(c.smk>0)continue;c.smk=(dm>.85?.05:dm>.65?.1:.2)/Math.max(.5,q2);const s=SMOKE[smokeHead++%SMOKE.length],sy2=Math.sin(c.yaw),cy2=Math.cos(c.yaw);
+      s.x=c.x+sy2*c.hl*.7+(Math.random()-.5)*.5;s.z=c.z-cy2*c.hl*.7+(Math.random()-.5)*.5;s.y=c.y+.9;s.vx=(c.vx||0)*.3+(Math.random()-.5)*.7;s.vz=(c.vz||0)*.3+(Math.random()-.5)*.7;s.vy=1.4+Math.random()*1.3;s.age=0;s.life=1+Math.random()*.8;s.sz=.5+dm*.6;s.a=.3+dm*.3;s.fire=dm>.85&&Math.random()<.4;s.dark=1;s.k=0}}
   dmgFx(dt)}
 function fxDraw(){
   const gl=G.gl,P=G.P.fx,F=R.fxF,T=GFX.cur,a=R.alpha;let n=0;
@@ -47,6 +51,7 @@ function fxDraw(){
   batch(2);
   const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,al=.55*(1-age/40)*q[6];if(l>6)continue;
     quad(q[0]-nx,y,q[1]-nz,q[0]+nx,y,q[1]+nz,q[2]+nx,y,q[3]+nz,q[2]-nx,y,q[3]-nz,.02,.02,.02,al)}
+  navFx(quad,sprite,R.time);
   batch(3);safePads(quad);
   batch(1);
   for(const s of SMOKE){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sz=s.sz+t*(s.k?1.3:2.6),al=s.a*(1-t)*(1-t);const ux=R.up[0]*sz,uy=R.up[1]*sz,uz=R.up[2]*sz,hx=rx*sz,hz=rz*sz;
@@ -77,6 +82,7 @@ function fxDraw(){
   /* neon */
   for(let i=0;i<NEONS.length&&ng<gMax+24;i+=7){const nx=NEONS[i]-gcx,nz=NEONS[i+2]-gcz,d2=nx*nx+nz*nz;if(d2>56000)continue;if(nx*R.fw[0]+nz*R.fw[2]<-3)continue;const d=Math.sqrt(d2),fl=.82+.18*Math.sin(R.time*(3+(i%5))+i),al=Math.min(.95,1.15-d/240)*fl;
     sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al);ng++}
+  navBeacon(sprite);
   /* the car's own lights */
   {const hx=sy,hz=-cy,rr=cy,rs=sy,yy=C.y+C.bob;
    for(const sd of[-1,1]){sprite(x+hx*-CARL.hz+rr*sd*CARL.hx,yy+CARL.hy+.12,z+hz*-CARL.hz+rs*sd*CARL.hx,.6,1,.95,.75,.7);

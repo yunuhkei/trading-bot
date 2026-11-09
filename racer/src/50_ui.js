@@ -8,20 +8,21 @@ function uiInit(){
   const tp=(e)=>{e.preventDefault();const r=cv.getBoundingClientRect();for(const t of e.changedTouches){t.cx=t.clientX-r.left;t.cy=t.clientY-r.top}};
   const down=(id,x,y)=>{
     if(UI.paused){UI.paused=false;UI.touches.set(id,{type:'none'});return}
-    if(UI.mapOpen){UI.mapOpen=false;UI.touches.set(id,{type:'none'});return}
+    if(UI.mapOpen){mapDown(id,x,y);UI.touches.set(id,{type:'map'});return}
     if(MENU.open){menuTap(x,y);UI.touches.set(id,{type:'none'});return}
     for(const b of UI.btn){const hit=b.circle?Math.hypot(x-b.cx,y-b.cy)<=b.circle:(x>=b.x-8&&x<=b.x+b.w+8&&y>=b.y-8&&y<=b.y+b.h+8);if(hit){UI.touches.set(id,{type:'btn',b});b.on=1;b.act&&b.act(1);return}}
     if(x<UI.w*.55){const t={type:'stick',x0:x,y0:y,x:x,y:y};UI.touches.set(id,t);UI.stickT=t;return}
     UI.touches.set(id,{type:'none'})};
-  const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&t.type=='stick'){t.x=x;t.y=y}};
-  const up=(id)=>{const t=UI.touches.get(id);if(t&&t.type=='btn'){t.b.on=0;t.b.act&&t.b.act(0)}if(t&&t===UI.stickT)UI.stickT=null;UI.touches.delete(id)};
+  const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&t.type=='stick'){t.x=x;t.y=y}else if(t&&t.type=='map')mapMove(id,x,y)};
+  const up=(id)=>{const t=UI.touches.get(id);if(t&&t.type=='map')mapUp(id);if(t&&t.type=='btn'){t.b.on=0;t.b.act&&t.b.act(0)}if(t&&t===UI.stickT)UI.stickT=null;UI.touches.delete(id)};
   const opt={passive:false};
+  cv.addEventListener('wheel',e=>{if(UI.mapOpen){e.preventDefault();mapWheel(e.offsetX,e.offsetY,e.deltaY)}},opt);
   cv.addEventListener('touchstart',e=>{tp(e);for(const t of e.changedTouches)down(t.identifier,t.cx,t.cy);audioStart()},opt);
   cv.addEventListener('touchmove',e=>{tp(e);for(const t of e.changedTouches)move(t.identifier,t.cx,t.cy)},opt);
   cv.addEventListener('touchend',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);cv.addEventListener('touchcancel',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);
   /* mouse (desktop testing): same as one finger */
   let md=false;cv.addEventListener('mousedown',e=>{md=true;down('m',e.offsetX,e.offsetY);audioStart()});window.addEventListener('mousemove',e=>{if(md){const r=cv.getBoundingClientRect();move('m',e.clientX-r.left,e.clientY-r.top)}});window.addEventListener('mouseup',()=>{if(md){md=false;up('m')}});
-  const K=UI.keys;window.addEventListener('keydown',e=>{K[e.code]=1;if((e.code=='ShiftLeft'||e.code=='ShiftRight'||e.code=='KeyN')&&!e.repeat)nitroTap();if(e.code=='KeyR')IN.respawn=1;if(e.code=='KeyF'){UI.showStats=!UI.showStats}if(e.code=='KeyP'||e.code=='Escape')UI.paused=!UI.paused;if(e.code=='KeyG')IN.auto=!IN.auto;if(e.code=='KeyM')UI.mapOpen=!UI.mapOpen;if(MENU.open){menuKey(e.code);e.preventDefault()}else if(e.code=='KeyC')menuOpen();audioStart();if(/Arrow|Space/.test(e.code))e.preventDefault()});
+  const K=UI.keys;window.addEventListener('keydown',e=>{K[e.code]=1;if((e.code=='ShiftLeft'||e.code=='ShiftRight'||e.code=='KeyN')&&!e.repeat)nitroTap();if(e.code=='KeyR')IN.respawn=1;if(e.code=='KeyF'){UI.showStats=!UI.showStats}if(e.code=='KeyP'||e.code=='Escape')UI.paused=!UI.paused;if(e.code=='KeyG')IN.auto=!IN.auto;if(e.code=='KeyM'){if(UI.mapOpen)UI.mapOpen=false;else mapOpenNow()}if(MENU.open){menuKey(e.code);e.preventDefault()}else if(e.code=='KeyC')menuOpen();audioStart();if(/Arrow|Space/.test(e.code))e.preventDefault()});
   window.addEventListener('keyup',e=>{K[e.code]=0});
   window.addEventListener('blur',()=>{for(const k in K)K[k]=0;UI.touches.clear();UI.stickT=null;UI.btn.forEach(b=>b.on=0)});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)UI.paused=true});
@@ -33,7 +34,7 @@ function uiLayout(){
   const add=(id,label,x,y,rw,rh,act,col,extra)=>{const o={id,label,x,y,w:rw,h:rh,act,on:0,col};if(extra)Object.assign(o,extra);b.push(o);return o};
   /* the minimap lives top-left; tapping it opens the world map */
   const mr=Math.min(w,h)*.105;UI.mm={cx:m+mr,cy:m+mr,r:mr};
-  add('map','MAP',UI.mm.cx-mr,UI.mm.cy-mr,mr*2,mr*2,v=>{if(v)UI.mapOpen=true},'#ffffff',{circle:mr+10,cx:UI.mm.cx,cy:UI.mm.cy});
+  add('map','MAP',UI.mm.cx-mr,UI.mm.cy-mr,mr*2,mr*2,v=>{if(v)mapOpenNow()},'#ffffff',{circle:mr+10,cx:UI.mm.cx,cy:UI.mm.cy});
   /* pedals: gas (tall, far right), brake to its left; drift sits above the brake, nitro above the gas */
   const gw=u*1.1,gh=u*1.75,bw=u*1.0,bh=u*1.35,gx=w-m-gw,gy=h-m-gh,bx=gx-u*.22-bw,by=h-m-bh;
   add('gas','GAS',gx,gy,gw,gh,v=>{},'#34d27b',{pedal:1});
@@ -86,7 +87,8 @@ function mapInit(){
 /* safe houses (green = yours, grey = locked) and cops, drawn on top of the baked map */
 function mapOverlay(ctx,pxm,s){
   const rs=6.8;ctx.lineWidth=1.7;for(const h of SAFEHOUSES){const px=(h.x+W.half)*pxm,pz=(h.z+W.half)*pxm,own=SAFE.owned[h.id];ctx.beginPath();ctx.arc(px,pz,rs,0,TAU);ctx.fillStyle=own?'#3cf08c':'#8d97a3';ctx.fill();ctx.strokeStyle=own?'#05301a':'#222a33';ctx.stroke()}
-  if(TR.on){const r=4.2/s,f=((C.t*4)|0)%2;for(const c of TR.cars){if(!c.alive||c.kind!==1||(c.cm==0&&!c.siren))continue;ctx.fillStyle=f?'#ff4a3a':'#4a7aff';ctx.fillRect((c.x+W.half)*pxm-r,(c.z+W.half)*pxm-r,r*2,r*2)}}}
+  if(TR.on){const r=4.2/s,f=((C.t*4)|0)%2;for(const c of TR.cars){if(!c.alive||c.kind!==1||(c.cm==0&&!c.siren))continue;ctx.fillStyle=f?'#ff4a3a':'#4a7aff';ctx.fillRect((c.x+W.half)*pxm-r,(c.z+W.half)*pxm-r,r*2,r*2)}}
+  navMapOverlay(ctx,pxm,s)}
 function drawMap(ctx,cx,cy,rad,zoomM,rot){
   /* zoomM = metres across the circle's radius */
   const S=UI.mapCv.width,pxm=S/W.size,s=rad/zoomM/pxm;ctx.save();ctx.beginPath();ctx.arc(cx,cy,rad,0,TAU);ctx.clip();ctx.fillStyle='#10202e';ctx.fillRect(cx-rad,cy-rad,rad*2,rad*2);
@@ -140,31 +142,12 @@ function hudDraw(){
   {const t=UI.stickT;if(t){c.globalAlpha=.5;c.strokeStyle='#fff';c.lineWidth=3;c.beginPath();c.arc(t.x0,t.y0,Math.max(46,UI.w*.075),0,TAU);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(clamp(t.x,t.x0-Math.max(46,UI.w*.075),t.x0+Math.max(46,UI.w*.075)),t.y0,18,0,TAU);c.fill();c.globalAlpha=1}}
   /* stats */
   if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px ui-monospace,Menlo,monospace';c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'gfx '+GFX.cur.name+' ('+GFX.mode+')  work '+GFX.work.toFixed(1)+' ms  fxaa'+(GFX.cur.blur?' blur':'')+(GFX.cur.bloom?' bloom':'')+(GFX.shadowOn?' shadow'+GFX.cur.shadow:''),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
-  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);
+  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);
   if(UI.paused&&!window.__shot){c.fillStyle='rgba(0,0,0,.55)';c.fillRect(0,0,W_,H_);c.fillStyle='#fff';c.textAlign='center';c.font='800 28px sans-serif';c.fillText('PAUSED - tap to resume',W_/2,H_/2)}
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}
   if(UI.mapOpen)drawWorldMap(c,W_,H_,u)
 }
 const MAPLBL=[['DOWNTOWN',-860,330,1],['RUSSIAN HILL',-1090,-190,1],['TWIN PEAKS',-640,940,1],['GOLDEN GATE PARK',-1440,400,1,'r'],['THE VALLEY',640,880,1],['SANTA CRUZ',-325,2650,1],['PALM SPRINGS',1620,1660,1],['MULHOLLAND',1000,-330,1],['ORBITAL RING',-150,-1120,1],['MOUNTAIN PASS',1850,-1800,1],['NORTH COUNTRY',-350,-2610,1],['PACIFICA',-1640,1330,1],['FRESNO',-1500,-2330,1],['BARSTOW',3680,1190,1],['BIG PINES',-190,-3330,1],['HARBOR',1200,2520,1],['MOJAVE WORKS',3375,2090,1],['THE CANYON',3750,-1100,1],['NORTHERN RANGE',600,-4200,1],['MOJAVE DESERT',3900,1900,1],['FARMLAND',-1000,-1750,1],['PACIFIC COAST',-1850,1720,1],['SOUTHERN PLAINS',1200,2290,1],['EAST LINK',2200,1450,1],['OCEAN',-2640,-500,0]];
-/* the whole county on one screen: where you are, the roads, the named areas */
-function drawWorldMap(c,W_,H_,u){
-  c.fillStyle='#050a12';c.fillRect(0,0,W_,H_);
-  const S=Math.min(H_-u*1.2,W_*.72),x0=(W_-S)/2,y0=u*.5;
-  c.imageSmoothingEnabled=true;c.drawImage(UI.mapCv,x0,y0,S,S);c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=2;c.strokeRect(x0,y0,S,S);
-  const sc=S/W.size,px=x=>x0+(x+W.half)*sc,pz=z=>y0+(z+W.half)*sc;
-  c.textAlign='center';c.font='800 '+Math.max(8,Math.round(u*.22))+'px -apple-system,Roboto,sans-serif';c.lineJoin='round';
-  for(const L of MAPLBL.concat(JUMPZ.map(j=>['JUMPS',j[0],j[1]-75,1]))){c.textAlign=L[4]=='r'?'right':'center';c.strokeStyle='rgba(0,0,0,.85)';c.lineWidth=3.5;c.strokeText(L[0],px(L[1]),pz(L[2]));c.fillStyle=L[3]?'#fff':'#8fb8e0';c.fillText(L[0],px(L[1]),pz(L[2]))}c.textAlign='center';
-  for(const h of SAFEHOUSES){c.beginPath();c.arc(px(h.x),pz(h.z),Math.max(3,u*.11),0,TAU);c.fillStyle=SAFE.owned[h.id]?'#3cf08c':'#8d97a3';c.fill();c.lineWidth=1.5;c.strokeStyle='#071018';c.stroke()}
-  /* you */
-  const t=C.t,pxp=px(C.x),pzp=pz(C.z);c.save();c.translate(pxp,pzp);c.strokeStyle='rgba(255,122,26,'+(.75-.4*Math.sin(t*6))+')';c.lineWidth=2;c.beginPath();c.arc(0,0,8+3*Math.sin(t*6),0,TAU);c.stroke();
-  c.rotate(C.yaw);c.fillStyle='#ff7a1a';c.strokeStyle='#fff';c.lineWidth=1.8;c.beginPath();c.moveTo(0,-9);c.lineTo(6,7);c.lineTo(0,3);c.lineTo(-6,7);c.closePath();c.fill();c.stroke();c.restore();
-  /* title, compass, key */
-  c.textAlign='left';c.fillStyle='#fff';c.font='800 '+Math.round(u*.42)+'px -apple-system,Roboto,sans-serif';c.fillText('COUNTY MAP',u*.4,u*1.1);
-  c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.75)';
-  const kx=u*.4;let ky=u*1.9;const key=(col,t2)=>{c.fillStyle=col;c.fillRect(kx,ky-u*.16,u*.5,u*.12);c.fillStyle='rgba(255,255,255,.8)';c.fillText(t2,kx+u*.65,ky);ky+=u*.5};
-  key('#ffd36a','Highway');key('#ffffff','Road');key('#c9ced6','City street');
-  c.fillStyle='rgba(255,255,255,.8)';c.fillText('N \u2191',kx,ky+u*.2);
-  c.textAlign='center';c.fillStyle='rgba(255,255,255,.7)';c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillText('Tap anywhere to close',W_*.5,H_-u*.28)}
 function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
 /* ---------- audio: synthesised engine, wind, tyres ---------- */
 const AU={ctx:null,eng:null,eng2:null,gain:null,wind:null,tire:null,ready:false};

@@ -7,13 +7,13 @@ function _mkMesh(gl,B,colFor,keepAb){
     i8[v*16+8]=Math.round(B.N[v*3]*127);i8[v*16+9]=Math.round(B.N[v*3+1]*127);i8[v*16+10]=Math.round(B.N[v*3+2]*127);i8[v*16+11]=B.M[v];
     const c=colFor(B.M[v]),sh=B.S?B.S[v]:1;b8[v*16+12]=c[0]*sh;b8[v*16+13]=c[1]*sh;b8[v*16+14]=c[2]*sh;b8[v*16+15]=255}
   const idx=new Uint16Array(B.I.length);for(let i=0;i<idx.length;i++)idx[i]=B.I[i];
-  return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,idx),n:idx.length,ab}}
+  return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,idx),n:idx.length,gf:(B.glassFrom!=null?B.glassFrom:idx.length),ab}}
 /* build the mesh of a car definition and make it THE car: body, wheels, materials, paint, light positions, dimensions, wheel contact points */
 function carInstall(def,paint){
   const gl=G.gl,B=cgBuild(def.spec),S=B.S;
   for(const m of[CARM.body,...(CARM.wheels||[])])if(m&&m.vb){gl.deleteBuffer(m.vb);gl.deleteBuffer(m.ib)}
   const rim=def.rim||[190,194,200],cal=def.caliper||[205,28,28];
-  const col=m=>m==CGM.paint?[255,255,255]:m==CGM.rim?rim:m==CGM.caliper?cal:CGCOL[m];
+  const inter=def.interior||CGCOL[CGM.inter],col=m=>m==CGM.paint?[255,255,255]:m==CGM.rim?rim:m==CGM.caliper?cal:m==CGM.inter?inter:CGCOL[m];
   CARM.body=_mkMesh(gl,B.body,col);
   CARM.wheels=[Object.assign(_mkMesh(gl,B.wheelF,col),{x:S.fz,R:S.rf,lat:S.tf}),Object.assign(_mkMesh(gl,B.wheelR,col),{x:S.rz,R:S.rr,lat:S.tr})];
   const mat=new Float32Array(160);CGMAT.forEach((m,i)=>{for(let k=0;k<4;k++)mat[i*4+k]=m[k]/255});CARM.mat=mat;

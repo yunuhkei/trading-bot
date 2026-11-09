@@ -186,7 +186,7 @@ const SH={
  /* ---- car: baked garage mesh, procedural environment reflections, per-vertex material classes ---- */
  carV:'attribute vec4 aP;attribute vec4 aN;attribute vec4 aC;uniform mat4 uVP;uniform mat4 uM;uniform vec4 uMat['+40+'];varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;'+
   'void main(){vec4 w=uM*vec4(aP.xyz,1.);vW=w.xyz;vN=mat3(uM[0].xyz,uM[1].xyz,uM[2].xyz)*aN.xyz;vC=pow(aC.rgb,vec3(2.2));vM=uMat[int(aN.w*127.+.5)];gl_Position=uVP*w;}',
- carF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;uniform float uGl;uniform vec3 uBr,uPaint;\n'+ENVSRC+
+ carF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;uniform float uGl,uAlpha;uniform vec3 uBr,uPaint;\n'+ENVSRC+
  /* a fake environment to reflect: dark wet ground, bright hazy horizon, overcast dome, a soft bright patch where the sun is behind the cloud, and a long overhead softbox for the clear-coat highlight line */
  'vec3 cenv(vec3 r,float rg){float h=r.y;vec3 gr=uAmbB*.55+vec3(.015);vec3 sk=mix(uHor*1.2,uZen*1.15,smoothstep(.1,.9,h));vec3 c=mix(gr,sk,smoothstep(-.12,.08,h));c=mix(c,uHor*1.35,exp(-abs(h)*9.)*.55);'+
   'float sd=max(dot(r,uSun),0.);c+=uSunC*pow(sd,mix(160.,8.,rg))*mix(2.6,.14,rg);'+
@@ -205,14 +205,14 @@ const SH={
   'col+=cenv(R,.12)*(.045+.955*pow(1.-ndv,5.))*coat*.85*(1.-dirt*.6);'+
   /* lights: the emissive material is the head and tail lights (red ones glow harder on the brakes) */
   'float tail=step(.8,alb.r)*step(alb.g,.3);col+=alb*emis*(2.2+uGl*2.)+tail*emis*uBr.x*2.4*vec3(1.,.12,.06);'+
-  'col=fogm(col,vW);gl_FragColor=vec4(tone(col),1.);}',
+  'col=fogm(col,vW);gl_FragColor=vec4(tone(col),mix(uAlpha,1.,pow(1.-ndv,4.)*.7*step(uAlpha,.99)));}',
   /* ---- traffic cars: instanced low-poly bodies; per instance x,y,z,yaw | pitch,roll,colour,flags (1 brake lights, 2 siren) ---- */
- trV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;attribute vec4 aI2;attribute vec4 aI3;uniform mat4 uVP;uniform vec3 uPal[14];uniform vec4 uMat[12];uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;\n'+
+ trV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;attribute vec4 aI2;attribute vec4 aI3;attribute vec4 aI4;uniform mat4 uVP;uniform vec3 uPal[14];uniform vec4 uMat[12];uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;\n'+
   'vec3 rt(vec3 p,float cy,float sy,float cp,float sp,float cr,float sr){float x=p.x*cr-p.y*sr,y=p.x*sr+p.y*cr,z=p.z;float y2=y*cp+z*sp,z2=z*cp-y*sp;return vec3(cy*x+sy*z2,y2,sy*x-cy*z2);}\n'+
   /* dents: up to two per car (centre x,z on the body, depth, radius), the metal near them is pushed in towards the middle of the car and crumpled */
   'float dent(inout vec3 p,vec4 d){if(d.z<=0.)return 0.;vec3 dv=p-vec3(d.x,.62,d.y);float w=exp(-dot(dv,dv)/(d.w*d.w));vec2 dir=-normalize(d.xy+vec2(1e-4));float n=.7+.6*fract(sin(dot(floor(p*9.),vec3(12.9898,78.233,37.719)))*43758.5453);p.xz+=dir*d.z*w*n;p.y-=d.z*w*.22;return w*min(1.,d.z*4.);}\n'+
-  'void main(){vec3 p=aP;float dm=max(dent(p,aI2),dent(p,aI3));float cy=cos(aI0.w),sy=sin(aI0.w),cp=cos(aI1.x),sp=sin(aI1.x),cr=cos(aI1.y),sr=sin(aI1.y);vec3 w=rt(p,cy,sy,cp,sp,cr,sr)+aI0.xyz;vW=w;vN=rt(aN.xyz,cy,sy,cp,sp,cr,sr);'+
-  'int id=int(aN.w*127.+.5);vec4 mt=uMat[id];float fw=aI1.w,br=mod(fw,2.),sir=step(.5,mod(floor(fw*.5+.01),2.)),stb=step(3.5,fw);vec3 alb=mt.rgb;float em=max(mt.a,0.);if(mt.a<-.5){alb=uPal[int(aI1.z+.5)];}if(id==4)em+=br*2.4;if(id==7||id==8){float ph=step(0.,sin(uT*12.)),ps=step(0.,sin(uT*2.6));em+=sir*(id==7?ph*5.+.1:(1.-ph)*5.+.1)+stb*(id==7?ps*1.8:(1.-ps)*1.8);}'+
+  'void main(){vec3 p=aP;float dm=max(dent(p,aI2),max(dent(p,aI3),dent(p,aI4)));float cy=cos(aI0.w),sy=sin(aI0.w),cp=cos(aI1.x),sp=sin(aI1.x),cr=cos(aI1.y),sr=sin(aI1.y);vec3 w=rt(p,cy,sy,cp,sp,cr,sr)+aI0.xyz;vW=w;vN=rt(aN.xyz,cy,sy,cp,sp,cr,sr);'+
+  'int id=int(aN.w*127.+.5);vec4 mt=uMat[id];float fw=aI1.w,br=mod(fw,2.),sir=mod(floor(fw/2.+.01),2.),stb=mod(floor(fw/4.+.01),2.),brk=mod(floor(fw/8.+.01),2.);vec3 alb=mt.rgb;float em=max(mt.a,0.);if(mt.a<-.5){alb=uPal[int(aI1.z+.5)];}if(id==4)em+=br*2.4;if((id==3||id==4)&&brk>.5){em=0.;alb=vec3(.03,.03,.035);}if(id==7||id==8){float ph=step(0.,sin(uT*12.)),ps=step(0.,sin(uT*2.6));em+=sir*(id==7?ph*5.+.1:(1.-ph)*5.+.1)+stb*(id==7?ps*1.8:(1.-ps)*1.8);}'+
   'vC=alb*(1.-.55*dm);vD=dm;vE=vec2(em,(id==1?1.:(id==0?.5:.12))*(1.-.7*dm));gl_Position=uVP*vec4(w,1.);}',
  trF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;\n'+ENVSRC+
   'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float ndv=max(dot(n,V),0.);vec3 R=reflect(-V,n);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl*.9;'+
@@ -249,7 +249,7 @@ function glInit(cv,aa){const at={antialias:!!aa,alpha:false,depth:true,stencil:f
  G.aa=!!gl.getContextAttributes().antialias;
  G.P.sky=mkProg('sky',SH.skyV,SH.skyF,['aP']);G.P.ter=mkProg('ter',SH.terV,SH.terF,['aIJ']);G.P.wat=mkProg('wat',SH.watV,SH.watF,['aP']);
  G.P.rd=mkProg('rd',SH.rdV,SH.rdF,['aP','aA']);G.P.pr=mkProg('pr',SH.prV,SH.prF,['aP','aN','aC','aU']);
- G.P.car=mkProg('car',SH.carV,SH.carF,['aP','aN','aC']);G.P.tr=mkProg('tr',SH.trV,SH.trF,['aP','aN','aI0','aI1','aI2','aI3']);G.P.fx=mkProg('fx',SH.fxV,SH.fxF,['aP','aC','aU']);
+ G.P.car=mkProg('car',SH.carV,SH.carF,['aP','aN','aC']);G.P.tr=mkProg('tr',SH.trV,SH.trF,['aP','aN','aI0','aI1','aI2','aI3','aI4']);G.P.fx=mkProg('fx',SH.fxV,SH.fxF,['aP','aC','aU']);
  return gl}
 const mkBuf=(target,data,usage)=>{const gl=G.gl,b=gl.createBuffer();gl.bindBuffer(target,b);gl.bufferData(target,data,usage||gl.STATIC_DRAW);return b};
 function mkTex(w,h,data,o){o=o||{};const gl=G.gl,t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,data);
@@ -1262,6 +1262,7 @@ function renderFrame(w,h,sky){
   const th=Math.tan(R.fov/2);gl.uniform3fv(P.u.uFw,R.fw);gl.uniform3fv(P.u.uRt,R.rt);gl.uniform3fv(P.u.uUp,R.up);gl.uniform2f(P.u.uTan,th*w/h,th);gl.bindBuffer(gl.ARRAY_BUFFER,R.skyB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);gl.drawArrays(gl.TRIANGLES,0,3);R.draws++;
   /* water + effects (blended, no depth writes) */
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+  if(R.carGlass)R.carGlass();
   P=G.P.wat;gl.useProgram(P.p);setEnvU(P);setMapU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.h);gl.uniform1i(P.u.uH,0);bindTex(2,R.tex.nz);gl.uniform1i(P.u.uNz,2);gl.bindBuffer(gl.ARRAY_BUFFER,R.watB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);gl.drawArrays(gl.TRIANGLES,0,6);R.draws++;
   if(R.fxDraw)R.fxDraw();
   gl.depthMask(true);gl.disable(gl.BLEND);
@@ -1373,7 +1374,7 @@ function gfxComposite(w,h){
   const P=G.P.postv;gl.useProgram(P.p);bindTex(0,GFX.col);gl.uniform1i(P.u.uS,0);if(P.u.uB){bindTex(1,GFX.blT[0]||GFX.col);gl.uniform1i(P.u.uB,1)}gl.uniform2f(P.u.uPx,1/w,1/h);
   gl.uniform4f(P.u.uP,GFX.blurAmt,.6,.5,R.time%100);gl.drawArrays(gl.TRIANGLES,0,3);R.draws++}
 /* speed blur: from about 45 m/s, more with nitro */
-function gfxUpdate(dt){const sp=(C.speed||0)+C.boostK*14,t=Math.max(0,Math.min(1,(sp-38)/60));GFX.blurAmt+=(t*.9-GFX.blurAmt)*Math.min(1,dt*3)}
+function gfxUpdate(dt){const sp=(C.speed||0)+C.boostK*26,t=Math.max(0,Math.min(1,(sp-34)/50));GFX.blurAmt+=(t*1.25-GFX.blurAmt)*Math.min(1,dt*6)}
 /* ---------------- the automatic quality choice ----------------
    The frame rate on a phone is capped at the screen rate, so "frames are on time" says nothing about how much room is left. So every few seconds a short probe times a few frames
    WITH a forced wait for the GPU (a 1-pixel readback), which gives the real cost of a frame (CPU + GPU, not overlapped, so a bit pessimistic). The rules are made so the phone is never run flat out:
@@ -1464,27 +1465,33 @@ function shdSetU(P){if(!P.u.uSh)return;const gl=G.gl;bindTex(4,SHD.tex||R.tex.nz
 'use strict';
 /* ===== the car: baked Surge Sport mesh, arcade driving model, chase camera ===== */
 const CARM={body:null,wheels:[],mat:null};
-function carGLInit(){carLoad();carSelect(CARSEL.cur);R.carDraw=carDraw;R.fxDraw=fxDraw}
+function carGLInit(){carLoad();carSelect(CARSEL.cur);R.carDraw=carDraw;R.carGlass=carGlassDraw;R.fxDraw=fxDraw}
 const _mb=new Float32Array(16),_mw=new Float32Array(16),_mf=new Float32Array(16);
-function drawCarMesh(m,M){const gl=G.gl,P=G.P.car;gl.uniformMatrix4fv(P.u.uM,false,M);gl.bindBuffer(gl.ARRAY_BUFFER,m.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib);
-  gl.vertexAttribPointer(0,4,gl.SHORT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,8);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,16,12);gl.drawElements(gl.TRIANGLES,m.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=m.n/3}
+function drawCarMesh(m,M,count,from){const gl=G.gl,P=G.P.car,n=count==null?m.n:count;gl.uniformMatrix4fv(P.u.uM,false,M);gl.bindBuffer(gl.ARRAY_BUFFER,m.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib);
+  gl.vertexAttribPointer(0,4,gl.SHORT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,8);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,16,12);gl.drawElements(gl.TRIANGLES,n,gl.UNSIGNED_SHORT,(from||0)*2);R.draws++;R.tris+=n/3}
 function carDraw(){
   if(!CARM.body)return;const gl=G.gl,P=G.P.car,a=R.alpha,q=CARS_RENDER;
   gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);gl.uniform3fv(P.u.uPaint,CARM.paint);attrs(3);gl.disable(gl.CULL_FACE);
   /* the model is stored in 1/8192 m units */const S=1/8192;
   const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a);
   gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);
-  M4.trs(_mb,x,y+C.bob,z,-yaw,pit,rol,S,S,S);drawCarMesh(CARM.body,_mb);
+  gl.uniform1f(P.u.uAlpha,1);M4.trs(_mb,x,y+C.bob,z,-yaw,pit,rol,S,S,S);drawCarMesh(CARM.body,_mb,CARM.body.gf);
   /* wheels: stored in metres-as-int16 too, positions given in metres */
   for(let w=0;w<CARM.wheels.length;w++){const wh=CARM.wheels[w];for(const sd of[-1,1]){
     const st=w==0?C.steerVis:0;M4.trs(_mw,sd*wh.lat,wh.R,wh.x,st,-C.spin,0,sd*S,S,S);
     /* body transform without its own scale */M4.trs(_mf,x,y+C.bob,z,-yaw,pit,rol,1,1,1);M4.mul(_mb,_mf,_mw);drawCarMesh(wh,_mb)}}
 }
+/* the tinted glass, drawn after the sky with blending (so the seats, the wheel and the dash show through it) */
+function carGlassDraw(){
+  const B=CARM.body;if(!B||B.gf>=B.n)return;const gl=G.gl,P=G.P.car,a=R.alpha;
+  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);gl.uniform3fv(P.u.uPaint,CARM.paint);attrs(3);gl.disable(gl.CULL_FACE);
+  const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a),S=1/8192;
+  gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);gl.uniform1f(P.u.uAlpha,.5);M4.trs(_mb,x,y+C.bob,z,-yaw,pit,rol,S,S,S);drawCarMesh(B,_mb,B.n-B.gf,B.gf);gl.uniform1f(P.u.uAlpha,1)}
 const CARS_RENDER=null;
 /* ---------- state ---------- */
 const GRAV=24;
 const C={dActive:0,dCombo:0,dTime:0,dGrace:0,dStart:0,dEnd:0,dLast:null,jump:null,jx:0,jz:0,slideT:0,kv:0,liftT:0,ke:0,E:0,handT:0,hk:0,handOn:0,slideDir:1,lastSteer:1,airMax:0,x:0,y:0,z:0,yaw:0,vx:0,vz:0,vy:0,pitch:0,roll:0,px:0,py:0,pz:0,pyaw:0,ppitch:0,proll:0,spin:0,steerVis:0,wyaw:0,bob:0,
-  gs:0,gsp:0,gf:0,ax:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0,boostK:0,camDr:0,camYV:0};
+  gs:0,gsp:0,gf:0,ax:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0,boostK:0,camDr:0,camYV:0,fovV:0,distV:0};
 const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
 /* impacts: everything the car hits (src 0 a building/pole/tree, 1 a steep bank, 2 a hard landing, 3 traffic) is recorded with its energy for the damage system.
    E = energy lost in the crash in joules (1/2 m v^2 style: for a wall 1/2 m_player (1-e^2) vn^2, for a car 1/2 mu (1-e^2) vn^2 with mu the reduced mass), zone 0 front 1 rear 2 left 3 right (-1 unknown/underside) */
@@ -1545,7 +1552,7 @@ function carStep(dt){
   if(IN.nitro&&(C.nos<=.015||brk>0))IN.nitro=0;
   const nitroOn=IN.nitro?1:0;C.boosting=nitroOn;if(nitroOn){C.nos=Math.max(0,C.nos-dt*.30);thr=1}
   /* the boost fades in and out (about 0.15 s in, 0.3 s out) instead of switching: the push, the top speed and the camera all follow this one number */
-  C.boostK+=((nitroOn?1:0)-C.boostK)*(1-Math.exp(-dt*(nitroOn?7:3.5)));
+  C.boostK+=((nitroOn?1:0)-C.boostK)*(1-Math.exp(-dt*(nitroOn?13:6)));
   const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*C.boostK)*DMG.spd,surf=C.onRoad?1:HND.grass;
   /* ---- longitudinal: weighty launch, strong but not instant braking ---- */
   if(gr){
@@ -1657,14 +1664,15 @@ function camStep(dt,snap){
   const want=pyaw+clamp(angd(tgtYaw,pyaw),-.8,.8)*vw*(.12+.5*Math.min(1,C.camDr*1.2));
   /* a critically damped spring (not a plain low-pass): the camera's turning speed starts from zero, so a sudden slide never makes it jerk */
   if(snap){C.camYaw=want;C.camYV=0}else{const w=5.2+sp*2.2,d=Math.min(dt,.05),acc=w*w*angd(want,C.camYaw)-2*w*C.camYV;C.camYV+=acc*d;C.camYaw+=C.camYV*d}
-  const dTarget=5.7+sp*1.9+C.boostK*1.1,h=1.95+sp*.55;C.camDist=snap?dTarget:C.camDist+(dTarget-C.camDist)*(1-Math.exp(-dt*6));const dist=C.camDist;
+  /* the take-off: on a nitro tap the lens widens and the camera drops back fast, overshoots a little and settles (springs, so it is quick but never a jump); when it ends it snaps back the same way */
+  const dTarget=5.7+sp*1.9+C.boostK*2.0,h=1.95+sp*.55;if(snap){C.camDist=dTarget;C.distV=0}else{const w=9,d=Math.min(dt,.05),acc=w*w*(dTarget-C.camDist)-2*.7*w*C.distV;C.distV+=acc*d;C.camDist+=C.distV*d}const dist=C.camDist;
   const cyw=C.camYaw,x=px-Math.sin(cyw)*dist,z=pz+Math.cos(cyw)*dist;let y=py+h;
   const gh=groundAt(x,z,py)+1.3;if(y<gh)y=gh;
   const k=snap?1:1-Math.exp(-dt*(10));C.camY+=(y-C.camY)*k;if(snap)C.camY=y;
   CAM.x=x;CAM.y=C.camY;CAM.z=z;
   const la=9+sp*8;CAM.tx=px+Math.sin(cyw)*la;CAM.tz=pz-Math.cos(cyw)*la;CAM.ty=py+1.15+(C.camY-(py+h))*.2+C.vy*.02;
   const shk=C.shake*.12;if(shk>.002){CAM.x+=(Math.random()-.5)*shk;CAM.y+=(Math.random()-.5)*shk;CAM.z+=(Math.random()-.5)*shk}
-  const tf=1.05+sp*.22+C.boostK*.1;C.fov+=(tf-C.fov)*(snap?1:1-Math.exp(-dt*3));CAM.fov=C.fov}
+  const tf=1.05+sp*.22+C.boostK*.26;if(snap){C.fov=tf;C.fovV=0}else{const w=13,d=Math.min(dt,.05),acc=w*w*(tf-C.fov)-2*.52*w*C.fovV;C.fovV+=acc*d;C.fov+=C.fovV*d}CAM.fov=C.fov}
 /* (the effects - shadow blob, skid marks, smoke, spray, sparks, light glows and beams - are in 41_fx.js) */
 
 'use strict';
@@ -1695,6 +1703,10 @@ function fxUpdate(dt){
   if(IMP.n!==_spCur){const k=Math.min(IMP.n-_spCur,IMP.q.length);for(let i=IMP.q.length-k;i<IMP.q.length;i++){const r=IMP.q[i];if(r.src==2||r.E<1500)continue;
       const n=Math.min(26,4+Math.round(Math.sqrt(r.E)/40));sparkAt(r.src==3?(r.x+C.x)/2:C.x-r.nx*1.2,C.y+.45,r.src==3?(r.z+C.z)/2:C.z-r.nz*1.2,r.nx||0,r.nz||0,Math.round(n*q),Math.min(14,2+r.vn*.7))}_spCur=IMP.n}
   for(const s of SPARK){if(s.age<s.life){s.age+=dt;s.vy-=14*dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;if(s.y<C.gs+.03){s.y=C.gs+.03;s.vy*=-.3;s.vx*=.6;s.vz*=.6}}}
+  /* damaged cars: smoke from the bonnet (more the worse), fire when nearly finished */
+  if(TR.on){const q2=T.fxq;for(const c of TR.cars){if(!c.alive)continue;const dm=c.state==1?Math.max(c.dmg||0,.5):(c.dmg||0);if(dm<.45)continue;const dx=c.x-C.x,dz=c.z-C.z;if(dx*dx+dz*dz>22500)continue;
+      c.smk=(c.smk||0)-dt;if(c.smk>0)continue;c.smk=(dm>.85?.05:dm>.65?.1:.2)/Math.max(.5,q2);const s=SMOKE[smokeHead++%SMOKE.length],sy2=Math.sin(c.yaw),cy2=Math.cos(c.yaw);
+      s.x=c.x+sy2*c.hl*.7+(Math.random()-.5)*.5;s.z=c.z-cy2*c.hl*.7+(Math.random()-.5)*.5;s.y=c.y+.9;s.vx=(c.vx||0)*.3+(Math.random()-.5)*.7;s.vz=(c.vz||0)*.3+(Math.random()-.5)*.7;s.vy=1.4+Math.random()*1.3;s.age=0;s.life=1+Math.random()*.8;s.sz=.5+dm*.6;s.a=.3+dm*.3;s.fire=dm>.85&&Math.random()<.4;s.dark=1;s.k=0}}
   dmgFx(dt)}
 function fxDraw(){
   const gl=G.gl,P=G.P.fx,F=R.fxF,T=GFX.cur,a=R.alpha;let n=0;
@@ -1716,6 +1728,7 @@ function fxDraw(){
   batch(2);
   const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,al=.55*(1-age/40)*q[6];if(l>6)continue;
     quad(q[0]-nx,y,q[1]-nz,q[0]+nx,y,q[1]+nz,q[2]+nx,y,q[3]+nz,q[2]-nx,y,q[3]-nz,.02,.02,.02,al)}
+  navFx(quad,sprite,R.time);
   batch(3);safePads(quad);
   batch(1);
   for(const s of SMOKE){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sz=s.sz+t*(s.k?1.3:2.6),al=s.a*(1-t)*(1-t);const ux=R.up[0]*sz,uy=R.up[1]*sz,uz=R.up[2]*sz,hx=rx*sz,hz=rz*sz;
@@ -1746,6 +1759,7 @@ function fxDraw(){
   /* neon */
   for(let i=0;i<NEONS.length&&ng<gMax+24;i+=7){const nx=NEONS[i]-gcx,nz=NEONS[i+2]-gcz,d2=nx*nx+nz*nz;if(d2>56000)continue;if(nx*R.fw[0]+nz*R.fw[2]<-3)continue;const d=Math.sqrt(d2),fl=.82+.18*Math.sin(R.time*(3+(i%5))+i),al=Math.min(.95,1.15-d/240)*fl;
     sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al);ng++}
+  navBeacon(sprite);
   /* the car's own lights */
   {const hx=sy,hz=-cy,rr=cy,rs=sy,yy=C.y+C.bob;
    for(const sd of[-1,1]){sprite(x+hx*-CARL.hz+rr*sd*CARL.hx,yy+CARL.hy+.12,z+hz*-CARL.hz+rs*sd*CARL.hx,.6,1,.95,.75,.7);
@@ -1786,20 +1800,21 @@ function uiInit(){
   const tp=(e)=>{e.preventDefault();const r=cv.getBoundingClientRect();for(const t of e.changedTouches){t.cx=t.clientX-r.left;t.cy=t.clientY-r.top}};
   const down=(id,x,y)=>{
     if(UI.paused){UI.paused=false;UI.touches.set(id,{type:'none'});return}
-    if(UI.mapOpen){UI.mapOpen=false;UI.touches.set(id,{type:'none'});return}
+    if(UI.mapOpen){mapDown(id,x,y);UI.touches.set(id,{type:'map'});return}
     if(MENU.open){menuTap(x,y);UI.touches.set(id,{type:'none'});return}
     for(const b of UI.btn){const hit=b.circle?Math.hypot(x-b.cx,y-b.cy)<=b.circle:(x>=b.x-8&&x<=b.x+b.w+8&&y>=b.y-8&&y<=b.y+b.h+8);if(hit){UI.touches.set(id,{type:'btn',b});b.on=1;b.act&&b.act(1);return}}
     if(x<UI.w*.55){const t={type:'stick',x0:x,y0:y,x:x,y:y};UI.touches.set(id,t);UI.stickT=t;return}
     UI.touches.set(id,{type:'none'})};
-  const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&t.type=='stick'){t.x=x;t.y=y}};
-  const up=(id)=>{const t=UI.touches.get(id);if(t&&t.type=='btn'){t.b.on=0;t.b.act&&t.b.act(0)}if(t&&t===UI.stickT)UI.stickT=null;UI.touches.delete(id)};
+  const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&t.type=='stick'){t.x=x;t.y=y}else if(t&&t.type=='map')mapMove(id,x,y)};
+  const up=(id)=>{const t=UI.touches.get(id);if(t&&t.type=='map')mapUp(id);if(t&&t.type=='btn'){t.b.on=0;t.b.act&&t.b.act(0)}if(t&&t===UI.stickT)UI.stickT=null;UI.touches.delete(id)};
   const opt={passive:false};
+  cv.addEventListener('wheel',e=>{if(UI.mapOpen){e.preventDefault();mapWheel(e.offsetX,e.offsetY,e.deltaY)}},opt);
   cv.addEventListener('touchstart',e=>{tp(e);for(const t of e.changedTouches)down(t.identifier,t.cx,t.cy);audioStart()},opt);
   cv.addEventListener('touchmove',e=>{tp(e);for(const t of e.changedTouches)move(t.identifier,t.cx,t.cy)},opt);
   cv.addEventListener('touchend',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);cv.addEventListener('touchcancel',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);
   /* mouse (desktop testing): same as one finger */
   let md=false;cv.addEventListener('mousedown',e=>{md=true;down('m',e.offsetX,e.offsetY);audioStart()});window.addEventListener('mousemove',e=>{if(md){const r=cv.getBoundingClientRect();move('m',e.clientX-r.left,e.clientY-r.top)}});window.addEventListener('mouseup',()=>{if(md){md=false;up('m')}});
-  const K=UI.keys;window.addEventListener('keydown',e=>{K[e.code]=1;if((e.code=='ShiftLeft'||e.code=='ShiftRight'||e.code=='KeyN')&&!e.repeat)nitroTap();if(e.code=='KeyR')IN.respawn=1;if(e.code=='KeyF'){UI.showStats=!UI.showStats}if(e.code=='KeyP'||e.code=='Escape')UI.paused=!UI.paused;if(e.code=='KeyG')IN.auto=!IN.auto;if(e.code=='KeyM')UI.mapOpen=!UI.mapOpen;if(MENU.open){menuKey(e.code);e.preventDefault()}else if(e.code=='KeyC')menuOpen();audioStart();if(/Arrow|Space/.test(e.code))e.preventDefault()});
+  const K=UI.keys;window.addEventListener('keydown',e=>{K[e.code]=1;if((e.code=='ShiftLeft'||e.code=='ShiftRight'||e.code=='KeyN')&&!e.repeat)nitroTap();if(e.code=='KeyR')IN.respawn=1;if(e.code=='KeyF'){UI.showStats=!UI.showStats}if(e.code=='KeyP'||e.code=='Escape')UI.paused=!UI.paused;if(e.code=='KeyG')IN.auto=!IN.auto;if(e.code=='KeyM'){if(UI.mapOpen)UI.mapOpen=false;else mapOpenNow()}if(MENU.open){menuKey(e.code);e.preventDefault()}else if(e.code=='KeyC')menuOpen();audioStart();if(/Arrow|Space/.test(e.code))e.preventDefault()});
   window.addEventListener('keyup',e=>{K[e.code]=0});
   window.addEventListener('blur',()=>{for(const k in K)K[k]=0;UI.touches.clear();UI.stickT=null;UI.btn.forEach(b=>b.on=0)});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)UI.paused=true});
@@ -1811,7 +1826,7 @@ function uiLayout(){
   const add=(id,label,x,y,rw,rh,act,col,extra)=>{const o={id,label,x,y,w:rw,h:rh,act,on:0,col};if(extra)Object.assign(o,extra);b.push(o);return o};
   /* the minimap lives top-left; tapping it opens the world map */
   const mr=Math.min(w,h)*.105;UI.mm={cx:m+mr,cy:m+mr,r:mr};
-  add('map','MAP',UI.mm.cx-mr,UI.mm.cy-mr,mr*2,mr*2,v=>{if(v)UI.mapOpen=true},'#ffffff',{circle:mr+10,cx:UI.mm.cx,cy:UI.mm.cy});
+  add('map','MAP',UI.mm.cx-mr,UI.mm.cy-mr,mr*2,mr*2,v=>{if(v)mapOpenNow()},'#ffffff',{circle:mr+10,cx:UI.mm.cx,cy:UI.mm.cy});
   /* pedals: gas (tall, far right), brake to its left; drift sits above the brake, nitro above the gas */
   const gw=u*1.1,gh=u*1.75,bw=u*1.0,bh=u*1.35,gx=w-m-gw,gy=h-m-gh,bx=gx-u*.22-bw,by=h-m-bh;
   add('gas','GAS',gx,gy,gw,gh,v=>{},'#34d27b',{pedal:1});
@@ -1864,7 +1879,8 @@ function mapInit(){
 /* safe houses (green = yours, grey = locked) and cops, drawn on top of the baked map */
 function mapOverlay(ctx,pxm,s){
   const rs=6.8;ctx.lineWidth=1.7;for(const h of SAFEHOUSES){const px=(h.x+W.half)*pxm,pz=(h.z+W.half)*pxm,own=SAFE.owned[h.id];ctx.beginPath();ctx.arc(px,pz,rs,0,TAU);ctx.fillStyle=own?'#3cf08c':'#8d97a3';ctx.fill();ctx.strokeStyle=own?'#05301a':'#222a33';ctx.stroke()}
-  if(TR.on){const r=4.2/s,f=((C.t*4)|0)%2;for(const c of TR.cars){if(!c.alive||c.kind!==1||(c.cm==0&&!c.siren))continue;ctx.fillStyle=f?'#ff4a3a':'#4a7aff';ctx.fillRect((c.x+W.half)*pxm-r,(c.z+W.half)*pxm-r,r*2,r*2)}}}
+  if(TR.on){const r=4.2/s,f=((C.t*4)|0)%2;for(const c of TR.cars){if(!c.alive||c.kind!==1||(c.cm==0&&!c.siren))continue;ctx.fillStyle=f?'#ff4a3a':'#4a7aff';ctx.fillRect((c.x+W.half)*pxm-r,(c.z+W.half)*pxm-r,r*2,r*2)}}
+  navMapOverlay(ctx,pxm,s)}
 function drawMap(ctx,cx,cy,rad,zoomM,rot){
   /* zoomM = metres across the circle's radius */
   const S=UI.mapCv.width,pxm=S/W.size,s=rad/zoomM/pxm;ctx.save();ctx.beginPath();ctx.arc(cx,cy,rad,0,TAU);ctx.clip();ctx.fillStyle='#10202e';ctx.fillRect(cx-rad,cy-rad,rad*2,rad*2);
@@ -1918,31 +1934,12 @@ function hudDraw(){
   {const t=UI.stickT;if(t){c.globalAlpha=.5;c.strokeStyle='#fff';c.lineWidth=3;c.beginPath();c.arc(t.x0,t.y0,Math.max(46,UI.w*.075),0,TAU);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(clamp(t.x,t.x0-Math.max(46,UI.w*.075),t.x0+Math.max(46,UI.w*.075)),t.y0,18,0,TAU);c.fill();c.globalAlpha=1}}
   /* stats */
   if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px ui-monospace,Menlo,monospace';c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'gfx '+GFX.cur.name+' ('+GFX.mode+')  work '+GFX.work.toFixed(1)+' ms  fxaa'+(GFX.cur.blur?' blur':'')+(GFX.cur.bloom?' bloom':'')+(GFX.shadowOn?' shadow'+GFX.cur.shadow:''),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
-  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);
+  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);
   if(UI.paused&&!window.__shot){c.fillStyle='rgba(0,0,0,.55)';c.fillRect(0,0,W_,H_);c.fillStyle='#fff';c.textAlign='center';c.font='800 28px sans-serif';c.fillText('PAUSED - tap to resume',W_/2,H_/2)}
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}
   if(UI.mapOpen)drawWorldMap(c,W_,H_,u)
 }
 const MAPLBL=[['DOWNTOWN',-860,330,1],['RUSSIAN HILL',-1090,-190,1],['TWIN PEAKS',-640,940,1],['GOLDEN GATE PARK',-1440,400,1,'r'],['THE VALLEY',640,880,1],['SANTA CRUZ',-325,2650,1],['PALM SPRINGS',1620,1660,1],['MULHOLLAND',1000,-330,1],['ORBITAL RING',-150,-1120,1],['MOUNTAIN PASS',1850,-1800,1],['NORTH COUNTRY',-350,-2610,1],['PACIFICA',-1640,1330,1],['FRESNO',-1500,-2330,1],['BARSTOW',3680,1190,1],['BIG PINES',-190,-3330,1],['HARBOR',1200,2520,1],['MOJAVE WORKS',3375,2090,1],['THE CANYON',3750,-1100,1],['NORTHERN RANGE',600,-4200,1],['MOJAVE DESERT',3900,1900,1],['FARMLAND',-1000,-1750,1],['PACIFIC COAST',-1850,1720,1],['SOUTHERN PLAINS',1200,2290,1],['EAST LINK',2200,1450,1],['OCEAN',-2640,-500,0]];
-/* the whole county on one screen: where you are, the roads, the named areas */
-function drawWorldMap(c,W_,H_,u){
-  c.fillStyle='#050a12';c.fillRect(0,0,W_,H_);
-  const S=Math.min(H_-u*1.2,W_*.72),x0=(W_-S)/2,y0=u*.5;
-  c.imageSmoothingEnabled=true;c.drawImage(UI.mapCv,x0,y0,S,S);c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=2;c.strokeRect(x0,y0,S,S);
-  const sc=S/W.size,px=x=>x0+(x+W.half)*sc,pz=z=>y0+(z+W.half)*sc;
-  c.textAlign='center';c.font='800 '+Math.max(8,Math.round(u*.22))+'px -apple-system,Roboto,sans-serif';c.lineJoin='round';
-  for(const L of MAPLBL.concat(JUMPZ.map(j=>['JUMPS',j[0],j[1]-75,1]))){c.textAlign=L[4]=='r'?'right':'center';c.strokeStyle='rgba(0,0,0,.85)';c.lineWidth=3.5;c.strokeText(L[0],px(L[1]),pz(L[2]));c.fillStyle=L[3]?'#fff':'#8fb8e0';c.fillText(L[0],px(L[1]),pz(L[2]))}c.textAlign='center';
-  for(const h of SAFEHOUSES){c.beginPath();c.arc(px(h.x),pz(h.z),Math.max(3,u*.11),0,TAU);c.fillStyle=SAFE.owned[h.id]?'#3cf08c':'#8d97a3';c.fill();c.lineWidth=1.5;c.strokeStyle='#071018';c.stroke()}
-  /* you */
-  const t=C.t,pxp=px(C.x),pzp=pz(C.z);c.save();c.translate(pxp,pzp);c.strokeStyle='rgba(255,122,26,'+(.75-.4*Math.sin(t*6))+')';c.lineWidth=2;c.beginPath();c.arc(0,0,8+3*Math.sin(t*6),0,TAU);c.stroke();
-  c.rotate(C.yaw);c.fillStyle='#ff7a1a';c.strokeStyle='#fff';c.lineWidth=1.8;c.beginPath();c.moveTo(0,-9);c.lineTo(6,7);c.lineTo(0,3);c.lineTo(-6,7);c.closePath();c.fill();c.stroke();c.restore();
-  /* title, compass, key */
-  c.textAlign='left';c.fillStyle='#fff';c.font='800 '+Math.round(u*.42)+'px -apple-system,Roboto,sans-serif';c.fillText('COUNTY MAP',u*.4,u*1.1);
-  c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.75)';
-  const kx=u*.4;let ky=u*1.9;const key=(col,t2)=>{c.fillStyle=col;c.fillRect(kx,ky-u*.16,u*.5,u*.12);c.fillStyle='rgba(255,255,255,.8)';c.fillText(t2,kx+u*.65,ky);ky+=u*.5};
-  key('#ffd36a','Highway');key('#ffffff','Road');key('#c9ced6','City street');
-  c.fillStyle='rgba(255,255,255,.8)';c.fillText('N \u2191',kx,ky+u*.2);
-  c.textAlign='center';c.fillStyle='rgba(255,255,255,.7)';c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillText('Tap anywhere to close',W_*.5,H_-u*.28)}
 function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
 /* ---------- audio: synthesised engine, wind, tyres ---------- */
 const AU={ctx:null,eng:null,eng2:null,gain:null,wind:null,tire:null,ready:false};
@@ -2136,7 +2133,7 @@ function trThink(c,dt){
   /* priority: class of the road, then the kind of manoeuvre; a car already in a junction goes first */
   {let cls=c.L?c.L.from.cls:c.e.cls,mv=3;if(c.L){mv=[3,2,1,0][c.L.kind]+15}else if(c.pl&&c.pl.from===c.e){const dd=(c.pl.fu-c.u)*c.e.ds;if(dd>-5&&dd<50)mv=[3,2,1,0][c.pl.kind]}c.prio=cls*4+mv+(c.kind===1&&c.cm>0?8:0)}
   let vd=1e9;for(let k=0;k<hn;k++){const d=k*c.hs,s=c.hv[k],vk=Math.sqrt(s*s+5*d);if(vk<vd)vd=vk}   /* braking to the speed limits ahead at about 2.5 m/s^2 */
-  vd=Math.max(2,vd*c.v0f);if(c.cm>0&&c.kind===1&&vd>COP.D.top)vd=COP.D.top;
+  vd=Math.max(2,vd*c.v0f);if(c.cm>0&&c.kind===1){const tp=copTop(c);if(vd>tp)vd=tp}
   _term=0;_emerg=0;_swerve=0;_yGap=1e9;c.flags=0;c.yPrev=c.yTo;c.yTo=-1;
   if(c.hend){/* the path ends (the lane has to be changed first): stop at its end */const gap=(c.hnTrue-1)*c.hs-c.hl-.8;trTerm(c,v,gap,0)}
   /* neighbours */
@@ -2237,7 +2234,14 @@ function trWreck(c,dt){
   for(const o of[-1,1]){const cx=c.x+sy*o*c.hl*.55,cz=c.z-cy*o*c.hl*.55;if(trStatic(cx,cz,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz;const l=Math.hypot(_sx,_sz)||1,nx=_sx/l,nz=_sz/l,vn=c.vx*nx+c.vz*nz;if(vn<0){c.vx-=1.2*vn*nx;c.vz-=1.2*vn*nz;c.om*=.7}}}
   const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);if(c.y<g)c.y=g;
   c.pitch*=.9;c.roll*=.9;
+  if(c.rec&&c.wt>2.4&&sp<3&&trReattach(c))return;
   if(c.block){c.life-=dt;if(c.life<=0)trKill(c,1)}else if(c.wt>TR.wreckLife){trKill(c,1)}}
+/* a knocked car gets back onto the nearest lane and drives on, slower and weaker the more it is damaged */
+function trReattach(c){
+  if(!trProbe(c.x,c.z))return false;const ri=TRP.ri,r=ROADS[ri],o=LG.ofRoad[ri],i=TRP.i,j=i+1<r.n?i+1:i,tx=r.X[j]-r.X[i],tz=r.Z[j]-r.Z[i],hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw),dir=(tx*hx+tz*hz)>=0?0:1,lanes=o[dir];
+  const u=Math.max(3,Math.min(r.n-6,dir==0?i:r.n-1-i));let bk=0,bd=1e18;for(let k=0;k<lanes.length;k++){const e=lanes[k],q=Math.min(Math.floor(u),e.n-2),d=(e.X[q]-c.x)**2+(e.Z[q]-c.z)**2;if(d<bd){bd=d;bk=k}}
+  const e=lanes[bk];c.e=e;c.u=Math.min(Math.floor(u),e.n-2);c.L=null;c.lu=0;c.state=0;c.pjid=-1;c.pickJ=-1;c.hn=0;c.stk=0;c.v=0;c.vx=c.vz=c.om=0;c.rec=0;c.v0f=Math.max(.4,c.v0f*(1-.55*(c.dmg||0)));c.A=Math.max(.8,c.A*(1-.4*(c.dmg||0)));
+  const t=lgTan(e,c.u|0);c.off=Math.max(-8,Math.min(8,(c.x-e.X[c.u|0])*(-t[1])+(c.z-e.Z[c.u|0])*t[0]));return true}
 TR.wreckLife=30;
 function trKill(c,why){if(!c.alive)return;c.alive=0;TR.nAlive--;TR.stat.despawn++;if(why==2)TR.stat.stuck++}
 /* two bodies hit (a: car, wreck or the player proxy; b: car or wreck). Returns the impact energy (J) or 0. a and b have x,z,yaw,vx,vz,om,m,I,hl,hw; normal points from b to a. */
@@ -2277,17 +2281,18 @@ function trResolve(a,b,e,mu){
 function trBody(B,c){B.x=c.x;B.z=c.z;B.yaw=c.yaw;if(c.state==0){B.vx=Math.sin(c.yaw)*c.v;B.vz=-Math.cos(c.yaw)*c.v;B.om=0}else{B.vx=c.vx;B.vz=c.vz;B.om=c.om}B.m=c.m;B.I=c.m*(c.hl*c.hl+c.hw*c.hw)/3;B.hl=c.hl;B.hw=c.hw}
 /* write a body back into a car: a hard hit (or any hit on a wreck) makes it a wreck, a light bump just changes its speed */
 /* a crash leaves a dent in the car: where (on its body), how deep and how wide; two dents are kept per car and a new one near an old one deepens it. The shader (trV) pushes the metal in. */
+const TDCAP=[170000,150000,230000,280000,250000];      /* energy that finishes a sedan / hatch / SUV / van / police car (J) */
 function trDent(c,wx,wz,E){
-  if(E<4000)return;const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
-  const q=Math.sqrt(E/180000),dep=Math.min(.42,.05+.33*q),rad=.42+.4*q,d=c.dn||(c.dn=new Float32Array(8));let slot=-1;
-  for(let s=0;s<2;s++)if(d[s*4+2]>0&&Math.hypot(d[s*4]-lr,d[s*4+1]-lf)<.8){slot=s;break}
-  if(slot<0)slot=d[2]<=0?0:d[6]<=0?1:(d[2]<=d[6]?0:1);
+  if(E<4000)return;c.dmg=Math.min(1,(c.dmg||0)+E/(TDCAP[c.type]||180000));const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
+  const q=Math.sqrt(E/180000),dep=Math.min(.42,.05+.33*q),rad=.42+.4*q,d=c.dn||(c.dn=new Float32Array(12));let slot=-1;
+  for(let s=0;s<3;s++)if(d[s*4+2]>0&&Math.hypot(d[s*4]-lr,d[s*4+1]-lf)<.8){slot=s;break}
+  if(slot<0){slot=d[2]<=0?0:d[6]<=0?1:d[10]<=0?2:(d[2]<=d[6]&&d[2]<=d[10]?0:d[6]<=d[10]?1:2)}
   if(d[slot*4+2]>0&&Math.hypot(d[slot*4]-lr,d[slot*4+1]-lf)<.8){d[slot*4+2]=Math.min(.5,d[slot*4+2]+dep*.7);d[slot*4+3]=Math.max(d[slot*4+3],rad)}else{d[slot*4]=lr;d[slot*4+1]=lf;d[slot*4+2]=dep;d[slot*4+3]=rad}}
 function trBack(B,c,E){
   trDent(c,HIT.cx,HIT.cz,E);
   if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>110000&&c.kind==1){c.state=1;c.siren=1;c.wt=0;c.block=0;TR.stat.wrecks++}return}
   if(c.state==0&&E<2500){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.v=Math.max(0,B.vx*hx+B.vz*hz);c.x=B.x;c.z=B.z;return}
-  if(c.state==0){c.state=1;c.wt=0;c.brake=0;c.L=null;TR.stat.wrecks++;c.kind=c.kind}
+  if(c.state==0){c.state=1;c.wt=0;c.brake=0;c.L=null;TR.stat.wrecks++;c.rec=(c.kind==0&&E<32000&&(c.dmg||0)<.72)?1:0}      /* a knock spins it round and it drives on, limping; a big hit finishes it */
   c.x=B.x;c.z=B.z;c.vx=B.vx;c.vz=B.vz;c.om=B.om>5?5:B.om<-5?-5:B.om;c.v=Math.hypot(c.vx,c.vz)}
 /* the player against every car near it (called from the fixed-step loop, 120 Hz) */
 function trPlayerCollide(){
@@ -2303,8 +2308,8 @@ function trPlayerCollide(){
         C.vx=BA.vx;C.vz=BA.vz;C.wyaw+=clamp((BA.om-C.wyaw),-1.6,1.6)*.55;C.x=BA.x;C.z=BA.z;
         const vn=HIT.vn;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.04);C.flash=Math.max(C.flash,Math.min(.25,vn*.01));
         impactAdd(3,vn,e,c.m,HIT.cx,HIT.cz,HIT.nx,HIT.nz);if(C.t-c.hitT>.5)TR.stat.hits++;
-        const was=c.state;if(c.kind==1)copRammed(c,e);else if(e>20000)heatAdd(Math.min(40,e/8000));
-        trBack(BB,c,e);c.hitT=C.t;if(c.kind==0&&was==0&&c.state==1)heatAdd(30)}
+        const was=c.state;if(c.kind==1)copRammed(c,e);else if(e>5000)copTrigger(e>70000?3:2);                 /* crashing into a car is a crime */
+        trBack(BB,c,e);c.hitT=C.t;if(c.kind==0&&was==0&&c.state==1)copTrigger(3)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){
@@ -2334,7 +2339,7 @@ function trSeen(x,z){const dx=x-C.x,dz=z-C.z,d=Math.hypot(dx,dz);if(d<TR.visMin)
 /* put a car on lane edge e at index u */
 function trPlace(e,u,type,col,v,seed){
   let c=null;for(const q of TR.cars)if(!q.alive){c=q;break}if(!c)return null;
-  const T=TTYPES[type];c.alive=1;c.state=0;c.kind=0;if(c.dn)c.dn.fill(0);c.type=type;c.col=col;c.m=T.m;c.hl=T.hl;c.hw=T.hw;c.I=T.m*(T.hl*T.hl+T.hw*T.hw)/3;c.e=e;c.u=u;c.L=null;c.lu=0;c.seed=seed|0;
+  const T=TTYPES[type];c.alive=1;c.state=0;c.kind=0;if(c.dn)c.dn.fill(0);c.dmg=0;c.rec=0;c.type=type;c.col=col;c.m=T.m;c.hl=T.hl;c.hw=T.hw;c.I=T.m*(T.hl*T.hl+T.hw*T.hw)/3;c.e=e;c.u=u;c.L=null;c.lu=0;c.seed=seed|0;
   trPt(e,u);c.x=_pt.x;c.z=_pt.z;c.y=_pt.y;c.yaw=Math.atan2(_pt.tx,-_pt.tz);c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.v=v;c.vx=Math.sin(c.yaw)*v;c.vz=-Math.cos(c.yaw)*v;c.om=0;c.pitch=c.roll=0;
   c.acc=0;c.v0f=.86+trHash(seed,7)*.22;c.A=1.9+trHash(seed,11)*.9;c.T=1.0+trHash(seed,13)*.7;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.pickL=null;c.role=0;c.ramCd=0;c.los=null;c.stk=0;
   TR.nAlive++;TR.stat.spawn++;return c}
@@ -2462,8 +2467,16 @@ function trGenType(i){
     for(let k=0;k<mb.I.length;k++)I.push(mb.I[k]+o);o+=n};
   add(R.body,0,0,0,false);
   for(const[wz,wr,wheel,tx]of[[S.fz,S.rf,R.wheelF,S.tf],[S.rz,S.rr,R.wheelR,S.tr]])for(const sd of[-1,1])add(wheel,sd*tx,wr,wz,sd<0);
-  if(i==4){/* the light bar on the roof */const bb=new CGB(),yt=S.H+.005,zc=S.zs((S.roofF+S.roofR)/2);cgBox(bb,-.28,yt+.07,zc,.27,.07,.2,CGM.paint);cgBox(bb,.28,yt+.07,zc,.27,.07,.2,CGM.glass);
-    const nv0=P.length/3;for(let v=0;v<bb.nv;v++){P.push(bb.P[v*3],bb.P[v*3+1],-bb.P[v*3+2]);N.push(bb.N[v*3],bb.N[v*3+1],-bb.N[v*3+2]);M.push(bb.M[v]==CGM.paint?7:8)}for(const k of bb.I)I.push(k+nv0)}
+  if(i==4){/* a police car: the light bar (red, clear, blue segments on a black base), a push bar, A-pillar spotlights, an aerial, a rear deck light */
+    const bb=new CGB(),yt=S.H+.005,zc=S.zs((S.roofF+S.roofR)/2),T=(m)=>m;
+    cgBox(bb,0,yt+.025,zc,.62,.025,.22,CGM.trim,0);
+    for(let k=0;k<3;k++){cgBox(bb,-.5+k*.17,yt+.085,zc,.075,.045,.19,CGM.paint,0);cgBox(bb,.5-k*.17,yt+.085,zc,.075,.045,.19,CGM.glass,0)}
+    cgBox(bb,0,yt+.085,zc,.075,.045,.19,CGM.head,0);                                                                                    /* the clear middle segment */
+    cgBox(bb,0,.5,-S.L/2-.05,.55,.018,.03,CGM.trim,0);cgBox(bb,0,.62,-S.L/2-.05,.5,.018,.03,CGM.trim,0);for(const sd of[-1,1])cgBox(bb,sd*.5,.55,-S.L/2-.04,.02,.11,.025,CGM.trim,0);     /* push bar */
+    for(const sd of[-1,1]){cgBox(bb,sd*(S.curves.half(S.cowl)*S.gw+.07),S.H-.32,S.zs(S.cowl+.18),.025,.025,.05,CGM.chrome,0)}                          /* spotlights */
+    cgBox(bb,.35,S.H+.14,S.zs(S.roofR+.25),.006,.12,.006,CGM.trim,0);                                                                    /* aerial */
+    const map2={[CGM.paint]:7,[CGM.glass]:8,[CGM.trim]:2,[CGM.head]:3,[CGM.chrome]:5};
+    const nv0=P.length/3;for(let v=0;v<bb.nv;v++){P.push(bb.P[v*3],bb.P[v*3+1],-bb.P[v*3+2]);N.push(bb.N[v*3],bb.N[v*3+1],-bb.N[v*3+2]);M.push(map2[bb.M[v]]||2)}for(const k of bb.I)I.push(k+nv0)}
   return{P,N,M,I}}
 function trGLInit(){
   const gl=G.gl;TRM.pal=new Float32Array(TCOLS.length*3);TCOLS.forEach((c,i)=>{TRM.pal[i*3]=c[0];TRM.pal[i*3+1]=c[1];TRM.pal[i*3+2]=c[2]});
@@ -2474,7 +2487,7 @@ function trGLInit(){
     return{vb:mkBuf(gl.ARRAY_BUFFER,ab),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(B.I)),n:B.I.length,nv}};
   /* groups: type * 2 + lod (0 smooth body for the cars near the camera, 1 the 200-triangle body for the rest) */
   TRM.types=[];for(let i=0;i<5;i++){TRM.types.push(upload(trGenType(i)));TRM.types.push(upload(trBuildType(TRSHAPE[i],TTYPES[i].hw)))}
-  TRM.inst=new Float32Array(TRN*16);TRM.ibuf=mkBuf(gl.ARRAY_BUFFER,TRM.inst.byteLength,gl.DYNAMIC_DRAW);TRM.cnt=new Int16Array(10);TRM.off=new Int16Array(10);
+  TRM.inst=new Float32Array(TRN*20);TRM.ibuf=mkBuf(gl.ARRAY_BUFFER,TRM.inst.byteLength,gl.DYNAMIC_DRAW);TRM.cnt=new Int16Array(10);TRM.off=new Int16Array(10);
   R.trDraw=trDraw;TRM.ready=true}
 /* soft blob shadows under the cars (added to the effects batch by fxDraw) */
 function trShadows(quad){
@@ -2489,20 +2502,20 @@ function trPrep(){
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const x=lerp(c.px,c.x,a),y=lerp(c.py,c.y,a),z=lerp(c.pz,c.z,a),dx=x-R.cx,dz=z-R.cz,d2=dx*dx+dz*dz;if(d2>490000||!M4.sphereIn(R.PL,x,y+1,z,3.6))continue;c.gi=c.type*2+(d2<lod2?0:1);vis[nv++]=i;cnt[c.gi]++}
   if(!nv)return 0;
   let s0=0;const fill=new Int16Array(10);for(let g=0;g<10;g++){off[g]=s0;fill[g]=s0;s0+=cnt[g]}
-  for(let q=0;q<nv;q++){const c=cars[vis[q]],o=fill[c.gi]++*16;
-    I[o]=lerp(c.px,c.x,a);I[o+1]=lerp(c.py,c.y,a);I[o+2]=lerp(c.pz,c.z,a);I[o+3]=c.pyaw+angd(c.yaw,c.pyaw)*a;I[o+4]=c.pitch;I[o+5]=c.roll;I[o+6]=c.col;I[o+7]=(c.brake?1:0)+(c.siren?2:0)+(c.kind===1&&c.cm===0&&c.type===4&&!c.siren?4:0);
-    const d=c.dn;if(d){for(let k=0;k<8;k++)I[o+8+k]=d[k]}else for(let k=8;k<16;k++)I[o+k]=0}
-  gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,I.subarray(0,nv*16));TRM.nv=nv;TR.drawn=nv;return nv}
+  for(let q=0;q<nv;q++){const c=cars[vis[q]],o=fill[c.gi]++*20;
+    I[o]=lerp(c.px,c.x,a);I[o+1]=lerp(c.py,c.y,a);I[o+2]=lerp(c.pz,c.z,a);I[o+3]=c.pyaw+angd(c.yaw,c.pyaw)*a;I[o+4]=c.pitch;I[o+5]=c.roll;I[o+6]=c.col;I[o+7]=(c.brake?1:0)+(c.siren?2:0)+(c.kind===1&&c.cm===0&&c.type===4&&!c.siren?4:0)+((c.dmg||0)>.45?8:0);
+    const d=c.dn;if(d){for(let k=0;k<12;k++)I[o+8+k]=d[k]}else for(let k=8;k<20;k++)I[o+k]=0}
+  gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,I.subarray(0,nv*20));TRM.nv=nv;TR.drawn=nv;return nv}
 /* issue the draws of the collected cars with whatever program is bound (the attribute layout is shared by the colour and the shadow program) */
 function trIssue(){
   const gl=G.gl,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,ext=G.ext.inst;
-  if(ext){attrs(6);for(let k=2;k<6;k++)ext.vertexAttribDivisorANGLE(k,1)}else attrs(2);
+  if(ext){attrs(7);for(let k=2;k<7;k++)ext.vertexAttribDivisorANGLE(k,1)}else attrs(2);
   for(let g=0;g<10;g++){if(!cnt[g])continue;const M=TRM.types[g];
     gl.bindBuffer(gl.ARRAY_BUFFER,M.vb);gl.vertexAttribPointer(0,3,gl.FLOAT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,12);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,M.ib);
-    if(ext){gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);const b=off[g]*64;for(let k=0;k<4;k++)gl.vertexAttribPointer(2+k,4,gl.FLOAT,false,64,b+k*16);ext.drawElementsInstancedANGLE(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0,cnt[g]);R.draws++}
-    else{for(let k=0;k<cnt[g];k++){const o=(off[g]+k)*16;for(let q=0;q<4;q++)gl.vertexAttrib4f(2+q,I[o+q*4],I[o+q*4+1],I[o+q*4+2],I[o+q*4+3]);gl.drawElements(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0);R.draws++}}
+    if(ext){gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);const b=off[g]*80;for(let k=0;k<5;k++)gl.vertexAttribPointer(2+k,4,gl.FLOAT,false,80,b+k*16);ext.drawElementsInstancedANGLE(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0,cnt[g]);R.draws++}
+    else{for(let k=0;k<cnt[g];k++){const o=(off[g]+k)*20;for(let q=0;q<5;q++)gl.vertexAttrib4f(2+q,I[o+q*4],I[o+q*4+1],I[o+q*4+2],I[o+q*4+3]);gl.drawElements(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0);R.draws++}}
     R.tris+=M.n/3*cnt[g]}
-  if(ext){for(let k=2;k<6;k++)ext.vertexAttribDivisorANGLE(k,0)}}
+  if(ext){for(let k=2;k<7;k++)ext.vertexAttribDivisorANGLE(k,0)}}
 function trDraw(){
   if(!TRM.nv)return;const gl=G.gl,P=G.P.tr;
   gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform3fv(P.u.uPal,TRM.pal);gl.uniform4fv(P.u.uMat,TRM.mat);gl.uniform1f(P.u.uT,R.time);gl.disable(gl.CULL_FACE);
@@ -2661,19 +2674,28 @@ function safeHud(c,W_,H_,u){
    2 free chase (state 3: steers straight at its slot round you, over the grass if it must, stopped by buildings and trees), 3 roadblock (parked across the road, a wreck that never moves unless you hit it).
    Everything about how hard they are is in COPD (one table per difficulty); the default is Forgiving. */
 const COPD={
-  forgiving:{name:'Forgiving',top:46,accel:6.5,react:1.4,chaseN:[0,1,2,2,3,4],patrol:3,ramLevel:5,blockLevel:5,bustT:5,bustSpd:6,bustN:2,loseT:8,decay:22,ev:.7,rbGap:6.5,chaseSpd:2,thr:[0,28,80,160,280,450]},
-  medium:{name:'Medium',top:56,accel:8,react:.9,chaseN:[0,2,3,4,5,6],patrol:4,ramLevel:3,blockLevel:4,bustT:3,bustSpd:7,bustN:2,loseT:6,decay:16,ev:1,rbGap:0,chaseSpd:2.2,thr:[0,25,70,140,250,400]},
-  hard:{name:'Hard',top:66,accel:10,react:.5,chaseN:[1,3,4,5,6,7],patrol:5,ramLevel:2,blockLevel:3,bustT:2,bustSpd:8,bustN:2,loseT:5,decay:12,ev:1.3,rbGap:0,chaseSpd:2.4,thr:[0,22,60,120,220,350]}};
+  /* top: the slowest a chaser's top speed can be; follow: chasers match your speed times this (up to 105 m/s) and get a rubber-band boost when they fall behind; accel: how hard they accelerate;
+     loseT / loseD: you only lose them by being more than loseD metres from every chaser AND out of sight for loseT seconds; passV: speed at which blowing past a cop gets you chased (120 mph) */
+  forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,1,2,3,3,4],patrol:3,ramLevel:5,blockLevel:5,bustT:5,bustSpd:6,bustN:2,loseT:14,loseD:230,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
+  medium:{name:'Medium',top:66,follow:1.15,accel:14,react:.7,chaseN:[0,2,3,4,5,6],patrol:4,ramLevel:3,blockLevel:4,bustT:3,bustSpd:7,bustN:2,loseT:12,loseD:260,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
+  hard:{name:'Hard',top:76,follow:1.2,accel:16,react:.5,chaseN:[1,3,4,5,6,7],patrol:5,ramLevel:2,blockLevel:3,bustT:2,bustSpd:8,bustN:2,loseT:10,loseD:300,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
 const COP={on:true,D:COPD.forgiving,diff:'forgiving',heat:0,w:0,t:0,sightT:99,minD:1e9,bust:0,spawnT:2,nC:0,nP:0,sirenVol:0,lastBlock:-99,warnT:0,heatT:0,seenNow:false,rbN:0};
 function copSetDiff(n){if(COPD[n]){COP.D=COPD[n];COP.diff=n}}
 /* ---- heat ---- */
 function copLevelOf(){const t=COP.D.thr;let L=0;for(let i=1;i<6;i++)if(COP.w>=t[i]*(i<=COP.heat?.7:1))L=i;return L}
+/* what gets you chased (and nothing else does): you hit a cop car, you blow past a cop at 120 mph or more, you crash into another car. level = the number of stars it is worth at least */
+function copTrigger(level){
+  if(!COP.on||GAME.state||!TR.on)return;const t=COP.D.thr;
+  if(COP.w<t[level]+1)COP.w=t[level]+1;else COP.w+=(t[Math.min(5,level+1)]-t[level])*.3;
+  if(COP.w>t[5]*1.3)COP.w=t[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=0}
+/* how fast a chaser may go: it matches you (a little more), never less than the difficulty's top, and gets a boost the further behind it falls, so it keeps coming */
+function copTop(c){const D=COP.D;let t=Math.max(D.top,Math.min(105,C.speed*D.follow+6));if(c){const d=Math.hypot(c.x-C.x,c.z-C.z);t*=1+Math.min(.25,Math.max(0,d-110)/450)}return Math.min(115,t)}
 function heatAdd(p){if(!COP.on||GAME.state||!TR.on)return;COP.w+=p*COP.D.ev;if(COP.w>COP.D.thr[5]*1.3)COP.w=COP.D.thr[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=Math.min(COP.sightT,.2)}
 /* wipe the heat and send the chasers home (full: they disappear, as when you reach a garage) */
 function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;
   for(const c of TR.cars){if(!c.alive||c.kind!==1)continue;if(c.cm==3||(full&&c.cm>0))trKill(c,0);else if(c.cm>0)copStandDown(c)}}
 function copStandDown(c){c.cm=0;c.siren=0;c.v0f=1;c.A=2.2;if(c.state==3)copAttach(c)}
-function copAlert(c){c.cm=1;c.siren=1;c.v0f=COP.D.chaseSpd;c.A=3.4;c.T=.8;c.pickJ=-1;c.role=0}
+function copAlert(c){c.cm=1;c.siren=1;c.v0f=COP.D.chaseSpd;c.A=COP.D.accel*.85;c.T=.7;c.pickJ=-1;c.role=0;c.rt=null}
 /* ---- line of sight: terrain and solid things (buildings, trees) between a cop and the player ---- */
 function copLos(c){
   const x0=c.x,z0=c.z,y0=c.y+1.4,x1=C.x,z1=C.z,y1=C.y+1.2,d=Math.hypot(x1-x0,z1-z0);if(d>300)return false;const n=Math.max(2,Math.ceil(d/9));
@@ -2690,14 +2712,14 @@ function copTarget(c){
   const dist=Math.hypot(C.x-c.x,C.z-c.z);
   if(D.ramLevel<=COP.heat&&c.role<=2&&c.ramCd<=0&&dist<70){ram=true;const sd=c.role==1?-1:c.role==2?1:((c.i&1)?1:-1);tx=C.x-fx*1.7+rx*sd*.9;tz=C.z-fz*1.7+rz*sd*.9}
   const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),dl=(tx-c.x)*sy+(tz-c.z)*cy,dd=Math.hypot(tx-c.x,tz-c.z);let tv=ps+Math.max(-12,Math.min(22,dl*.9));
-  if(ram)tv=ps+9;else{const cl=Math.min(22,Math.sqrt(2*5*Math.max(0,dd-2)));tv=ps+(dl>=0?cl:-cl)}     /* come up to the slot at a speed it can still stop from */
-  _ct.x=tx;_ct.z=tz;_ct.v=Math.max(0,Math.min(D.top,tv))}
+  if(ram)tv=ps+9;else{const cl=Math.min(34,Math.sqrt(2*8*Math.max(0,dd-2)));tv=ps+(dl>=0?cl:-cl)}     /* come up to the slot at a speed it can still stop from */
+  _ct.x=tx;_ct.z=tz;_ct.v=Math.max(0,Math.min(copTop(c),tv))}
 function copFree(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;const D=COP.D;if(c.ramCd>0)c.ramCd-=dt;
   copTarget(c);
   const dx=_ct.x-c.x,dz=_ct.z-c.z,err=angd(Math.atan2(dx,-dz),c.yaw),v=c.v,maxYr=Math.min(2.6,13/Math.max(v,4));
   const yr=Math.max(-maxYr,Math.min(maxYr,err*3.2));c.om=yr;c.yaw+=yr*dt;
-  const a=Math.max(-9,Math.min(D.accel,(_ct.v-v)*1.3));c.v=Math.max(0,Math.min(D.top,v+a*dt));c.brake=a<-2.5?1:0;
+  const a=Math.max(-12,Math.min(D.accel,(_ct.v-v)*1.6)),top=copTop(c);c.v=Math.max(0,Math.min(top,v+a*dt));c.brake=a<-2.5?1:0;
   const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
   for(const o of[-1,1]){const px=c.x+sy*o*c.hl*.55,pz=c.z-cy*o*c.hl*.55;if(trStatic(px,pz,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz;c.v*=.55;c.vx=sy*c.v;c.vz=-cy*c.v;c.stk+=.3}}
   const g=groundAt(c.x,c.z,c.y+.5);if(!RQ.on&&c.v>26)c.v=26;c.y+=(g-c.y)*Math.min(1,dt*18);if(c.y<g)c.y=g;
@@ -2706,7 +2728,7 @@ function copFree(c,dt){
 /* between the two worlds: lane graph <-> free driving */
 function copDetach(c){c.state=3;c.cm=2;c.L=null;c.vx=Math.sin(c.yaw)*c.v;c.vz=-Math.cos(c.yaw)*c.v;c.stk=0;c.hn=0}
 function copAttach(c){
-  if(!trProbe(c.x,c.z)){trKill(c,0);return false}
+  if(!trProbe(c.x,c.z)){c.stk=0;return false}                         /* not on a road (it is cutting across the grass): keep chasing freely, never give up */
   const ri=TRP.ri,r=ROADS[ri],o=LG.ofRoad[ri],i=TRP.i,j=i+1<r.n?i+1:i,tx=r.X[j]-r.X[i],tz=r.Z[j]-r.Z[i],hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw),dir=(tx*hx+tz*hz)>=0?0:1,lanes=o[dir];
   const u=Math.max(3,Math.min(r.n-6,dir==0?i:r.n-1-i));let bk=0,bd=1e18;
   for(let k=0;k<lanes.length;k++){const e=lanes[k],q=Math.min(Math.floor(u),e.n-2),d=(e.X[q]-c.x)**2+(e.Z[q]-c.z)**2;if(d<bd){bd=d;bk=k}}
@@ -2716,15 +2738,27 @@ function copAttach(c){
 function copPick(c,g,e){
   if(c.pickJ===g.id)return c.pickL;
   const L=g.links;let own=false;if(!g.through)for(let q=0;q<L.length;q++)if(L[q].from===e){own=true;break}
+  /* the way to you: a real route on the lane graph (A*), recomputed every couple of seconds; it names the exit to take at this junction (or says go straight on) */
+  if(NAV.pl&&(!c.rt||COP.t-c.rtT>1.8)){const chain=navAStar(e,Math.min(e.n-1,c.u|0),{ri:NAV.pl.ri,i:NAV.pl.i,x:NAV.pl.x,z:NAV.pl.z},5000);c.rt=chain?navLinksOf(chain):null;c.rtT=COP.t}
+  if(c.rt){let want=null;for(const l of c.rt)if(l.from.ri===e.ri&&l.from.dir===e.dir&&L.indexOf(l)>=0){want=l;break}
+    if(want){let pick=null;for(const l of L)if(l.to.ri===want.to.ri&&l.to.dir===want.to.dir&&(!own||l.from===e)){pick=l;break}c.pickJ=g.id;c.pickL=pick||want;return c.pickL}
+    if(g.through){c.pickJ=g.id;c.pickL=null;return null}}
   let best=null,bd=1e18;
   if(g.through){const ii=Math.min(e.n-1,Math.round(g.foot+10));bd=((e.X[ii]-C.x)**2+(e.Z[ii]-C.z)**2)*.8}
   for(let q=0;q<L.length;q++){const l=L[q];if(own&&l.from!==e)continue;const k=l.n-1,tx=l.X[k]-l.X[k-1],tz=l.Z[k]-l.Z[k-1],ll=Math.hypot(tx,tz)||1,px=l.X[k]+tx/ll*45,pz=l.Z[k]+tz/ll*45;let d=(px-C.x)**2+(pz-C.z)**2;if(l.kind==3)d*=3;if(d<bd){bd=d;best=l}}
   c.pickJ=g.id;c.pickL=best;return best}
 /* ---- spawning (out of sight, behind the player when chasing) ---- */
-function trSpawnCop(chase){
+function trSpawnCop(chase,far){
   const rng=TR.rng,P=C;let ux=C.vx,uz=C.vz;const l=Math.hypot(ux,uz);if(l<2){ux=Math.sin(C.yaw);uz=-Math.cos(C.yaw)}else{ux/=l;uz/=l}
+  /* a chaser: straight back along the road you are on (so it always finds a road and comes up behind you), 120-220 m behind (260-350 when it replaces one that fell behind) */
+  if(chase&&NAV.pl&&LG.ofRoad[NAV.pl.ri]){
+    const r=ROADS[NAV.pl.ri],o=LG.ofRoad[NAV.pl.ri],t=_tan(r,NAV.pl.i),sg=(t[0]*ux+t[1]*uz)>=0?1:-1,di=sg>0?0:1;
+    for(let tries=0;tries<4;tries++){const D=far?265+rng()*80:120+rng()*100;let idx=NAV.pl.i-sg*Math.round(D/r.ds);if(r.closed)idx=((idx%r.n)+r.n)%r.n;else if(idx<6||idx>r.n-8)continue;
+      const k=Math.floor(rng()*o[di].length),e=o[di][k],u=e.dir>0?idx:r.n-1-idx;trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz))continue;
+      let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
+      const c=trPlace(e,u,4,12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*1.0,Math.floor(rng()*1e9));if(!c)return null;c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;copAlert(c);return c}}
   for(let tries=0;tries<16;tries++){
-    const ahead=!chase&&rng()<.7,ang=chase?Math.atan2(-uz,-ux)+(rng()-.5)*2.2:(ahead?Math.atan2(uz,ux)+(rng()-.5)*1.3:rng()*TAU),r=chase?120+rng()*100:(ahead?230+rng()*150:140+rng()*200),x=P.x+Math.cos(ang)*r,z=P.z+Math.sin(ang)*r;
+    const ahead=!chase&&rng()<.7,ang=chase?Math.atan2(-uz,-ux)+(rng()-.5)*2.2:(ahead?Math.atan2(uz,ux)+(rng()-.5)*1.3:rng()*TAU),r=chase?(far?265+rng()*80:120+rng()*100):(ahead?230+rng()*150:140+rng()*200),x=P.x+Math.cos(ang)*r,z=P.z+Math.sin(ang)*r;
     if(!trProbe(x,z))continue;
     const ri=TRP.ri,o=LG.ofRoad[ri],r0=ROADS[ri],i=TRP.i,j=i+1<r0.n?i+1:i,tx=r0.X[j]-r0.X[i],tz=r0.Z[j]-r0.Z[i];
     const toward=(P.x-x)*tx+(P.z-z)*tz,di=chase?(toward>0?0:1):(rng()<.5?0:1),k=Math.min(o[di].length-1,Math.floor(rng()*o[di].length)),e=o[di][k];
@@ -2756,25 +2790,26 @@ function copTick(dt){
     const d=Math.hypot(c.x-C.x,c.z-C.z);if(c.cm==0)nP++;else{nC++;if(d<minChase)minChase=d}
     if(d<minD)minD=d;
     if(((TR.tk|0)+i)%15==0||c.los===null)c.los=d<300&&copLos(c);
-    if((c.los&&d<300)||(c.cm>=1&&d<90))seen=true;           /* in sight, or a chaser right on your tail */
+    if((c.los&&d<300)||(c.cm>=1&&d<D.loseD))seen=true;      /* in sight, or a chaser within loseD of you: you have not lost it */
+    if(c.cm>=1&&d>520){trKill(c,0);COP.farSpawn=1;continue}  /* a chaser that fell hopelessly behind is replaced by a fresh one 260-350 m behind you */
+    if(c.cm==0&&ps>=D.passV&&d<55&&COP.t-(c.clk||-99)>14){c.clk=COP.t;copTrigger(2)}   /* you blow past a cop at 120 mph or more */
     if(c.cm>=1&&d<10)nNear++;
     if(c.state==3)nFree++;
     /* alert: a patrol within earshot joins the chase once the heat has been on for a moment */
     if(COP.heat>0&&c.cm==0&&COP.heatT>D.react&&d<520)copAlert(c);
     if(c.cm>=1){
       if(COP.heat==0||COP.sightT>D.loseT+2){copStandDown(c);continue}
-      if(c.state==0){if((d<70&&c.los)||d<32)copDetach(c)}
-      else if(c.state==3){if(d>150||c.stk>2.6)copAttach(c)}}}
+      if(c.state==0){if((d<115&&c.los)||d<40)copDetach(c)}
+      else if(c.state==3){if(d>210||c.stk>2.6)copAttach(c)}}}
   COP.nC=nC;COP.nP=nP;COP.minD=minD;COP.seenNow=seen;
   /* roles for the free chasers, nearest first */
   if(nFree){let k=0;const free=[];for(let i=0;i<TRN;i++){const c=cars[i];if(c.alive&&c.kind===1&&c.state==3)free.push(c)}free.sort((a,b)=>Math.hypot(a.x-C.x,a.z-C.z)-Math.hypot(b.x-C.x,b.z-C.z));for(const c of free)c.role=k++}
-  /* a cop that sees you speeding is a crime; so is being seen at all when the heat is on */
-  if(seen&&ps>45&&minD<130)heatAdd(9*dt);
+  COP.snapT=(COP.snapT||0)-dt;if(COP.snapT<=0){COP.snapT=.35;NAV.pl=navSnap(C.x,C.z,70)}        /* where you are on the road network, for the chasers' routes and spawns */
   if(seen)COP.sightT=0;else COP.sightT+=dt;
   if(COP.heat>0&&COP.sightT>D.loseT&&minChase>40){COP.w=Math.max(0,COP.w-D.decay*dt);COP.heat=copLevelOf()}
   /* spawns */
   if(COP.spawnT<=0){
-    if(COP.heat>0){const want=D.chaseN[COP.heat];if(nC<want){if(trSpawnCop(true))COP.spawnT=1.4;else COP.spawnT=.5}}
+    if(COP.heat>0){const want=D.chaseN[COP.heat];if(nC<want){if(trSpawnCop(true,COP.farSpawn)){COP.spawnT=1.4;COP.farSpawn=0}else COP.spawnT=.5}}
     else if(nP<D.patrol&&TR.nAlive<TRN-8){if(trSpawnCop(false))COP.spawnT=1.6;else COP.spawnT=1}}
   /* roadblock */
   if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>24&&COP.sightT<3&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<4)copRoadblock()}
@@ -2783,7 +2818,7 @@ function copTick(dt){
   if(COP.bust>=D.bustT){gameBusted();COP.bust=0}
   COP.sirenVol=COP.heat>0&&minChase<260?Math.pow(1-minChase/260,1.4):0}
 /* a ram or a collision with a cop: called from the player collision code */
-function copRammed(c,e){c.ramCd=3.5;heatAdd(55);if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=1;c.wt=0;c.block=0;TR.stat.wrecks++;heatAdd(70)}}
+function copRammed(c,e){c.ramCd=3.5;copTrigger(3);if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=1;c.wt=0;c.block=0;TR.stat.wrecks++;copTrigger(4)}}
 /* ---- HUD: stars, the bust meter, the losing-them bar ---- */
 function copStar(c,x,y,r,fill,col){c.beginPath();for(let k=0;k<10;k++){const a=-PI/2+k*PI/5,rr=k&1?r*.45:r;k?c.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr):c.moveTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}c.closePath();if(fill){c.fillStyle=col;c.fill()}c.strokeStyle='rgba(255,255,255,.7)';c.lineWidth=1.4;c.stroke()}
 function copHud(c,W_,H_,u){
@@ -2801,13 +2836,143 @@ function copHud(c,W_,H_,u){
   if(COP.warnT>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('ROADBLOCK AHEAD',W_*.5,H_*.3);c.restore()}}
 
 'use strict';
+/* ===== navigation: route finding on the lane graph, a waypoint you set on the touchable map, the path drawn on the road, and the same routes for the cops ===== */
+/* Routes are found with A* over the LANE GRAPH (23_lanes.js), so they follow the way traffic really drives (one-way lanes, turns that exist, median crossovers on highways).
+   A state is "on lane edge e, entered at sample u"; from there you can drive on to any turn link that leaves later on the same edge, and a link puts you on another edge. */
+class NavHeap{constructor(){this.a=[];this.n=0}
+  push(v,k){const a=this.a;let i=this.n++;a[i]=[v,k];while(i>0){const p=(i-1)>>1;if(a[p][1]<=a[i][1])break;const t=a[p];a[p]=a[i];a[i]=t;i=p}}
+  pop(){const a=this.a,top=a[0];this.n--;if(this.n>0){a[0]=a[this.n];let i=0;for(;;){let l=i*2+1,r=l+1,m=i;if(l<this.n&&a[l][1]<a[m][1])m=l;if(r<this.n&&a[r][1]<a[m][1])m=r;if(m==i)break;const t=a[m];a[m]=a[i];a[i]=t;i=m}}return top[0]}}
+/* the road sample nearest to a point within R metres: {ri, i, t, d, x, z} (t is how far along the segment i..i+1) */
+function navSnap(x,z,R){
+  const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)/cs),cz=Math.floor((z+W.half)/cs),rr=Math.max(1,Math.ceil(R/cs));let bd=1e18,best=null;
+  for(let b=-rr;b<=rr;b++)for(let a=-rr;a<=rr;a++){const gx=cx+a,gz=cz+b;if(gx<0||gz<0||gx>=nc||gz>=nc)continue;const c=gz*nc+gx;
+    for(let q=QH.st[c];q<QH.st[c+1];q++){const s=QH.li[q],ri=QH.segR[s];if(!LG.ofRoad[ri])continue;const r=ROADS[ri],i=QH.segI[s],j=i+1<r.n?i+1:0,ax=r.X[i],az=r.Z[i],dx=r.X[j]-ax,dz=r.Z[j]-az,l2=dx*dx+dz*dz||1;
+      let t=((x-ax)*dx+(z-az)*dz)/l2;t=t<0?0:t>1?1:t;const d=Math.hypot(x-ax-dx*t,z-az-dz*t);if(d<bd){bd=d;best={ri,i,t,d,x:ax+dx*t,z:az+dz*t}}}}
+  return best&&bd<=R?best:null}
+/* the lane edge and sample for a snapped point, in the direction you are heading (hx, hz), or the nearest lane of either direction when no heading is given */
+function navLane(sn,x,z,hx,hz){
+  const o=LG.ofRoad[sn.ri];if(!o)return null;const r=ROADS[sn.ri],j=sn.i+1<r.n?sn.i+1:sn.i;let dirs=[0,1];
+  if(hx!=null){const tx=r.X[j]-r.X[sn.i],tz=r.Z[j]-r.Z[sn.i];dirs=[(tx*hx+tz*hz)>=0?0:1]}
+  let best=null,bd=1e18;for(const di of dirs)for(const e of o[di]){const u=e.dir>0?Math.min(e.n-1,sn.i+(sn.t>.5?1:0)):Math.max(0,e.n-1-sn.i-(sn.t>.5?1:0)),d=(e.X[u]-x)**2+(e.Z[u]-z)**2;if(d<bd){bd=d;best={e,u}}}
+  return best}
+/* A*: the chain of states from (e0,u0) to the road sample goal {ri,i,x,z}, or null */
+function navAStar(e0,u0,goal,maxIt){
+  const open=new NavHeap(),st=[],best=new Map();
+  const push=(e,u,g,prev,link)=>{const key=e.id*8192+u,old=best.get(key);if(old!==undefined&&old<=g)return;best.set(key,g);st.push({e,u,g,prev,link});open.push(st.length-1,g+Math.hypot(e.X[u]-goal.x,e.Z[u]-goal.z))};
+  push(e0,u0,0,-1,null);let it=0,gn=-1;const lim=maxIt||9000;
+  while(open.n&&it++<lim){const k=open.pop(),s=st[k];if(s.goal){gn=k;break}if(s.g>best.get(s.e.id*8192+s.u)+1e-6)continue;
+    const e=s.e,u=s.u;
+    if(e.ri===goal.ri){const ug=e.dir>0?goal.i:e.n-1-goal.i;let d=-1;if(ug>=u)d=e.S[ug]-e.S[u];else if(e.closed)d=e.len-e.S[u]+e.S[ug];if(d>=0){st.push({e,u:ug,g:s.g+d,prev:k,link:null,goal:1});open.push(st.length-1,s.g+d)}}
+    /* a car may change lane (the traffic does), so every lane of this road direction offers its turns from the same sample onwards */
+    const lanes=LG.ofRoad[e.ri][e.dir>0?0:1];for(const e2 of lanes)for(const l of e2.out){let d;if(l.fu>=u)d=e2.S[l.fu]-e2.S[u];else if(e2.closed)d=e2.len-e2.S[u]+e2.S[l.fu];else continue;push(l.to,l.tu,s.g+d+l.len+(e2===e?0:2.5),k,l)}}
+  if(gn<0)return null;const chain=[];for(let k=gn;k>=0;k=st[k].prev)chain.push(st[k]);chain.reverse();return chain}
+/* the chain as a polyline (x,y,z per point, about 4 m apart) with the distance along it */
+function navPolyline(chain){
+  const P=[];const addEdge=(e,a,b)=>{if(b>=a){for(let i=a;i<=b;i++)P.push(e.X[i],e.Y[i],e.Z[i])}else{for(let i=a;i<e.n;i++)P.push(e.X[i],e.Y[i],e.Z[i]);for(let i=0;i<=b;i++)P.push(e.X[i],e.Y[i],e.Z[i])}};
+  for(let k=0;k<chain.length-1;k++){const s=chain[k],nx=chain[k+1];if(nx.link){addEdge(nx.link.from,s.u,nx.link.fu);const l=nx.link;for(let j=1;j<l.n;j++)P.push(l.X[j],l.Y[j],l.Z[j])}else addEdge(s.e,s.u,nx.u)}
+  const n=P.length/3,pts=new Float32Array(P),S=new Float32Array(n);for(let i=1;i<n;i++)S[i]=S[i-1]+Math.hypot(pts[i*3]-pts[i*3-3],pts[i*3+2]-pts[i*3-1]);
+  return{pts,n,S,len:S[n-1]||0}}
+/* the turn links of a chain, in order */
+const navLinksOf=chain=>{const L=[];for(const s of chain)if(s.link)L.push(s.link);return L};
+/* ---------------- the waypoint ---------------- */
+const NAV={wp:null,route:null,prog:0,pend:null,pendMsg:'',t:0,routeT:-9,off:0,len:0,remain:0,arrivedT:-9,hist:[]};
+/* a route from where the player is (heading with the car) to a road sample goal */
+function navRouteFromPlayer(goal){
+  const sp=C.speed,hx=sp>3?C.vx/sp:Math.sin(C.yaw),hz=sp>3?C.vz/sp:-Math.cos(C.yaw);
+  const sn=navSnap(C.x,C.z,70);if(!sn)return null;const la=navLane(sn,C.x,C.z,hx,hz);if(!la)return null;
+  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),chain=navAStar(e,u0,goal);if(!chain)return null;return navPolyline(chain)}
+function navSet(x,z){
+  const sn=navSnap(x,z,Math.max(60,NAV.pickR||60));if(!sn)return{ok:false,msg:'No road near there'};
+  const goal={ri:sn.ri,i:sn.i,x:sn.x,z:sn.z},rt=navRouteFromPlayer(goal);if(!rt)return{ok:false,msg:'No way to get there from here'};
+  NAV.wp={x:sn.x,z:sn.z,ri:sn.ri,i:sn.i,y:ROADS[sn.ri].Y[sn.i]};NAV.route=rt;NAV.prog=0;NAV.routeT=NAV.t;NAV.len=rt.len;NAV.remain=rt.len;NAV.pend=null;return{ok:true,len:rt.len}}
+function navClear(){NAV.wp=null;NAV.route=null;NAV.pend=null}
+/* every frame: how far along the route you are, reroute when you leave it, arrive */
+function navUpdate(dt){
+  NAV.t+=dt;if(!NAV.wp||!NAV.route)return;const R=NAV.route,p=R.pts,n=R.n;
+  /* progress: the nearest route point in a window ahead of the last one */
+  let bi=NAV.prog,bd=1e18;const a=Math.max(0,NAV.prog-6),b=Math.min(n-1,NAV.prog+60);for(let i=a;i<=b;i++){const d=(p[i*3]-C.x)**2+(p[i*3+2]-C.z)**2;if(d<bd){bd=d;bi=i}}
+  NAV.prog=bi;NAV.off=Math.sqrt(bd);NAV.remain=R.len-R.S[bi];
+  const dw=Math.hypot(NAV.wp.x-C.x,NAV.wp.z-C.z);
+  if(dw<26||(NAV.remain<18&&dw<60)){navClear();NAV.arrivedT=NAV.t;safeToast('You have arrived',3);return}
+  if(NAV.off>24&&NAV.t-NAV.routeT>1.2){                       /* only when you have left the route (a wrong turn): a new route from where you are */NAV.routeT=NAV.t;const rt=navRouteFromPlayer({ri:NAV.wp.ri,i:NAV.wp.i,x:NAV.wp.x,z:NAV.wp.z});if(rt){NAV.route=rt;NAV.prog=0;NAV.len=rt.len}}}
+/* the path on the road, drawn by fxDraw: a glowing ribbon with light running along it, and a pillar of light at the waypoint */
+function navFx(quad,sprite,time){
+  if(!NAV.wp||!NAV.route)return 0;const R=NAV.route,p=R.pts,n=R.n,start=Math.max(0,NAV.prog-1);let drawn=0;const maxS=R.S[start]+420;
+  for(let i=start;i<n-1&&R.S[i]<maxS&&drawn<130;i++){
+    const x0=p[i*3],y0=p[i*3+1]+.1,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.1,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*.8,nz=dx/l*.8;
+    const s=R.S[i],fade=Math.min(1,(maxS-s)/120),pulse=.55+.35*Math.sin(s*.22-time*7);
+    quad(x0-nx,y0,z0-nz,x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz,.15,.8,1,.62*pulse*fade);drawn++}
+  return drawn}
+function navBeacon(sprite){
+  if(!NAV.wp)return;const w=NAV.wp,gy=w.y;for(let k=0;k<9;k++)sprite(w.x,gy+1.5+k*7,w.z,3.2+k*.25,.2,.85,1,.55-.04*k)}
+/* ---------------- HUD: distance to the waypoint and a pointer ---------------- */
+function navHud(c,W_,H_,u){
+  if(!NAV.wp)return;const w=NAV.wp,dx=w.x-C.x,dz=w.z-C.z,d=Math.hypot(dx,dz),rel=angd(Math.atan2(dx,-dz),C.camYaw),km=NAV.remain>=1000?(NAV.remain/1000).toFixed(1)+' km':Math.round(NAV.remain/10)*10+' m';
+  c.save();const x=UI.mm.cx-UI.mm.r,y=UI.mm.cy+UI.mm.r+u*.62,wd=u*2.3,h=u*.34;c.fillStyle='rgba(8,20,32,.7)';rr(c,x,y,wd,h,h/2);c.fill();c.strokeStyle='rgba(60,210,255,.8)';c.lineWidth=1.5;c.stroke();
+  c.fillStyle='#7fe3ff';c.font='800 '+Math.round(u*.22)+'px -apple-system,Roboto,sans-serif';c.textAlign='left';c.fillText('WAYPOINT  '+km,x+h*.6,y+h*.68);
+  /* an arrow along the top edge when it is not in front of you */
+  if(Math.abs(rel)>.55){const ax=W_*.5+Math.max(-1,Math.min(1,rel/1.5))*W_*.34,ay=u*2.2;c.translate(ax,ay);c.rotate(Math.abs(rel)>1.9?PI:rel>0?PI/2:-PI/2);c.fillStyle='#7fe3ff';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;c.beginPath();c.moveTo(0,-u*.26);c.lineTo(u*.2,u*.2);c.lineTo(0,u*.1);c.lineTo(-u*.2,u*.2);c.closePath();c.fill()}
+  c.restore()}
+/* drawn on the minimap and the world map (canvas 2D, in map pixels): the route and the flag */
+function navMapOverlay(ctx,pxm,s){
+  if(NAV.route){const R=NAV.route,p=R.pts;ctx.beginPath();for(let i=Math.max(0,NAV.prog-2);i<R.n;i+=2){const px=(p[i*3]+W.half)*pxm,pz=(p[i*3+2]+W.half)*pxm;i==Math.max(0,NAV.prog-2)?ctx.moveTo(px,pz):ctx.lineTo(px,pz)}ctx.lineJoin='round';ctx.lineCap='round';ctx.lineWidth=3.4/s;ctx.strokeStyle='rgba(0,0,0,.6)';ctx.stroke();ctx.lineWidth=2.2/s;ctx.strokeStyle='#38d3ff';ctx.stroke()}
+  const flag=(w,col)=>{const px=(w.x+W.half)*pxm,pz=(w.z+W.half)*pxm,r=5/s;ctx.beginPath();ctx.arc(px,pz,r,0,TAU);ctx.fillStyle=col;ctx.fill();ctx.lineWidth=1.6/s;ctx.strokeStyle='#fff';ctx.stroke();ctx.beginPath();ctx.moveTo(px,pz-r*.2);ctx.lineTo(px,pz-r*2.6);ctx.lineWidth=1.8/s;ctx.stroke()};
+  if(NAV.wp)flag(NAV.wp,'#38d3ff');if(NAV.pend)flag(NAV.pend,'#ffd24a')}
+/* ---------------- the touchable world map ---------------- */
+const MAPV={x:0,z:0,k:1,k0:1,kMax:2.6,g:new Map(),mt:0,btns:[],moved:0,t0:0,sx:0,sy:0};
+function mapFit(W_,H_){const S=UI.mapCv.width;MAPV.k0=Math.min(W_,H_)*.98/S;if(!MAPV.k||MAPV.k<MAPV.k0)MAPV.k=MAPV.k0}
+function mapOpenNow(){UI.mapOpen=true;const W_=UI.w,H_=UI.h;mapFit(W_,H_);MAPV.k=Math.max(MAPV.k0,Math.min(MAPV.kMax,MAPV.k0*2.4));MAPV.x=C.x;MAPV.z=C.z;MAPV.g.clear();NAV.pend=null;NAV.pendMsg=''}
+const mapToWorld=(sx,sy)=>{const S=UI.mapCv.width,pxm=S/W.size;return[(sx-UI.w/2)/MAPV.k/pxm+MAPV.x,(sy-UI.h/2)/MAPV.k/pxm+MAPV.z]};
+function mapClamp(){const h=W.half;MAPV.x=Math.max(-h,Math.min(h,MAPV.x));MAPV.z=Math.max(-h,Math.min(h,MAPV.z));MAPV.k=Math.max(MAPV.k0,Math.min(MAPV.kMax,MAPV.k))}
+function mapDown(id,x,y){
+  for(const b of MAPV.btns){if(x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h){b.act();MAPV.g.set(id,{btn:1});return}}
+  MAPV.g.set(id,{x,y,x0:x,y0:y,t0:performance.now(),moved:0});MAPV.mt=MAPV.g.size}
+function mapMove(id,x,y){const g=MAPV.g.get(id);if(!g||g.btn)return;
+  const pts=[...MAPV.g.values()].filter(q=>!q.btn);
+  if(pts.length>=2){/* pinch: zoom about the middle of the two fingers, and drag with it */
+    const o=pts.find(q=>q!==g)||pts[0],ox=o.x,oy=o.y,d0=Math.hypot(g.x-ox,g.y-oy),d1=Math.hypot(x-ox,y-oy);
+    if(d0>8){const mx=(x+ox)/2,my=(y+oy)/2,wb=mapToWorld(mx,my);MAPV.k*=d1/d0;mapClamp();const wa=mapToWorld(mx,my);MAPV.x+=wb[0]-wa[0];MAPV.z+=wb[1]-wa[1]}g.moved=99}
+  else{const S=UI.mapCv.width,pxm=S/W.size;MAPV.x-=(x-g.x)/MAPV.k/pxm;MAPV.z-=(y-g.y)/MAPV.k/pxm;g.moved+=Math.hypot(x-g.x,y-g.y)}
+  g.x=x;g.y=y;mapClamp()}
+function mapUp(id){const g=MAPV.g.get(id);MAPV.g.delete(id);if(!g||g.btn)return;
+  /* a tap (little movement, short) puts a pin; navSet snaps it to a road when you choose SET */
+  if(g.moved<14&&performance.now()-g.t0<450){const w=mapToWorld(g.x0,g.y0);NAV.pickR=Math.max(40,60/MAPV.k/(UI.mapCv.width/W.size)*.7);const sn=navSnap(w[0],w[1],NAV.pickR);
+    if(sn){NAV.pend={x:sn.x,z:sn.z};NAV.pendMsg=''}else{NAV.pend=null;NAV.pendMsg='No road near there - tap closer to a road'}}}
+function mapWheel(x,y,dy){const wb=mapToWorld(x,y);MAPV.k*=dy<0?1.18:1/1.18;mapClamp();const wa=mapToWorld(x,y);MAPV.x+=wb[0]-wa[0];MAPV.z+=wb[1]-wa[1];mapClamp()}
+function drawWorldMap(c,W_,H_,u){
+  mapFit(W_,H_);const S=UI.mapCv.width,pxm=S/W.size,k=MAPV.k;
+  c.fillStyle='#050a12';c.fillRect(0,0,W_,H_);
+  c.save();c.translate(W_/2,H_/2);c.scale(k,k);c.translate(-(MAPV.x+W.half)*pxm,-(MAPV.z+W.half)*pxm);c.imageSmoothingEnabled=true;c.drawImage(UI.mapCv,0,0);
+  /* named areas, the garages and the jumps, kept the same size on screen at every zoom */
+  const sc=1/k;c.textAlign='center';c.font='800 '+Math.max(9,Math.round(u*.24))+'px -apple-system,Roboto,sans-serif';c.lineJoin='round';
+  const wpx=x=>(x+W.half)*pxm,wpz=z=>(z+W.half)*pxm;
+  for(const L of MAPLBL.concat(JUMPZ.map(j=>['JUMPS',j[0],j[1]-75,1]))){c.save();c.translate(wpx(L[1]),wpz(L[2]));c.scale(sc,sc);c.textAlign=L[4]=='r'?'right':'center';c.strokeStyle='rgba(0,0,0,.85)';c.lineWidth=3.5;c.strokeText(L[0],0,0);c.fillStyle=L[3]?'#fff':'#8fb8e0';c.fillText(L[0],0,0);c.restore()}
+  for(const h of SAFEHOUSES){c.beginPath();c.arc(wpx(h.x),wpz(h.z),Math.max(3,u*.11)*sc,0,TAU);c.fillStyle=SAFE.owned[h.id]?'#3cf08c':'#8d97a3';c.fill();c.lineWidth=1.5*sc;c.strokeStyle='#071018';c.stroke()}
+  navMapOverlay(c,pxm,k);
+  /* you */
+  c.save();c.translate(wpx(C.x),wpz(C.z));c.scale(sc,sc);c.strokeStyle='rgba(255,122,26,'+(.75-.4*Math.sin(C.t*6))+')';c.lineWidth=2;c.beginPath();c.arc(0,0,9+3*Math.sin(C.t*6),0,TAU);c.stroke();c.rotate(C.yaw);c.fillStyle='#ff7a1a';c.strokeStyle='#fff';c.lineWidth=1.8;c.beginPath();c.moveTo(0,-10);c.lineTo(7,8);c.lineTo(0,3);c.lineTo(-7,8);c.closePath();c.fill();c.stroke();c.restore();
+  c.restore();
+  /* the screen furniture: title, hint, buttons */
+  c.textAlign='left';c.fillStyle='#fff';c.font='800 '+Math.round(u*.4)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('COUNTY MAP',u*.35,u*.75);
+  c.font='700 '+Math.round(u*.22)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.8)';c.fillText('drag to move  ·  pinch to zoom  ·  tap a road to place a waypoint',u*.35,u*1.1);
+  if(NAV.pendMsg){c.fillStyle='#ffb36b';c.fillText(NAV.pendMsg,u*.35,u*1.4)}c.shadowBlur=0;
+  const b=[],bw=u*2.5,bh=u*.62,bx=W_-bw-u*.3;let by=H_-bh-u*.3;const add=(label,col,act,show)=>{if(show===false)return;b.push({x:bx,y:by,w:bw,h:bh,label,col,act});by-=bh+u*.16};
+  add('CLOSE MAP','rgba(255,255,255,.2)',()=>{UI.mapOpen=false;MAPV.g.clear()});
+  add('MY CAR','rgba(255,255,255,.2)',()=>{MAPV.x=C.x;MAPV.z=C.z;MAPV.k=Math.max(MAPV.k,MAPV.k0*2)});
+  add('CLEAR WAYPOINT','rgba(255,90,70,.7)',()=>{navClear()},!!NAV.wp);
+  add('SET WAYPOINT','#ff7a1a',()=>{if(!NAV.pend)return;const r=navSet(NAV.pend.x,NAV.pend.z);if(r.ok){UI.mapOpen=false;MAPV.g.clear();safeToast('Waypoint set  -  '+(r.len>=1000?(r.len/1000).toFixed(1)+' km':Math.round(r.len)+' m')+'  -  follow the blue path',3)}else NAV.pendMsg=r.msg},!!NAV.pend);
+  MAPV.btns=b;for(const q of b){c.fillStyle=q.col;rr(c,q.x,q.y,q.w,q.h,u*.14);c.fill();c.fillStyle=q.col=='#ff7a1a'?'#111':'#fff';c.textAlign='center';c.font='800 '+Math.round(u*.25)+'px -apple-system,Roboto,sans-serif';c.fillText(q.label,q.x+q.w/2,q.y+q.h*.66)}
+  if(NAV.pend){const d=Math.hypot(NAV.pend.x-C.x,NAV.pend.z-C.z);c.textAlign='center';c.fillStyle='#ffd24a';c.font='800 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('Pin: '+(d>=1000?(d/1000).toFixed(1)+' km':Math.round(d)+' m')+' away (straight line) - tap SET WAYPOINT',W_*.5-u*1.2,H_-u*.4);c.shadowBlur=0}
+  else if(NAV.wp&&NAV.route){c.textAlign='center';c.fillStyle='#7fe3ff';c.font='800 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('Route: '+(NAV.remain>=1000?(NAV.remain/1000).toFixed(1)+' km':Math.round(NAV.remain)+' m')+' to go',W_*.5-u*1.2,H_-u*.4);c.shadowBlur=0}}
+
+'use strict';
 /* ===== procedural car bodies: smooth lofted bodywork, wheel wells, real wheels, lights, intakes, wings, exhausts, mirrors =====
    Nothing here is a real car: every body is made from numbers (a spec) by the same code, in the style of the cars it takes its inspiration from.
    Model axes: x to the right, y up, z BACKWARDS (the nose is at -L/2), metres, origin on the ground under the middle of the wheelbase's centre of the body (z = 0 half way along). */
-const CGM={paint:0,glass:1,trim:2,carbon:3,chrome:4,head:5,tail:6,rubber:7,rim:8,caliper:9,exh:10,plate:11,stripe:12,under:13,disc:14};
+const CGM={paint:0,glass:1,trim:2,carbon:3,chrome:4,head:5,tail:6,rubber:7,rim:8,caliper:9,exh:10,plate:11,stripe:12,under:13,disc:14,inter:15,steel:16};
 /* per material: colour (sRGB bytes) and [metal, roughness, emissive, clear coat] / 255 for the car shader */
-const CGCOL=[[255,255,255],[8,10,14],[20,20,22],[34,35,40],[205,210,216],[255,244,190],[255,34,24],[14,14,15],[188,192,198],[205,28,28],[120,124,130],[230,230,224],[240,240,240],[18,18,20],[150,152,158]];
-const CGMAT=[[140,66,0,255],[215,22,0,0],[0,170,0,0],[70,80,0,160],[235,60,0,0],[0,40,255,60],[0,40,255,60],[0,205,0,0],[215,80,0,40],[70,90,0,140],[240,70,0,0],[0,150,0,0],[120,70,0,230],[0,200,0,0],[200,110,0,0]];
+const CGCOL=[[255,255,255],[8,10,14],[20,20,22],[34,35,40],[205,210,216],[255,244,190],[255,34,24],[14,14,15],[188,192,198],[205,28,28],[120,124,130],[230,230,224],[240,240,240],[18,18,20],[150,152,158],[34,34,38],[160,164,170]];
+const CGMAT=[[140,66,0,255],[215,22,0,0],[0,170,0,0],[70,80,0,160],[235,60,0,0],[0,40,255,60],[0,40,255,60],[0,205,0,0],[215,80,0,40],[70,90,0,140],[240,70,0,0],[0,150,0,0],[120,70,0,230],[0,200,0,0],[200,110,0,0],[0,150,0,40],[225,90,0,0]];
 class CGB{constructor(){this.P=[];this.N=[];this.M=[];this.I=[];this.S=[]}
   v(x,y,z,nx,ny,nz,m,sh){this.P.push(x,y,z);this.N.push(nx,ny,nz);this.M.push(m);this.S.push(sh==null?1:sh);return this.M.length-1}
   t(a,b,c){this.I.push(a,b,c)}q(a,b,c,d){this.t(a,b,c);this.t(a,c,d)}
@@ -2831,7 +2996,7 @@ function cgGridNormals(P,ni,nj,wrap,ctr){const N=new Float32Array(ni*nj*3);
 function cgSpec(o){
   const S=Object.assign({L:4.5,W:1.86,H:1.28,wb:2.45,fo:.92,nose:.56,hood:.80,cowl:1.62,roofF:2.12,roofR:3.0,rearS:3.5,deck:.97,tail:.80,hw0:.80,hwMax:.93,hwMaxS:3.0,hwTail:.82,crown:.09,tum:.05,flare:.03,
     rf:.335,rr:.345,wf:.255,wr:.305,rimF:.235,rimR:.245,tf:.775,tr:.80,sill:.12,gw:.80,gt:.66,
-    glassRoof:0,rearGlass:1,bpillar:0,spoke:5,wheelStyle:'spoke',head:'round',tail_:'bar',intake:'mid',wing:'none',duct:0,exh:2,exhS:'twin',louvres:0,stripe:0,mirror:1,diff:1,splitter:1,sideIntake:0,quad:1},o||{});
+    glassRoof:0,rearGlass:1,bpillar:0,spoke:5,wheelStyle:'spoke',head:'round',tail_:'bar',intake:'mid',wing:'none',duct:0,exh:2,exhS:'twin',louvres:0,stripe:0,mirror:1,diff:1,splitter:1,sideIntake:0,quad:1,grille:'none',drl:0,gills:0,buttress:0,scoop:0,canards:0,shark:0,plates:1,seat:'two',chromeTrim:0,tread:1,lhd:1},o||{});
   S.fz=-S.L/2+S.fo;S.rz=S.fz+S.wb;                        /* axle positions along z (front is negative) */
   S.zs=s=>s-S.L/2;                                         /* s measured from the nose -> z */
   S.hwF=S.W/2;return S}
@@ -2891,6 +3056,9 @@ function cgBody(S,mb,opt){
   /* surface lookup: the vertex nearest to a point (used to place the lights and vents on the body) */
   S.near=(x,y,z)=>{let b=-1,bd=1e9;for(let i=0;i<ni;i++){const dz=P[i*nj*3+2]-z;if(dz*dz>bd)continue;for(let j=0;j<nj;j++){const k=(i*nj+j)*3,dx=P[k]-x,dy=P[k+1]-y,d=dx*dx+dy*dy+dz*dz;if(d<bd){bd=d;b=k}}}
     return{x:P[b],y:P[b+1],z:P[b+2],nx:Nn[b],ny:Nn[b+1],nz:Nn[b+2]}}}
+/* a point on the top of the body at distance s from the nose and sideways x, with its normal; and a point on the side at height y */
+function cgSurf(S,s,x){const y=cgTopAt(S,s,x),e=.05,dx=(cgTopAt(S,s,x+e)-cgTopAt(S,s,x-e))/(2*e),dz=(cgTopAt(S,s+e,x)-cgTopAt(S,Math.max(0,s-e),x))/(2*e),l=Math.hypot(dx,1,dz);return{x,y,z:S.zs(s),nx:-dx/l,ny:1/l,nz:-dz/l}}
+function cgSide(S,s,y,sg){const r=cgTubRing(S,s,S.K);let x=r[Math.min(r.length-1,4)][0];for(let k=3;k<r.length;k++){if(r[k][1]>=y){const a=r[k-1],b=r[k],t=_cl((y-a[1])/Math.max(1e-6,b[1]-a[1]),0,1);x=a[0]+(b[0]-a[0])*t;break}}return{x:sg*x,y,z:S.zs(s),nx:sg,ny:0,nz:0}}
 /* height of the top of the body at distance s from the nose, at sideways position x (from the ring) */
 function cgTopAt(S,s,x){const r=cgTubRing(S,s,S.K);let y=r[r.length-1][1];for(let k=r.length-1;k>0;k--){if(r[k-1][0]>=Math.abs(x)){const a=r[k-1],b=r[k],t=_cl((a[0]-Math.abs(x))/Math.max(1e-6,a[0]-b[0]),0,1);y=a[1]+(b[1]-a[1])*t;break}}return y}
 /* the greenhouse: glass, pillars and roof */
@@ -2915,7 +3083,7 @@ function cgGlasshouse(S,mb,opt){
       else if(s<=S.roofR){m=S.glassRoof?CGM.glass:CGM.paint}
       else m=S.rearGlass?CGM.glass:CGM.paint
       const a=vtx(i,j,m),b=vtx(i,j+1,m),c=vtx(i+1,j+1,m),d=vtx(i+1,j,m);mb.q(a,b,c,d)}}
-  S._gh={P,ni,nj}}
+  S._gh={P,ni,nj,ss,K2,M}}
 /* ---------------- small parts ---------------- */
 function cgBasis(nx,ny,nz){/* tangent u (mostly sideways) and v from a surface normal */
   let ux=ny*0-nz*1,uy=nz*0-nx*0,uz=nx*1-ny*0;ux=-nz;uy=0;uz=nx;let l=Math.hypot(ux,uz);if(l<1e-4){ux=1;uz=0}else{ux/=l;uz/=l}
@@ -2982,33 +3150,94 @@ function cgDetails(S,mb,opt){
   if(S.diff){cgBox(mb,0,S.sill+.07,S.zs(L-.18),S.hwTail*.62,.012,.2,CGM.carbon,-.14);for(let k=-2;k<=2;k++)cgBox(mb,k*S.hwTail*.26,S.sill+.085,S.zs(L-.19),.008,.04,.18,CGM.carbon,-.14)}
   const ex=S.exh||0;for(let k=0;k<ex;k++){const px=ex==1?0:S.exhS=='center'?(k-(ex-1)/2)*.15:(k%2?1:-1)*(S.hwTail*(.52+.12*((k>>1)))),py=S.sill+.1+(S.exhS=='high'?.28:0);cgCylZ(mb,px,py,S.zs(L-.09),S.zs(L+.035),.047,CGM.exh,10)}
   S._lights=lights}
+/* a torus (the steering wheel) */
+function cgTorus(mb,cx,cy,cz,R,r,tilt,m){const n=14,k=6,ct=Math.cos(tilt),st=Math.sin(tilt),rows=[];
+  for(let i=0;i<n;i++){const a=i/n*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a),row=[];for(let j=0;j<k;j++){const b=j/k*Math.PI*2,cb=Math.cos(b),sb=Math.sin(b),rx=ca*(R+r*cb),ry=sa*(R+r*cb),rz=r*sb,ny=sa*cb;
+      row.push(mb.v(cx+rx,cy+ry*ct-rz*st,cz+ry*st+rz*ct,ca*cb,ny*ct-sb*st,ny*st+sb*ct,m))}rows.push(row)}
+  for(let i=0;i<n;i++){const i2=(i+1)%n;for(let j=0;j<k;j++){const j2=(j+1)%k;mb.q(rows[i][j],rows[i2][j],rows[i2][j2],rows[i][j2])}}}
+/* the inside: dashboard, steering wheel, seats (seen through the tinted glass) */
+function cgInterior(S,mb){
+  const M=CGM.inter,hw=S.curves.half(S.cowl)*S.gw,sCab=(S.cowl+S.roofR)/2+.18,belt=cgTopAt(S,sCab,hw*.5)-.03,sx=Math.min(.42,hw*.55),drv=S.lhd?-1:1,room=Math.max(.2,S.H-belt-.1);
+  /* the seats sit low (their lower half is under the body line); only the backrest and the headrest show through the windows */
+  const seat=(x,sz)=>{const y0=belt-.3;cgBox(mb,x,y0+.05,S.zs(sz),.23,.05,.25,M,0);cgBox(mb,x,y0+.3,S.zs(sz+.26),.22,.27,.06,M,-.28);cgBox(mb,x,y0+.64,S.zs(sz+.33),.085,.075,.045,M,-.28)};
+  if(S.seat=='centre')seat(0,sCab);else{seat(-sx,sCab);seat(sx,sCab)}
+  const sD=S.cowl+.2,yD=cgTopAt(S,sD,0);cgBox(mb,0,yD-.07,S.zs(sD),hw*.82,.05,.2,M,.08);cgBox(mb,drv*sx,yD-.03,S.zs(sD+.05),.26,.04,.1,M,0);       /* dash and instrument hood */
+  cgBox(mb,0,belt-.05,S.zs(sCab+.02),.06,.07,.34,M,0);                                                                                              /* the centre console */
+  cgTorus(mb,S.seat=='centre'?0:drv*sx,yD+Math.min(.16,room*.45),S.zs(sD+.34),.14,.014,.55,M);cgBox(mb,0,belt-.04,S.zs(S.rearS-.1),hw*.8,.04,.1,M,0)}      /* the wheel, the rear shelf */
+/* panel gaps, window trim, door handles, fuel cap, badges, plates, grille, daytime lights, vents, scoops, buttresses, fins */
+function cgDetails2(S,mb,opt){
+  const hw=S.W/2,L=S.L,cs=S.curves;
+  /* bonnet and engine-lid shut lines */
+  {const hx=s=>cs.half(s)*.72,s0=S.cowl-.04,s1=.4,left=[],right=[],front=[];for(let k=0;k<=8;k++){const s=s0-(s0-s1)*k/8;left.push(cgSurf(S,s,-hx(s)));right.push(cgSurf(S,s,hx(s)))}
+    for(let k=0;k<=6;k++)front.push(cgSurf(S,s1,-hx(s1)+2*hx(s1)*k/6));cgStrip(mb,left,.007,CGM.trim,.003);cgStrip(mb,right,.007,CGM.trim,.003);cgStrip(mb,front,.007,CGM.trim,.003);
+    const sl=S.rearS+.2,h2=s=>cs.half(s)*.7,lid=[];for(let k=0;k<=6;k++)lid.push(cgSurf(S,sl,-h2(sl)+2*h2(sl)*k/6));cgStrip(mb,lid,.007,CGM.trim,.003)}
+  /* doors: the cut lines, the handle */
+  const sCab=(S.cowl+S.roofR)/2,yB=cgTopAt(S,sCab,cs.half(sCab)*S.gw)-.03,doorF=S.cowl+.16,doorR=S.roofR+.12,y0=S.sill+.2;
+  for(const sg of[-1,1]){const line=pts=>cgStrip(mb,pts,.007,CGM.trim,.003);
+    line([0,1,2,3,4].map(k=>cgSide(S,doorF,y0+(yB-y0)*k/4,sg)));line([0,1,2,3,4].map(k=>cgSide(S,doorR,y0+(yB-y0)*k/4,sg)));line([0,1,2,3,4,5,6].map(k=>cgSide(S,doorF+(doorR-doorF)*k/6,y0,sg)));
+    cgStrip(mb,[cgSide(S,doorR-.3,yB-.09,sg),cgSide(S,doorR-.12,yB-.09,sg)],.028,S.chromeTrim?CGM.chrome:CGM.trim,.004);
+    /* window trim along the bottom edge of the side glass */
+    const G=S._gh,tp=[];if(G)for(let i=0;i<G.ni;i++){const s=G.ss[i];if(s<doorF+.1||s>S.rearS-.3)continue;const j=sg<0?0:G.nj-1,k=(i*G.nj+j)*3;tp.push({x:G.P[k],y:G.P[k+1],z:G.P[k+2],nx:sg,ny:.2,nz:0})}
+    if(tp.length>1)cgStrip(mb,tp,.03,S.chromeTrim?CGM.chrome:CGM.trim,.004);
+    cgDisc(mb,cgSide(S,L-.95,yB-.12,sg),.065,.065,CGM.trim,10,.004);                                    /* the fuel flap */}
+  /* badges and plates */
+  cgDisc(mb,S.near(0,S.nose+.02,S.zs(.14)),.035,.035,CGM.chrome,10,.006);cgDisc(mb,S.near(0,S.deck-.1,S.zs(L-.1)),.035,.035,CGM.chrome,10,.006);
+  if(S.plates){const pf=S.near(0,S.sill+.2,S.zs(.12)),pr=S.near(0,S.sill+.43,S.zs(L-.08));cgBox(mb,pf.x,pf.y,pf.z-.01,.25,.062,.006,CGM.plate,0);cgBox(mb,pr.x,pr.y,pr.z+.01,.25,.062,.006,CGM.plate,0)}
+  /* the grille */
+  const ny=S.nose-.2;
+  if(S.grille=='wide'){const p=S.near(0,S.sill+.2,S.zs(.12));cgDisc(mb,p,hw*.46,.1,CGM.under,18,.005);for(const k of[-1,0,1])cgStrip(mb,[-3,-2,-1,0,1,2,3].map(q=>S.near(q*hw*.13,S.sill+.2+k*.04,S.zs(.12))),.012,CGM.chrome,.007)}
+  else if(S.grille=='twin'){for(const sg of[-1,1]){const p=S.near(sg*.2,ny+.1,S.zs(.1));cgDisc(mb,p,.2,.09,CGM.chrome,14,.004);cgDisc(mb,p,.18,.075,CGM.under,14,.007)}}
+  else if(S.grille=='horseshoe'){const pts=[];for(let k=0;k<=10;k++){const a=Math.PI*k/10,x=Math.cos(a)*.26,y=ny+.1+Math.sin(a)*.2-.07;pts.push(S.near(x,y,S.zs(.1)))}cgStrip(mb,pts,.02,CGM.chrome,.006);cgDisc(mb,S.near(0,ny+.09,S.zs(.1)),.22,.14,CGM.under,16,.004)}
+  else if(S.grille=='slit'){cgDisc(mb,S.near(0,S.sill+.2,S.zs(.1)),hw*.36,.032,CGM.under,14,.005)}
+  /* daytime running lights over the headlights */
+  if(S.drl){for(const sg of[-1,1]){const hx=S.hw0*.66,pts=[];for(let k=0;k<5;k++)pts.push(S.near(sg*(hx-.12+.06*k),S.nose+.095,S.zs(.2)));cgStrip(mb,pts,.014,CGM.head,.008)}}
+  /* fender gills, scoop, canards, shark fin, buttresses */
+  if(S.gills){for(const sg of[-1,1])for(let k=0;k<S.gills;k++)cgStrip(mb,[cgSide(S,S.fo+.45+k*.06,S.sill+.5,sg),cgSide(S,S.fo+.7+k*.06,S.sill+.44,sg)],.02,CGM.under,.004)}
+  if(S.scoop){const sT=S.cowl*.55,p=cgSurf(S,sT,0);cgBox(mb,0,p.y+.04,p.z,.14,.045,.2,CGM.paint,0);cgDisc(mb,{x:0,y:p.y+.05,z:p.z-.2,nx:0,ny:0,nz:-1},.1,.03,CGM.under,10,.003)}
+  if(S.canards){for(const sg of[-1,1])cgBox(mb,sg*hw*.8,S.sill+.12,S.zs(.34),.09,.007,.06,CGM.carbon,.25*sg)}
+  if(S.shark)cgBox(mb,0,S.H+.035,S.zs(S.roofR-.05),.007,.045,.3,CGM.paint,-.05);
+  if(S.buttress){for(const sg of[-1,1]){const x=sg*(cs.half(S.rearS)*S.gw*.55+hw*.3),y1=S.H-.1,z1=S.zs(S.roofR+.1),y2=S.deck+.01,z2=S.zs(S.rearS+.2),dy=y2-y1,dz=z2-z1,len=Math.hypot(dy,dz);cgBox(mb,x,(y1+y2)/2,(z1+z2)/2,.035,.02,len/2,CGM.paint,-Math.atan2(dy,dz))}}}
 /* ---------------- wheels: tyre, rim with spokes, brake disc, caliper; axis along x, the outer face at +x ---------------- */
-function cgWheel(R,w,rimR,spokes,style,rimCol,lo){
-  const mb=new CGB(),seg=lo?10:36;
-  const revolve=(prof,m,wrapSmooth)=>{const ni=prof.length,P=new Float32Array(ni*seg*3),ctr=new Float32Array(ni*3);
+function cgWheel(R,w,rimR,spokes,style,rimCol,lo,tread){
+  const mb=new CGB(),seg=lo?10:32;
+  const revolve=(prof,m)=>{const ni=prof.length,P=new Float32Array(ni*seg*3),ctr=new Float32Array(ni*3);
     for(let i=0;i<ni;i++){for(let j=0;j<seg;j++){const a=j/seg*Math.PI*2,k=(i*seg+j)*3;P[k]=prof[i][1];P[k+1]=Math.cos(a)*prof[i][0];P[k+2]=Math.sin(a)*prof[i][0]}ctr[i*3]=prof[i][1]}
     const Nn=cgGridNormals(P,ni,seg,true,ctr),ids=[];for(let i=0;i<ni;i++){const row=[];for(let j=0;j<seg;j++){const k=(i*seg+j)*3;row.push(mb.v(P[k],P[k+1],P[k+2],Nn[k],Nn[k+1],Nn[k+2],m))}ids.push(row)}
     for(let i=0;i<ni-1;i++)for(let j=0;j<seg;j++){const j1=(j+1)%seg;mb.q(ids[i][j],ids[i][j1],ids[i+1][j1],ids[i+1][j])}};
   const sw=R-rimR,h=w/2;
   if(lo){revolve([[rimR*.97,-h*.9],[R-.012,-h*.95],[R,-h*.45],[R,h*.45],[R-.012,h*.95],[rimR*.97,h*.9]],CGM.rubber);revolve([[rimR*.97,h*.9],[rimR*.5,h*.92],[0,h*.94]],CGM.rim);mb.rim=rimCol;return mb}
-  revolve([[rimR*.97,-h*.9],[rimR+sw*.3,-h*.985],[rimR+sw*.72,-h],[R-.014,-h*.88],[R-.002,-h*.55],[R,0],[R-.002,h*.55],[R-.014,h*.88],[rimR+sw*.72,h],[rimR+sw*.3,h*.985],[rimR*.97,h*.9]],CGM.rubber);
-  /* rim barrel + lip */
-  revolve([[rimR*.97,h*.88],[rimR,h*.96],[rimR*.985,h*.8],[rimR*.9,h*.62],[rimR*.9,-h*.5]],CGM.rim);
-  const fx=h*.7;                                                    /* the plane of the spokes */
-  if(style=='disc'){revolve([[rimR*.9,fx],[rimR*.55,fx+.01],[.04,fx+.02],[0,fx+.025]],CGM.rim)}
-  else{const n=spokes,th=style=='mesh'?.026:.05;for(let s=0;s<n;s++){const a=s/n*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a),r0=.05,r1=rimR*.92;
-      const pts=[[r0,-th*.5],[r1,-th*.9],[r1,th*.9],[r0,th*.5]];const ids=[];for(const[r,t]of pts){const y=ca*r-sa*t,z=sa*r+ca*t;ids.push(mb.v(fx+.012,y,z,1,0,0,CGM.rim))}mb.q(ids[0],ids[1],ids[2],ids[3]);
-      const ids2=[];for(const[r,t]of pts){const y=ca*r-sa*t,z=sa*r+ca*t;ids2.push(mb.v(fx-.012,y,z,-1,0,0,CGM.rim))}mb.q(ids2[3],ids2[2],ids2[1],ids2[0])}
-    revolve([[.07,fx+.008],[.045,fx+.022],[0,fx+.026]],CGM.rim)}
-  /* brake disc and caliper behind the spokes */
+  /* the tyre: a rounded sidewall with lettering ribs, a crown with three grooves */
+  const g=.005,crown=[];for(const x of[-.72,-.5,-.38,-.26,-.12,-.0,.12,.26,.38,.5,.72])crown.push([R-(x==-.38||x==-.0||x==.38?g*(tread==0?0:1):0)-.002*Math.abs(x),x*h]);
+  revolve([[rimR*.97,-h*.9],[rimR+sw*.28,-h*.985],[rimR+sw*.5,-h*1.0],[rimR+sw*.56,-h*.985],[rimR+sw*.8,-h*.99],[R-.014,-h*.9]].concat(crown,[[R-.014,h*.9],[rimR+sw*.8,h*.99],[rimR+sw*.56,h*.985],[rimR+sw*.5,h*1.0],[rimR+sw*.28,h*.985],[rimR*.97,h*.9]]),CGM.rubber);
+  /* the rim: a deep barrel with a lip, then the face with its spokes */
+  revolve([[rimR*.97,h*.9],[rimR,h*.97],[rimR*.985,h*.82],[rimR*.9,h*.64],[rimR*.9,-h*.5]],CGM.rim);
+  const fx=h*.64;
+  if(style=='disc'){revolve([[rimR*.9,fx],[rimR*.6,fx+.008],[.05,fx+.02],[0,fx+.022]],CGM.rim);for(let k=0;k<spokes*2;k++){const a=k/(spokes*2)*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a),r=rimR*.74;cgDiscW(mb,fx+.012,ca*r,sa*r,.028,CGM.under)}}
+  else{
+    const plate=(pts,x0,sd)=>{const ids=[];for(const[r,t,a]of pts){const ca=Math.cos(a),sa=Math.sin(a);ids.push(mb.v(x0,ca*r-sa*t,sa*r+ca*t,sd,0,0,CGM.rim))}mb.q(ids[0],ids[1],ids[2],ids[3]);return ids};
+    const n=style=='mesh'?spokes*2:spokes;
+    for(let k=0;k<n;k++){const a=k/n*Math.PI*2,r0=.055,r1=rimR*.93;
+      if(style=='mesh'){for(const sg of[-1,1]){const sw2=sg*.5;const pts=[[r0,-.01,a],[r1,-.014+sw2*.0,a+sg*.4],[r1,.014,a+sg*.4],[r0,.01,a]];plate(pts,fx+.01,1);plate(pts.slice().reverse(),fx-.012,-1)}}
+      else if(style=='turbine'){const pts=[[r0,-.03,a],[r1,-.04,a+.32],[r1,.04,a+.32],[r0,.03,a]];plate(pts,fx+.012,1);plate(pts.slice().reverse(),fx-.012,-1)}
+      else if(style=='split'){for(const sg of[-1,1]){const pts=[[r0,sg*.01-.012,a+sg*.035],[r1,sg*.062-.017,a],[r1,sg*.062+.017,a],[r0,sg*.01+.012,a+sg*.035]];plate(pts,fx+.011,1);plate(pts.slice().reverse(),fx-.012,-1)}}
+      else{const pts=[[r0,-.032,a],[r1,-.058,a],[r1,.058,a],[r0,.032,a]];plate(pts,fx+.012,1);plate(pts.slice().reverse(),fx-.012,-1);
+        /* the edge of the spoke, so it has a thickness */const e=[[r0,.032,a],[r1,.058,a]];const i0=mb.v(fx+.012,Math.cos(a)*e[0][0]-Math.sin(a)*e[0][1],Math.sin(a)*e[0][0]+Math.cos(a)*e[0][1],0,0,1,CGM.rim),i1=mb.v(fx+.012,Math.cos(a)*e[1][0]-Math.sin(a)*e[1][1],Math.sin(a)*e[1][0]+Math.cos(a)*e[1][1],0,0,1,CGM.rim),i2=mb.v(fx-.012,Math.cos(a)*e[1][0]-Math.sin(a)*e[1][1],Math.sin(a)*e[1][0]+Math.cos(a)*e[1][1],0,0,1,CGM.rim),i3=mb.v(fx-.012,Math.cos(a)*e[0][0]-Math.sin(a)*e[0][1],Math.sin(a)*e[0][0]+Math.cos(a)*e[0][1],0,0,1,CGM.rim);mb.q(i0,i1,i2,i3)}}
+    revolve([[.08,fx+.004],[.075,fx+.02],[.05,fx+.03],[0,fx+.032]],CGM.rim);                       /* the hub */
+    for(let k=0;k<5;k++){const a=k/5*Math.PI*2+.3;cgDiscW(mb,fx+.026,Math.cos(a)*.052,Math.sin(a)*.052,.011,CGM.chrome)}}                                              /* the lug nuts */
+  /* brake disc (drilled) and caliper behind the spokes */
   revolve([[rimR*.86,fx-.07],[rimR*.86,fx-.09],[.07,fx-.09],[.07,fx-.07]],CGM.disc);
-  const ca=.9;cgBox(mb,fx-.05,Math.cos(ca)*rimR*.7,Math.sin(ca)*rimR*.7,.035,.06,.05,CGM.caliper,0);
+  for(let k=0;k<16;k++){const a=k/16*Math.PI*2,r=rimR*.73;cgDiscW(mb,fx-.0695,Math.cos(a)*r,Math.sin(a)*r,.012,CGM.under)}
+  const ca=.9;cgBox(mb,fx-.05,Math.cos(ca)*rimR*.7,Math.sin(ca)*rimR*.7,.035,.075,.05,CGM.caliper,0);
   mb.rim=rimCol;return mb}
+/* a small flat disc facing +x on a wheel at (y, z) */
+function cgDiscW(mb,x,y,z,r,m){const c=mb.v(x,y,z,1,0,0,m),ring=[];for(let i=0;i<6;i++){const a=i/6*Math.PI*2;ring.push(mb.v(x,y+Math.cos(a)*r,z+Math.sin(a)*r,1,0,0,m))}for(let i=0;i<6;i++)mb.t(c,ring[i],ring[(i+1)%6])}
 /* ---------------- the whole car ---------------- */
+/* triangles of glass last, so the glass can be drawn on its own, blended, after the sky */
+function cgSplitGlass(mb){const op=[],gl=[];for(let t=0;t<mb.I.length;t+=3){const m=mb.M[mb.I[t]];(m==CGM.glass?gl:op).push(mb.I[t],mb.I[t+1],mb.I[t+2])}mb.I=op.concat(gl);mb.glassFrom=op.length}
 function cgBuild(o,opt){
   opt=opt||{};const S=cgSpec(o);const body=new CGB();
-  cgBody(S,body,opt);cgGlasshouse(S,body,opt);if(!opt.lo)cgDetails(S,body,opt);else cgDetails(Object.assign(S,{mirror:0,louvres:0,diff:0,exh:0}),body,opt);
-  const wf=cgWheel(S.rf,S.wf,S.rimF,S.spoke,S.wheelStyle,null,opt.lo),wr=cgWheel(S.rr,S.wr,S.rimR,S.spoke,S.wheelStyle,null,opt.lo);
+  cgBody(S,body,opt);cgGlasshouse(S,body,opt);if(!opt.lo){cgDetails(S,body,opt);cgDetails2(S,body,opt);cgInterior(S,body);cgSplitGlass(body)}else cgDetails(Object.assign(S,{mirror:0,louvres:0,diff:0,exh:0}),body,opt);
+  const wf=cgWheel(S.rf,S.wf,S.rimF,S.spoke,S.wheelStyle,null,opt.lo,S.tread),wr=cgWheel(S.rr,S.wr,S.rimR,S.spoke,S.wheelStyle,null,opt.lo,S.tread);
   return{S,body,wheelF:wf,wheelR:wr}}
 
 'use strict';
@@ -3020,13 +3249,13 @@ function _mkMesh(gl,B,colFor,keepAb){
     i8[v*16+8]=Math.round(B.N[v*3]*127);i8[v*16+9]=Math.round(B.N[v*3+1]*127);i8[v*16+10]=Math.round(B.N[v*3+2]*127);i8[v*16+11]=B.M[v];
     const c=colFor(B.M[v]),sh=B.S?B.S[v]:1;b8[v*16+12]=c[0]*sh;b8[v*16+13]=c[1]*sh;b8[v*16+14]=c[2]*sh;b8[v*16+15]=255}
   const idx=new Uint16Array(B.I.length);for(let i=0;i<idx.length;i++)idx[i]=B.I[i];
-  return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,idx),n:idx.length,ab}}
+  return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,idx),n:idx.length,gf:(B.glassFrom!=null?B.glassFrom:idx.length),ab}}
 /* build the mesh of a car definition and make it THE car: body, wheels, materials, paint, light positions, dimensions, wheel contact points */
 function carInstall(def,paint){
   const gl=G.gl,B=cgBuild(def.spec),S=B.S;
   for(const m of[CARM.body,...(CARM.wheels||[])])if(m&&m.vb){gl.deleteBuffer(m.vb);gl.deleteBuffer(m.ib)}
   const rim=def.rim||[190,194,200],cal=def.caliper||[205,28,28];
-  const col=m=>m==CGM.paint?[255,255,255]:m==CGM.rim?rim:m==CGM.caliper?cal:CGCOL[m];
+  const inter=def.interior||CGCOL[CGM.inter],col=m=>m==CGM.paint?[255,255,255]:m==CGM.rim?rim:m==CGM.caliper?cal:m==CGM.inter?inter:CGCOL[m];
   CARM.body=_mkMesh(gl,B.body,col);
   CARM.wheels=[Object.assign(_mkMesh(gl,B.wheelF,col),{x:S.fz,R:S.rf,lat:S.tf}),Object.assign(_mkMesh(gl,B.wheelR,col),{x:S.rz,R:S.rr,lat:S.tr})];
   const mat=new Float32Array(160);CGMAT.forEach((m,i)=>{for(let k=0;k<4;k++)mat[i*4+k]=m[k]/255});CARM.mat=mat;
@@ -3104,6 +3333,18 @@ const CAR_ROSTER=[
  {id:'h1',name:'Zonda H',cls:'Mid-engine V12 hypercar',paint:P(170,174,180),rim:P(200,204,210),caliper:P(30,30,34),spec:_C('hyper',{head:'round',tail_:'quad',exh:4,exhS:'center',wing:'lip',tum:.06,wheelStyle:'spoke',spoke:5}),real:{hp:730,kg:1350,drive:'MR',top:370,t100:3.3,lat:1.3,brk:31}},
  {id:'h2',name:'Veyra',cls:'Quad-turbo all-wheel-drive hypercar',paint:P(20,24,36),rim:P(200,204,210),caliper:P(240,100,20),spec:_C('gt',{W:2.0,H:1.2,L:4.55,wb:2.7,cowl:1.8,roofF:2.3,roofR:2.9,rearS:3.8,hwMax:1.0,head:'led',tail_:'wide',exh:2,wing:'lip',stripe:.05}),real:{hp:1500,kg:1995,drive:'AWD',top:420,t100:2.4,lat:1.1,brk:35}},
  {id:'h3',name:'Agate',cls:'Twin-turbo mid-engine hypercar',paint:P(240,240,236),rim:P(30,30,34),caliper:P(30,30,34),spec:_C('hyper',{head:'slit',tail_:'slit',wing:'big',exh:4,H:1.12}),real:{hp:1360,kg:1400,drive:'MR',top:440,t100:2.8,lat:1.3,brk:30}}];
+/* what makes each car look like the kind of car it is (on top of its proportions): grilles, running lights, vents, scoops, buttresses, fins, trim, the interior colour */
+const CAR_EXTRA={
+ k1:{drl:1,grille:'none',int:[58,40,32]},k2:{drl:1,grille:'slit',int:[24,26,34]},k3:{drl:1,canards:1,scoop:1,grille:'slit',int:[20,20,22]},
+ c1:{drl:1,buttress:1,gills:2,grille:'slit',int:[70,50,40]},c2:{gills:3,scoop:1,grille:'slit',int:[60,44,36]},c3:{drl:1,buttress:1,canards:1,gills:2,int:[22,22,26]},c4:{grille:'none',gills:0,int:[60,60,64]},
+ t1:{drl:1,grille:'slit',gills:1,int:[24,24,28]},t2:{drl:1,canards:1,gills:2,grille:'slit',int:[24,24,28]},t3:{scoop:1,grille:'none',int:[70,60,50]},t4:{drl:1,buttress:1,grille:'slit',int:[22,22,24]},
+ s1:{grille:'wide',gills:2,chromeTrim:1,int:[84,60,44]},s2:{grille:'wide',gills:3,chromeTrim:1,drl:1,int:[76,54,40]},
+ u1:{buttress:1,drl:1,canards:1,grille:'slit',int:[22,22,26]},u2:{scoop:1,gills:2,grille:'wide',int:[28,28,30]},u3:{scoop:1,gills:2,grille:'wide',canards:1,int:[30,30,32]},u4:{gills:2,drl:1,grille:'slit',int:[40,34,30]},u5:{scoop:1,grille:'wide',int:[30,30,32]},
+ m1:{drl:1,canards:1,grille:'slit',int:[28,28,32]},m2:{canards:1,buttress:1,drl:1,gills:2,int:[22,22,24]},m3:{seat:'centre',grille:'slit',int:[60,52,40]},
+ l1:{gills:1,grille:'slit',int:[40,40,44]},l2:{drl:1,grille:'slit',int:[34,28,26]},l3:{canards:1,int:[26,26,28]},
+ j1:{scoop:1,grille:'wide',shark:1,int:[26,26,30]},j2:{drl:1,grille:'slit',gills:1,int:[30,30,34]},j3:{grille:'wide',gills:2,int:[44,34,28]},
+ h1:{canards:1,gills:2,chromeTrim:1,int:[84,62,44]},h2:{grille:'horseshoe',chromeTrim:1,shark:1,gills:1,int:[34,28,24]},h3:{drl:1,canards:1,buttress:1,int:[22,22,24]}};
+for(const d of CAR_ROSTER){const e=CAR_EXTRA[d.id]||{};Object.assign(d.spec,e);if(e.int)d.interior=e.int;delete d.spec.int}
 /* ---------------- handling from the real figures ---------------- */
 /* Everything is measured against the first car, so it keeps exactly the old numbers. Top speed, acceleration, grip, braking and agility come from the figures; the drive layout changes how the tail behaves:
    all-wheel drive grips more and slides less, front-engine rear-drive cars light up the rear tyres under power (the more power for the weight, the more), mid-engine cars turn in sharply and let go suddenly. */
@@ -3152,14 +3393,14 @@ async function boot(){
     BOOT.genMs=performance.now()-t0;
     loadMsg(1,'Ready  ('+Math.round(BOOT.genMs/100)/10+' s, '+R.stats.buildings+' buildings, '+R.stats.trees+' trees)');
     if(QS.has('go')||window.__autoGo){startRun()}else{const go=$('go');go.style.display='block';go.onclick=()=>{audioStart();startRun()}}
-    window.RACER={trGenType,trDent,TTYPES,MENU,CAROWN,menuOpen,menuClose,menuPreview,menuChoose,carUnlock,carSelect,CAR_ROSTER,CARSEL,HND,HND0,CARM,CD,cgBuild,GFX,GFXT,GOV,SHD,SMOKE,SPARK,LAMPS,NEONS,CARL,gfxGovern,gfxSetTier,gfxSetMode,C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
+    window.RACER={NAV,MAPV,navSet,navClear,navSnap,navAStar,navLane,navPolyline,mapOpenNow,mapDown,mapMove,mapUp,mapWheel,copTrigger,COP,trGenType,trDent,TTYPES,MENU,CAROWN,menuOpen,menuClose,menuPreview,menuChoose,carUnlock,carSelect,CAR_ROSTER,CARSEL,HND,HND0,CARM,CD,cgBuild,GFX,GFXT,GOV,SHD,SMOKE,SPARK,LAMPS,NEONS,CARL,gfxGovern,gfxSetTier,gfxSetMode,C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
   }catch(e){showErr('Startup failed: '+(e&&e.message||e));console.error(e)}}
 let last=0,acc=0,running=false;const DT=1/120;
 function startRun(){$('load').classList.add('off');running=true;last=performance.now();requestAnimationFrame(loop)}
 function renderOnce(w,h){R.alpha=1;viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.tz,CAM.fov,w||UI.cw,h||UI.ch);renderFrame(w||UI.cw,h||UI.ch)}
 function frame(ms){
   gfxFrameStart();uiInputs(ms/1000);gfxUpdate(ms/1000);
-  const halt=UI.paused||UI.mapOpen||MENU.open;
+  const halt=UI.paused||UI.mapOpen||MENU.open;if(!halt)navUpdate(ms/1000);
   if(!halt){acc+=Math.min(ms/1000,.1);let n=0;while(acc>=DT&&n<14){worldStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
   R.alpha=halt?1:acc/DT;if(R.alpha>1)R.alpha=1;
   /* camera follows the interpolated state */

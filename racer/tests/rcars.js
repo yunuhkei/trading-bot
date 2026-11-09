@@ -11,11 +11,11 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
   /* ---- 1 the bodies ---- */
   const bodies=await ev(()=>{const {CAR_ROSTER}=RACER;const out=[];for(let i=0;i<CAR_ROSTER.length;i++){const d=CAR_ROSTER[i],t0=performance.now(),B=cgBuild(d.spec,{}),ms=performance.now()-t0,b=B.body;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9],nan=0,mat=0;
       for(let k=0;k<b.P.length;k+=3)for(let a=0;a<3;a++){const v=b.P[k+a];if(!isFinite(v))nan++;mn[a]=Math.min(mn[a],v);mx[a]=Math.max(mx[a],v)}
-      for(const m of b.M)if(m>=15)mat++;let badIdx=0;for(const k of b.I)if(k<0||k>=b.nv)badIdx++;let badN=0;for(let k=0;k<b.N.length;k+=3){const l=Math.hypot(b.N[k],b.N[k+1],b.N[k+2]);if(!(l>.9&&l<1.1))badN++}
+      for(const m of b.M)if(m>=17)mat++;let badIdx=0;for(const k of b.I)if(k<0||k>=b.nv)badIdx++;let badN=0;for(let k=0;k<b.N.length;k+=3){const l=Math.hypot(b.N[k],b.N[k+1],b.N[k+2]);if(!(l>.9&&l<1.1))badN++}
       out.push({id:d.id,name:d.name,nv:b.nv,tris:b.I.length/3,ms,nan,mat,badIdx,badN,L:mx[2]-mn[2],W:mx[0]-mn[0],H:mx[1],sL:d.spec.L,sW:d.spec.W,sH:d.spec.H,wv:B.wheelF.nv})}return out});
   ok(bodies.length==30,'30 cars in the roster: '+bodies.map(b=>b.name).join(', '));
   ok(bodies.every(b=>b.nan==0&&b.mat==0&&b.badIdx==0&&b.badN==0),'every body is made of finite numbers, valid materials and indexes, unit normals');
-  ok(bodies.every(b=>b.tris>5500&&b.tris<10500&&b.nv<20000),'every body has 5.5-10k triangles (min '+Math.min(...bodies.map(b=>b.tris))+', max '+Math.max(...bodies.map(b=>b.tris))+'), 16-bit indexes are enough');
+  ok(bodies.every(b=>b.tris>6000&&b.tris<11000&&b.nv<20000),'every body has 6-11k triangles (min '+Math.min(...bodies.map(b=>b.tris))+', max '+Math.max(...bodies.map(b=>b.tris))+'), 16-bit indexes are enough');
   ok(bodies.every(b=>Math.abs(b.L-b.sL)<.35&&b.W<b.sW+.2&&b.W>b.sW-.15&&b.H>b.sH-.2&&b.H<b.sH+.4),'every body is the length, width and height of its spec (within 0.35 m / mirrors, wings)');
   ok(bodies.every(b=>b.ms<250),'each body is built in '+Math.max(...bodies.map(b=>b.ms)).toFixed(0)+' ms at most (the whole roster '+bodies.reduce((s,b)=>s+b.ms,0).toFixed(0)+' ms)');
   const sizes=new Set(bodies.map(b=>[b.L.toFixed(1),b.W.toFixed(1),b.H.toFixed(1)].join('x')));ok(sizes.size>=18,'the cars really differ in size ('+sizes.size+' distinct length x width x height combinations of 30)');
@@ -92,12 +92,12 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
     RACER.renderOnce(UI.cw,UI.ch);out.nearGi=near.gi;out.farGi=far.gi;out.nearLod=near.gi&1,out.farLod=far.gi&1;
     /* a dent: it is kept, deepens when hit again nearby, a second one goes to the other slot, and it reaches the instance buffer */
     near.dn=null;const sy=Math.sin(near.yaw),cy=Math.cos(near.yaw);trDent(near,near.x+sy*3,near.z-cy*3,120000);const d1=Array.from(near.dn);trDent(near,near.x+sy*3.02,near.z-cy*3.02,120000);const d2=Array.from(near.dn);trDent(near,near.x+cy*2,near.z+sy*2,150000);const d3=Array.from(near.dn);
-    RACER.renderOnce(UI.cw,UI.ch);const I=TRM.inst;let found=0;for(let q=0;q<TRM.nv;q++){const o=q*16;if(Math.abs(I[o]-near.x)<.01&&Math.abs(I[o+2]-near.z)<.01&&I[o+10]>0)found=1}
+    RACER.renderOnce(UI.cw,UI.ch);const I=TRM.inst;let found=0;for(let q=0;q<TRM.nv;q++){const o=q*20;if(Math.abs(I[o]-near.x)<.01&&Math.abs(I[o+2]-near.z)<.01&&I[o+10]>0)found=1}
     out.d1=d1;out.d2=d2;out.d3=d3;out.inInstance=found;out.err=G.gl.getError();trDent(near,near.x,near.z,1000);out.smallIgnored=Array.from(near.dn).join()==d3.join();
     return out});
   ok(tr.groups==10&&tr.tris[0]>1800&&tr.tris[0]<4500&&tr.tris[1]<400,'traffic has a smooth body (about '+Math.round(tr.tris[0])+' triangles) and the old low-poly body ('+Math.round(tr.tris[1])+') for each of the 5 types');
   if(!tr.skip){ok(tr.nearLod==0&&tr.farLod==1,'cars near the camera use the smooth body, far ones the low-poly body (group '+tr.nearGi+' vs '+tr.farGi+')');
-    ok(tr.d1[2]>0&&tr.d2[2]>tr.d1[2]&&tr.d2[6]==0&&tr.d3[6]>0,'a crash dents the traffic car: depth '+tr.d1[2].toFixed(2)+' m, a second hit nearby deepens it to '+tr.d2[2].toFixed(2)+', a hit elsewhere uses the second slot');
+    ok(tr.d1[2]>0&&tr.d2[2]>tr.d1[2]&&tr.d2[6]==0&&tr.d3[6]>0&&tr.d3.length==12,'a crash dents the traffic car: depth '+tr.d1[2].toFixed(2)+' m, a second hit nearby deepens it to '+tr.d2[2].toFixed(2)+', a hit elsewhere uses the second slot');
     ok(tr.inInstance==1&&tr.err==0&&tr.smallIgnored,'the dent is in the instance data the shader reads (no GL error), and a tap does not dent');}
   console.log('errs',T.errs.slice(0,4));ok(T.errs.length==0,'no page errors');
   await T.close();process.exit(bad?1:0);

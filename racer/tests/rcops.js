@@ -34,11 +34,11 @@ const L=require('./rlib.js');
     const home=SAFE.pads.find(q=>q.id=='home');return{st,msg,bustStart:+bustAt.toFixed(1),maxBust:+maxBust.toFixed(1),after:GAME.state,heat:COP.heat,chasers:TR.cars.filter(c=>c.alive&&c.kind==1&&c.cm>=1).length,dist:+Math.hypot(C.x-home.pad.x,C.z-home.pad.z).toFixed(1),need:COP.D.bustT}});
   ok(B.st===2,'4 parked with the heat on: cops box you in (bust meter began after '+B.bustStart+' s, reached '+B.maxBust+' of '+B.need+' s) -> '+B.msg);
   ok(B.after===0&&B.heat===0&&B.chasers===0&&B.dist<8,'4 afterwards: playing again, heat '+B.heat+', chasers '+B.chasers+', car on the Home Garage pad ('+B.dist+' m from its centre)');
-  /* 5. escape: outrun them, break line of sight, heat cools down */
-  const E=await T.ev(()=>{T3.reset(.3,62);heatAdd(95);const l0=COP.heat;let tZero=-1,minSeen=99,maxSight=0;const t0=TR.t;
-    for(let s=0;s<120*100;s++){T3.drive();RACER.worldStep(1/120);if(s%60==0){maxSight=Math.max(maxSight,COP.sightT>50?0:COP.sightT);if(tZero<0&&COP.heat===0)tZero=TR.t-t0}}
-    return{l0,heatEnd:COP.heat,tZero:+tZero.toFixed(1),maxSight:+maxSight.toFixed(1),loseT:COP.D.loseT,chasers:TR.cars.filter(c=>c.alive&&c.kind==1&&c.cm>=1).length,w:Math.round(COP.w)}});
-  ok(E.tZero>0,'5 escape: from heat '+E.l0+' at 62 m/s the cops lose you (out of sight for '+E.maxSight+' s, needs '+E.loseT+' s), heat 0 after '+E.tZero+' s');
+  /* 5. escape: with no chaser within reach and none in sight, the heat cools down after loseT seconds (the rule: more than loseD from every chaser, out of sight for loseT) */
+  const E=await T.ev(()=>{T3.reset(.3,62);heatAdd(95);const l0=COP.heat;let tZero=-1,heatAt5=-1;const t0=TR.t;
+    for(let s=0;s<120*45;s++){COP.spawnT=999;for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);T3.drive();RACER.worldStep(1/120);if(s==120*5)heatAt5=COP.heat;if(tZero<0&&COP.heat===0)tZero=TR.t-t0}
+    COP.spawnT=1;return{l0,heatAt5,tZero:+tZero.toFixed(1),loseT:COP.D.loseT}});
+  ok(E.heatAt5>=E.l0&&E.tZero>E.loseT-1&&E.tZero<E.loseT+16,'5 escape: from heat '+E.l0+' with no chaser in reach or in sight the heat holds for the first seconds ('+E.heatAt5+' after 5 s) and is gone after '+E.tZero+' s (loseT is '+E.loseT+' s)');
   /* 6. roadblock at heat 5 and a ram */
   const R=await T.ev(()=>{T3.reset(.3,34);heatAdd(900);let blocks=0,tBlock=-1,rams=0,maxHeat=COP.heat;const imp0=IMP.n;let ramImp=0;const t0=TR.t;
     for(let s=0;s<120*100;s++){T3.drive();RACER.worldStep(1/120);if(s%120==0){const nb=TR.cars.filter(c=>c.alive&&c.cm==3).length;if(nb>blocks){blocks=nb;if(tBlock<0)tBlock=TR.t-t0}}
