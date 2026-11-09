@@ -14,7 +14,7 @@ function dmgHp(){const z=DMG.z;return 1-(.32*z[0]+.22*z[1]+.17*z[2]+.17*z[3]+.12
 function dmgEffects(){const z=DMG.z,f=z[0],r=z[1];DMG.hp=dmgHp();
   DMG.spd=1;DMG.acc=1;DMG.pull=0;DMG.leak=0;DMG.fire=f>.82?1:0;
   DMG.wrecked=(f>=1||r>=1||DMG.hp<=.16)?1:0}
-function dmgReset(){DMG.z.fill(0);DMG.pend.length=0;DMG.cur=IMP.n;dmgEffects();DMG.wrecked=0;DMG.total=0;
+function dmgReset(){DMG.z.fill(0);DMG.pend.length=0;DMG.cur=IMP.n;dmgEffects();DMG.wrecked=0;DMG.total=0;if(typeof partsReset==='function'&&CARM.parts)partsReset();
   if(DMG.ready&&DMG.dirty){const B=CARM.body;new Uint8Array(B.ab).set(DMG.pris);dentUpload();DMG.dirty=0}}
 /* read the new impacts and turn them into damage */
 function dmgConsume(){
@@ -27,7 +27,7 @@ function dmgApply(r){
   else if(zone>=0){z[zone]+=E/DZ_CAP[zone];
     /* a hit also shakes the neighbours */const sp=E*.14;if(zone<2){z[2]+=sp/DZ_CAP[2];z[3]+=sp/DZ_CAP[3]}else{z[0]+=sp/DZ_CAP[0];z[1]+=sp/DZ_CAP[1]}}
   for(let i=0;i<5;i++)if(z[i]>1)z[i]=1;DMG.total+=E;DMG.lastHit=C.t;
-  DMG.pend.push(r);if(DMG.pend.length>12)DMG.pend.shift()}
+  DMG.pend.push(r);if(DMG.pend.length>12)DMG.pend.shift();partsHit(zone,E,r.src)}
 /* the dents are applied at once for a big hit and at most every 0.2 s for a run of small ones */
 function dmgDents(dt){if(!DMG.ready||!DMG.pend.length)return;DMG.pendT-=dt;let big=false;for(const r of DMG.pend)if(r.E>25000)big=true;if(!big&&DMG.pendT>0)return;DMG.pendT=.2;
   for(const r of DMG.pend)dentFromImpact(r);DMG.pend.length=0;dentUpload()}

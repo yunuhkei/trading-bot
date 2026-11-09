@@ -6,8 +6,8 @@ const CGM={paint:0,glass:1,trim:2,carbon:3,chrome:4,head:5,tail:6,rubber:7,rim:8
 /* per material: colour (sRGB bytes) and [metal, roughness, emissive, clear coat] / 255 for the car shader */
 const CGCOL=[[255,255,255],[8,10,14],[20,20,22],[34,35,40],[205,210,216],[255,244,190],[255,34,24],[14,14,15],[188,192,198],[205,28,28],[120,124,130],[230,230,224],[240,240,240],[18,18,20],[150,152,158],[34,34,38],[160,164,170]];
 const CGMAT=[[140,66,0,255],[215,22,0,0],[0,170,0,0],[70,80,0,160],[235,60,0,0],[0,40,255,60],[0,40,255,60],[0,205,0,0],[215,80,0,40],[70,90,0,140],[240,70,0,0],[0,150,0,0],[120,70,0,230],[0,200,0,0],[200,110,0,0],[0,150,0,40],[225,90,0,0]];
-class CGB{constructor(){this.P=[];this.N=[];this.M=[];this.I=[];this.S=[]}
-  v(x,y,z,nx,ny,nz,m,sh){this.P.push(x,y,z);this.N.push(nx,ny,nz);this.M.push(m);this.S.push(sh==null?1:sh);return this.M.length-1}
+class CGB{constructor(){this.P=[];this.N=[];this.M=[];this.I=[];this.S=[];this.Pt=[];this.cur=0}
+  v(x,y,z,nx,ny,nz,m,sh){this.P.push(x,y,z);this.N.push(nx,ny,nz);this.M.push(m);this.S.push(sh==null?1:sh);this.Pt.push(this.cur);return this.M.length-1}
   t(a,b,c){this.I.push(a,b,c)}q(a,b,c,d){this.t(a,b,c);this.t(a,c,d)}
   get nv(){return this.M.length}}
 const _cl=(x,a,b)=>x<a?a:x>b?b:x;
@@ -27,7 +27,7 @@ function cgGridNormals(P,ni,nj,wrap,ctr){const N=new Float32Array(ni*nj*3);
     if(nx*ox+ny*oy+nz*oz<0){nx=-nx;ny=-ny;nz=-nz}N[k]=nx/l;N[k+1]=ny/l;N[k+2]=nz/l}return N}
 /* ---------------- the spec: defaults and the curves derived from the few numbers a car is described by ---------------- */
 function cgSpec(o){
-  const S=Object.assign({L:4.5,W:1.86,H:1.28,wb:2.45,fo:.92,nose:.56,hood:.80,cowl:1.62,roofF:2.12,roofR:3.0,rearS:3.5,deck:.97,tail:.80,hw0:.80,hwMax:.93,hwMaxS:3.0,hwTail:.82,crown:.09,tum:.05,flare:.03,
+  const S=Object.assign({L:4.5,W:1.86,H:1.28,wb:2.45,fo:.92,nose:.56,hood:.80,cowl:1.62,roofF:2.12,roofR:3.0,rearS:3.5,deck:.97,tail:.80,hw0:.80,hwMax:.93,hwMaxS:3.0,hwTail:.82,crown:.09,tum:.05,flare:.05,
     rf:.335,rr:.345,wf:.255,wr:.305,rimF:.235,rimR:.245,tf:.775,tr:.80,sill:.12,gw:.80,gt:.66,
     glassRoof:0,rearGlass:1,bpillar:0,spoke:5,wheelStyle:'spoke',head:'round',tail_:'bar',intake:'mid',wing:'none',duct:0,exh:2,exhS:'twin',louvres:0,stripe:0,mirror:1,diff:1,splitter:1,sideIntake:0,quad:1,grille:'none',drl:0,gills:0,buttress:0,scoop:0,canards:0,shark:0,plates:1,seat:'two',chromeTrim:0,tread:1,lhd:1},o||{});
   S.fz=-S.L/2+S.fo;S.rz=S.fz+S.wb;                        /* axle positions along z (front is negative) */
@@ -39,7 +39,7 @@ function cgTubRing(S,s,K){K=K||S.K||10;
   const pts=[];pts.push([0,yb]);pts.push([hw*.78,yb]);
   for(let k=1;k<=2;k++){const a=-Math.PI/2+k*Math.PI/6;pts.push([hw-rb+rb*Math.cos(a),yb+rb+rb*Math.sin(a)])}
   const y0=yb+rb,hs=ys-y0;for(let k=0;k<=K;k++){const t=k/K;pts.push([hw*(1-tum*t*t),y0+hs*t])}
-  const xs=hw*(1-tum);const n=2.7;for(let k=1;k<=5;k++){const a=k/5*Math.PI/2,c=Math.cos(a),sn=Math.sin(a);pts.push([xs*Math.pow(c,2/n),ys+(yt-ys)*Math.pow(sn,2/n)])}
+  const xs=hw*(1-tum);const n=3.15;for(let k=1;k<=5;k++){const a=k/5*Math.PI/2,c=Math.cos(a),sn=Math.sin(a);pts.push([xs*Math.pow(c,2/n),ys+(yt-ys)*Math.pow(sn,2/n)])}
   return pts}
 function cgBodyCurves(S){
   const L=S.L,top=[[0,S.nose*.8],[.18,S.nose*.97],[.5,S.nose+.025],[S.cowl*.5,(S.nose+S.hood)/2+.01],[S.cowl,S.hood],[(S.cowl+S.rearS)/2,(S.hood+S.deck)/2+.02],[S.rearS,S.deck],[L-.4,S.deck-.025],[L,S.tail]];
@@ -52,7 +52,7 @@ function cgBody(S,mb,opt){
   const set=[];const stp=opt.lo?.3:.1;for(let s=.01;s<L;s+=stp)set.push(s);for(const e of(opt.lo?[.01,.08,.18,L-.01,L-.08,L-.18]:[.006,.02,.045,.09,.16,L-.006,L-.02,L-.045,L-.09,L-.16]))set.push(e);
   for(const ax of[S.fo,S.fo+S.wb]){const r=(ax==S.fo?S.rf:S.rr)+.12;for(let s=ax-r;s<=ax+r+1e-6;s+=opt.lo?.13:.04)set.push(s)}
   set.sort((a,b)=>a-b);const ss=[];for(const s of set){if(s<=0||s>=L)continue;if(!ss.length||s-ss[ss.length-1]>.018)ss.push(s)}
-  const ni=ss.length,rings=[],capF=S.capF||.34,capR=S.capR||.5;
+  const ni=ss.length,rings=[],capF=(S.capF||.34)*.88,capR=(S.capR||.5)*.62;
   for(const s of ss){const r=cgTubRing(S,s,K);let sc=1;const d0=s,d1=L-s;if(d0<capF)sc=Math.pow(1-Math.pow((capF-d0)/capF,2.4),1/2.4);else if(d1<capR)sc=Math.pow(1-Math.pow((capR-d1)/capR,2.2),1/2.2);
     const yb=r[0][1],yt=r[r.length-1][1];const cy=(yb+yt)/2;if(sc<1){const hs=.3+.7*sc;for(const p of r){p[0]*=sc;p[1]=cy+(p[1]-cy)*hs}}rings.push(r)}
   const M=rings[0].length,nj=2*M-2;
@@ -111,18 +111,21 @@ function cgGlasshouse(S,mb,opt){
   for(let i=0;i<ni-1;i++){const s=(ss[i]+ss[i+1])/2;for(let j=0;j<nj-1;j++){const isSide=Math.max(idxOf(j),idxOf(j+1))<=K2;let m=CGM.paint;
       if(isSide){/* the side window: its front edge follows the A pillar (up and back), its rear edge the C pillar (up and forward); everything else on the side is pillar */
         const k0=(i*nj+j)*3,yb0=P[(i*nj+(j<M?0:nj-1))*3+1],ym=(P[k0+1]+P[(i*nj+j+1)*3+1])/2,t=_cl((ym-yb0)/Math.max(.05,S.H-yb0),0,1),sF=S.cowl+.12+(S.roofF-S.cowl)*t*.95,sR=S.rearS-.3-(S.rearS-S.roofR-.3)*Math.pow(t,1.3);
-        m=(s>sF&&s<sR&&!(S.bpillar&&Math.abs(s-(sF+sR)/2)<.045))?CGM.glass:CGM.paint}
+        m=(s>sF&&s<sR&&!(S.bpillar&&Math.abs(s-(sF+sR)/2)<.045))?CGM.glass:(opt.lo?CGM.paint:CGM.carbon)}
       else if(s<S.roofF-.02){m=CGM.glass}                                                  /* windshield */
       else if(s<=S.roofR){m=S.glassRoof?CGM.glass:CGM.paint}
-      else m=S.rearGlass?CGM.glass:CGM.paint
+      else m=(S.rearGlass&&s<S.roofR+(S.rearS-S.roofR)*.58)?CGM.glass:CGM.paint
       const a=vtx(i,j,m),b=vtx(i,j+1,m),c=vtx(i+1,j+1,m),d=vtx(i+1,j,m);mb.q(a,b,c,d)}}
+  /* the headliner: the roof and the rear window get a dark lining 8 cm below them (the front of the windscreen stays clear so the dash and seats show) */
+  if(!opt.lo){const hv=new Map(),hl=(i,j)=>{const key=i*nj+j;let v=hv.get(key);if(v===undefined){const k=key*3;v=mb.v(P[k]-Nn[k]*.08,P[k+1]-Nn[k+1]*.08,P[k+2]-Nn[k+2]*.08,Nn[k],Nn[k+1],Nn[k+2],CGM.under,.9);hv.set(key,v)}return v},sH=S.cowl+(S.roofF-S.cowl)*.6;
+    for(let i=0;i<ni-1;i++){if((ss[i]+ss[i+1])/2<sH)continue;for(let j=0;j<nj-1;j++){if(Math.min(idxOf(j),idxOf(j+1))<K2)continue;mb.q(hl(i,j),hl(i,j+1),hl(i+1,j+1),hl(i+1,j))}}}
   S._gh={P,ni,nj,ss,K2,M}}
 /* ---------------- small parts ---------------- */
 function cgBasis(nx,ny,nz){/* tangent u (mostly sideways) and v from a surface normal */
   let ux=ny*0-nz*1,uy=nz*0-nx*0,uz=nx*1-ny*0;ux=-nz;uy=0;uz=nx;let l=Math.hypot(ux,uz);if(l<1e-4){ux=1;uz=0}else{ux/=l;uz/=l}
   const vx=ny*uz-nz*uy,vy=nz*ux-nx*uz,vz=nx*uy-ny*ux;return[ux,uy,uz,vx,vy,vz]}
 /* a flat ellipse lying on the body at a point, facing along the normal, a hair above the surface */
-function cgDisc(mb,p,rx,ry,m,seg,off,rot){const[ux,uy,uz,vx,vy,vz]=cgBasis(p.nx,p.ny,p.nz),cx=p.x+p.nx*(off==null?.006:off),cy=p.y+p.ny*(off==null?.006:off),cz=p.z+p.nz*(off==null?.006:off),cr=Math.cos(rot||0),sr=Math.sin(rot||0);
+function cgDisc(mb,p,rx,ry,m,seg,off,rot){const[ux,uy,uz,vx,vy,vz]=cgBasis(p.nx,p.ny,p.nz),cx=p.x+p.nx*((off==null?.006:off)+.003),cy=p.y+p.ny*((off==null?.006:off)+.003),cz=p.z+p.nz*((off==null?.006:off)+.003),cr=Math.cos(rot||0),sr=Math.sin(rot||0);
   const c=mb.v(cx,cy,cz,p.nx,p.ny,p.nz,m),ring=[];seg=seg||14;
   for(let i=0;i<seg;i++){const a=i/seg*Math.PI*2,ex=Math.cos(a)*rx,ey=Math.sin(a)*ry,qx=ex*cr-ey*sr,qy=ex*sr+ey*cr;ring.push(mb.v(cx+ux*qx+vx*qy,cy+uy*qx+vy*qy,cz+uz*qx+vz*qy,p.nx,p.ny,p.nz,m))}
   for(let i=0;i<seg;i++)mb.t(c,ring[i],ring[(i+1)%seg])}
@@ -136,11 +139,14 @@ function cgCylZ(mb,x,y,z0,z1,r,m,seg){seg=seg||10;const a=[],b=[];for(let i=0;i<
   for(let i=0;i<seg;i++){const j=(i+1)%seg;mb.q(a[i],a[j],b[j],b[i])}const cdark=mb.v(x,y,z1,0,0,1,CGM.under);for(let i=0;i<seg;i++){const j=(i+1)%seg;mb.t(cdark,b[i],b[j])}}
 /* a thin strip along a polyline lying on the body (a light bar, a louvre, a door line) */
 function cgStrip(mb,pts,w,m,off){const n=pts.length,L=[],R=[];for(let i=0;i<n;i++){const p=pts[i],q=pts[Math.min(n-1,i+1)],o=pts[Math.max(0,i-1)];let tx=q.x-o.x,ty=q.y-o.y,tz=q.z-o.z;const tl=Math.hypot(tx,ty,tz)||1;tx/=tl;ty/=tl;tz/=tl;
-    let sx=ty*p.nz-tz*p.ny,sy=tz*p.nx-tx*p.nz,sz=tx*p.ny-ty*p.nx;const sl=Math.hypot(sx,sy,sz)||1;sx/=sl;sy/=sl;sz/=sl;const e=off==null?.006:off;
+    let sx=ty*p.nz-tz*p.ny,sy=tz*p.nx-tx*p.nz,sz=tx*p.ny-ty*p.nx;const sl=Math.hypot(sx,sy,sz)||1;sx/=sl;sy/=sl;sz/=sl;const e=(off==null?.006:off)+.004;
     L.push(mb.v(p.x+p.nx*e-sx*w/2,p.y+p.ny*e-sy*w/2,p.z+p.nz*e-sz*w/2,p.nx,p.ny,p.nz,m));R.push(mb.v(p.x+p.nx*e+sx*w/2,p.y+p.ny*e+sy*w/2,p.z+p.nz*e+sz*w/2,p.nx,p.ny,p.nz,m))}
   for(let i=0;i<n-1;i++)mb.q(L[i],R[i],R[i+1],L[i+1])}
 /* a line of surface points at a given height across the body at distance s from the nose */
-function cgRowAt(S,s,y,xMax,n){const pts=[];for(let i=0;i<n;i++){const x=-xMax+2*xMax*i/(n-1);pts.push(S.near(x,y,S.zs(s)))}return pts}
+function cgRowAt(S,s,y,xMax,n){const pts=[];for(let i=0;i<n;i++){const x=-xMax+2*xMax*i/(n-1);pts.push(S.near(x,y,S.zs(s)))}
+  /* the nearest vertex jumps from row to row of the grid: smooth the line so a light bar is not a zigzag */
+  for(let it=0;it<4;it++)for(let i=1;i<n-1;i++){const a=pts[i-1],b=pts[i],c=pts[i+1];b.y=(a.y+2*b.y+c.y)/4;b.z=(a.z+2*b.z+c.z)/4}
+  return pts}
 function cgDetails(S,mb,opt){
   const L=S.L,hw=S.W/2,lights={};
   /* ---- front lights ---- */
@@ -171,16 +177,16 @@ function cgDetails(S,mb,opt){
   /* ---- engine cover louvres ---- */
   if(S.louvres){for(let k=0;k<S.louvres;k++){const s=S.roofR+.08+k*.13,pts=[];for(let q=0;q<7;q++){const x=-hw*.4+hw*.8*q/6;pts.push(S.near(x,cgTopAt(S,s,x),S.zs(s)))}cgStrip(mb,pts,.028,CGM.under,.004)}}
   /* ---- mirrors ---- */
-  if(S.mirror){for(const sg of[-1,1]){const s=S.cowl+.28,x=hw*S.gw+.1,y=cgTopAt(S,s,hw*S.gw)+.12;cgBox(mb,sg*x,y,S.zs(s),.055,.04,.07,CGM.paint,0);cgBox(mb,sg*(x-.05),y-.075,S.zs(s)+.02,.03,.03,.02,CGM.trim,0)}}
+  if(S.mirror){for(const sg of[-1,1]){const s=S.cowl+.28,x=hw*S.gw+.1,y=cgTopAt(S,s,hw*S.gw)+.12;mb.cur=sg>0?7:8;cgBox(mb,sg*x,y,S.zs(s),.055,.04,.07,CGM.paint,0);cgBox(mb,sg*(x-.05),y-.075,S.zs(s)+.02,.03,.03,.02,CGM.trim,0);mb.cur=0}}
   /* ---- spoiler / wing ---- */
   const dz=S.zs(L-.2);
   if(S.wing=='duck'){cgBox(mb,0,S.deck+.04,S.zs(L-.16),S.hwTail*.78,.035,.1,CGM.paint,.15)}
   else if(S.wing=='lip'){cgBox(mb,0,S.deck+.015,S.zs(L-.08),S.hwTail*.8,.018,.05,CGM.carbon,.0)}
   else if(S.wing=='gt'||S.wing=='big'){const big=S.wing=='big',hy2=S.deck+(big?.36:.24),ww=S.hwTail*(big?.98:.9),ch=big?.17:.13;
     cgBox(mb,0,hy2,S.zs(L-(big?.28:.22)),ww,.012,ch,CGM.carbon,-.1);
-    for(const sg of[-1,1]){cgBox(mb,sg*ww,hy2,S.zs(L-(big?.28:.22)),.012,big?.1:.07,ch+.02,CGM.carbon,-.05);cgBox(mb,sg*S.hwTail*.5,S.deck+(hy2-S.deck)/2,S.zs(L-(big?.3:.24)),.018,(hy2-S.deck)/2+.01,.035,CGM.carbon,0)}}
+    for(const sg of[-1,1]){cgBox(mb,sg*ww,hy2,S.zs(L-(big?.28:.22)),.012,big?.1:.07,ch+.02,CGM.carbon,-.05);cgBox(mb,sg*S.hwTail*.5,S.deck+(hy2-S.deck)/2,S.zs(L-(big?.3:.24)),.028,(hy2-S.deck)/2+.01,.05,CGM.carbon,0)}}
   /* ---- diffuser and exhaust ---- */
-  if(S.diff){cgBox(mb,0,S.sill+.07,S.zs(L-.18),S.hwTail*.62,.012,.2,CGM.carbon,-.14);for(let k=-2;k<=2;k++)cgBox(mb,k*S.hwTail*.26,S.sill+.085,S.zs(L-.19),.008,.04,.18,CGM.carbon,-.14)}
+  if(S.diff){cgBox(mb,0,S.sill+.075,S.zs(L-.27),S.hwTail*.6,.012,.14,CGM.carbon,-.14);for(let k=-2;k<=2;k++)cgBox(mb,k*S.hwTail*.25,S.sill+.09,S.zs(L-.28),.008,.04,.12,CGM.carbon,-.14)}
   const ex=S.exh||0;for(let k=0;k<ex;k++){const px=ex==1?0:S.exhS=='center'?(k-(ex-1)/2)*.15:(k%2?1:-1)*(S.hwTail*(.52+.12*((k>>1)))),py=S.sill+.1+(S.exhS=='high'?.28:0);cgCylZ(mb,px,py,S.zs(L-.09),S.zs(L+.035),.047,CGM.exh,10)}
   S._lights=lights}
 /* a torus (the steering wheel) */
@@ -202,11 +208,11 @@ function cgDetails2(S,mb,opt){
   const hw=S.W/2,L=S.L,cs=S.curves;
   /* bonnet and engine-lid shut lines */
   {const hx=s=>cs.half(s)*.72,s0=S.cowl-.04,s1=.4,left=[],right=[],front=[];for(let k=0;k<=8;k++){const s=s0-(s0-s1)*k/8;left.push(cgSurf(S,s,-hx(s)));right.push(cgSurf(S,s,hx(s)))}
-    for(let k=0;k<=6;k++)front.push(cgSurf(S,s1,-hx(s1)+2*hx(s1)*k/6));cgStrip(mb,left,.007,CGM.trim,.003);cgStrip(mb,right,.007,CGM.trim,.003);cgStrip(mb,front,.007,CGM.trim,.003);
-    const sl=S.rearS+.2,h2=s=>cs.half(s)*.7,lid=[];for(let k=0;k<=6;k++)lid.push(cgSurf(S,sl,-h2(sl)+2*h2(sl)*k/6));cgStrip(mb,lid,.007,CGM.trim,.003)}
+    for(let k=0;k<=6;k++)front.push(cgSurf(S,s1,-hx(s1)+2*hx(s1)*k/6));cgStrip(mb,left,.012,CGM.trim,.008);cgStrip(mb,right,.012,CGM.trim,.008);cgStrip(mb,front,.012,CGM.trim,.008);
+    const sl=S.rearS+.2,h2=s=>cs.half(s)*.7,lid=[];for(let k=0;k<=6;k++)lid.push(cgSurf(S,sl,-h2(sl)+2*h2(sl)*k/6));cgStrip(mb,lid,.012,CGM.trim,.008)}
   /* doors: the cut lines, the handle */
   const sCab=(S.cowl+S.roofR)/2,yB=cgTopAt(S,sCab,cs.half(sCab)*S.gw)-.03,doorF=S.cowl+.16,doorR=S.roofR+.12,y0=S.sill+.2;
-  for(const sg of[-1,1]){const line=pts=>cgStrip(mb,pts,.007,CGM.trim,.003);
+  for(const sg of[-1,1]){const line=pts=>cgStrip(mb,pts,.013,CGM.trim,.008);
     line([0,1,2,3,4].map(k=>cgSide(S,doorF,y0+(yB-y0)*k/4,sg)));line([0,1,2,3,4].map(k=>cgSide(S,doorR,y0+(yB-y0)*k/4,sg)));line([0,1,2,3,4,5,6].map(k=>cgSide(S,doorF+(doorR-doorF)*k/6,y0,sg)));
     cgStrip(mb,[cgSide(S,doorR-.3,yB-.09,sg),cgSide(S,doorR-.12,yB-.09,sg)],.028,S.chromeTrim?CGM.chrome:CGM.trim,.004);
     /* window trim along the bottom edge of the side glass */
@@ -265,10 +271,54 @@ function cgWheel(R,w,rimR,spokes,style,rimCol,lo,tread){
 /* a small flat disc facing +x on a wheel at (y, z) */
 function cgDiscW(mb,x,y,z,r,m){const c=mb.v(x,y,z,1,0,0,m),ring=[];for(let i=0;i<6;i++){const a=i/6*Math.PI*2;ring.push(mb.v(x,y+Math.cos(a)*r,z+Math.sin(a)*r,1,0,0,m))}for(let i=0;i<6;i++)mb.t(c,ring[i],ring[(i+1)%6])}
 /* ---------------- the whole car ---------------- */
-/* triangles of glass last, so the glass can be drawn on its own, blended, after the sky */
-function cgSplitGlass(mb){const op=[],gl=[];for(let t=0;t<mb.I.length;t+=3){const m=mb.M[mb.I[t]];(m==CGM.glass?gl:op).push(mb.I[t],mb.I[t+1],mb.I[t+2])}mb.I=op.concat(gl);mb.glassFrom=op.length}
+/* ---------------- the parts that can come off: bonnet, boot lid, two doors, two bumpers, two mirrors ----------------
+   Parts are found by where a triangle is on the car (the same rules for every body), copied into vertices of their own (so a part can swing without tearing the body),
+   and the opening behind a door, bonnet or boot lid gets a dark liner a few centimetres inside the skin (so an open door shows a dark cabin, not the other side of the paint).
+   part ids: 0 the body, 1 bonnet, 2 boot lid, 3 door on the right (x > 0), 4 door on the left, 5 front bumper, 6 rear bumper, 7 right mirror, 8 left mirror */
+function cgParts(S,mb,opt){
+  const L=S.L,cs=S.curves,fo=S.fo,wb=S.wb,P=mb.P,N=mb.N,M=mb.M,Pt=mb.Pt,half=s=>cs.half(s);
+  const rb=_cl(fo-S.rf-.1,.2,.46),rs=Math.min(L-.2,Math.max(L-.52,fo+wb+S.rr+.14)),hs0=rb,hs1=S.cowl-.04,ts0=S.rearS+.02,ts1=rs,dS0=fo+S.rf+.12,dS1=fo+wb-S.rr-.14;
+  const okH=hs1-hs0>.3,okT=ts1-ts0>.3,okD=dS1-dS0>.6;
+  const map=new Map(),dup=(v,p)=>{const k=v*16+p;let r=map.get(k);if(r===undefined){r=mb.v(P[v*3],P[v*3+1],P[v*3+2],N[v*3],N[v*3+1],N[v*3+2],M[v],mb.S[v]);Pt[r]=p;map.set(k,r)}return r};
+  const I=mb.I,nt=I.length,lin=new Map(),liner=[],nTri=nt/3;
+  /* which part a spot on the car belongs to (centre, average normal, material) */
+  const classify=(cx,cy,cz,nx,ny,m)=>{if(cy<S.sill+.03)return 0;const sd=cz+L/2,ax=Math.abs(cx);
+    if(sd<rb)return 5;if(sd>rs)return 6;
+    if(okH&&sd>=hs0&&sd<=hs1&&ny>.25&&m!=CGM.glass&&ax<=half(sd)*(1-S.tum)*1.01&&cy>=cgTopAt(S,sd,cx)-.06)return 1;
+    if(okT&&sd>=ts0&&sd<=ts1&&ny>.25&&m!=CGM.glass&&ax<=half(sd)*(1-S.tum)*1.01&&cy>=cgTopAt(S,sd,cx)-.06)return 2;
+    if(okD&&sd>=dS0&&sd<=dS1&&Math.abs(nx)>.5&&ax>.45*half(sd)&&cy>S.sill+.12&&m!=CGM.head&&m!=CGM.tail)return cx>0?3:4;
+    return 0};
+  /* triangles come in pairs (the two halves of a grid cell): a pair is classified as one, so the edge of a door follows the grid lines and is not a row of teeth */
+  const cen=t=>{const a=I[t],b=I[t+1],c=I[t+2];return[(P[a*3]+P[b*3]+P[c*3])/3,(P[a*3+1]+P[b*3+1]+P[c*3+1])/3,(P[a*3+2]+P[b*3+2]+P[c*3+2])/3,(N[a*3]+N[b*3]+N[c*3])/3,(N[a*3+1]+N[b*3+1]+N[c*3+1])/3]};
+  const shares=(t,u)=>{let k=0;for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(I[t+i]==I[u+j])k++;return k>=2};
+  const cls=new Int8Array(nTri);
+  for(let q=0;q<nTri;q++){const t=q*3;if(Pt[I[t]]||Pt[I[t+1]]||Pt[I[t+2]]||M[I[t]]==CGM.inter)continue;
+    if(q+1<nTri&&!cls[q+1]&&shares(t,t+3)&&!Pt[I[t+3]]&&M[I[t+3]]==M[I[t]]){const u=cen(t),w=cen(t+3),p=classify((u[0]+w[0])/2,(u[1]+w[1])/2,(u[2]+w[2])/2,(u[3]+w[3])/2,(u[4]+w[4])/2,M[I[t]]);cls[q]=cls[q+1]=p||0;if(p){cls[q]=cls[q+1]=p}q++;continue}
+    const u=cen(t);cls[q]=classify(u[0],u[1],u[2],u[3],u[4],M[I[t]])}
+  for(let q=0;q<nTri;q++){const p=cls[q];if(!p)continue;const t=q*3,a=I[t],b=I[t+1],c=I[t+2];
+    /* the liner behind the moving panels of the skin (not behind glass, trim lines or bumpers) */
+    if(p<=4&&M[a]==CGM.paint)liner.push(a,b,c);
+    I[t]=dup(a,p);I[t+1]=dup(b,p);I[t+2]=dup(c,p)}
+  const lv=v=>{let r=lin.get(v);if(r===undefined){r=mb.v(P[v*3]-N[v*3]*.085,P[v*3+1]-N[v*3+1]*.085,P[v*3+2]-N[v*3+2]*.085,N[v*3],N[v*3+1],N[v*3+2],CGM.under,.8);lin.set(v,r)}return r};
+  for(let k=0;k<liner.length;k+=3)I.push(lv(liner[k]),lv(liner[k+1]),lv(liner[k+2]));
+  /* the box, centre and hinge of every part */
+  const bb={};for(let v=0;v<mb.nv;v++){const p=Pt[v];if(!p)continue;const q=bb[p]||(bb[p]={n:0,x0:1e9,x1:-1e9,y0:1e9,y1:-1e9,z0:1e9,z1:-1e9,sx:0,sy:0,sz:0});q.n++;const x=P[v*3],y=P[v*3+1],z=P[v*3+2];q.x0=Math.min(q.x0,x);q.x1=Math.max(q.x1,x);q.y0=Math.min(q.y0,y);q.y1=Math.max(q.y1,y);q.z0=Math.min(q.z0,z);q.z1=Math.max(q.z1,z);q.sx+=x;q.sy+=y;q.sz+=z}
+  const def={};for(const k in bb){const q=bb[k],p=+k;if(q.n<4)continue;const c=[q.sx/q.n,q.sy/q.n,q.sz/q.n];let h;
+    if(p==1)h={p:[0,q.y0+(q.y1-q.y0)*.08,q.z1],a:[1,0,0]};                                /* the bonnet hinges at its rear edge and lifts at the front */
+    else if(p==2)h={p:[0,q.y0+(q.y1-q.y0)*.1,q.z0],a:[1,0,0]};                             /* the boot lid hinges at its front edge */
+    else if(p==3||p==4){h={p:[p==3?q.x1:q.x0,(q.y0+q.y1)/2,q.z0],a:[0,1,0]}}      /* a door hinges at its front edge */
+    else if(p==5)h={p:[0,(q.y0+q.y1)/2,q.z1],a:[0,1,0]};                                   /* a bumper pivots about its inner end (the side is chosen when it breaks) */
+    else if(p==6)h={p:[0,(q.y0+q.y1)/2,q.z0],a:[0,1,0]};
+    else h={p:[(p==7?q.x0:q.x1),(q.y0+q.y1)/2,c[2]],a:[0,1,0]};                           /* a mirror folds about its stalk */
+    def[p]=Object.assign(h,{c,n:q.n,box:[q.x0,q.y0,q.z0,q.x1,q.y1,q.z1]})}
+  S._parts=def}
+/* triangles of glass last, so the glass can be drawn on its own, blended, after the sky; within each group the triangles are ordered by part, so every part is one run of the index buffer */
+function cgSplitGlass(mb){const B=[[],[]];for(let g=0;g<2;g++)for(let p=0;p<9;p++)B[g].push([]);
+  for(let t=0;t<mb.I.length;t+=3){const a=mb.I[t],g=mb.M[a]==CGM.glass?1:0;B[g][mb.Pt[a]||0].push(mb.I[t],mb.I[t+1],mb.I[t+2])}
+  const I=[],pr=[],gpr=[];for(let g=0;g<2;g++)for(let p=0;p<9;p++){const run=B[g][p];(g?gpr:pr)[p]={f:I.length,n:run.length};for(let k=0;k<run.length;k++)I.push(run[k]);if(!g&&p==8)mb.glassFrom=I.length}
+  mb.I=I;mb.pr=pr;mb.gpr=gpr}
 function cgBuild(o,opt){
   opt=opt||{};const S=cgSpec(o);const body=new CGB();
-  cgBody(S,body,opt);cgGlasshouse(S,body,opt);if(!opt.lo){cgDetails(S,body,opt);cgDetails2(S,body,opt);cgInterior(S,body);cgSplitGlass(body)}else cgDetails(Object.assign(S,{mirror:0,louvres:0,diff:0,exh:0}),body,opt);
+  cgBody(S,body,opt);cgGlasshouse(S,body,opt);if(!opt.lo){cgDetails(S,body,opt);cgDetails2(S,body,opt);cgInterior(S,body);cgParts(S,body,opt);cgSplitGlass(body)}else{cgDetails(Object.assign(S,{mirror:0,louvres:0,diff:0,exh:0}),body,opt);cgParts(S,body,opt)}
   const wf=cgWheel(S.rf,S.wf,S.rimF,S.spoke,S.wheelStyle,null,opt.lo,S.tread),wr=cgWheel(S.rr,S.wr,S.rimR,S.spoke,S.wheelStyle,null,opt.lo,S.tread);
   return{S,body,wheelF:wf,wheelR:wr}}

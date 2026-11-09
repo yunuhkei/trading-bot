@@ -7,7 +7,7 @@ function _mkMesh(gl,B,colFor,keepAb){
     i8[v*16+8]=Math.round(B.N[v*3]*127);i8[v*16+9]=Math.round(B.N[v*3+1]*127);i8[v*16+10]=Math.round(B.N[v*3+2]*127);i8[v*16+11]=B.M[v];
     const c=colFor(B.M[v]),sh=B.S?B.S[v]:1;b8[v*16+12]=c[0]*sh;b8[v*16+13]=c[1]*sh;b8[v*16+14]=c[2]*sh;b8[v*16+15]=255}
   const idx=new Uint16Array(B.I.length);for(let i=0;i<idx.length;i++)idx[i]=B.I[i];
-  return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,idx),n:idx.length,gf:(B.glassFrom!=null?B.glassFrom:idx.length),ab}}
+  return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,idx),n:idx.length,gf:(B.glassFrom!=null?B.glassFrom:idx.length),pr:B.pr,gpr:B.gpr,ab}}
 /* build the mesh of a car definition and make it THE car: body, wheels, materials, paint, light positions, dimensions, wheel contact points */
 function carInstall(def,paint){
   const gl=G.gl,B=cgBuild(def.spec),S=B.S;
@@ -21,4 +21,4 @@ function carInstall(def,paint){
   CARM.def=def;CARM.hw=S.W/2;CARM.hl=S.L/2;CARM.R=[S.rf,S.rr];
   const L=S._lights;CARL.hx=L.hx;CARL.hy=L.hy;CARL.hz=L.hz;CARL.tx=L.tx;CARL.ty=L.ty;CARL.tz=L.tz;
   const wk=def.spec.wb/2.45;CD.fo=1.38*wk;CD.ro=1.33*wk;CD.hw=.68*(S.tf/.775);
-  dmgInit();dmgReset();return B}
+  CARM.parts=S._parts;CARM.zc=S.zs((S.cowl+S.roofR)/2);partsInit();dmgInit();dmgReset();return B}

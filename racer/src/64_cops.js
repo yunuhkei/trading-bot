@@ -6,9 +6,9 @@
 const COPD={
   /* top: the slowest a chaser's top speed can be; follow: chasers match your speed times this (up to 105 m/s) and get a rubber-band boost when they fall behind; accel: how hard they accelerate;
      loseT / loseD: you only lose them by being more than loseD metres from every chaser AND out of sight for loseT seconds; passV: speed at which blowing past a cop gets you chased (120 mph) */
-  forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,2,3,4,4,5],patrol:3,ramLevel:2,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:14,loseD:230,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
-  medium:{name:'Medium',top:66,follow:1.15,accel:14,react:.7,chaseN:[0,2,4,5,6,7],patrol:4,ramLevel:1,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:12,loseD:260,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
-  hard:{name:'Hard',top:76,follow:1.2,accel:16,react:.5,chaseN:[1,3,5,6,7,8],patrol:5,ramLevel:1,blockLevel:2,bustT:2,bustSpd:8,bustN:2,loseT:10,loseD:300,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
+  forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,2,3,4,4,5],patrol:3,ramLevel:2,ramCd:4.2,ramV:10,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:14,loseD:230,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
+  medium:{name:'Medium',top:66,follow:1.15,accel:14,react:.7,chaseN:[0,2,4,5,6,7],patrol:4,ramLevel:1,ramCd:3,ramV:12,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:12,loseD:260,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
+  hard:{name:'Hard',top:76,follow:1.2,accel:16,react:.5,chaseN:[1,3,5,6,7,8],patrol:5,ramLevel:1,ramCd:2.2,ramV:15,blockLevel:2,bustT:2,bustSpd:8,bustN:2,loseT:10,loseD:300,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
 const COP={on:true,D:COPD.forgiving,diff:'forgiving',heat:0,w:0,t:0,sightT:99,minD:1e9,bust:0,spawnT:2,nC:0,nP:0,sirenVol:0,lastBlock:-99,warnT:0,heatT:0,seenNow:false,rbN:0};
 function copSetDiff(n){if(COPD[n]){COP.D=COPD[n];COP.diff=n}}
 /* ---- heat ---- */
@@ -42,7 +42,7 @@ function copTarget(c){
   const dist=Math.hypot(C.x-c.x,C.z-c.z);
   if(D.ramLevel<=COP.heat&&c.role<=3&&c.ramCd<=0&&dist<85){ram=true;const sd=c.role==1?-1:c.role==2?1:((c.i&1)?1:-1);tx=C.x-fx*1.7+rx*sd*.9;tz=C.z-fz*1.7+rz*sd*.9}
   const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),dl=(tx-c.x)*sy+(tz-c.z)*cy,dd=Math.hypot(tx-c.x,tz-c.z);let tv=ps+Math.max(-12,Math.min(22,dl*.9));
-  if(ram)tv=ps+15;else{const cl=Math.min(34,Math.sqrt(2*8*Math.max(0,dd-2)));tv=ps+(dl>=0?cl:-cl)}     /* come up to the slot at a speed it can still stop from */
+  if(ram)tv=ps+D.ramV;else{const cl=Math.min(34,Math.sqrt(2*8*Math.max(0,dd-2)));tv=ps+(dl>=0?cl:-cl)}     /* come up to the slot at a speed it can still stop from */
   _ct.x=tx;_ct.z=tz;_ct.v=Math.max(0,Math.min(copTop(c),tv))}
 function copFree(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;const D=COP.D;if(c.ramCd>0)c.ramCd-=dt;
@@ -148,7 +148,7 @@ function copTick(dt){
   if(COP.bust>=D.bustT){gameBusted();COP.bust=0}
   COP.sirenVol=COP.heat>0&&minChase<260?Math.pow(1-minChase/260,1.4):0}
 /* a ram or a collision with a cop: called from the player collision code */
-function copRammed(c,e){c.ramCd=2.2;copTrigger(3);if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=1;c.wt=0;c.block=0;TR.stat.wrecks++;copTrigger(4)}}
+function copRammed(c,e){c.ramCd=COP.D.ramCd;copTrigger(3);if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=1;c.wt=0;c.block=0;TR.stat.wrecks++;copTrigger(4)}}
 /* ---- HUD: stars, the bust meter, the losing-them bar ---- */
 function copStar(c,x,y,r,fill,col){c.beginPath();for(let k=0;k<10;k++){const a=-PI/2+k*PI/5,rr=k&1?r*.45:r;k?c.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr):c.moveTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}c.closePath();if(fill){c.fillStyle=col;c.fill()}c.strokeStyle='rgba(255,255,255,.7)';c.lineWidth=1.4;c.stroke()}
 function copHud(c,W_,H_,u){

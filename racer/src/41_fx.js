@@ -68,7 +68,7 @@ function fxDraw(){
   batch(6);
   /* the car's headlights: a pool of light on the road ahead, wider the further it goes (uv runs across, then along: mode 6 is the beam shape) */
   {const hx=sy,hz=-cy,rxc=cy,rzc=sy,gy2=C.gs+.05,x0=x+hx*2.0,z0=z+hz*2.0,len=26;
-   quad(x0-rxc*1.0,gy2,z0-rzc*1.0,x0+rxc*1.0,gy2,z0+rzc*1.0,x0+hx*len+rxc*6.5,gy2,z0+hz*len+rzc*6.5,x0+hx*len-rxc*6.5,gy2,z0+hz*len-rzc*6.5,1,.92,.7,.5)}
+   const lk=1-.5*(PDM.head[0]+PDM.head[1]);if(lk>0)quad(x0-rxc*1.0,gy2,z0-rzc*1.0,x0+rxc*1.0,gy2,z0+rzc*1.0,x0+hx*len+rxc*6.5,gy2,z0+hz*len+rzc*6.5,x0+hx*len-rxc*6.5,gy2,z0+hz*len-rzc*6.5,1,.92,.7,.5*lk)}
   /* beams of the cars that come at us */
   if(TR.on&&T.glow>30){let k=0;for(const c of TR.cars){if(!c.alive||k>=10)continue;const dx=c.x-x,dz=c.z-z,d2=dx*dx+dz*dz;if(d2>14400||d2<100)continue;const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);
       if((x-c.x)*hx+(z-c.z)*hz<0)continue;k++;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),py=lerp(c.py,c.y,a)+.06,x0=px+hx*(c.hl-.1),z0=pz+hz*(c.hl-.1),rr=-hz,rs=hx;
@@ -85,8 +85,8 @@ function fxDraw(){
   navBeacon(sprite);
   /* the car's own lights */
   {const hx=sy,hz=-cy,rr=cy,rs=sy,yy=C.y+C.bob;
-   for(const sd of[-1,1]){sprite(x+hx*-CARL.hz+rr*sd*CARL.hx,yy+CARL.hy+.12,z+hz*-CARL.hz+rs*sd*CARL.hx,.6,1,.95,.75,.7);
-     sprite(x-hx*CARL.tz+rr*sd*CARL.tx,yy+CARL.ty+.12,z-hz*CARL.tz+rs*sd*CARL.tx,C.braking?.9:.45,1,.12,.07,C.braking?.9:.4)}}
+   for(const sd of[-1,1]){const si=sd<0?0:1;if(!PDM.head[si])sprite(x+hx*-CARL.hz+rr*sd*CARL.hx,yy+CARL.hy+.12,z+hz*-CARL.hz+rs*sd*CARL.hx,.36,1,.95,.75,.5);
+     if(!PDM.tail[si])sprite(x-hx*CARL.tz+rr*sd*CARL.tx,yy+CARL.ty+.12,z-hz*CARL.tz+rs*sd*CARL.tx,C.braking?.9:.45,1,.12,.07,C.braking?.9:.4)}}
   /* traffic: tail lights, headlights, the siren on a police car */
   if(TR.on){const fx=R.fw;for(const c of TR.cars){if(!c.alive)continue;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz,d2=dx*dx+dz*dz;if(d2>62500||dx*fx[0]+dz*fx[2]<-6)continue;
       const d=Math.sqrt(d2),py=lerp(c.py,c.y,a),yaw=c.pyaw+angd(c.yaw,c.pyaw)*a,hx=Math.sin(yaw),hz=-Math.cos(yaw),rr=Math.cos(yaw),rs=Math.sin(yaw),k=1-d/250;if(k<=.02)continue;

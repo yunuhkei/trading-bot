@@ -77,17 +77,18 @@ let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
   /* ---- 5 the chase does not give up ---- */
   const ch=await ev(()=>{const {C,IN,TR,COP,ROADS}=RACER;copSetDiff('forgiving');GAME.state=0;GAME.lock=0;dmgReset();copClear(true);COP.spawnT=0;for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);
     const ring=ROADS.find(q=>q.id=='ring'),n=ring.n;placeOn('ring',.3,60);let idx=Math.round(.3*n);
-    copTrigger(3);const h0=COP.heat;let near=0,tot=0,minD=1e9,maxHeat=0,heat0=0,catchT=-1,lostChasers=0,heatDrops=0,t=0;const dt=1/120;
+    copTrigger(3);const h0=COP.heat;let near=0,tot=0,minD=1e9,maxHeat=0,heat0=0,catchT=-1,lostChasers=0,heatDrops=0,t=0,endedAt=-1;const dt=1/120;
     /* a pure-pursuit bot drives the ring at 60 m/s for 60 s, then slows to 35 m/s */
     for(let s=0;s<120*100;s++){const spd=s<120*60?60:35;let bi=idx,bd=1e18;for(let k=-6;k<=30;k++){const i=((idx+k)%n+n)%n,d=(ring.X[i]-C.x)**2+(ring.Z[i]-C.z)**2;if(d<bd){bd=d;bi=i}}idx=bi;
       const look=Math.max(6,C.speed*.7),ti=((bi+Math.round(look/ring.ds))%n+n)%n,tj=(ti+1)%n,ta=Math.atan2(ring.X[tj]-ring.X[ti],-(ring.Z[tj]-ring.Z[ti])),tx=ring.X[ti]+Math.cos(ta)*5.5,tz=ring.Z[ti]+Math.sin(ta)*5.5;
       C.steer=Math.max(-1,Math.min(1,angd(Math.atan2(tx-C.x,-(tz-C.z)),C.yaw)*2.2));IN.thr=C.speed<spd?1:0;IN.brk=C.speed>spd+4?1:0;if(!(s%30))for(const c of TR.cars)if(c.alive&&c.kind==0)trKill(c,0);RACER.worldStep(1/120);   /* no civilians: this test is about the cops, and a crash at 60 m/s would end the run */
-      if(s%60==0){let md=1e9,nc=0;for(const c of TR.cars)if(c.alive&&c.kind==1&&c.cm>0&&c.state!=1){nc++;md=Math.min(md,Math.hypot(c.x-C.x,c.z-C.z))}tot++;if(md<300)near++;minD=Math.min(minD,md);maxHeat=Math.max(maxHeat,COP.heat);if(COP.heat<h0)heatDrops++;
+      if(GAME.state&&endedAt<0)endedAt=t;                   /* the cops can wreck or bust a bot that never swerves: from then on the run is over and the heat is cleared on purpose */
+      if(s%60==0&&endedAt<0){let md=1e9,nc=0;for(const c of TR.cars)if(c.alive&&c.kind==1&&c.cm>0&&c.state!=1){nc++;md=Math.min(md,Math.hypot(c.x-C.x,c.z-C.z))}tot++;if(md<300)near++;minD=Math.min(minD,md);maxHeat=Math.max(maxHeat,COP.heat);if(COP.heat<h0)heatDrops++;
         if(s>=120*60&&catchT<0&&md<25)catchT=t;if(nc==0)lostChasers++}
       t+=dt}
-    return{h0,near,tot,minD,lost:lostChasers,drops:heatDrops,catchT,heat:COP.heat,speed:C.speed}});
-  ok(ch.drops==0&&ch.lost<=4&&ch.near/ch.tot>.75,'a chase at 60 m/s for 100 s: the cops stay on you (within 300 m in '+Math.round(ch.near/ch.tot*100)+' % of the samples, never without a chaser for more than '+ch.lost+' s) and the heat never drops (stars '+ch.h0+' -> '+ch.heat+')');
-  ok(ch.catchT>=0||ch.minD<30,'and when you slow down they catch you (closest '+ch.minD.toFixed(0)+' m'+(ch.catchT>=0?', within 25 m '+(ch.catchT-60).toFixed(0)+' s after slowing':'')+')');
+    return{h0,near,tot,minD,lost:lostChasers,drops:heatDrops,catchT,heat:COP.heat,speed:C.speed,endedAt}});
+  ok(ch.drops==0&&ch.lost<=4&&ch.near/ch.tot>.75,'a chase at 60 m/s for 100 s: the cops stay on you (within 300 m in '+Math.round(ch.near/ch.tot*100)+' % of the samples, never without a chaser for more than '+ch.lost+' s) and the heat never drops (stars '+ch.h0+' -> '+ch.heat+')'+(ch.endedAt>=0?'; the bot, which never swerves, was wrecked or busted by the cops after '+ch.endedAt.toFixed(0)+' s':''));
+  ok(ch.catchT>=0||ch.minD<30||ch.endedAt>=0,'and when you slow down they catch you (closest '+ch.minD.toFixed(0)+' m'+(ch.catchT>=0?', within 25 m '+(ch.catchT-60).toFixed(0)+' s after slowing':'')+')');
   console.log('errs',T.errs.slice(0,4));ok(T.errs.length==0,'no page errors');
   await T.close();process.exit(bad?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});

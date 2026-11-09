@@ -25,6 +25,9 @@ node racer/tests/<name>.js        # one test; RFILE=/path/to/other.html tests an
 | `rdamage.js` | damage: zones fill from energy, health, damage does NOT change the driving, dents move vertices (and never open cracks), repair restores the pristine mesh, wrecked rule |
 | `rsafe.js` | safe houses: pads in front of every garage door, only Home owned, servicing repairs and clears heat, locked garage does nothing, wrecked / busted respawn at the nearest owned pad, save and load |
 | `rcops.js` | cops: heat thresholds, patrol presence, chase catches a 30 m/s player, boxed in = BUSTED, escape by line of sight, roadblock, Medium rams, garage clears heat, difficulty table |
+| `rparts.js` | visible damage: all 30 cars have bonnet, doors, bumpers, mirrors (index runs add up), a front hit opens the bonnet and breaks the lights, hard hits tear it and the bumper off, pieces fall to the road, rest and go, doors open on the side that was hit and come off after more hits, glass cracks next to the damaged zone, repair puts it all back, **driving is identical with a wrecked body**, traffic and police cars open the panel nearest a hit, no GL error |
+| `rscenery.js` | scenery: counts of poles, gantries, billboards, signs, tree belts, bushes, cacti, turbines, gas stations, pylons; nothing new stands on a road; triangle totals; build time; the same scenery on a second load |
+| `rdrift3.js` | repeated drift taps build up: one tap 10 degrees, three 20, five 48, points x50, slow taps do not build, the build-up fades |
 | `rtrperf.js` | draw calls, triangles and CPU per traffic tick with and without traffic at five camera spots |
 | `rtrshot.js` | screenshots of the traffic at places (`rtrshot.js '[["sfnu3",0.43]]' name`) |
 | `raudit.js` | which lane markings each road really renders (decodes the road shader's style number per sample) versus what it should |
