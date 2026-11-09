@@ -509,6 +509,15 @@ minute), coins graduating, the share of coins whose price went up (market health
 minutes. It's kept for 35 days and printed by
 `launch-lab-status` (the `SIGNS` line), to find out which signs show up before a good stretch.
 
+**Fast buyer** (`bot/fast_buyer.py`, practice only): it shadows the "Snipe every new coin" ghost with real prices. When
+the lab decides to buy, it asks Jupiter (the service the real-money bots use) what $50 would really buy about a second
+later, and when the lab sells, what the coins would really sell for (corrected for our own buy, which a quote for coins
+we never bought leaves out). It never sends anything and never uses a wallet key. The hourly ping has one line: how
+many snipes could be bought in time, how many Jupiter couldn't sell, and real prices vs the lab's on the same bets.
+First live check: on coins it could trade, real prices matched the lab's within about half a percent; but about half
+of brand-new coins aren't tradable through Jupiter in the first seconds, and a few couldn't be sold through it later.
+A real sniper would need to trade pump.fun directly, not through Jupiter.
+
 **The owner's money plan** (the super bot follows it): $1,000 stays in, no trade over $250. At midnight (Milwaukee time) a
 winning day takes out everything above $1,000; a losing day isn't topped up; after 2 losing days in a row it goes into
 practice mode: it stops using its money and only trades on paper (its ghost) until the owner's next check. The phone gets

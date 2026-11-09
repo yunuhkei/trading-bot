@@ -61,6 +61,7 @@ SUPER = ("timing", "streak")  # $1,000 and $250 trades like the rest; real money
 STREAK_S, STREAK_TRADES = 1800, 5     # super bot 2: a strategy is hot when it made money in its last 30 min (5+ trades)
 COOLED = 3                            # ...and it's dropped the moment its last 3 trades all lost (good stretches end fast)
 SIGN_EVERY = 300                      # the market-signs log: one row every 5 minutes, kept for KEEP_DAYS
+FAST_WATCH = "snipe"                  # the fast buyer (bot/fast_buyer.py) shadows this strategy's ghost with real prices
 SUPER_TOP = 3                  # with this many versions, copy only the best 3 for an hour (luck makes some look good)
 
 
@@ -368,6 +369,8 @@ class Lab:
                          else [[0.0, 0, 0, 0.0] for _ in range(24)])
         self._clock, self._last_seen = (None, 0), None
         self._timing: tuple = (None, [])
+        self.fast = None                                  # the fast buyer (real Jupiter prices, practice), set by run()
+        self._fast_state = state.get("fast")
         self._streak: tuple = (-1e18, [])
         # market signs every 5 minutes, to find out later what shows up before a good stretch
         self.signs: list = state.get("signs") or []
@@ -396,6 +399,21 @@ class Lab:
                     on.append((sum(r[2] for r in rows) / sum(r[0] for r in rows), k))
             self._timing = ((day, h), [k for _, k in sorted(on, reverse=True)[:SUPER_TOP]])
         return self._timing[1]
+
+    def curve_tokens(self, mint: str, lamports: int) -> float | None:
+        """What the lab's curve math says this many lamports buy right now (to compare with a real quote)."""
+        c = self.coins.get(mint)
+        return buy_tokens(c.vsol, c.vtok, lamports / 1e9, c.fee) if c else None
+
+    def own_buy_factor(self, mint: str, tokens: float, lamports_in: int) -> float | None:
+        """How much more a sale brings when our own buy is still in the curve (it really would be) than when it isn't
+        (a price quote for coins we never bought)."""
+        c = self.coins.get(mint)
+        if not c or tokens <= 0 or tokens >= c.vtok:
+            return None
+        net = lamports_in / 1e9 * (1 - c.fee)
+        without = sell_sol(c.vsol, c.vtok, tokens, c.fee)
+        return sell_sol(c.vsol + net, max(c.vtok - tokens, 1e-9), tokens, c.fee) / without if without > 0 else None
 
     def books(self) -> list[Account]:
         return list(self.accts.values()) + list(self.ghosts.values())
@@ -442,10 +460,14 @@ class Lab:
             return
         a.pending[mint] = {"side": "buy", "at": now + self.lb, "why": why, "signal": now, "via": via}
         a.cash -= a.per_trade                                           # reserved
+        if self.fast and a.ghost and a.key == FAST_WATCH:
+            self.fast.lab_buy(mint, now)
 
     def _sell(self, a: Account, mint: str, now: float, why: str):
         if mint in a.positions and not a.positions[mint].get("selling"):
             a.positions[mint]["selling"] = {"at": now + self.ls, "why": why}
+            if self.fast and a.ghost and a.key == FAST_WATCH:
+                self.fast.lab_sell(mint, now, why)
 
     def fill(self, now: float, coin: Coin, stale: bool = False):
         """Fill every order on this coin whose time has come, at the coin's current reserves."""
@@ -480,6 +502,8 @@ class Lab:
         a.pnl += profit
         a.best, a.worst = max(a.best, profit), min(a.worst, profit)
         a.tally(p["t"], profit)
+        if self.fast and a.ghost and a.key == FAST_WATCH:
+            self.fast.lab_result(coin.mint, profit / p["cost"])
         if a.ghost and a.key not in SUPER:                # the families' results, for the market-signs log
             f = self._win["fam"].setdefault(STRATEGIES[a.key].get("family", "?"), [0, 0.0])
             f[0] += 1
@@ -792,6 +816,8 @@ class Lab:
         how much, the rest as an average, the biggest win); the best hours so far, and the ones that keep winning."""
         now = now or time.time()
         lines = self.plan_lines(now)
+        if self.fast:
+            lines.append(self.fast.line())
         s2 = self.accts["streak"]
         hot = self.streak_on(now)
         lines.append(f"Super bot 2 (copies what's winning right now): ${self.value(s2):,.0f} ({s2.pnl:+,.0f} on {s2.n} "
@@ -890,7 +916,8 @@ class Lab:
             accts[k] = d
         return {"accounts": accts, "events": self.events, "t": time.time(), "hello": self.hello_done,
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
-                "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs}
+                "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs,
+                "fast": self.fast.to_state() if self.fast else self._fast_state}
 
     def ghost_state(self) -> dict:
         out = {}
@@ -915,7 +942,8 @@ class Lab:
         return {"accounts": {k: a.to_dict() for k, a in self.accts.items()}, "events": self.events, "t": time.time(),
                 "hello": self.hello_done,
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
-                "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs}
+                "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs,
+                "fast": self.fast.to_state() if self.fast else self._fast_state}
 
 
 async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180,
@@ -926,6 +954,8 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
     said_hello = lab.hello_done                             # "lab is live" and the quick first report: only ever once
     last_report = start - report_every + first_report if not said_hello or early else start
     last_save = start
+    fast_session = aiohttp.ClientSession() if lab.fast else None
+    fast_task = asyncio.create_task(lab.fast.run(fast_session, end)) if lab.fast else None
     while time.time() < end:
         try:
             async with aiohttp.ClientSession() as s:
@@ -975,6 +1005,10 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
         except Exception as e:
             log.warning("feed dropped (%s); reconnecting", e)
             await asyncio.sleep(3)
+    if fast_task:
+        fast_task.cancel()
+    if fast_session:
+        await fast_session.close()
 
 
 PEEK_TOPIC = "tbot-launch-lab-" + hashlib.sha256(b"yunuhkei/trading-bot launch lab").hexdigest()[:12]
@@ -1008,6 +1042,10 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
     target = alert_target()
     tell = (lambda t, m: notify(target, t, m, buy=True, tag="test_tube")) if target else (lambda t, m: print(t, m))
     lab = Lab(sol_price(), state=state, tell=tell)
+    from .fast_buyer import FastBuyer
+    lab.fast = FastBuyer(state.get("fast"), lab.sol_usd)
+    lab.fast.curve = lab.curve_tokens
+    lab.fast.own_buy = lab.own_buy_factor
     if resume_super:                                    # the owner's check said go
         was = lab.plan["mode"]
         add = lab.resume_super()
@@ -1020,6 +1058,8 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
         print("DAYS " + json.dumps({k: g.days for k, g in lab.ghosts.items() if g.days}), flush=True)
         print("SIGNS " + json.dumps(lab.signs), flush=True)
         print("ACTIVITY " + json.dumps(lab.activity), flush=True)
+        print("FAST " + json.dumps(lab.fast.summary()), flush=True)
+        print(lab.fast.line(), flush=True)
         for k, a in lab.accts.items():
             for t in a.trades[-5:]:
                 print(f"  {k}: {t['name']} {t['profit']:+.2f} in {t['s']} s ({t['why_in']} -> {t['why_out']}, filled {t['lag']} s late)")

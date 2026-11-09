@@ -3083,3 +3083,100 @@ def test_launch_lab_reads_only_pump_funs_own_events():
     assert not ll.sane(dict(ok, sol=5e5))                   # a nonsense size
     assert not ll.sane(dict(ok, fee=0.0))                   # spam bots: no fee
     assert not ll.sane(dict(ok, vsol=5.07)) and not ll.sane(dict(ok, vsol=1994.1))    # curves that don't fit
+
+
+def test_fast_buyer_shadows_the_snipes_with_real_quotes_and_never_sends():
+    import asyncio
+
+    from bot import fast_buyer as fb
+    from bot import launch_lab as ll
+
+    class Resp:
+        def __init__(self, d): self.d = d
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def json(self, content_type=None): return self.d
+
+    asked = []
+
+    class Session:                                    # a stand-in for Jupiter: buys get 1M tokens, sells get 110%
+        def get(self, url, headers=None, timeout=None, params=None):
+            asked.append((url, params["inputMint"]))
+            assert "/swap/v1/quote" in url             # only ever asks for prices
+            if params["inputMint"] == fb.SOL_MINT:
+                return Resp({"outAmount": "1000000000000", "routePlan": [{"swapInfo": {"label": "Pump.fun"}}]})  # 1M tokens
+            if params["outputMint"] == "M2":
+                return Resp({"error": "The token M2 is not tradable"})
+            return Resp({"outAmount": str(int(int(fb.USD / 100 * 1e9) * 1.10))})
+
+    lab = ll.Lab(sol_usd=100.0)
+    f = fb.FastBuyer(sol_usd=100.0)
+    f.curve = lambda mint, lam: 1_010_000.0
+    lab.fast = f
+    fb.BUY_AFTER = fb.SELL_AFTER = fb.MIN_GAP = 0.0
+    lab._buy(lab.ghosts["snipe"], "M1", 0.0, "new coin")           # the lab's snipe ghost buys: the shadow follows
+    lab._buy(lab.ghosts["breakout"], "M3", 0.0, "new high")        # other strategies: not shadowed
+    assert [q[1] for q in f.queue] == ["M1"]
+    f.lab_sell("M1", 0.0, "take profit")
+
+    async def go():
+        await f._handle(Session(), f.queue.popleft())
+        await f._handle(Session(), f.queue.popleft())
+    asyncio.run(go())
+    f.lab_result("M1", 0.08)
+    s = f.summary()
+    assert s["signals"] == 1 and s["bought"] == 1 and s["finished"] == 1
+    assert s["vs_lab"] == round(1_000_000 / 1_010_000 - 1, 4)
+    assert s["real_ret"] == 0.1 and s["lab_ret"] == 0.08
+    assert s["pnl"][0.001] == round(5.0 - 2 * 0.001 * 100, 2)      # +10% of $50, minus two network fees
+    assert "real prices +10.0% a bet vs the lab's +8.0%" in f.line() and "Nothing is ever sent" in f.line()
+    assert all("/swap/v1/quote" in u for u, _ in asked)              # nothing but price questions
+    g = fb.FastBuyer(f.to_state(), sol_usd=100.0)
+    assert g.summary() == s
+
+
+def test_fast_buyer_retries_a_refused_sale_and_counts_our_own_buy():
+    import asyncio
+
+    from bot import fast_buyer as fb
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=100.0)
+    e = {"kind": "trade", "mint": "F" * 32, "sol": 1.0, "tokens": 1e6, "buy": True, "user": "u", "ts": 0,
+         "vsol": 35.0, "vtok": 30 * 1.073e9 / 35.0, "real_sol": 5.0, "fee": 0.0125}
+    lab.event(1.0, e)
+    lam = int(50 / 100 * 1e9)
+    tok = lab.curve_tokens("F" * 32, lam)
+    factor = lab.own_buy_factor("F" * 32, tok, lam)
+    assert 1.02 < factor < 1.04                          # $50 into a 35 SOL curve: our buy lifts the sale ~3%
+
+    class Resp:
+        def __init__(self, d): self.d = d
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def json(self, content_type=None): return self.d
+
+    calls = []
+
+    class Session:
+        def get(self, url, headers=None, timeout=None, params=None):
+            calls.append(params["inputMint"])
+            if len(calls) == 1:
+                return Resp({"code": 429, "message": "[API Gateway] Too many requests"})   # refused once
+            return Resp({"outAmount": str(lam)})
+
+    f = fb.FastBuyer(sol_usd=100.0)
+    f.own_buy = lab.own_buy_factor
+    f.open["F" * 32] = {"mint": "F" * 32, "t": 0, "in": lam, "tok": int(tok * 1e6), "route": "Pump.fun", "vs_lab": 0.0}
+    fb.SELL_AFTER = fb.MIN_GAP = 0.0
+    real_sleep = asyncio.sleep
+
+    async def no_wait(s):
+        await real_sleep(0)
+    asyncio.sleep = no_wait
+    try:
+        asyncio.run(f._handle(Session(), ("sell", "F" * 32, 0.0, "time's up")))
+    finally:
+        asyncio.sleep = real_sleep
+    t = f.trades[-1]
+    assert len(calls) == 2 and t["sell_ok"] and t["out"] == int(lam * factor)

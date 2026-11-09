@@ -36,6 +36,7 @@ jobs:
       - name: Watch pump.fun and practice-trade
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+          JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}   # quotes only (the fast buyer practices; nothing is sent)
           FIRST_REPORT: ${{ inputs.first_report }}
           RESUME_SUPER: ${{ inputs.resume_super }}
         run: >-
