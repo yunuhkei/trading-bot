@@ -2,7 +2,7 @@ const L=require('./rlib.js');
 const views=JSON.parse(process.argv[2]||'[["ring",0.3],["mp",0.15],["mp",0.3],["mp",0.55],["cr",0.4],["sh",0.6],["bv",0.5],["ns3",0.5]]');
 const name=process.argv[3]||'gal';const W=+(process.argv[4]||667),H=+(process.argv[5]||375);const back=+(process.argv[6]||0);
 (async()=>{
-  const T=await L.launch({q:'go=1&scale=1&fixed=1',w:W,h:H,mobile:false});
+  const T=await L.launch({q:process.env.RQ||'go=1&scale=1&fixed=1',w:W,h:H,mobile:false,traffic:!!process.env.TRAFFIC});
   await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:120000});
   await T.ev(()=>{RACER.UI.paused=true;RACER.UI.showStats=false});
   const out=[];

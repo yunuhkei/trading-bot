@@ -12,7 +12,7 @@ async function boot(){
     loadMsg(.45,'Starting the graphics…');await nextTick();
     const cv=$('gl'),isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0,ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
     Q.aa=QS.has('aa')?QS.get('aa')=='1':ios;Q.scale=QS.has('scale')?parseFloat(QS.get('scale')):(ios?.85:.8);if(QS.has('fixed'))Q.min=Q.max=Q.scale;
-    glInit(cv,Q.aa);cv.addEventListener('webglcontextlost',e=>{e.preventDefault();running=false;showErr('The graphics context was lost (the phone reclaimed memory). Reload the page.')});uiInit();uiResize();
+    glInit(cv,false);cv.addEventListener('webglcontextlost',e=>{e.preventDefault();running=false;showErr('The graphics context was lost (the phone reclaimed memory). Reload the page.')});uiInit();uiResize();
     loadMsg(.5,'Building the city and trees…');await nextTick();
     renderInit();await nextTick();
     loadMsg(.92,'Almost there…');mapInit();
@@ -20,18 +20,18 @@ async function boot(){
     if(QS.has('start')){const q=QS.get('start').split(',').map(Number);sx=q[0];sz=q[1];a=(q[2]||0)}
     else{/* start on the ring, in the right-hand carriageway */const nx=-Math.cos(a+0),nz=Math.sin(a);sx+=Math.cos(a)*5.6;sz+=Math.sin(a)*5.6}
     carPlace(sx,sz,a,sp.Y[i0]+.5);camStep(0,true);
-    TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();safeInit();
+    TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.base=TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();safeInit();
     if(QS.has('cops')){const q=QS.get('cops');if(q=='off')COP.on=false;else copSetDiff(q)}if(QS.get('safe')=='all')for(const k in SAFE.owned)SAFE.owned[k]=true;
     BOOT.genMs=performance.now()-t0;
     loadMsg(1,'Ready  ('+Math.round(BOOT.genMs/100)/10+' s, '+R.stats.buildings+' buildings, '+R.stats.trees+' trees)');
     if(QS.has('go')||window.__autoGo){startRun()}else{const go=$('go');go.style.display='block';go.onclick=()=>{audioStart();startRun()}}
-    window.RACER={C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
+    window.RACER={GFX,GFXT,GOV,SHD,SMOKE,SPARK,LAMPS,NEONS,CARL,gfxGovern,gfxSetTier,gfxSetMode,C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
   }catch(e){showErr('Startup failed: '+(e&&e.message||e));console.error(e)}}
 let last=0,acc=0,running=false;const DT=1/120;
 function startRun(){$('load').classList.add('off');running=true;last=performance.now();requestAnimationFrame(loop)}
 function renderOnce(w,h){R.alpha=1;viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.tz,CAM.fov,w||UI.cw,h||UI.ch);renderFrame(w||UI.cw,h||UI.ch)}
 function frame(ms){
-  uiInputs(ms/1000);
+  gfxFrameStart();uiInputs(ms/1000);gfxUpdate(ms/1000);
   const halt=UI.paused||UI.mapOpen;
   if(!halt){acc+=Math.min(ms/1000,.1);let n=0;while(acc>=DT&&n<14){worldStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
   R.alpha=halt?1:acc/DT;if(R.alpha>1)R.alpha=1;
@@ -40,6 +40,6 @@ function frame(ms){
   R.time+=halt?0:ms/1000;
   if(!UI.mapOpen){viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.tz,CAM.fov,UI.cw,UI.ch);renderFrame(UI.cw,UI.ch)}
   if((UI.hf=(UI.hf|0)+1)&1||UI.paused||UI.mapOpen||UI.ms>24)hudDraw();audioUpdate()}
-function loop(now){if(!running)return;const ms=Math.min(100,now-last);last=now;if(ms>0){Q.frame(ms);try{frame(ms)}catch(e){showErr('Frame error: '+(e&&e.message||e));running=false;console.error(e);return}}requestAnimationFrame(loop)}
+function loop(now){if(!running)return;const ms=Math.min(100,now-last);last=now;if(ms>0){Q.frame(ms);try{frame(ms);gfxFrameEnd(ms)}catch(e){showErr('Frame error: '+(e&&e.message||e));running=false;console.error(e);return}}requestAnimationFrame(loop)}
 window.addEventListener('resize',()=>{if(UI.hud){uiResize()}});
 window.addEventListener('load',boot);

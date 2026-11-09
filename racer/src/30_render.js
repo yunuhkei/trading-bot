@@ -3,7 +3,8 @@
 const R={lv:6,N:64,tex:{},terVB:null,terIB:null,terRing:null,ringN:0,fullN:0,skyB:null,watB:null,roads:[],props:[],car:null,fx:null,fxIx:null,
   fw:new Float32Array(3),rt:new Float32Array(3),up:new Float32Array(3),VP:new Float32Array(16),V:new Float32Array(16),Pm:new Float32Array(16),PL:new Float32Array(24),M:new Float32Array(16),M2:new Float32Array(16),time:0,
   tris:0,draws:0,scale:1,w:1,h:1,fov:1.05,env:null};
-const ENV={sun:[-.5,.4,-.77],sunC:[2.8,2.0,1.3],ambT:[.30,.40,.60],ambB:[.20,.15,.10],hor:[.80,.60,.46],zen:[.09,.24,.56],fog:1/2700,fogY:.0006,fogSun:.9};
+/* a gloomy, overcast day: the sun is a pale patch behind cloud (soft, high, weak), the light comes from the whole sky, the horizon is thick grey haze */
+const ENV={sun:[-.42,.66,-.62],sunC:[.82,.84,.88],ambT:[.50,.55,.64],ambB:[.19,.19,.20],hor:[.46,.50,.55],zen:[.20,.24,.31],fog:1/1150,fogY:.0010,fogSun:.12};
 {const l=Math.hypot(ENV.sun[0],ENV.sun[1],ENV.sun[2]);ENV.sun=new Float32Array(ENV.sun.map(v=>v/l));for(const k of['sunC','ambT','ambB','hor','zen'])ENV[k]=new Float32Array(ENV[k])}
 function makeNoiseTex(){/* tileable value noise, 3 octaves in R/G/B, 128x128 */const S=128,o=new Uint8Array(S*S*4);
   const tn=(x,y,per,s)=>{const fx=x*per/S,fy=y*per/S,ix=Math.floor(fx),iy=Math.floor(fy),u=fx-ix,v=fy-iy,su=u*u*(3-2*u),sv=v*v*(3-2*v),w=k=>((k%per)+per)%per;
@@ -27,10 +28,10 @@ function renderInit(){
   buildRoadHash();buildFurniture();R.stats=buildCity();R.props=finishProps().map(p=>({cat:p.cat,vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.I.length,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad}));
   buildQueries();
   /* dynamic effects buffer: quads of 9 floats/vertex */
-  R.fxMax=900;R.fxF=new Float32Array(R.fxMax*4*9);R.fx=mkBuf(gl.ARRAY_BUFFER,R.fxF.byteLength,gl.DYNAMIC_DRAW);
+  R.fxMax=2400;R.fxF=new Float32Array(R.fxMax*4*9);R.fx=mkBuf(gl.ARRAY_BUFFER,R.fxF.byteLength,gl.DYNAMIC_DRAW);
   const ix=new Uint16Array(R.fxMax*6);for(let q=0;q<R.fxMax;q++){const b=q*4;ix.set([b,b+1,b+2,b,b+2,b+3],q*6)}R.fxIx=mkBuf(gl.ELEMENT_ARRAY_BUFFER,ix);
   R.fxN=0;
-  carGLInit();trGLInit();
+  carGLInit();trGLInit();gfxInit();
 }
 function setEnvU(P){const gl=G.gl,u=P.u,E=ENV;gl.uniform3f(u.uCam,R.cx,R.cy,R.cz);if(u.uSun!=null){gl.uniform3fv(u.uSun,E.sun);gl.uniform3fv(u.uSunC,E.sunC);gl.uniform3fv(u.uAmbT,E.ambT);gl.uniform3fv(u.uAmbB,E.ambB);gl.uniform3fv(u.uHor,E.hor);gl.uniform3fv(u.uZen,E.zen);gl.uniform4f(u.uFogP,E.fog,E.fogY,E.fogSun,R.time)}}
 function setMapU(P){const gl=G.gl,u=P.u;gl.uniform4f(u.uMap,W.half,.5/W.N,W.hrange,W.hmin)}
@@ -41,11 +42,14 @@ function viewSet(cx,cy,cz,tx,ty,tz,fov,w,h){R.cx=cx;R.cy=cy;R.cz=cz;R.fov=fov;M4
   R.fw[0]=fx;R.fw[1]=fy;R.fw[2]=fz;R.rt[0]=rx;R.rt[1]=0;R.rt[2]=rz;R.up[0]=-rz*fy;R.up[1]=rz*fx-rx*fz;R.up[2]=rx*fy}
 function renderFrame(w,h,sky){
   const gl=G.gl;R.draws=0;R.tris=0;
-  gl.viewport(0,0,w,h);gl.clearColor(ENV.hor[0]**.45,ENV.hor[1]**.45,ENV.hor[2]**.45,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  /* the scene goes into an off-screen target at the render scale (the post pass puts it on the canvas); if the GPU cannot, straight to the canvas */
+  trPrep();shdPass();
+  const post=GFX.ok&&gfxTarget(w,h);gl.bindFramebuffer(gl.FRAMEBUFFER,post?GFX.fbo:null);
+  gl.viewport(0,0,w,h);gl.clearColor(ENV.hor[0]**.45,ENV.hor[1]**.45,ENV.hor[2]**.45,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gfxLights();
   gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(true);gl.disable(gl.BLEND);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);
   const cx=R.cx,cz=R.cz;
   /* terrain clipmap, finest level first */
-  let P=G.P.ter;gl.useProgram(P.p);setEnvU(P);setMapU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform1f(P.u.uHalf,W.half);
+  let P=G.P.ter;gl.useProgram(P.p);setEnvU(P);setMapU(P);shdSetU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform1f(P.u.uHalf,W.half);
   bindTex(0,R.tex.h);gl.uniform1i(P.u.uH,0);bindTex(1,R.tex.col);gl.uniform1i(P.u.uCol,1);bindTex(2,R.tex.nz);gl.uniform1i(P.u.uNz,2);
   gl.bindBuffer(gl.ARRAY_BUFFER,R.terVB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);
   let phx=0,phz=0,phh=0;
@@ -54,11 +58,11 @@ function renderFrame(w,h,sky){
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,l?R.terRing:R.terIB);gl.drawElements(gl.TRIANGLES,l?R.ringN:R.fullN,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=(l?R.ringN:R.fullN)/3;
     phx=lx;phz=lz;phh=R.N*.5*c}
   /* roads */
-  P=G.P.rd;gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.nz);gl.uniform1i(P.u.uNz,0);attrs(2);gl.disable(gl.CULL_FACE);
+  P=G.P.rd;gl.useProgram(P.p);setEnvU(P);gfxSetRoadU(P);shdSetU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.nz);gl.uniform1i(P.u.uNz,0);attrs(2);gl.disable(gl.CULL_FACE);
   for(let i=0;i<R.roads.length;i++){const p=R.roads[i],dx=p.cx-cx,dz=p.cz-cz,d=Math.hypot(dx,dz);if(d>R.drawRoad+p.rad||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
     gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.FLOAT,false,28,12);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}
   /* props */
-  P=G.P.pr;gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.win);gl.uniform1i(P.u.uWin,0);gl.uniform1f(P.u.uNight,R.night||0);attrs(4);gl.enable(gl.CULL_FACE);
+  P=G.P.pr;gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.win);gl.uniform1i(P.u.uWin,0);gl.uniform1f(P.u.uNight,GFX.night);attrs(4);gl.enable(gl.CULL_FACE);
   for(let i=0;i<R.props.length;i++){const p=R.props[i],dist=R.drawProp[p.cat];const dx=p.cx-cx,dz=p.cz-cz;if(dx*dx+dz*dz>(dist+p.rad)*(dist+p.rad)||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
     gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,28,12);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,28,16);gl.vertexAttribPointer(3,2,gl.FLOAT,false,28,20);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}
   /* the player's car (+ rivals later) */
@@ -70,4 +74,5 @@ function renderFrame(w,h,sky){
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
   P=G.P.wat;gl.useProgram(P.p);setEnvU(P);setMapU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.h);gl.uniform1i(P.u.uH,0);bindTex(2,R.tex.nz);gl.uniform1i(P.u.uNz,2);gl.bindBuffer(gl.ARRAY_BUFFER,R.watB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);gl.drawArrays(gl.TRIANGLES,0,6);R.draws++;
   if(R.fxDraw)R.fxDraw();
-  gl.depthMask(true);gl.disable(gl.BLEND)}
+  gl.depthMask(true);gl.disable(gl.BLEND);
+  if(post)gfxComposite(w,h)}

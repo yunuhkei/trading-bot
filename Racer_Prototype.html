@@ -83,26 +83,41 @@ const G={gl:null,cv:null,w:1,h:1,P:{},ext:{},maxAniso:1};
 const PRE='#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n';
 /* shared lighting / fog / tone chunk (fragment) */
 const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uFogP;\n'+
-'vec3 tone(vec3 c){float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,1.12),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);return pow(clamp(c,0.,1.),vec3(.4545));}\n'+
-'vec3 skyc(vec3 r){float y=max(r.y,0.);vec3 c=mix(uHor,uZen,pow(y,.42));float sd=max(dot(r,uSun),0.);return c+uSunC*(pow(sd,8.)*.10);}\n'+
+/* grade: filmic curve, desaturated (the sky is overcast, the world is grey-green), cool shadows, a touch of contrast */
+'vec3 tone(vec3 c){float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,.72),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));'+
+ 'float g=dot(c,vec3(.3333));c*=mix(vec3(.90,.99,1.10),vec3(1.04,1.0,.95),smoothstep(.05,.8,g));return c*c*(3.-2.*c)*.30+c*.70;}\n'+
+'vec3 skyc(vec3 r){float y=max(r.y,0.);vec3 c=mix(uHor,uZen,pow(y,.5));float sd=max(dot(r,uSun),0.);return c+uSunC*(pow(sd,6.)*.05);}\n'+
+/* thick haze: distance fog towards the horizon colour, thinning with height above the camera */
 'vec3 fogm(vec3 c,vec3 wp){vec3 d=wp-uCam;float L=length(d);vec3 v=d/max(L,1e-3);float k=uFogP.x;float f=1.-exp(-L*L*k*k);f*=exp(-max(wp.y-uCam.y,0.)*uFogP.y);'+
- 'float sg=pow(max(dot(v,uSun),0.),5.);vec3 fc=mix(uHor,uHor*.6+uSunC*.32,sg*uFogP.z);return mix(c,fc,clamp(f,0.,1.));}\n';
+ 'float sg=pow(max(dot(v,uSun),0.),4.);vec3 fc=mix(uHor,uHor*.8+uSunC*.12,sg*uFogP.z);return mix(c,fc,clamp(f,0.,1.));}\n';
 /* heightmap fetch (RGBA8: R/G = 16-bit height). Hn: exact grid point; Hb: bilinear */
 const HSRC='uniform sampler2D uH;uniform vec4 uMap;/* x=half size, y=0.5/N, z=height range, w=height offset */\n'+
 'float hdec(vec4 t){return (t.r*255.*256.+t.g*255.)/65535.*uMap.z+uMap.w;}\n'+
 'float Hn(vec2 p){return hdec(texture2D(uH,(p+uMap.x)/(2.*uMap.x)+uMap.y));}\n'+
 'float Hb(vec2 p){float N=.5/uMap.y,T=2.*uMap.x/N;vec2 g=(p+uMap.x)/T,f=fract(g),b=(floor(g)+.5)/N;float d=1./N;'+
  'float a=hdec(texture2D(uH,b)),c=hdec(texture2D(uH,b+vec2(d,0.))),e=hdec(texture2D(uH,b+vec2(0.,d))),h=hdec(texture2D(uH,b+vec2(d,d)));return mix(mix(a,c,f.x),mix(e,h,f.x),f.y);}\n';
+/* sun shadow lookup (only compiled into the programs of the tiers that have shadows): the depth map holds the distance to the nearest caster (cars, and on the top tier buildings, trees, lamps), packed in 4 bytes */
+const SHSRC='\n#ifdef SHADOW\nuniform sampler2D uSh;uniform mat4 uLS;uniform vec4 uShP;/* x texel, y strength, z bias */\n'+
+ 'float dcd(vec4 c){return dot(c,vec4(1.,1./255.,1./65025.,1./16581375.));}\n'+
+ 'float shadowAt(vec3 wp){vec4 s=uLS*vec4(wp,1.);vec3 p=s.xyz*.5+.5;float e=max(abs(s.x),abs(s.y));if(e>=1.||p.z>=1.||p.z<=0.)return 1.;float z=p.z-uShP.z;float v=0.;float k=uShP.x*1.7;\n'+
+ '#if SHADOW>1\nfor(int i=-1;i<=1;i++)for(int j=-1;j<=1;j++)v+=step(z,dcd(texture2D(uSh,p.xy+vec2(float(i),float(j))*k)));v/=9.;\n#else\n'+
+ 'v=(step(z,dcd(texture2D(uSh,p.xy+vec2(-.5,-.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(.5,-.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(-.5,.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(.5,.5)*k))))*.25;\n#endif\n'+
+ 'return mix(1.,v,uShP.y*(1.-smoothstep(.72,1.,e)));}\n#endif\n';
 const SH={
  /* ---- sky: full-screen triangle ---- */
  skyV:'attribute vec2 aP;varying vec2 vU;void main(){vU=aP;gl_Position=vec4(aP,.99999,1.);}',
  skyF:PRE+'varying vec2 vU;uniform vec3 uFw,uRt,uUp;uniform vec2 uTan;uniform sampler2D uNz;\n'+ENVSRC+
- 'void main(){vec3 rd=normalize(uFw+uRt*vU.x*uTan.x+uUp*vU.y*uTan.y);float y=rd.y;'+
- 'vec3 col=mix(uHor,uZen,pow(clamp(y,0.,1.),.4));col=mix(col,uHor*.8,smoothstep(0.,-.12,y));float sd=max(dot(rd,uSun),0.);'+
- 'col+=uSunC*(pow(sd,1500.)*6.+pow(sd,60.)*.16+pow(sd,7.)*.12);col+=uSunC*.05*exp(-y*9.)*pow(max(dot(normalize(rd.xz),normalize(uSun.xz)),0.),3.);'+
- 'if(y>.01){float t=2200./y;vec2 p=(uCam.xz+rd.xz*t)*.00022+vec2(uFogP.w*.0035,uFogP.w*.0011);'+
-  'float n=texture2D(uNz,p).r*.5+texture2D(uNz,p*2.6+.37).g*.32+texture2D(uNz,p*6.9+.11).b*.18;float cl=smoothstep(.5,.78,n)*smoothstep(.01,.2,y);'+
-  'vec3 cc=mix(vec3(.96,.93,.9),uHor*1.25,.35)*(.62+.5*pow(sd,2.))+uSunC*.06*pow(sd,4.);col=mix(col,cc,cl*.9);}'+
+ 'void main(){vec3 rd=normalize(uFw+uRt*vU.x*uTan.x+uUp*vU.y*uTan.y);float y=rd.y;float sd=max(dot(rd,uSun),0.);'+
+ /* the dome: pale grey-blue overhead, lighter towards the haze at the horizon; below the horizon it is the haze itself */
+ 'vec3 col=mix(uHor,uZen,pow(clamp(y,0.,1.),.5));col=mix(col,uHor,smoothstep(0.,-.1,y));'+
+ 'if(y>.004){float yy=max(y,.03);float t=1500./yy;vec2 w=vec2(uFogP.w*.0042,uFogP.w*.0013);vec2 p=(uCam.xz+rd.xz*t)*.00026+w;'+
+  /* high layer: thick, broken, darker where thicker; gaps let the lighter dome through */
+  'float n=texture2D(uNz,p).r*.55+texture2D(uNz,p*2.7+.37).g*.30;\n#ifdef HI\nn+=texture2D(uNz,p*7.3+.11).b*.15;\n#else\nn+=.075;\n#endif\n'+
+  'float th=smoothstep(.34,.72,n);float lit=pow(sd,3.);vec3 hi=mix(vec3(.60,.63,.68),vec3(.27,.29,.34),th)*(.86+.5*lit);col=mix(col,hi,clamp(th*.92+.12,0.,1.)*smoothstep(.004,.16,y));'+
+  /* low layer: darker, faster, ragged strips */
+  'vec2 p2=(uCam.xz+rd.xz*(700./yy))*.00055+w*2.6+.5;float n2=texture2D(uNz,p2).g*.6+texture2D(uNz,p2*3.1).r*.4;float th2=smoothstep(.5,.82,n2)*.62*smoothstep(.02,.3,y);col=mix(col,vec3(.17,.19,.23)*(.9+.6*lit),th2);}'+
+ 'col+=uSunC*(pow(sd,5.)*.055+pow(sd,60.)*.05)*smoothstep(-.05,.3,y);'+
+ 'col=mix(col,uHor,exp(-max(y,0.)*7.)*.55);'+
  'gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- terrain clipmap: one static NxN grid drawn once per level, displaced by the height texture ---- */
  terV:'attribute vec2 aIJ;uniform mat4 uVP;uniform vec4 uLv;varying vec3 vW;varying vec3 vN;varying float vK;\n'+HSRC+
@@ -111,12 +126,12 @@ const SH={
    'if(par.x>.5&&par.y<.5)hc=.5*(Hn(p-vec2(c,0.))+Hn(p+vec2(c,0.)));else if(par.y>.5&&par.x<.5)hc=.5*(Hn(p-vec2(0.,c))+Hn(p+vec2(0.,c)));else if(par.x>.5&&par.y>.5)hc=.5*(Hn(p-vec2(c,c))+Hn(p+vec2(c,c)));'+
    'h=mix(h,hc,k);}'+
   'float cn=c*(1.+k);vec3 n=vec3(Hn(p-vec2(cn,0.))-Hn(p+vec2(cn,0.)),2.*cn,Hn(p-vec2(0.,cn))-Hn(p+vec2(0.,cn)));vN=n;vK=k;vW=vec3(p.x,h,p.y);gl_Position=uVP*vec4(vW,1.);}',
- terF:PRE+'varying vec3 vW;varying vec3 vN;varying float vK;uniform vec3 uHole;uniform sampler2D uCol,uNz;uniform float uHalf;\n'+ENVSRC+
+ terF:PRE+'varying vec3 vW;varying vec3 vN;varying float vK;uniform vec3 uHole;uniform sampler2D uCol,uNz;uniform float uHalf;\n'+ENVSRC+SHSRC+
  'void main(){if(abs(vW.x-uHole.x)<uHole.z&&abs(vW.z-uHole.y)<uHole.z)discard;vec3 n=normalize(vN);vec2 uv=(vW.xz+uHalf)/(2.*uHalf);vec3 a=texture2D(uCol,uv).rgb;a=a*a;'+
   'float dist=length(vW-uCam);float dt=exp(-dist*.0035);float n1=texture2D(uNz,vW.xz*.11).r,n2=texture2D(uNz,vW.xz*.0123).g,n3=texture2D(uNz,vW.xz*.7).b;'+
   'a*=1.+(((n1-.5)*.55+(n2-.5)*.5)*dt+(n3-.5)*.3*exp(-dist*.02));'+
   'float rk=smoothstep(.78,.52,n.y);a=mix(a,vec3(.2,.185,.17)*(.7+.7*n1),rk*.8);'+
-  'float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=a*irr;col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
+  'a=mix(vec3(dot(a,vec3(.33))),a,.78)*vec3(.80,.83,.82);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=a*irr;\n#ifdef SHADOW\ncol*=shadowAt(vW);\n#endif\ncol+=skyc(reflect(normalize(vW-uCam),n))*.035*(1.-n.y*.4);col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- water: one big quad that follows the camera, depth from the height texture ---- */
  watV:'attribute vec2 aP;uniform mat4 uVP;uniform vec3 uCam;varying vec3 vW;void main(){vW=vec3(uCam.x+aP.x*16000.,0.,uCam.z+aP.y*16000.);gl_Position=uVP*vec4(vW,1.);}',
  watF:PRE+'varying vec3 vW;uniform sampler2D uNz;\n'+ENVSRC+HSRC+
@@ -129,7 +144,7 @@ const SH={
   'float al=clamp(.45+dp*.35,0.,1.)*smoothstep(0.,.25,dp+.05);col=fogm(col,vW);gl_FragColor=vec4(tone(col),al);}',
  /* ---- road ribbon: markings are analytic (no texture), a = (lateral m, along m, half width, lanes*16+style) ---- */
  rdV:'attribute vec3 aP;attribute vec4 aA;uniform mat4 uVP;varying vec3 vW;varying vec4 vA;void main(){vW=aP;vA=aA;gl_Position=uVP*vec4(aP,1.);}',
- rdF:PRE+'varying vec3 vW;varying vec4 vA;uniform sampler2D uNz;\n'+ENVSRC+
+ rdF:PRE+'varying vec3 vW;varying vec4 vA;uniform sampler2D uNz;uniform float uWet;\n#ifndef NL\n#define NL 4\n#endif\nuniform vec4 uLt[NL];uniform vec3 uLc[NL];\n'+ENVSRC+SHSRC+
  'float ln(float x,float c,float w,float aa){return 1.-smoothstep(w,w+aa,abs(x-c));}\n'+
  'void main(){float x=vA.x,v=vA.y,hw=vA.z,fl=vA.w;float lanes=floor(fl/16.);float ax=abs(x);float dist=length(vW-uCam);float aa=.05+dist*.0009;'+
   'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;'+
@@ -147,27 +162,53 @@ const SH={
   'wh*=mkf;ye*=mkf;'+
   'float shd=smoothstep(hw-.1,hw+.35,ax);/* shoulder: gravel */asph=mix(asph,(style>2.5&&style<4.5?vec3(.46,.45,.43):vec3(.30,.27,.22))*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
   'vec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;'+
-  'vec3 n=vec3(0.,1.,0.);vec3 V=normalize(uCam-vW);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,1.)+uSunC*nl;vec3 col=alb*irr;'+
-  'vec3 R=reflect(-V,n);float sp=pow(max(dot(R,uSun),0.),30.)*(1.-shd)*(1.-wh*.6);col+=uSunC*sp*.18+skyc(R)*(.02+.1*pow(1.-max(V.y,0.),4.))*(1.-shd);'+
+  /* wet: darker, puddles that act like mirrors, ripples in the surface, a reflection of the sky and of every light near the car */
+  'float pz=texture2D(uNz,vW.xz*.017).g*.55+texture2D(uNz,vW.xz*.071).b*.45;float pud=smoothstep(.5,.68,pz)*uWet*(1.-shd);'+
+  'alb*=1.-uWet*.42*(1.-shd*.5);alb*=1.-pud*.3;'+
+  'vec3 V=normalize(uCam-vW);vec2 rp=(texture2D(uNz,vW.xz*.83).rg-.5)*.09*uWet*(1.-pud*.85)*exp(-dist*.004);vec3 n=normalize(vec3(rp.x,1.,rp.y));'+
+  'float ndv=max(dot(n,V),0.);float fr=(.03+.97*pow(1.-ndv,5.))*(.25+.75*uWet)*(1.-shd*.8)*(1.-wh*.55);'+
+  'float nl=max(n.y,0.)*0.;vec3 irr=mix(uAmbB,uAmbT,1.)+uSunC*max(uSun.y,0.)*.5;vec3 col=alb*irr;\n#ifdef SHADOW\ncol*=shadowAt(vW);\n#endif\n'+
+  'vec3 R=reflect(-V,n);col+=skyc(vec3(R.x,abs(R.y)+.015,R.z))*fr*(.55+.45*pud);'+
+  /* lights: a pool of light on the road and a long, view-aligned streak of their reflection */
+  'vec2 az=normalize(vW.xz-uCam.xz+1e-4);vec3 pool=vec3(0.),spec=vec3(0.);'+
+  'for(int i=0;i<NL;i++){vec3 D=uLt[i].xyz-vW;float d2=dot(D,D);float d=sqrt(d2);vec3 L=D/max(d,.01);float att=clamp(1.-d/uLt[i].w,0.,1.);att*=att;pool+=uLc[i]*(max(L.y,0.)*att);'+
+   'vec3 H=normalize(L+V);vec2 o=H.xz/max(H.y,.05);float op=dot(o,az);float oq=dot(o,vec2(-az.y,az.x));float k=mix(1.,.45,pud);'+
+   'float st=exp(-(op*op/(.060*k)+oq*oq/(.0022*k)));spec+=uLc[i]*(st*(.8+1.6*pud)/(1.+d*.012));}'+
+  'col+=alb*pool*1.1*(1.-shd*.6)+spec*uWet*(1.-shd*.85)*(1.-wh*.5);'+
   'col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- generic lit props: vertex colour + optional window texture (buildings), baked ambient occlusion in colour ---- */
  prV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aC;attribute vec2 aU;uniform mat4 uVP;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;'+
   'void main(){vW=aP;vN=aN.xyz;vC=aC.rgb*aC.rgb;vU=aU;vE=aN.w;gl_Position=uVP*vec4(aP,1.);}',
  prF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;uniform sampler2D uWin;uniform float uNight;\n'+ENVSRC+
- 'void main(){vec3 n=normalize(vN);vec4 w=texture2D(uWin,vU);float isw=step(.01,vE);vec3 alb=vC*mix(vec3(1.),w.rgb,isw);'+
+ 'void main(){vec3 n=normalize(vN);vec4 w=texture2D(uWin,vU);float isw=step(.01,vE);float em=step(vE,-.5);vec3 alb=vC*mix(vec3(1.),w.rgb,isw);'+
   'float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=alb*irr;'+
-  'float lit=isw*w.a*uNight;col+=vec3(1.,.8,.5)*lit*.9;'+
+  /* a window is lit if its hash says so (about uNight of them); warm or cool light */
+  'vec2 wc=floor(vU)+floor(vW.xz*.5);float hs=fract(sin(dot(wc,vec2(12.9898,78.233))+floor(vW.y*.29)*7.31)*43758.5453);float lit=isw*w.a*step(hs,uNight);'+
+  'col+=mix(vec3(1.,.70,.38),vec3(.60,.80,1.),step(.82,fract(hs*7.13)))*lit*(.42+.34*fract(hs*3.7));'+
+  'col=mix(col,vC*3.2,em);'+
   'col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- car: baked garage mesh, procedural environment reflections, per-vertex material classes ---- */
  carV:'attribute vec4 aP;attribute vec4 aN;attribute vec4 aC;uniform mat4 uVP;uniform mat4 uM;uniform vec4 uMat['+40+'];varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;'+
   'void main(){vec4 w=uM*vec4(aP.xyz,1.);vW=w.xyz;vN=mat3(uM[0].xyz,uM[1].xyz,uM[2].xyz)*aN.xyz;vC=pow(aC.rgb,vec3(2.2));vM=uMat[int(aN.w*127.+.5)];gl_Position=uVP*w;}',
  carF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;uniform float uGl;uniform vec3 uBr;\n'+ENVSRC+
- 'vec3 cenv(vec3 r,float rg){float h=r.y;vec3 c=mix(uAmbB*.7,uHor,smoothstep(-.1,.12,h));c=mix(c,uZen,smoothstep(.08,.9,h));float sd=max(dot(r,uSun),0.);c+=uSunC*pow(sd,mix(400.,12.,rg))*mix(3.,.15,rg);return c;}\n'+
- 'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float ndv=max(dot(n,V),0.);float metal=vM.x,rg=vM.y,emis=vM.z,coat=vM.w;vec3 alb=vC,R=reflect(-V,n);'+
+ /* a fake environment to reflect: dark wet ground, bright hazy horizon, overcast dome, a soft bright patch where the sun is behind the cloud, and a long overhead softbox for the clear-coat highlight line */
+ 'vec3 cenv(vec3 r,float rg){float h=r.y;vec3 gr=uAmbB*.55+vec3(.015);vec3 sk=mix(uHor*1.2,uZen*1.15,smoothstep(.1,.9,h));vec3 c=mix(gr,sk,smoothstep(-.12,.08,h));c=mix(c,uHor*1.35,exp(-abs(h)*9.)*.55);'+
+  'float sd=max(dot(r,uSun),0.);c+=uSunC*pow(sd,mix(160.,8.,rg))*mix(2.6,.14,rg);'+
+  'c+=vec3(.95,.98,1.05)*smoothstep(.16,.02,abs(r.z*.6+r.x*.15))*smoothstep(.5,.85,h)*(1.-rg)*1.3;return c;}\n'+
+ 'float h3(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}\n'+
+ 'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float metal=vM.x,rg=vM.y,emis=vM.z,coat=vM.w;vec3 alb=vC;'+
+  /* metallic flakes in the paint: a tiny, view-dependent sparkle from a hash of the position */
+  'float fl=h3(floor(vW*220.));n=normalize(n+(vec3(fl,h3(floor(vW*220.)+3.1),h3(floor(vW*220.)+7.7))-.5)*.06*coat);'+
+  'float ndv=max(dot(n,V),0.);vec3 R=reflect(-V,n);'+
   'float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl*.9;float ao=.5+.5*smoothstep(0.,.5,vW.y-uBr.y);'+
+  /* road dirt and spray thrown up the lower body */
+  'float dirt=smoothstep(.62,.12,vW.y-uBr.y);alb*=1.-dirt*.38*(1.-emis);'+
   'vec3 F0=mix(vec3(.04),alb,metal);vec3 fr=F0+(1.-F0)*pow(1.-ndv,5.);vec3 col=alb*(1.-metal)*irr*ao;'+
-  'col+=cenv(R,max(rg,.35))*fr*ao*mix(.35,1.,metal);col+=cenv(R,.2)*(.04+.96*pow(1.-ndv,5.))*coat*.7;'+
-  'col+=alb*emis*(2.2+uGl*2.);col+=uBr.x*emis*vec3(1.,.1,.05)*step(0.,-n.z)*0.;'+
+  'col+=cenv(R,max(rg,.35))*fr*ao*mix(.35,1.,metal);'+
+  /* clear coat: a second, sharper reflection over the paint */
+  'col+=cenv(R,.12)*(.045+.955*pow(1.-ndv,5.))*coat*.85*(1.-dirt*.6);'+
+  /* lights: the emissive material is the head and tail lights (red ones glow harder on the brakes) */
+  'float tail=step(.8,alb.r)*step(alb.g,.3);col+=alb*emis*(2.2+uGl*2.)+tail*emis*uBr.x*2.4*vec3(1.,.12,.06);'+
   'col=fogm(col,vW);gl_FragColor=vec4(tone(col),1.);}',
   /* ---- traffic cars: instanced low-poly bodies; per instance x,y,z,yaw | pitch,roll,colour,flags (1 brake lights, 2 siren) ---- */
  trV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;uniform mat4 uVP;uniform vec3 uPal[14];uniform vec4 uMat[12];uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;\n'+
@@ -180,11 +221,24 @@ const SH={
   'vec3 col=vC*irr;float fr=.04+.96*pow(1.-ndv,5.);col+=skyc(R)*fr*vE.y*1.2;col+=vC*vE.x*1.3;col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- effects: ground decals (blob shadow, skid marks) and camera-facing smoke, one dynamic buffer ---- */
  fxV:'attribute vec3 aP;attribute vec4 aC;attribute vec2 aU;uniform mat4 uVP;varying vec4 vC;varying vec2 vU;void main(){vC=aC;vU=aU;gl_Position=uVP*vec4(aP,1.);}',
- fxF:PRE+'varying vec4 vC;varying vec2 vU;uniform float uMode;\n'+
- 'void main(){float d=length(vU-.5)*2.;float a=uMode<.5?(1.-smoothstep(.3,1.,d)):(1.-smoothstep(.0,1.,d));a*=vC.a;if(uMode>1.5)a=vC.a*(1.-smoothstep(.6,1.,abs(vU.x-.5)*2.));if(uMode>2.5){vec2 q=abs(vU-.5)*2.;float e=max(q.x,q.y);a=vC.a*(.2+smoothstep(.62,.9,e)*.8)*(1.-smoothstep(.94,1.,e));}gl_FragColor=vec4(vC.rgb,a);}'
+ fxF:PRE+'varying vec4 vC;varying vec2 vU;uniform float uMode,uQ;\n'+
+ 'float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}\n'+
+ 'float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h2(i),h2(i+vec2(1.,0.)),f.x),mix(h2(i+vec2(0.,1.)),h2(i+vec2(1.,1.)),f.x),f.y);}\n'+
+ /* modes: 0 blob shadow, 1 smoke/spray (a puff number rides in the whole part of u), 2 skid mark, 3 garage pad, 4 glow sprite, 5 light pool, 6 beam (v along), 7 spark streak */
+ 'void main(){float sd=floor(vU.x);vec2 q=vec2(vU.x-sd,vU.y);float d=length(q-.5)*2.;float a;'+
+  'if(uMode<.5)a=1.-smoothstep(.3,1.,d);'+
+  'else if(uMode<1.5){a=1.-smoothstep(.0,1.,d);if(uQ>.5){vec2 c=(q-.5)*2.;float an=sd*1.7,cs=cos(an),sn=sin(an);c=vec2(cs*c.x-sn*c.y,sn*c.x+cs*c.y);float n=vn(c*2.2+sd*3.1)*.6+vn(c*5.3+sd)*.4;a*=smoothstep(.12,.72,n+.38-d*.45);}}'+
+  'else if(uMode<2.5)a=1.-smoothstep(.6,1.,abs(q.x-.5)*2.);'+
+  'else if(uMode<3.5){vec2 w=abs(q-.5)*2.;float e=max(w.x,w.y);a=(.2+smoothstep(.62,.9,e)*.8)*(1.-smoothstep(.94,1.,e));}'+
+  'else if(uMode<4.5){vec2 c=(q-.5)*2.;float r2=dot(c,c);a=exp(-r2*5.5)*.8+exp(-sqrt(r2)*6.)*.3+.22*(exp(-abs(c.x)*16.)*exp(-abs(c.y)*1.8)+exp(-abs(c.y)*16.)*exp(-abs(c.x)*1.8));a*=1.-smoothstep(.85,1.,sqrt(r2));}'+
+  'else if(uMode<5.5){float t=1.-smoothstep(0.,1.,d);a=t*t;}'+
+  'else if(uMode<6.5){float v=abs(q.x-.5)*2.;a=pow(max(1.-q.y,0.),1.5)*(1.-v*v)*(1.-v)*smoothstep(0.,.06,q.y);}'+
+  'else{float v=abs(q.y-.5)*2.;a=(1.-v)*(1.-v)*(.3+.7*(1.-q.x));}'+
+  'gl_FragColor=vec4(vC.rgb,a*vC.a);}'
 };
 function glCompile(gl,type,src,name){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){const e=gl.getShaderInfoLog(s);throw new Error('shader '+name+(type==gl.VERTEX_SHADER?' VS':' FS')+': '+e)}return s}
-function mkProg(name,vs,fs,attrs){const gl=G.gl,p=gl.createProgram();gl.attachShader(p,glCompile(gl,gl.VERTEX_SHADER,vs,name));gl.attachShader(p,glCompile(gl,gl.FRAGMENT_SHADER,fs,name));attrs.forEach((a,i)=>gl.bindAttribLocation(p,i,a));gl.linkProgram(p);
+function mkProg(name,vs,fs,attrs,defs){const gl=G.gl,p=gl.createProgram();if(defs){const d=Object.keys(defs).map(k=>'#define '+k+' '+defs[k]+'\n').join('');fs=fs.startsWith(PRE)?PRE+d+fs.slice(PRE.length):d+fs;vs=d+vs}
+ gl.attachShader(p,glCompile(gl,gl.VERTEX_SHADER,vs,name));gl.attachShader(p,glCompile(gl,gl.FRAGMENT_SHADER,fs,name));attrs.forEach((a,i)=>gl.bindAttribLocation(p,i,a));gl.linkProgram(p);
  if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error('link '+name+': '+gl.getProgramInfoLog(p));
  const u={},n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);for(let i=0;i<n;i++){const a=gl.getActiveUniform(p,i),nm=a.name.replace(/\[0\]$/,'');u[nm]=gl.getUniformLocation(p,a.name)}
  return{p,u,n:attrs.length,name}}
@@ -653,7 +707,7 @@ function heightTexData(){const N=W.N,hm=W.hm,o=new Uint8Array(N*N*4);for(let k=0
 class MB{constructor(){this.cap=512;this.f=new Float32Array(this.cap*7);this.u=new Uint8Array(this.f.buffer);this.s=new Int8Array(this.f.buffer);this.n=0;this.ix=new Uint16Array(this.cap*4);this.ni=0;
   this.x0=1e9;this.x1=-1e9;this.y0=1e9;this.y1=-1e9;this.z0=1e9;this.z1=-1e9}
  grow(){const c=this.cap*2,f=new Float32Array(c*7);f.set(this.f);this.f=f;this.u=new Uint8Array(f.buffer);this.s=new Int8Array(f.buffer);this.cap=c;const ix=new Uint16Array(c*4);ix.set(this.ix);this.ix=ix}
- v(x,y,z,nx,ny,nz,r,g,b,u,v,w){if(this.n>=this.cap)this.grow();const o=this.n*7,B=this.n*28;this.f[o]=x;this.f[o+1]=y;this.f[o+2]=z;this.s[B+12]=Math.round(nx*127);this.s[B+13]=Math.round(ny*127);this.s[B+14]=Math.round(nz*127);this.s[B+15]=w?127:0;
+ v(x,y,z,nx,ny,nz,r,g,b,u,v,w){if(this.n>=this.cap)this.grow();const o=this.n*7,B=this.n*28;this.f[o]=x;this.f[o+1]=y;this.f[o+2]=z;this.s[B+12]=Math.round(nx*127);this.s[B+13]=Math.round(ny*127);this.s[B+14]=Math.round(nz*127);this.s[B+15]=w===2?-127:(w?127:0);
   this.u[B+16]=r;this.u[B+17]=g;this.u[B+18]=b;this.u[B+19]=255;this.f[o+5]=u;this.f[o+6]=v;
   if(x<this.x0)this.x0=x;if(x>this.x1)this.x1=x;if(y<this.y0)this.y0=y;if(y>this.y1)this.y1=y;if(z<this.z0)this.z0=z;if(z>this.z1)this.z1=z;return this.n++}
  t(a,b,c){if(this.ni+3>this.ix.length){const ix=new Uint16Array(this.ix.length*2);ix.set(this.ix);this.ix=ix}this.ix[this.ni++]=a;this.ix[this.ni++]=b;this.ix[this.ni++]=c}
@@ -713,7 +767,9 @@ function buildRoadMeshes(){
       out.push({V,I,cx:(bx0+bx1)/2,cy:(by0+by1)/2,cz:(bz0+bz1)/2,rad:Math.hypot(bx1-bx0,by1-by0,bz1-bz0)/2+2})}}
   return out}
 /* ---------- barriers, bridge decks + piers, lamp posts ---------- */
-const COLC=[],COLR=[],COLO=[];/* colliders: circles [x,z,r], rects [x0,z0,x1,z1,top], rotated rects [cx,z,hx,hz,cos,sin,top] */
+const COLC=[],COLR=[],COLO=[];
+/* lights that glow: street lamp heads (x,y,z) and neon signs (x,y,z,r,g,b,size); the renderer draws a glow for the ones near the car and lights the wet road with them */
+const LAMPS=[],NEONS=[];/* colliders: circles [x,z,r], rects [x0,z0,x1,z1,top], rotated rects [cx,z,hx,hz,cos,sin,top] */
 function buildFurniture(){
   const cc=[170,166,158];
   for(const r of ROADS){const n=r.n,cnt=r.closed?n:n-1;
@@ -742,7 +798,7 @@ function buildFurniture(){
     for(let i=2;i<n-2;i+=step){if(r.br[i]||(r.city&&r.mk[i]<.5)||r.wk[i]<.9)continue;const j=Math.min(n-1,i+1),dx=r.X[j]-r.X[i-1],dz=r.Z[j]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=((cnt2++)&1)?1:-1;
       if(r.style==1&&!r.city&&(cnt2&1))continue;
       const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-(r.city?.1:.35);pbox(0,px,gy,pz,.13,gy+7.2,.13,92,94,98,0,.7);
-      pbox(0,px-nx*sd*1.1,gy+7.1,pz-nz*sd*1.1,.9*Math.abs(nx)+.1,gy+7.3,.9*Math.abs(nz)+.1,92,94,98,0,1);pbox(0,px-nx*sd*1.9,gy+6.95,pz-nz*sd*1.9,.35*Math.abs(nx)+.25,gy+7.12,.35*Math.abs(nz)+.25,255,236,180,0,1);COLC.push(px,pz,.45,gy-.5,gy+7.2)}}
+      pbox(0,px-nx*sd*1.1,gy+7.1,pz-nz*sd*1.1,.9*Math.abs(nx)+.1,gy+7.3,.9*Math.abs(nz)+.1,92,94,98,0,1);pbox(0,px-nx*sd*1.9,gy+6.95,pz-nz*sd*1.9,.35*Math.abs(nx)+.25,gy+7.12,.35*Math.abs(nz)+.25,255,236,180,2,1);COLC.push(px,pz,.45,gy-.5,gy+7.2);LAMPS.push(px-nx*sd*1.9,gy+6.9,pz-nz*sd*1.9)}}
 }
 /* ---------- districts: San Francisco style downtown + hills, Golden Gate Park, the LA style Valley, countryside ---------- */
 /* rotated box (walls with window tiling + roof); collider registered by the caller */
@@ -788,7 +844,14 @@ const inUrban=(x,z,m)=>{if(inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PAR
 function buildCity(){
   const rng=mulberry(1337);let nb=0,pyramid=false;const CORE={x:-870,z:310};
   const reg=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
-  const bld=(cx,cz,hx,hz,cs,sn,h,c,win)=>{const gy=gmin(cx,cz,hx,hz,cs,sn);pboxR(1,cx,cz,hx,hz,cs,sn,gy-1.5,gy+h,c[0],c[1],c[2],win!==false,.62);reg(cx,cz,hx,hz,cs,sn,gy+h);nb++;return gy};
+  const NEONC=[[255,40,120],[40,220,255],[255,190,40],[130,90,255],[60,255,150],[255,90,40]],nrng=mulberry(7771);
+  /* a neon sign on a wall of a building: a glowing bar standing out of the wall; most tall downtown buildings get one or two */
+  const neon=(cx,cz,hx,hz,cs,sn,gy,h)=>{const k=1+(nrng()<.4?1:0);for(let q=0;q<k;q++){const side=(nrng()*4)|0,c=NEONC[(nrng()*NEONC.length)|0],vert=nrng()<.45,y0=gy+3+nrng()*Math.max(0,Math.min(h-6,14));
+      const ax=side&1?1:0,sg=side<2?1:-1;let lx,lz,hl,hd;                     /* local centre on the wall, and half sizes along it */
+      const along=(nrng()-.5)*(ax?hz:hx)*1.2;if(ax){lx=sg*(hx+.25);lz=along;hl=[.25,vert?.5:Math.min(3.2,hz*.35)]}else{lz=sg*(hz+.25);lx=along;hl=[vert?.5:Math.min(3.2,hx*.35),.25]}
+      const wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs,yy0=vert?y0:y0+3,yy1=vert?y0+Math.min(7,h*.4):y0+3+1.1;pboxR(1,wx,wz,hl[0],hl[1],cs,sn,yy0,yy1,c[0],c[1],c[2],2,1);
+      NEONS.push(wx,(yy0+yy1)/2,wz,c[0]/255,c[1]/255,c[2]/255,vert?3.4:4.2)}};
+  const bld=(cx,cz,hx,hz,cs,sn,h,c,win)=>{const gy=gmin(cx,cz,hx,hz,cs,sn);pboxR(1,cx,cz,hx,hz,cs,sn,gy-1.5,gy+h,c[0],c[1],c[2],win!==false,.62);reg(cx,cz,hx,hz,cs,sn,gy+h);nb++;if(h>=7&&win!==false&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0))&&nrng()<.7)neon(cx,cz,hx,hz,cs,sn,gy,h);return gy};
   const treesIn=(B,n)=>{for(let k=0;k<n;k++){const u=lerp(B.u0+4,B.u1-4,rng()),v=lerp(B.v0+4,B.v1-4,rng()),p=B.W(u,v);if(nearRoadXZ(p[0],p[1],6))continue;ptree(p[0],p[1],rng,terrainH(p[0],p[1]));COLC.push(p[0],p[1],.55,terrainH(p[0],p[1])-.5,terrainH(p[0],p[1])+12)}};
   for(const g of GRIDS){
     if(g.kind=='la'){
@@ -895,7 +958,7 @@ function buildCity(){
         const lots=rng()<.3?1:2,gap=2+rng()*3,tall=Math.max(0,1-dcore/340);
         for(let a=0;a<lots;a++){const lw=wu/lots,u=B.u0+lw*(a+.5),[px,pz]=B.W(u,cv),hx0=lw/2-gap/2,hz0=wv/2-gap/2,c=[[150,160,175],[176,170,158],[126,140,158],[112,122,138],[188,184,176],[96,108,126]][(rng()*6)|0],h=18+rng()*24+tall*tall*(60+rng()*130);
           if(!pyramid&&dcore<150&&a==0){pyramid=true;const gy=gmin(px,pz,hx0,hz0,cs,sn),hb=Math.min(hx0,hz0)-2;pboxR(1,px,pz,hb+4,hb+4,cs,sn,gy-1.5,gy+10,206,204,198,true,.7);ppyramid(1,px,pz,hb,gy+10,230,cs,sn);reg(px,pz,hb*.6,hb*.6,cs,sn,gy+120);nb++;continue}
-          const ph=7+rng()*6,gy=bld(px,pz,hx0,hz0,cs,sn,Math.min(h,ph),[c[0]*.92,c[1]*.9,c[2]*.88]);const ins=1+rng()*4;pboxR(1,px,pz,hx0-ins,hz0-ins,cs,sn,gy+Math.min(h,ph),gy+h,c[0],c[1],c[2],true,.62);reg(px,pz,hx0-ins,hz0-ins,cs,sn,gy+h)}}
+          const ph=7+rng()*6,gy=bld(px,pz,hx0,hz0,cs,sn,Math.min(h,ph),[c[0]*.92,c[1]*.9,c[2]*.88]);const ins=1+rng()*4;pboxR(1,px,pz,hx0-ins,hz0-ins,cs,sn,gy+Math.min(h,ph),gy+h,c[0],c[1],c[2],true,.62);reg(px,pz,hx0-ins,hz0-ins,cs,sn,gy+h);if(nrng()<.85)neon(px,pz,hx0,hz0,cs,sn,gy,Math.min(h,ph))}}
       else if(th>22||rng()<.6){/* Victorian row houses: narrow pastel fronts side by side */
         const depth=Math.min(17,wv/2-1.5);let maxH=0;
         for(const side of[-1,1]){const v=side<0?B.v0+depth/2:B.v1-depth/2;let u=B.u0;const hs=[];
@@ -903,7 +966,7 @@ function buildCity(){
             pboxR(1,px,pz,w/2-.12,depth/2,cs,sn,gy-2.5,gy+h,c[0],c[1],c[2],true,.7);
             proofR(1,px,pz,w/2-.12,depth/2,cs,sn,gy+h,1.8+rng()*1.4,150,110,96,false);
             /* a bay window pushed out over the sidewalk */pboxR(1,...B.W(pu,v+side*(depth/2+.7)),w*.3,.75,cs,sn,gy+2.2,gy+h-1.6,Math.min(255,c[0]+14),Math.min(255,c[1]+14),Math.min(255,c[2]+14),true,.8);
-            maxH=Math.max(maxH,gy+h);u+=w}
+            if(nrng()<.1)neon(px,pz,w/2-.12,depth/2,cs,sn,gy,h);maxH=Math.max(maxH,gy+h);u+=w}
           const [rx,rz]=B.W(cu,v);reg(rx,rz,wu/2,depth/2,cs,sn,maxH);nb++}}
       else{/* mid-rise apartments in brick and stucco */
         const lots=2,lw=wu/lots;for(let a=0;a<lots;a++){const u=B.u0+lw*(a+.5),[px,pz]=B.W(u,cv),c=rng()<.5?BRICK[(rng()*4)|0]:PASTEL[(rng()*PASTEL.length)|0];bld(px,pz,lw/2-3,wv/2-3,cs,sn,16+rng()*16,c,true)}}})}
@@ -1124,7 +1187,8 @@ function lgNextJ(e,u){const G=LG.jg[e.ri*2+lgDirI(e.dir)];if(!G||!G.length)retur
 const R={lv:6,N:64,tex:{},terVB:null,terIB:null,terRing:null,ringN:0,fullN:0,skyB:null,watB:null,roads:[],props:[],car:null,fx:null,fxIx:null,
   fw:new Float32Array(3),rt:new Float32Array(3),up:new Float32Array(3),VP:new Float32Array(16),V:new Float32Array(16),Pm:new Float32Array(16),PL:new Float32Array(24),M:new Float32Array(16),M2:new Float32Array(16),time:0,
   tris:0,draws:0,scale:1,w:1,h:1,fov:1.05,env:null};
-const ENV={sun:[-.5,.4,-.77],sunC:[2.8,2.0,1.3],ambT:[.30,.40,.60],ambB:[.20,.15,.10],hor:[.80,.60,.46],zen:[.09,.24,.56],fog:1/2700,fogY:.0006,fogSun:.9};
+/* a gloomy, overcast day: the sun is a pale patch behind cloud (soft, high, weak), the light comes from the whole sky, the horizon is thick grey haze */
+const ENV={sun:[-.42,.66,-.62],sunC:[.82,.84,.88],ambT:[.50,.55,.64],ambB:[.19,.19,.20],hor:[.46,.50,.55],zen:[.20,.24,.31],fog:1/1150,fogY:.0010,fogSun:.12};
 {const l=Math.hypot(ENV.sun[0],ENV.sun[1],ENV.sun[2]);ENV.sun=new Float32Array(ENV.sun.map(v=>v/l));for(const k of['sunC','ambT','ambB','hor','zen'])ENV[k]=new Float32Array(ENV[k])}
 function makeNoiseTex(){/* tileable value noise, 3 octaves in R/G/B, 128x128 */const S=128,o=new Uint8Array(S*S*4);
   const tn=(x,y,per,s)=>{const fx=x*per/S,fy=y*per/S,ix=Math.floor(fx),iy=Math.floor(fy),u=fx-ix,v=fy-iy,su=u*u*(3-2*u),sv=v*v*(3-2*v),w=k=>((k%per)+per)%per;
@@ -1148,10 +1212,10 @@ function renderInit(){
   buildRoadHash();buildFurniture();R.stats=buildCity();R.props=finishProps().map(p=>({cat:p.cat,vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.I.length,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad}));
   buildQueries();
   /* dynamic effects buffer: quads of 9 floats/vertex */
-  R.fxMax=900;R.fxF=new Float32Array(R.fxMax*4*9);R.fx=mkBuf(gl.ARRAY_BUFFER,R.fxF.byteLength,gl.DYNAMIC_DRAW);
+  R.fxMax=2400;R.fxF=new Float32Array(R.fxMax*4*9);R.fx=mkBuf(gl.ARRAY_BUFFER,R.fxF.byteLength,gl.DYNAMIC_DRAW);
   const ix=new Uint16Array(R.fxMax*6);for(let q=0;q<R.fxMax;q++){const b=q*4;ix.set([b,b+1,b+2,b,b+2,b+3],q*6)}R.fxIx=mkBuf(gl.ELEMENT_ARRAY_BUFFER,ix);
   R.fxN=0;
-  carGLInit();trGLInit();
+  carGLInit();trGLInit();gfxInit();
 }
 function setEnvU(P){const gl=G.gl,u=P.u,E=ENV;gl.uniform3f(u.uCam,R.cx,R.cy,R.cz);if(u.uSun!=null){gl.uniform3fv(u.uSun,E.sun);gl.uniform3fv(u.uSunC,E.sunC);gl.uniform3fv(u.uAmbT,E.ambT);gl.uniform3fv(u.uAmbB,E.ambB);gl.uniform3fv(u.uHor,E.hor);gl.uniform3fv(u.uZen,E.zen);gl.uniform4f(u.uFogP,E.fog,E.fogY,E.fogSun,R.time)}}
 function setMapU(P){const gl=G.gl,u=P.u;gl.uniform4f(u.uMap,W.half,.5/W.N,W.hrange,W.hmin)}
@@ -1162,11 +1226,14 @@ function viewSet(cx,cy,cz,tx,ty,tz,fov,w,h){R.cx=cx;R.cy=cy;R.cz=cz;R.fov=fov;M4
   R.fw[0]=fx;R.fw[1]=fy;R.fw[2]=fz;R.rt[0]=rx;R.rt[1]=0;R.rt[2]=rz;R.up[0]=-rz*fy;R.up[1]=rz*fx-rx*fz;R.up[2]=rx*fy}
 function renderFrame(w,h,sky){
   const gl=G.gl;R.draws=0;R.tris=0;
-  gl.viewport(0,0,w,h);gl.clearColor(ENV.hor[0]**.45,ENV.hor[1]**.45,ENV.hor[2]**.45,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  /* the scene goes into an off-screen target at the render scale (the post pass puts it on the canvas); if the GPU cannot, straight to the canvas */
+  trPrep();shdPass();
+  const post=GFX.ok&&gfxTarget(w,h);gl.bindFramebuffer(gl.FRAMEBUFFER,post?GFX.fbo:null);
+  gl.viewport(0,0,w,h);gl.clearColor(ENV.hor[0]**.45,ENV.hor[1]**.45,ENV.hor[2]**.45,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gfxLights();
   gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(true);gl.disable(gl.BLEND);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);
   const cx=R.cx,cz=R.cz;
   /* terrain clipmap, finest level first */
-  let P=G.P.ter;gl.useProgram(P.p);setEnvU(P);setMapU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform1f(P.u.uHalf,W.half);
+  let P=G.P.ter;gl.useProgram(P.p);setEnvU(P);setMapU(P);shdSetU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform1f(P.u.uHalf,W.half);
   bindTex(0,R.tex.h);gl.uniform1i(P.u.uH,0);bindTex(1,R.tex.col);gl.uniform1i(P.u.uCol,1);bindTex(2,R.tex.nz);gl.uniform1i(P.u.uNz,2);
   gl.bindBuffer(gl.ARRAY_BUFFER,R.terVB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);
   let phx=0,phz=0,phh=0;
@@ -1175,11 +1242,11 @@ function renderFrame(w,h,sky){
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,l?R.terRing:R.terIB);gl.drawElements(gl.TRIANGLES,l?R.ringN:R.fullN,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=(l?R.ringN:R.fullN)/3;
     phx=lx;phz=lz;phh=R.N*.5*c}
   /* roads */
-  P=G.P.rd;gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.nz);gl.uniform1i(P.u.uNz,0);attrs(2);gl.disable(gl.CULL_FACE);
+  P=G.P.rd;gl.useProgram(P.p);setEnvU(P);gfxSetRoadU(P);shdSetU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.nz);gl.uniform1i(P.u.uNz,0);attrs(2);gl.disable(gl.CULL_FACE);
   for(let i=0;i<R.roads.length;i++){const p=R.roads[i],dx=p.cx-cx,dz=p.cz-cz,d=Math.hypot(dx,dz);if(d>R.drawRoad+p.rad||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
     gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.FLOAT,false,28,12);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}
   /* props */
-  P=G.P.pr;gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.win);gl.uniform1i(P.u.uWin,0);gl.uniform1f(P.u.uNight,R.night||0);attrs(4);gl.enable(gl.CULL_FACE);
+  P=G.P.pr;gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.win);gl.uniform1i(P.u.uWin,0);gl.uniform1f(P.u.uNight,GFX.night);attrs(4);gl.enable(gl.CULL_FACE);
   for(let i=0;i<R.props.length;i++){const p=R.props[i],dist=R.drawProp[p.cat];const dx=p.cx-cx,dz=p.cz-cz;if(dx*dx+dz*dz>(dist+p.rad)*(dist+p.rad)||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
     gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,28,12);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,28,16);gl.vertexAttribPointer(3,2,gl.FLOAT,false,28,20);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}
   /* the player's car (+ rivals later) */
@@ -1191,7 +1258,202 @@ function renderFrame(w,h,sky){
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
   P=G.P.wat;gl.useProgram(P.p);setEnvU(P);setMapU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.h);gl.uniform1i(P.u.uH,0);bindTex(2,R.tex.nz);gl.uniform1i(P.u.uNz,2);gl.bindBuffer(gl.ARRAY_BUFFER,R.watB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);gl.drawArrays(gl.TRIANGLES,0,6);R.draws++;
   if(R.fxDraw)R.fxDraw();
-  gl.depthMask(true);gl.disable(gl.BLEND)}
+  gl.depthMask(true);gl.disable(gl.BLEND);
+  if(post)gfxComposite(w,h)}
+
+'use strict';
+/* ===== graphics tiers, the post pass (FXAA, speed blur, bloom, vignette), the lights near the car, and the automatic quality choice ===== */
+/* The scene is drawn into an off-screen target at the render scale, then one pass puts it on the canvas: FXAA always, speed blur and bloom on the higher tiers.
+   Tiers are picked from MEASURED frame cost (not from the phone model): see gfxGovern. Every number in the tier table is a budget, not a promise. */
+const GFXT=[
+ {name:'Low',   scMin:.55,scMax:.85,blur:0,bloom:0,shadow:0,NL:4,hi:0,glow:26,pool:5, fxq:.6, traf:1,   draw:.8, cost:1},
+ {name:'Medium',scMin:.60,scMax:.95,blur:1,bloom:0,shadow:1,NL:6,hi:1,glow:48,pool:10,fxq:1,  traf:1,   draw:.95,cost:1.35},
+ {name:'High',  scMin:.70,scMax:1.0,blur:1,bloom:1,shadow:2,NL:8,hi:1,glow:80,pool:16,fxq:1.4,traf:1.25,draw:1,  cost:1.9}];
+const GFX={tier:1,mode:'auto',T:GFXT,cur:GFXT[1],fixed:false,ok:false,w:0,h:0,fbo:null,col:null,dep:null,bw:0,bh:0,bl:[null,null],blT:[null,null],
+  wet:.85,night:.27,shadowOn:false,blurAmt:0,lt:new Float32Array(32),lc:new Float32Array(24),nlt:0,
+  /* governor */ probeOn:0,probeN:0,probeT:[],work:0,workLast:0,late:0,okRuns:0,upLock:[0,0,0],since:0,lastIv:0,ivAvg:16.7,ivN:0,hist:[],log:[]};
+const _gp={};
+const GATTR={sky:['aP'],ter:['aIJ'],rd:['aP','aA'],pr:['aP','aN','aC','aU'],car:['aP','aN','aC'],tr:['aP','aN','aI0','aI1'],fx:['aP','aC','aU'],wat:['aP']};
+function gfxProg(name,defs){const k=name+JSON.stringify(defs||{});if(!_gp[k])_gp[k]=mkProg(name,SH[name+'V'],SH[name+'F'],GATTR[name],defs);return _gp[k]}
+/* ---------------- the post pass ---------------- */
+const POSTV='attribute vec2 aP;varying vec2 vU;void main(){vU=aP*.5+.5;gl_Position=vec4(aP,0.,1.);}';
+const POSTF=PRE+'varying vec2 vU;uniform sampler2D uS,uB;uniform vec2 uPx;uniform vec4 uP;/* x speed blur, y bloom, z vignette, w time */\n'+
+ 'float lum(vec3 c){return dot(c,vec3(.299,.587,.114));}\n'+
+ 'vec3 T(vec2 u){return texture2D(uS,u).rgb;}\n'+
+ /* FXAA (the console version of Lottes): finds the edge direction from the luma of the four neighbours and blurs along it */
+ 'vec3 fxaa(vec2 uv){vec3 M=T(uv);float lM=lum(M),lNW=lum(T(uv+vec2(-1.,-1.)*uPx)),lNE=lum(T(uv+vec2(1.,-1.)*uPx)),lSW=lum(T(uv+vec2(-1.,1.)*uPx)),lSE=lum(T(uv+vec2(1.,1.)*uPx));'+
+  'float lo=min(lM,min(min(lNW,lNE),min(lSW,lSE))),hi=max(lM,max(max(lNW,lNE),max(lSW,lSE)));if(hi-lo<max(.0312,hi*.125))return M;'+
+  'vec2 d=vec2(-((lNW+lNE)-(lSW+lSE)),(lNW+lSW)-(lNE+lSE));float dr=max((lNW+lNE+lSW+lSE)*.03125,.0078125);float rc=1./(min(abs(d.x),abs(d.y))+dr);d=clamp(d*rc,-8.,8.)*uPx;'+
+  'vec3 A=.5*(T(uv+d*(1./3.-.5))+T(uv+d*(2./3.-.5)));vec3 B=A*.5+.25*(T(uv+d*-.5)+T(uv+d*.5));float lB=lum(B);return (lB<lo||lB>hi)?A:B;}\n'+
+ 'void main(){vec2 uv=vU;vec3 c=fxaa(uv);'+
+  '\n#ifdef BLUR\nvec2 q=uv-vec2(.5,.46);float r=length(q*vec2(1.6,1.));float k=uP.x*smoothstep(.20,.62,r);if(k>.002){vec3 s=c;for(int i=1;i<=BLUR;i++){s+=T(uv-q*k*float(i)/float(BLUR)*.28);}c=s/float(BLUR+1);}\n#endif\n'+
+  '\n#ifdef BLOOM\nc+=texture2D(uB,uv).rgb*uP.y;\n#endif\n'+
+  'vec2 v=uv-.5;c*=1.-uP.z*dot(v,v)*1.5;'+
+  'gl_FragColor=vec4(c+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233))+uP.w)*43758.5453)-.5)/255.,1.);}';
+/* bloom: the bright parts of the picture, shrunk to a quarter, blurred, added back */
+const BRF=PRE+'varying vec2 vU;uniform sampler2D uS;uniform vec2 uPx;\n'+
+ 'void main(){vec3 s=(texture2D(uS,vU+uPx*vec2(-1.,-1.)).rgb+texture2D(uS,vU+uPx*vec2(1.,-1.)).rgb+texture2D(uS,vU+uPx*vec2(-1.,1.)).rgb+texture2D(uS,vU+uPx*vec2(1.,1.)).rgb)*.25;'+
+  'float l=dot(s,vec3(.3,.55,.15));float k=smoothstep(.62,.95,l);gl_FragColor=vec4(s*k,1.);}';
+const BLF=PRE+'varying vec2 vU;uniform sampler2D uS;uniform vec2 uPx;/* the step: (1/w,0) or (0,1/h) */\n'+
+ 'void main(){vec3 c=texture2D(uS,vU).rgb*.2270270270;c+=texture2D(uS,vU+uPx*1.3846153846).rgb*.3162162162+texture2D(uS,vU-uPx*1.3846153846).rgb*.3162162162;c+=texture2D(uS,vU+uPx*3.2307692308).rgb*.0702702703+texture2D(uS,vU-uPx*3.2307692308).rgb*.0702702703;gl_FragColor=vec4(c,1.);}';
+function gfxMakeTex(w,h){const gl=G.gl,t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return t}
+function gfxFree(){const gl=G.gl;for(const o of[GFX.fbo,GFX.bl[0],GFX.bl[1]])if(o)gl.deleteFramebuffer(o);for(const t of[GFX.col,GFX.blT[0],GFX.blT[1]])if(t)gl.deleteTexture(t);if(GFX.dep)gl.deleteRenderbuffer(GFX.dep);
+  GFX.fbo=GFX.col=GFX.dep=null;GFX.bl=[null,null];GFX.blT=[null,null];GFX.w=GFX.h=GFX.bw=GFX.bh=0}
+/* make (or resize) the off-screen target; false = this GPU cannot do it and the scene goes straight to the canvas */
+function gfxTarget(w,h){
+  const gl=G.gl,wantBloom=!!GFX.cur.bloom,bw=Math.max(8,w>>2),bh=Math.max(8,h>>2);
+  if(GFX.fbo&&GFX.w==w&&GFX.h==h&&(!wantBloom||GFX.bl[0]))return true;
+  gfxFree();
+  try{GFX.col=gfxMakeTex(w,h);GFX.dep=gl.createRenderbuffer();gl.bindRenderbuffer(gl.RENDERBUFFER,GFX.dep);gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_STENCIL,w,h);
+    GFX.fbo=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,GFX.fbo);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,GFX.col,0);gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_STENCIL_ATTACHMENT,gl.RENDERBUFFER,GFX.dep);
+    if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!=gl.FRAMEBUFFER_COMPLETE)throw new Error('fbo incomplete');
+    if(wantBloom){for(let i=0;i<2;i++){GFX.blT[i]=gfxMakeTex(bw,bh);GFX.bl[i]=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,GFX.bl[i]);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,GFX.blT[i],0);
+        if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!=gl.FRAMEBUFFER_COMPLETE)throw new Error('bloom fbo incomplete')}}
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);GFX.w=w;GFX.h=h;GFX.bw=bw;GFX.bh=bh;return true}
+  catch(e){gl.bindFramebuffer(gl.FRAMEBUFFER,null);gfxFree();GFX.ok=false;console.warn('post pass off: '+e.message);return false}}
+/* ---------------- tiers ---------------- */
+function gfxInit(){
+  GFX.ok=true;gfxLampIndex();
+  let m=QS.get('q');try{if(!m)m=localStorage.getItem('racer.gfx')||'auto'}catch(e){m=m||'auto'}if(m!='high'&&m!='low')m='auto';GFX.mode=m;
+  const t=QS.has('tier')?Math.max(0,Math.min(2,parseInt(QS.get('tier'))||0)):(QS.has('fixed')?0:(m=='high'?2:m=='low'?0:1));
+  GFX.fixed=QS.has('tier')||QS.has('fixed');gfxSetTier(t,true);if(UI.bn&&UI.bn.qual)UI.bn.qual.label='GFX '+GFX.mode.toUpperCase()}
+function gfxProg2(name,vs,fs,attrs,defs){const k=name+JSON.stringify(defs||{});if(!_gp[k])_gp[k]=mkProg(name,vs,fs,attrs,defs);return _gp[k]}
+function gfxSetTier(t,force){
+  t=Math.max(0,Math.min(2,t|0));if(!force&&t==GFX.tier)return;const T=GFXT[t];GFX.tier=t;GFX.cur=T;
+  /* shader variants for this tier */
+  const sd=T.shadow?{SHADOW:T.shadow}:{};G.P.rd=gfxProg('rd',Object.assign({NL:T.NL},sd));G.P.ter=gfxProg('ter',sd);G.P.sky=gfxProg('sky',T.hi?{HI:1}:{});
+  const pd={};if(T.blur)pd.BLUR=T.bloom?6:4;if(T.bloom)pd.BLOOM=1;G.P.postv=gfxProg2('post',POSTV,POSTF,['aP'],pd);
+  if(T.bloom&&!G.P.bright){G.P.bright=gfxProg2('bright',POSTV,BRF,['aP']);G.P.blur=gfxProg2('blur',POSTV,BLF,['aP'])}
+  const lo=t==0;R.drawProp=[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw)];R.drawRoad=Math.round(1900*T.draw);
+  if(!GFX.fixed){Q.min=T.scMin;Q.max=T.scMax;Q.scale=Math.max(Q.min,Math.min(Q.max,Q.scale))}
+  if(typeof trSetMul=='function')trSetMul(T.traf);
+  GFX.since=0;Q.apply()}
+function gfxSetMode(m){GFX.mode=m;try{localStorage.setItem('racer.gfx',m)}catch(e){}
+  if(m=='high'){GFX.fixed=false;gfxSetTier(2)}else if(m=='low'){GFX.fixed=false;gfxSetTier(0)}else{GFX.fixed=false;gfxSetTier(1)}GFX.upLock=[0,0,0];GFX.okRuns=0}
+/* ---------------- lamps: a grid so the renderer finds the ones near the car without a scan of every lamp ---------------- */
+const LGRIDM=new Map(),LGC=64;
+function gfxLampIndex(){LGRIDM.clear();for(let i=0;i<LAMPS.length;i+=3){const k=Math.floor(LAMPS[i]/LGC)*8192+Math.floor(LAMPS[i+2]/LGC);let a=LGRIDM.get(k);if(!a){a=[];LGRIDM.set(k,a)}a.push(i)}}
+const _lampPick=new Int32Array(128),_lampScore=new Float32Array(128);
+/* the k lamps nearest to (x,z) within r metres, nearest first (indexes into LAMPS, step 3) */
+function gfxNearLamps(x,z,r,k,ahx,ahz){let n=0;k=Math.min(k,128);if(k<1)return 0;const c0=Math.floor((x-r)/LGC),c1=Math.floor((x+r)/LGC),d0=Math.floor((z-r)/LGC),d1=Math.floor((z+r)/LGC),r2=r*r;
+  for(let cx=c0;cx<=c1;cx++)for(let cz=d0;cz<=d1;cz++){const a=LGRIDM.get(cx*8192+cz);if(!a)continue;
+    for(let q=0;q<a.length;q++){const i=a[q],dx=LAMPS[i]-x,dz=LAMPS[i+2]-z,d2=dx*dx+dz*dz;if(d2>r2)continue;const sc=d2-(dx*ahx+dz*ahz)*6;   /* lamps ahead of the car count as nearer */
+      let p=n<k?n++:k;if(p==k&&sc>=_lampScore[k-1])continue;if(p==k)p=k-1;while(p>0&&_lampScore[p-1]>sc){_lampScore[p]=_lampScore[p-1];_lampPick[p]=_lampPick[p-1];p--}_lampScore[p]=sc;_lampPick[p]=i}}
+  return n}
+/* ---------------- lights near the car (used by the wet road) ---------------- */
+function gfxLights(){
+  const T=GFX.cur,NL=T.NL,lt=GFX.lt,lc=GFX.lc;let n=0;const sy=Math.sin(C.yaw),cy=Math.cos(C.yaw),fx=sy,fz=-cy;
+  const put=(x,y,z,rad,r,g,b)=>{if(n>=NL)return;const o=n*4;lt[o]=x;lt[o+1]=y;lt[o+2]=z;lt[o+3]=rad;lc[n*3]=r;lc[n*3+1]=g;lc[n*3+2]=b;n++};
+  /* the car's headlights (a pool on the road ahead) and tail lights (red, stronger on the brakes) */
+  put(C.x+fx*7,C.y+.9,C.z+fz*7,30,.95,.88,.62);put(C.x-fx*2.6,C.y+.5,C.z-fz*2.6,10,C.braking?1.5:.55,.06,.03);
+  const nl=Math.min(NL-n-(NL>=6?2:0),6),k=gfxNearLamps(C.x,C.z,110,Math.max(0,nl),fx,fz);for(let i=0;i<k;i++){const j=_lampPick[i];put(LAMPS[j],LAMPS[j+1],LAMPS[j+2],26,.82,.62,.38)}
+  /* traffic: the lights of the nearest cars */
+  if(NL>=6&&TR.on){let b1=-1,b2=-1,d1=1e9,d2=1e9;for(let i=0;i<TR.cars.length;i++){const c=TR.cars[i];if(!c.alive||c.state>2)continue;const dx=c.x-C.x,dz=c.z-C.z,d=dx*dx+dz*dz;if(d>6400)continue;if(d<d1){b2=b1;d2=d1;b1=i;d1=d}else if(d<d2){b2=i;d2=d}}
+    for(const bi of[b1,b2]){if(bi<0)continue;const c=TR.cars[bi],cs=Math.sin(c.yaw),cc=Math.cos(c.yaw),toward=((C.x-c.x)*cs+(C.z-c.z)*-cc)>0;
+      /* a car coming at us shows its headlights, one going away its tail lights */
+      if(toward)put(c.x+cs*3,c.y+.7,c.z-cc*3,24,.9,.86,.7);else put(c.x-cs*2.4,c.y+.6,c.z+cc*2.4,9,c.brake?1.4:.5,.05,.03)}}
+  GFX.nlt=n;for(let i=n;i<NL;i++){lt[i*4+3]=.001;lc[i*3]=lc[i*3+1]=lc[i*3+2]=0;lt[i*4]=lt[i*4+1]=lt[i*4+2]=0}}
+function gfxSetRoadU(P){const gl=G.gl,u=P.u,NL=GFX.cur.NL;gl.uniform1f(u.uWet,GFX.wet);gl.uniform4fv(u.uLt,GFX.lt.subarray(0,NL*4));gl.uniform3fv(u.uLc,GFX.lc.subarray(0,NL*3))}
+/* ---------------- the pass that puts the picture on the screen ---------------- */
+function gfxComposite(w,h){
+  const gl=G.gl,T=GFX.cur;gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,w,h);gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
+  gl.bindBuffer(gl.ARRAY_BUFFER,R.skyB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);
+  if(T.bloom&&GFX.bl[0]){
+    let P=G.P.bright;gl.useProgram(P.p);gl.bindFramebuffer(gl.FRAMEBUFFER,GFX.bl[0]);gl.viewport(0,0,GFX.bw,GFX.bh);bindTex(0,GFX.col);gl.uniform1i(P.u.uS,0);gl.uniform2f(P.u.uPx,1/w,1/h);gl.drawArrays(gl.TRIANGLES,0,3);
+    P=G.P.blur;gl.useProgram(P.p);gl.bindFramebuffer(gl.FRAMEBUFFER,GFX.bl[1]);bindTex(0,GFX.blT[0]);gl.uniform1i(P.u.uS,0);gl.uniform2f(P.u.uPx,1/GFX.bw,0);gl.drawArrays(gl.TRIANGLES,0,3);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,GFX.bl[0]);bindTex(0,GFX.blT[1]);gl.uniform2f(P.u.uPx,0,1/GFX.bh);gl.drawArrays(gl.TRIANGLES,0,3);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,w,h);R.draws+=3}
+  const P=G.P.postv;gl.useProgram(P.p);bindTex(0,GFX.col);gl.uniform1i(P.u.uS,0);if(P.u.uB){bindTex(1,GFX.blT[0]||GFX.col);gl.uniform1i(P.u.uB,1)}gl.uniform2f(P.u.uPx,1/w,1/h);
+  gl.uniform4f(P.u.uP,GFX.blurAmt,.6,.5,R.time%100);gl.drawArrays(gl.TRIANGLES,0,3);R.draws++}
+/* speed blur: from about 45 m/s, more with nitro */
+function gfxUpdate(dt){const sp=(C.speed||0)+(C.boosting?14:0),t=Math.max(0,Math.min(1,(sp-38)/60));GFX.blurAmt+=(t*.9-GFX.blurAmt)*Math.min(1,dt*3)}
+/* ---------------- the automatic quality choice ----------------
+   The frame rate on a phone is capped at the screen rate, so "frames are on time" says nothing about how much room is left. So every few seconds a short probe times a few frames
+   WITH a forced wait for the GPU (a 1-pixel readback), which gives the real cost of a frame (CPU + GPU, not overlapped, so a bit pessimistic). The rules are made so the phone is never run flat out:
+   step UP only if the next tier's estimated cost stays under 9.5 ms (57 % of a 60 fps frame) twice in a row; step DOWN at 13.5 ms or when frames are late; resolution moves first, tier second. */
+const GOV={budget:16.7,upMs:9.5,downMs:13.5,probeEvery:2.6,probeFrames:8,cool:9,lockT:70};
+function gfxFrameStart(){GFX.t0=performance.now()}
+/* called at the end of the frame, after the picture is complete */
+function gfxFrameEnd(ms){
+  GFX.ivN++;GFX.ivAvg+=(ms-GFX.ivAvg)*.06;GFX.since+=ms/1000;
+  if(GFX.mode!='auto'&&!QS.has('govern'))return;if(GFX.fixed)return;
+  if(!GFX.probeOn){if(GFX.since>GOV.cool&&((GFX.ivN%Math.round(GOV.probeEvery*50))==0)){GFX.probeOn=1;GFX.probeN=0;GFX.probeT.length=0}}
+  else{const gl=G.gl;gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,_rp);const w=performance.now()-GFX.t0;GFX.probeT.push(w);
+    if(++GFX.probeN>=GOV.probeFrames){GFX.probeOn=0;GFX.probeT.sort((a,b)=>a-b);const med=GFX.probeT[GFX.probeT.length>>1];gfxGovern(med,GFX.ivAvg)}}}
+const _rp=new Uint8Array(4);
+/* the decision (also called by the tests with made-up numbers). work = ms for a whole frame, iv = average time between frames */
+function gfxGovern(work,iv){
+  GFX.work=work;const T=GFX.cur,t=GFX.tier;GFX.late=iv>GOV.budget*1.14?1:0;const now=performance.now();let act='';
+  const heavy=work>GOV.downMs||GFX.late;
+  if(heavy){GFX.okRuns=0;
+    if(Q.scale>T.scMin+.011){Q.scale=Math.max(T.scMin,Q.scale-(work>GOV.downMs*1.5?.1:.05));Q.apply();act='scale down'}
+    else if(t>0){GFX.upLock[t]=now+GOV.lockT*1000;gfxSetTier(t-1);Q.scale=GFXT[t-1].scMax*.92;Q.apply();act='tier down'}}
+  else{
+    /* room to grow? estimate the cost at the next step and keep it under the up limit */
+    const nextScale=Math.min(T.scMax,Q.scale+.05);const estScale=work*(nextScale*nextScale)/(Q.scale*Q.scale);
+    if(Q.scale<T.scMax-.011){if(estScale<GOV.upMs){if(++GFX.okRuns>=2){Q.scale=nextScale;Q.apply();GFX.okRuns=0;act='scale up'}}else GFX.okRuns=0}
+    else if(t<2&&now>GFX.upLock[t+1]){const est=work*GFXT[t+1].cost/T.cost;if(est<GOV.upMs){if(++GFX.okRuns>=2){gfxSetTier(t+1);Q.scale=GFXT[t+1].scMin+.05;Q.apply();GFX.okRuns=0;act='tier up'}}else GFX.okRuns=0}}
+  if(act){GFX.since=0;GFX.log.push({work:+work.toFixed(1),iv:+iv.toFixed(1),act,tier:GFX.tier,scale:+Q.scale.toFixed(2)});if(GFX.log.length>40)GFX.log.shift()}
+  return act}
+
+'use strict';
+/* ===== soft sun shadows around the car (tiered) ===== */
+/* One orthographic depth map from the sun's direction, centred on the car and snapped to a world grid (so the shadows do not shimmer as the car moves).
+   Medium: 512 x 512 over 68 m, casters = the player's car and the traffic. High: 1024 x 1024 over 92 m, plus the buildings, trees and lamp posts near the car.
+   The depth is packed into the 4 bytes of an RGBA texture (works on every WebGL1 phone, no depth-texture extension needed). Receivers are the terrain and the road
+   (their shaders are compiled with SHADOW = 1 or 2 only on the tiers that have it); the sun is behind cloud, so the shadows are weak and blurred (strength 0.5, a 2 x 2 or 3 x 3 filter). */
+const SHD={res:0,fbo:null,tex:null,dep:null,LP:new Float32Array(16),LV:new Float32Array(16),PM:new Float32Array(16),half:34,ok:true,bias:.0011,strength:.5,cx:0,cz:0,n:0,
+  _mb:new Float32Array(16),_mw:new Float32Array(16),_mf:new Float32Array(16)};
+const SHPK='vec4 pk(float d){vec4 e=fract(d*vec4(1.,255.,65025.,16581375.));e-=e.yzww*vec4(1./255.,1./255.,1./255.,0.);return e;}\n';
+const SHD_F=PRE+SHPK+'void main(){gl_FragColor=pk(gl_FragCoord.z);}';
+const SHD_V={
+ car:'attribute vec4 aP;uniform mat4 uLP,uM;void main(){gl_Position=uLP*(uM*vec4(aP.xyz,1.));}',
+ prop:'attribute vec3 aP;uniform mat4 uLP;void main(){gl_Position=uLP*vec4(aP,1.);}',
+ tr:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;uniform mat4 uLP;\n'+
+  'vec3 rt(vec3 p,float cy,float sy,float cp,float sp,float cr,float sr){float x=p.x*cr-p.y*sr,y=p.x*sr+p.y*cr,z=p.z;float y2=y*cp+z*sp,z2=z*cp-y*sp;return vec3(cy*x+sy*z2,y2,sy*x-cy*z2);}\n'+
+  'void main(){float cy=cos(aI0.w),sy=sin(aI0.w),cp=cos(aI1.x),sp=sin(aI1.x),cr=cos(aI1.y),sr=sin(aI1.y);vec3 w=rt(aP,cy,sy,cp,sp,cr,sr)+aI0.xyz;gl_Position=uLP*vec4(w,1.)+vec4(aN.x*0.,0.,0.,0.)+vec4(aI1.w*0.,0.,0.,0.);}'};
+function shdFree(){const gl=G.gl;if(SHD.fbo)gl.deleteFramebuffer(SHD.fbo);if(SHD.tex)gl.deleteTexture(SHD.tex);if(SHD.dep)gl.deleteRenderbuffer(SHD.dep);SHD.fbo=SHD.tex=SHD.dep=null;SHD.res=0}
+function shdTarget(res){
+  if(SHD.fbo&&SHD.res==res)return true;const gl=G.gl;shdFree();
+  try{SHD.tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,SHD.tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,res,res,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+    for(const[k,v]of[[gl.TEXTURE_MIN_FILTER,gl.NEAREST],[gl.TEXTURE_MAG_FILTER,gl.NEAREST],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]])gl.texParameteri(gl.TEXTURE_2D,k,v);
+    SHD.dep=gl.createRenderbuffer();gl.bindRenderbuffer(gl.RENDERBUFFER,SHD.dep);gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,res,res);
+    SHD.fbo=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,SHD.fbo);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,SHD.tex,0);gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,SHD.dep);
+    if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!=gl.FRAMEBUFFER_COMPLETE)throw new Error('shadow fbo incomplete');SHD.res=res;gl.bindFramebuffer(gl.FRAMEBUFFER,null);return true}
+  catch(e){gl.bindFramebuffer(gl.FRAMEBUFFER,null);shdFree();SHD.ok=false;console.warn('shadows off: '+e.message);return false}}
+/* the sun's view of the area round (cx, cy, cz) */
+function shdMatrices(cx,cy,cz){
+  const L=ENV.sun,h=SHD.half,tex=2*h/SHD.res,LV=SHD.LV;
+  M4.look(LV,cx+L[0]*110,cy+L[1]*110,cz+L[2]*110,cx,cy,cz);
+  /* snap the centre to the texel grid along the light's right and up axes (measured in the world, so the grid does not move with the car) */
+  const sx=LV[0],sy=LV[4],sz=LV[8],ux=LV[1],uy=LV[5],uz=LV[9],ca=sx*cx+sy*cy+sz*cz,cb=ux*cx+uy*cy+uz*cz,da=Math.round(ca/tex)*tex-ca,db=Math.round(cb/tex)*tex-cb;
+  cx+=sx*da+ux*db;cy+=sy*da+uy*db;cz+=sz*da+uz*db;
+  M4.look(LV,cx+L[0]*110,cy+L[1]*110,cz+L[2]*110,cx,cy,cz);
+  const P=SHD.PM,n=.5,f=240;P.fill(0);P[0]=1/h;P[5]=1/h;P[10]=-2/(f-n);P[14]=-(f+n)/(f-n);P[15]=1;M4.mul(SHD.LP,P,LV)}
+/* draw the shadow map; returns true if it is ready */
+function shdPass(){
+  const T=GFX.cur,gl=G.gl;GFX.shadowOn=false;if(!T.shadow||!GFX.ok||!SHD.ok)return false;
+  const res=T.shadow>1?1024:512;SHD.half=T.shadow>1?46:34;if(!shdTarget(res))return false;
+  if(!G.P.shc){G.P.shc=mkProg('shc',SHD_V.car,SHD_F,['aP']);G.P.shp=mkProg('shp',SHD_V.prop,SHD_F,['aP']);G.P.sht=mkProg('sht',SHD_V.tr,SHD_F,['aP','aN','aI0','aI1'])}
+  const a=R.alpha,x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a);SHD.cx=x;SHD.cz=z;shdMatrices(x,y,z);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,SHD.fbo);gl.viewport(0,0,res,res);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
+  /* the player's car */
+  let P=G.P.shc;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);attrs(1);
+  const yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a),S=1/8192,mb=SHD._mb,mw=SHD._mw,mf=SHD._mf;
+  const mesh=(m,M)=>{gl.uniformMatrix4fv(P.u.uM,false,M);gl.bindBuffer(gl.ARRAY_BUFFER,m.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib);gl.vertexAttribPointer(0,4,gl.SHORT,false,16,0);gl.drawElements(gl.TRIANGLES,m.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=m.n/3};
+  if(CARM.body){M4.trs(mb,x,y+C.bob,z,-yaw,pit,rol,S,S,S);mesh(CARM.body,mb);
+    for(let w=0;w<CARM.wheels.length;w++){const wh=CARM.wheels[w];for(const sd of[-1,1]){const st=w==0?C.steerVis:0;M4.trs(mw,sd*wh.lat,wh.R,wh.x,st,-C.spin,0,sd*S,S,S);M4.trs(mf,x,y+C.bob,z,-yaw,pit,rol,1,1,1);M4.mul(mb,mf,mw);mesh(wh,mb)}}}
+  /* traffic */
+  if(TRM.nv){P=G.P.sht;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);trIssue()}
+  /* buildings, trees and lamp posts near the car (High only) */
+  if(T.shadow>1){P=G.P.shp;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);attrs(1);const r0=SHD.half*1.45;
+    for(let i=0;i<R.props.length;i++){const p=R.props[i];if(Math.abs(p.cx-x)>r0+p.rad||Math.abs(p.cz-z)>r0+p.rad)continue;
+      gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}}
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);GFX.shadowOn=true;return true}
+/* give a receiving program (terrain, road) the map */
+function shdSetU(P){if(!P.u.uSh)return;const gl=G.gl;bindTex(4,SHD.tex||R.tex.nz);gl.uniform1i(P.u.uSh,4);gl.uniformMatrix4fv(P.u.uLS,false,SHD.LP);gl.uniform4f(P.u.uShP,1/Math.max(1,SHD.res),GFX.shadowOn?SHD.strength:0,SHD.bias,0)}
 
 'use strict';
 /* ===== the car: baked Surge Sport mesh, arcade driving model, chase camera ===== */
@@ -1399,41 +1661,111 @@ function camStep(dt,snap){
   const la=9+sp*8;CAM.tx=C.x+Math.sin(cyw)*la;CAM.tz=C.z-Math.cos(cyw)*la;CAM.ty=C.y+1.15+(C.camY-(C.y+h))*.2+C.vy*.02;
   const shk=C.shake*.12;if(shk>.002){CAM.x+=(Math.random()-.5)*shk;CAM.y+=(Math.random()-.5)*shk;CAM.z+=(Math.random()-.5)*shk}
   const tf=1.05+sp*.22+(C.boosting?.1:0);C.fov+=(tf-C.fov)*(snap?1:1-Math.exp(-dt*3));CAM.fov=C.fov}
-/* ---------- effects: blob shadow, smoke, skid marks ---------- */
-const SKID=[],SKMAX=240;let skidHead=0;const SMOKE=[];for(let i=0;i<64;i++)SMOKE.push({x:0,y:0,z:0,vx:0,vy:0,vz:0,age:9,life:1,sz:1,a:0});let smokeHead=0;
-const lastSk=[[0,0,0,0],[0,0,0,0]];let skCool=0;
+/* (the effects - shadow blob, skid marks, smoke, spray, sparks, light glows and beams - are in 41_fx.js) */
+
+'use strict';
+/* ===== effects: shadow blob, skid marks, smoke, tyre spray, sparks, and the lights (glow sprites, headlight beams, light pools, sirens) ===== */
+/* Everything is camera-facing or ground-lying quads written into one dynamic buffer and drawn in batches (one draw per mode): alpha-blended (shadow, skids, pads, smoke/spray), then additive
+   (light pools and beams, glows, sparks). The number of glows, pools and particles scales with the graphics tier (GFX.cur). */
+const SKID=[],SKMAX=240;let skidHead=0;
+const SMOKE=[];for(let i=0;i<160;i++)SMOKE.push({x:0,y:0,z:0,vx:0,vy:0,vz:0,age:9,life:1,sz:1,a:0,k:0,id:i});let smokeHead=0;
+const SPARK=[];for(let i=0;i<96;i++)SPARK.push({x:0,y:0,z:0,vx:0,vy:0,vz:0,age:9,life:1});let sparkHead=0,_spCur=0;
+const lastSk=[[0,0,0,0],[0,0,0,0]];let skCool=0,spCool=0;
+/* where the lights are on the car model (read from the baked mesh: the emissive material): x right, y up, z backwards, metres */
+const CARL={hx:.34,hy:.25,hz:-2.16,tx:.43,ty:.35,tz:2.18};
+function sparkAt(x,y,z,nx,nz,n,sp){for(let i=0;i<n;i++){const s=SPARK[sparkHead++%SPARK.length],a=Math.random()*6.283,u=Math.random();s.x=x;s.y=y;s.z=z;const v=(sp||6)*(.35+u);
+    s.vx=nx*v*.6+Math.cos(a)*v*.7;s.vz=nz*v*.6+Math.sin(a)*v*.7;s.vy=1.5+Math.random()*4;s.age=0;s.life=.25+Math.random()*.4}}
 function fxUpdate(dt){
+  const T=GFX.cur,q=T.fxq,sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
   /* tyre smoke + skid marks from the rear wheels while sliding */
-  const act=C.grounded&&C.speed>10&&C.slip>.1&&(C.drift>.35||C.dActive),sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
+  const act=C.grounded&&C.speed>10&&C.slip>.1&&(C.drift>.35||C.dActive);
   for(let w=0;w<2;w++){const sd=w?1:-1,px=C.x-sy*1.3+cy*sd*.8,pz=C.z+cy*1.3+sy*sd*.8;
-    if(act){const L=lastSk[w];if(L[3]){const q=SKID[skidHead%SKMAX]=SKID[skidHead%SKMAX]||new Float32Array(8);q[0]=L[0];q[1]=L[1];q[2]=px;q[3]=pz;q[4]=C.y;q[5]=C.t;q[6]=Math.min(1,Math.max(C.drift,C.slip*3));skidHead++}L[0]=px;L[1]=pz;L[3]=1}else lastSk[w][3]=0}
-  if(act||C.boosting){skCool-=dt;while(skCool<=0){skCool+=.035;const s=SMOKE[smokeHead++%64],sd=Math.random()<.5?-1:1;s.x=C.x-sy*1.4+cy*sd*.8;s.z=C.z+cy*1.4+sy*sd*.8;s.y=C.y+.25;s.vx=C.vx*.25+(Math.random()-.5)*1.5;s.vz=C.vz*.25+(Math.random()-.5)*1.5;s.vy=1+Math.random()*1.2;s.age=0;s.life=.9+Math.random()*.6;s.sz=.9;s.a=act?.5:.3;s.fire=!act;s.dark=0}}
-  for(const s of SMOKE){if(s.age<s.life){s.age+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;s.vy*=Math.max(0,1-dt*1.2)}}dmgFx(dt)}
+    if(act){const L=lastSk[w];if(L[3]){const k=SKID[skidHead%SKMAX]=SKID[skidHead%SKMAX]||new Float32Array(8);k[0]=L[0];k[1]=L[1];k[2]=px;k[3]=pz;k[4]=C.y;k[5]=C.t;k[6]=Math.min(1,Math.max(C.drift,C.slip*3));skidHead++}L[0]=px;L[1]=pz;L[3]=1}else lastSk[w][3]=0}
+  if(act||C.boosting){skCool-=dt;while(skCool<=0){skCool+=.035/Math.max(.5,q);const s=SMOKE[smokeHead++%SMOKE.length],sd=Math.random()<.5?-1:1;s.x=C.x-sy*1.4+cy*sd*.8;s.z=C.z+cy*1.4+sy*sd*.8;s.y=C.y+.25;s.vx=C.vx*.25+(Math.random()-.5)*1.5;s.vz=C.vz*.25+(Math.random()-.5)*1.5;s.vy=1+Math.random()*1.2;s.age=0;s.life=.9+Math.random()*.6;s.sz=.9;s.a=act?.5:.3;s.fire=!act;s.dark=0;s.k=0}}
+  /* spray: the wet road is thrown up behind the tyres at speed (more when sliding) */
+  if(C.grounded&&C.onRoad&&C.speed>13&&GFX.wet>.2){const sp=Math.min(1,(C.speed-13)/30);spCool-=dt;
+    while(spCool<=0){spCool+=.045/Math.max(.4,q*(.5+sp));for(let w=0;w<2;w++){const sd=w?1:-1,s=SMOKE[smokeHead++%SMOKE.length];s.x=C.x-sy*1.3+cy*sd*.85;s.z=C.z+cy*1.3+sy*sd*.85;s.y=C.y+.12;s.vx=C.vx*.55+cy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vz=C.vz*.55+sy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vy=.5+Math.random()*1.4*(.5+sp);
+        s.age=0;s.life=.5+Math.random()*.5;s.sz=.35+sp*.35;s.a=.12+.14*sp;s.fire=0;s.dark=0;s.k=1}}}
+  for(const s of SMOKE){if(s.age<s.life){s.age+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;s.vy*=Math.max(0,1-dt*(s.k?2.4:1.2));if(s.k){s.vx*=Math.max(0,1-dt*1.6);s.vz*=Math.max(0,1-dt*1.6)}}}
+  /* sparks from every new impact (walls, poles, other cars) */
+  if(IMP.n!==_spCur){const k=Math.min(IMP.n-_spCur,IMP.q.length);for(let i=IMP.q.length-k;i<IMP.q.length;i++){const r=IMP.q[i];if(r.src==2||r.E<1500)continue;
+      const n=Math.min(26,4+Math.round(Math.sqrt(r.E)/40));sparkAt(r.src==3?(r.x+C.x)/2:C.x-r.nx*1.2,C.y+.45,r.src==3?(r.z+C.z)/2:C.z-r.nz*1.2,r.nx||0,r.nz||0,Math.round(n*q),Math.min(14,2+r.vn*.7))}_spCur=IMP.n}
+  for(const s of SPARK){if(s.age<s.life){s.age+=dt;s.vy-=14*dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;if(s.y<C.gs+.03){s.y=C.gs+.03;s.vy*=-.3;s.vx*=.6;s.vz*=.6}}}
+  dmgFx(dt)}
 function fxDraw(){
-  const gl=G.gl,P=G.P.fx,F=R.fxF;let n=0;
-  const quad=(x0,y0,z0,x1,y1,z1,x2,y2,z2,x3,y3,z3,r,g,b,a)=>{if(n>=R.fxMax)return;let o=n*36;
-    F[o]=x0;F[o+1]=y0;F[o+2]=z0;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=a;F[o+7]=0;F[o+8]=0;o+=9;
-    F[o]=x1;F[o+1]=y1;F[o+2]=z1;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=a;F[o+7]=1;F[o+8]=0;o+=9;
-    F[o]=x2;F[o+1]=y2;F[o+2]=z2;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=a;F[o+7]=1;F[o+8]=1;o+=9;
-    F[o]=x3;F[o+1]=y3;F[o+2]=z3;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=a;F[o+7]=0;F[o+8]=1;n++};
-  const x=C.x,z=C.z,sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
-  /* blob shadow under the car (mode 0 batch comes first) */
-  const gy=C.gs+.04,L=2.6,Wd=1.35;quad(x+sy*-L-cy*Wd,gy,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,gy,z+cy*L+sy*Wd,x+sy*L+cy*Wd,gy,z-cy*L+sy*Wd,x+sy*L-cy*Wd,gy,z-cy*L-sy*Wd,0,0,0,.5/(1+Math.max(0,C.y-C.gs)*.4));
+  const gl=G.gl,P=G.P.fx,F=R.fxF,T=GFX.cur,a=R.alpha;let n=0;
+  const quad=(x0,y0,z0,x1,y1,z1,x2,y2,z2,x3,y3,z3,r,g,b,al,uo)=>{if(n>=R.fxMax)return;let o=n*36;uo=uo||0;
+    F[o]=x0;F[o+1]=y0;F[o+2]=z0;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=al;F[o+7]=uo;F[o+8]=0;o+=9;
+    F[o]=x1;F[o+1]=y1;F[o+2]=z1;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=al;F[o+7]=uo+1;F[o+8]=0;o+=9;
+    F[o]=x2;F[o+1]=y2;F[o+2]=z2;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=al;F[o+7]=uo+1;F[o+8]=1;o+=9;
+    F[o]=x3;F[o+1]=y3;F[o+2]=z3;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=al;F[o+7]=uo;F[o+8]=1;n++};
+  const B=[];let bFrom=0,bMode=-1;const batch=m=>{if(bMode>=0&&n>bFrom)B.push(bMode,bFrom,n);bFrom=n;bMode=m};
+  const x=C.x,z=C.z,sy=Math.sin(C.yaw),cy=Math.cos(C.yaw),rx=R.rt[0],rz=R.rt[2],ux0=R.up[0],uy0=R.up[1],uz0=R.up[2];
+  /* a camera-facing square of half size s */
+  const sprite=(px,py,pz,s,r,g,b,al,uo)=>quad(px-rx*s-ux0*s,py-uy0*s,pz-rz*s-uz0*s,px+rx*s-ux0*s,py-uy0*s,pz+rz*s-uz0*s,px+rx*s+ux0*s,py+uy0*s,pz+rz*s+uz0*s,px-rx*s+ux0*s,py+uy0*s,pz-rz*s+uz0*s,r,g,b,al,uo);
+  /* a square lying on the ground (size s) */
+  const flat=(px,py,pz,sx,sz2,r,g,b,al)=>quad(px-sx,py,pz-sz2,px+sx,py,pz-sz2,px+sx,py,pz+sz2,px-sx,py,pz+sz2,r,g,b,al);
+  /* ---- alpha: blob shadow (the soft sun shadow replaces it where the tier has one), skid marks, garage pads, smoke and spray ---- */
+  batch(0);
+  const gy=C.gs+.04,L=2.6,Wd=1.35;quad(x+sy*-L-cy*Wd,gy,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,gy,z+cy*L+sy*Wd,x+sy*L+cy*Wd,gy,z-cy*L+sy*Wd,x+sy*L-cy*Wd,gy,z-cy*L-sy*Wd,0,0,0,(GFX.shadowOn?.22:.5)/(1+Math.max(0,C.y-C.gs)*.4));
   trShadows(quad);
-  const nShadow=n;
-  /* skid marks (mode 2 batch) */
-  const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,a=.55*(1-age/40)*q[6];if(l>6)continue;
-    quad(q[0]-nx,y,q[1]-nz,q[0]+nx,y,q[1]+nz,q[2]+nx,y,q[3]+nz,q[2]-nx,y,q[3]-nz,.02,.02,.02,a)}
-  const nSkid=n;safePads(quad);const nPad=n;
-  /* smoke + exhaust flame puffs (mode 1 batch): camera-facing quads */
-  const rx=R.rt[0],rz=R.rt[2];for(const s of SMOKE){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sz=s.sz+t*2.6,a=s.a*(1-t)*(1-t);const ux=R.up[0]*sz,uy=R.up[1]*sz,uz=R.up[2]*sz,hx=rx*sz,hz=rz*sz;
-    const dk=s.dark&&!s.fire?.25:1,cr=(s.fire?1:.86)*dk,cg=(s.fire?.55-.4*t:.86)*dk,cb=(s.fire?.2:.88)*dk;quad(s.x-hx-ux,s.y-uy,s.z-hz-uz,s.x+hx-ux,s.y-uy,s.z+hz-uz,s.x+hx+ux,s.y+uy,s.z+hz+uz,s.x-hx+ux,s.y+uy,s.z-hz+uz,cr,cg,cb,a)}
-  if(!n)return;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.bindBuffer(gl.ARRAY_BUFFER,R.fx);gl.bufferSubData(gl.ARRAY_BUFFER,0,F.subarray(0,n*36));gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,R.fxIx);attrs(3);
+  batch(2);
+  const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,al=.55*(1-age/40)*q[6];if(l>6)continue;
+    quad(q[0]-nx,y,q[1]-nz,q[0]+nx,y,q[1]+nz,q[2]+nx,y,q[3]+nz,q[2]-nx,y,q[3]-nz,.02,.02,.02,al)}
+  batch(3);safePads(quad);
+  batch(1);
+  for(const s of SMOKE){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sz=s.sz+t*(s.k?1.3:2.6),al=s.a*(1-t)*(1-t);const ux=R.up[0]*sz,uy=R.up[1]*sz,uz=R.up[2]*sz,hx=rx*sz,hz=rz*sz;
+    let cr,cg,cb;if(s.k){cr=.62;cg=.68;cb=.74}else{const dk=s.dark&&!s.fire?.25:1;cr=(s.fire?1:.80)*dk;cg=(s.fire?.55-.4*t:.82)*dk;cb=(s.fire?.2:.86)*dk}
+    quad(s.x-hx-ux,s.y-uy,s.z-hz-uz,s.x+hx-ux,s.y-uy,s.z+hz-uz,s.x+hx+ux,s.y+uy,s.z+hz+uz,s.x-hx+ux,s.y+uy,s.z-hz+uz,cr,cg,cb,al,s.id*3)}
+  /* ---- additive: light pools and beams on the ground ---- */
+  batch(5);
+  const gcx=R.cx,gcz=R.cz,fwx=sy,fwz=-cy;
+  const lampK=Math.max(T.glow,T.pool),nl=gfxNearLamps(x,z,300,lampK,fwx,fwz);
+  const nPool=Math.min(nl,T.pool);
+  for(let i=0;i<nPool;i++){const j=_lampPick[i],lx=LAMPS[j],ly=LAMPS[j+1]-6.95,lz=LAMPS[j+2];flat(lx,ly+.03,lz,7.5,7.5,1,.78,.45,.34)}
+  batch(6);
+  /* the car's headlights: a pool of light on the road ahead, wider the further it goes (uv runs across, then along: mode 6 is the beam shape) */
+  {const hx=sy,hz=-cy,rxc=cy,rzc=sy,gy2=C.gs+.05,x0=x+hx*2.0,z0=z+hz*2.0,len=26;
+   quad(x0-rxc*1.0,gy2,z0-rzc*1.0,x0+rxc*1.0,gy2,z0+rzc*1.0,x0+hx*len+rxc*6.5,gy2,z0+hz*len+rzc*6.5,x0+hx*len-rxc*6.5,gy2,z0+hz*len-rzc*6.5,1,.92,.7,.5)}
+  /* beams of the cars that come at us */
+  if(TR.on&&T.glow>30){let k=0;for(const c of TR.cars){if(!c.alive||k>=10)continue;const dx=c.x-x,dz=c.z-z,d2=dx*dx+dz*dz;if(d2>14400||d2<100)continue;const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);
+      if((x-c.x)*hx+(z-c.z)*hz<0)continue;k++;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),py=lerp(c.py,c.y,a)+.06,x0=px+hx*(c.hl-.1),z0=pz+hz*(c.hl-.1),rr=-hz,rs=hx;
+      quad(x0-rr*.8,py,z0-rs*.8,x0+rr*.8,py,z0+rs*.8,x0+hx*20+rr*5.5,py,z0+hz*20+rs*5.5,x0+hx*20-rr*5.5,py,z0+hz*20-rs*5.5,1,.92,.72,.32)}}
+  /* ---- additive: glows ---- */
+  batch(4);
+  let ng=0;const gMax=T.glow;
+  /* lamp heads along the road, shrinking with distance but never to nothing, so a line of lights runs away into the haze */
+  for(let i=0;i<nl&&ng<gMax;i++){const j=_lampPick[i],dx=LAMPS[j]-gcx,dy=LAMPS[j+1]-R.cy,dz=LAMPS[j+2]-gcz,d=Math.sqrt(dx*dx+dy*dy+dz*dz);if(dx*R.fw[0]+dy*R.fw[1]+dz*R.fw[2]<-2)continue;
+    const s=.9+d*.012,al=Math.min(.95,1.25-d/330);if(al<=.02)continue;sprite(LAMPS[j],LAMPS[j+1]+.1,LAMPS[j+2],s,1,.78,.45,al);ng++}
+  /* neon */
+  for(let i=0;i<NEONS.length&&ng<gMax+24;i+=7){const nx=NEONS[i]-gcx,nz=NEONS[i+2]-gcz,d2=nx*nx+nz*nz;if(d2>56000)continue;if(nx*R.fw[0]+nz*R.fw[2]<-3)continue;const d=Math.sqrt(d2),fl=.82+.18*Math.sin(R.time*(3+(i%5))+i),al=Math.min(.95,1.15-d/240)*fl;
+    sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al);ng++}
+  /* the car's own lights */
+  {const hx=sy,hz=-cy,rr=cy,rs=sy,yy=C.y+C.bob;
+   for(const sd of[-1,1]){sprite(x+hx*-CARL.hz+rr*sd*CARL.hx,yy+CARL.hy+.12,z+hz*-CARL.hz+rs*sd*CARL.hx,.6,1,.95,.75,.7);
+     sprite(x-hx*CARL.tz+rr*sd*CARL.tx,yy+CARL.ty+.12,z-hz*CARL.tz+rs*sd*CARL.tx,C.braking?.9:.45,1,.12,.07,C.braking?.9:.4)}}
+  /* traffic: tail lights, headlights, the siren on a police car */
+  if(TR.on){const fx=R.fw;for(const c of TR.cars){if(!c.alive)continue;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz,d2=dx*dx+dz*dz;if(d2>62500||dx*fx[0]+dz*fx[2]<-6)continue;
+      const d=Math.sqrt(d2),py=lerp(c.py,c.y,a),yaw=c.pyaw+angd(c.yaw,c.pyaw)*a,hx=Math.sin(yaw),hz=-Math.cos(yaw),rr=Math.cos(yaw),rs=Math.sin(yaw),k=1-d/250;if(k<=.02)continue;
+      for(const sd of[-1,1]){const w=sd*c.hw*.68;
+        sprite(px-hx*(c.hl-.12)+rr*w,py+.66,pz-hz*(c.hl-.12)+rs*w,(c.brake?.75:.45)+d*.004,1,.1,.06,(c.brake?.95:.55)*k);
+        sprite(px+hx*(c.hl-.12)+rr*w,py+.62,pz+hz*(c.hl-.12)+rs*w,.5+d*.004,1,.93,.74,.5*k)}
+      if(c.siren){const ph=Math.sin(R.time*12)>0;sprite(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),2.4+d*.006,ph?1:.2,ph?.12:.4,ph?.1:1,Math.min(1,k*1.6))}}}
+  /* a lit garage door sign etc. could go here */
+  batch(7);
+  for(const s of SPARK){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sp=Math.hypot(s.vx,s.vy,s.vz)||1,l=Math.min(.7,sp*.045)+.05,w=.035*(1-t);
+    /* a short streak along the velocity, seen from the camera */
+    const dx=s.vx/sp*l,dy=s.vy/sp*l,dz=s.vz/sp*l,qx=-dz,qz=dx,ql=Math.hypot(qx,qz)||1;const px=qx/ql*w,pz=qz/ql*w;
+    quad(s.x-px,s.y,s.z-pz,s.x+px,s.y,s.z+pz,s.x+dx*-1+px,s.y-dy,s.z+dz*-1+pz,s.x+dx*-1-px,s.y-dy,s.z+dz*-1-pz,1,.78-.4*t,.3,1-t)}
+  batch(-1);
+  if(!n)return;
+  gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.bindBuffer(gl.ARRAY_BUFFER,R.fx);gl.bufferSubData(gl.ARRAY_BUFFER,0,F.subarray(0,n*36));gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,R.fxIx);attrs(3);
   gl.vertexAttribPointer(0,3,gl.FLOAT,false,36,0);gl.vertexAttribPointer(1,4,gl.FLOAT,false,36,12);gl.vertexAttribPointer(2,2,gl.FLOAT,false,36,28);gl.disable(gl.CULL_FACE);
-  gl.uniform1f(P.u.uMode,0);gl.drawElements(gl.TRIANGLES,nShadow*6,gl.UNSIGNED_SHORT,0);
-  if(nSkid>nShadow){gl.uniform1f(P.u.uMode,2);gl.drawElements(gl.TRIANGLES,(nSkid-nShadow)*6,gl.UNSIGNED_SHORT,nShadow*12)}
-  if(nPad>nSkid){gl.uniform1f(P.u.uMode,3);gl.drawElements(gl.TRIANGLES,(nPad-nSkid)*6,gl.UNSIGNED_SHORT,nSkid*12)}
-  if(n>nPad){gl.uniform1f(P.u.uMode,1);gl.drawElements(gl.TRIANGLES,(n-nPad)*6,gl.UNSIGNED_SHORT,nPad*12)}R.draws+=4}
+  gl.uniform1f(P.u.uQ,T.hi?1:0);let add=false;
+  for(let i=0;i<B.length;i+=3){const m=B[i],f=B[i+1],t=B[i+2],ad=m>=4;
+    if(ad!==add){add=ad;gl.blendFunc(gl.SRC_ALPHA,add?gl.ONE:gl.ONE_MINUS_SRC_ALPHA)}
+    gl.uniform1f(P.u.uMode,m);gl.drawElements(gl.TRIANGLES,(t-f)*6,gl.UNSIGNED_SHORT,f*12);R.draws++}
+  if(add)gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);R.fxN=n}
 
 'use strict';
 /* ===== controls (touch + keyboard), HUD, minimap, audio, adaptive quality ===== */
@@ -1480,21 +1812,19 @@ function uiLayout(){
   const rx=w-m-u*1.05;add('reset','RESET',rx,m,u*1.05,u*.55,v=>{if(v)IN.respawn=1},'#8a94a6');
   const ax=rx-u*.15-u*1.4;add('auto','AUTO',ax,m,u*1.4,u*.55,v=>{if(v)IN.auto=!IN.auto},'#8a94a6');
   const px=ax-u*.15-u*.65;add('pause','II',px,m,u*.65,u*.55,v=>{if(v)UI.paused=true},'#8a94a6');
-  add('stat','FPS',px-u*.15-u*.8,m,u*.8,u*.55,v=>{if(v)UI.showStats=!UI.showStats},'#8a94a6');
+  const sxp=px-u*.15-u*.8;add('stat','FPS',sxp,m,u*.8,u*.55,v=>{if(v)UI.showStats=!UI.showStats},'#8a94a6');
+  /* graphics setting: AUTO (picks the tier from measured frame cost), HIGH, LOW */
+  add('qual','GFX '+GFX.mode.toUpperCase(),sxp-u*.15-u*1.5,m,u*1.5,u*.55,v=>{if(v){gfxSetMode(GFX.mode=='auto'?'high':GFX.mode=='high'?'low':'auto');UI.bn.qual.label='GFX '+GFX.mode.toUpperCase();safeToast('Graphics: '+GFX.mode.toUpperCase()+(GFX.mode=='auto'?'  (now '+GFX.cur.name+')':''),2)}},'#8a94a6');
   UI.bn={};b.forEach(x=>UI.bn[x.id]=x);
   UI.btnU=u}
 function uiResize(){
   const cv=$('gl'),dpr=Math.min(window.devicePixelRatio||1,2),cw=window.innerWidth,ch=window.innerHeight;UI.w=cw;UI.h=ch;UI.dpr=dpr;
   UI.hud.width=Math.round(cw*Math.min(dpr,2));UI.hud.height=Math.round(ch*Math.min(dpr,2));
   Q.apply();uiLayout()}
-/* quality governor: render scale only (cheap, effective); keeps frame time near 16 ms */
+/* quality: the render scale and the tiers are decided in 31_gfx.js from measured frame cost; this keeps the screen-size bookkeeping and the smoothed frame time for the FPS readout */
 const Q={scale:.8,min:.45,max:1,acc:0,n:0,cool:0,aa:false,
-  apply(){const cv=$('gl'),dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(2,Math.round(UI.w*dpr*Q.scale)),h=Math.max(2,Math.round(UI.h*dpr*Q.scale));if(cv.width!=w||cv.height!=h){cv.width=w;cv.height=h}UI.cw=w;UI.ch=h;
-    const lo=Q.scale<.62;R.drawProp=[lo?380:560,lo?900:1500,lo?260:420];R.drawRoad=lo?1400:2200},
-  frame(ms){UI.ms+=(ms-UI.ms)*.08;Q.acc+=ms;Q.n++;Q.cool-=ms;
-    if(Q.n>=40){const avg=Q.acc/Q.n;Q.acc=0;Q.n=0;
-      if(avg>19&&Q.scale>Q.min&&Q.cool<=0){Q.scale=Math.max(Q.min,Q.scale-(avg>28?.12:.06));Q.cool=1200;Q.apply()}
-      else if(avg<12.5&&Q.scale<Q.max&&Q.cool<=-3000){Q.scale=Math.min(Q.max,Q.scale+.05);Q.cool=1200;Q.apply()}}}};
+  apply(){const cv=$('gl'),dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(2,Math.round(UI.w*dpr*Q.scale)),h=Math.max(2,Math.round(UI.h*dpr*Q.scale));if(cv.width!=w||cv.height!=h){cv.width=w;cv.height=h}UI.cw=w;UI.ch=h},
+  frame(ms){UI.ms+=(ms-UI.ms)*.08}};
 /* read inputs into IN each frame */
 function uiInputs(dt){
   const K=UI.keys;let st=0;
@@ -1575,7 +1905,7 @@ function hudDraw(){
   /* the thumb-stick ring where the left thumb is */
   {const t=UI.stickT;if(t){c.globalAlpha=.5;c.strokeStyle='#fff';c.lineWidth=3;c.beginPath();c.arc(t.x0,t.y0,Math.max(46,UI.w*.075),0,TAU);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(clamp(t.x,t.x0-Math.max(46,UI.w*.075),t.x0+Math.max(46,UI.w*.075)),t.y0,18,0,TAU);c.fill();c.globalAlpha=1}}
   /* stats */
-  if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px ui-monospace,Menlo,monospace';c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'AA '+(G.aa?'on':'off')+'  dpr '+(window.devicePixelRatio||1),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
+  if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px ui-monospace,Menlo,monospace';c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'gfx '+GFX.cur.name+' ('+GFX.mode+')  work '+GFX.work.toFixed(1)+' ms  fxaa'+(GFX.cur.blur?' blur':'')+(GFX.cur.bloom?' bloom':'')+(GFX.shadowOn?' shadow'+GFX.cur.shadow:''),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
   copHud(c,W_,H_,u);safeHud(c,W_,H_,u);
   if(UI.paused&&!window.__shot){c.fillStyle='rgba(0,0,0,.55)';c.fillRect(0,0,W_,H_);c.fillStyle='#fff';c.textAlign='center';c.font='800 28px sans-serif';c.fillText('PAUSED - tap to resume',W_/2,H_/2)}
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}
@@ -1628,7 +1958,7 @@ function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.s
 const TRN=72,HN=12,NSM=21,DTS=.2;                             /* the horizon has HN points; their spacing c.hs grows with speed (6 m in town, 10 m on the highway: 66 to 110 m) */
 const TTYPES=[{n:'sedan',hl:2.25,hw:.9,m:1300},{n:'hatch',hl:2.0,hw:.88,m:1100},{n:'suv',hl:2.4,hw:.95,m:1900},{n:'van',hl:2.7,hw:1.0,m:2300},{n:'cop',hl:2.25,hw:.9,m:1600}];
 const TCOLS=[[.74,.74,.76],[.07,.07,.08],[.5,.51,.54],[.55,.07,.07],[.09,.17,.36],[.84,.84,.82],[.1,.22,.15],[.55,.46,.3],[.78,.58,.08],[.3,.1,.26],[.16,.27,.4],[.4,.4,.36],[.82,.82,.84]];
-const TR={cars:[],on:true,prof:true,ms:0,max:56,t:0,sub:0,rng:null,boot:1,nAlive:0,target:0,head:new Int32Array(4096),stamp:0,P:null,seedBase:20240601,acc:0,visMin:140,visFar:380,rSpawn:430,rDespawn:540,
+const TR={cars:[],on:true,prof:true,ms:0,max:56,base:56,t:0,sub:0,rng:null,boot:1,nAlive:0,target:0,head:new Int32Array(4096),stamp:0,P:null,seedBase:20240601,acc:0,visMin:140,visFar:380,rSpawn:430,rDespawn:540,
   stat:{spawn:0,despawn:0,hits:0,wrecks:0,aiCrash:0,msSum:0,ticks:0,msMax:0,stuck:0,turns:0,lc:0,ign:0,forced:0}};
 function trNewCar(i){return{i,alive:0,state:0,kind:0,type:0,col:0,m:1300,I:1,hl:2.25,hw:.9,e:null,u:0,L:null,lu:0,x:0,z:0,y:0,yaw:0,v:0,vx:0,vz:0,om:0,px:0,pz:0,py:0,pyaw:0,pitch:0,roll:0,seed:0,v0f:1,A:2.2,T:1.3,off:0,offT:0,offHold:0,brake:0,wait:0,ign:0,age:0,hitT:0,stamp:0,nxt:-1,
   acc:0,think:0,crT:-9,hold:0,yHold:0,yGap:0,yWho:-9,yAt:0,stopT:0,yPrev:-1,pl:null,pjid:-1,lcCool:0,prio:0,hn:0,hend:0,hnTrue:0,hs:6,bg:99,yTo:-1,ns:0,vS:2.5,sx:new Float32Array(NSM),sz:new Float32Array(NSM),sdx:new Float32Array(NSM),sdz:new Float32Array(NSM),hx:new Float32Array(HN+2),hz:new Float32Array(HN+2),hv:new Float32Array(HN+2),vlim:0,flags:0,wt:0,cm:0,siren:0,block:0,life:0,pickJ:-1,pickL:null,role:0,ramCd:0,los:null,stk:0}}
@@ -1950,6 +2280,8 @@ function trSpawn(){
     for(const c of TR.cars)if(c.alive&&c.e===e&&!c.L){const dd=(c.u-u)*e.ds;if(dd>0&&dd<45&&c.v<v)v=c.v}
     const c=trPlace(e,u,type,col,v,seed);return c}
   return null}
+/* the graphics tier scales how many cars the player sees (a stronger phone gets more) */
+function trSetMul(m){TR.max=Math.min(TRN-4,Math.round(TR.base*m))}
 function trTarget(){trProbe(C.x,C.z);let cls=1;if(TRP.ri>=0&&TRP.d<60){const r=ROADS[TRP.ri];cls=lgLimit(r)[1]}else TRP.ri=-1;
   const d=trDens(C.x,C.z,cls);return Math.round(lerp(8,TR.max,d))}
 /* ---------------- the tick ---------------- */
@@ -2050,25 +2382,30 @@ function trShadows(quad){
   for(const c of TR.cars){if(!c.alive)continue;const dx=c.x-C.x,dz=c.z-C.z;if(dx*dx+dz*dz>25600)continue;
     const x=lerp(c.px,c.x,a),z=lerp(c.pz,c.z,a),yaw=c.pyaw+angd(c.yaw,c.pyaw)*a,sy=Math.sin(yaw),cy=Math.cos(yaw),L=c.hl+.5,Wd=c.hw+.35,y=lerp(c.py,c.y,a)+.05;
     quad(x+sy*-L-cy*Wd,y,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,y,z+cy*L+sy*Wd,x+sy*L+cy*Wd,y,z-cy*L+sy*Wd,x+sy*L-cy*Wd,y,z-cy*L-sy*Wd,0,0,0,.42)}}
-function trDraw(){
-  if(!TR.on||!TRM.ready||!TR.nAlive)return;
-  const gl=G.gl,P=G.P.tr,a=R.alpha,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,vis=TRM.vis,cars=TR.cars;cnt[0]=cnt[1]=cnt[2]=cnt[3]=cnt[4]=0;let nv=0;
+/* collect the visible cars into the instance buffer (once per frame; the colour pass and the shadow pass both draw from it) */
+function trPrep(){
+  TRM.nv=0;if(!TR.on||!TRM.ready||!TR.nAlive)return 0;
+  const gl=G.gl,a=R.alpha,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,vis=TRM.vis,cars=TR.cars;cnt[0]=cnt[1]=cnt[2]=cnt[3]=cnt[4]=0;let nv=0;
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const x=lerp(c.px,c.x,a),y=lerp(c.py,c.y,a),z=lerp(c.pz,c.z,a),dx=x-R.cx,dz=z-R.cz;if(dx*dx+dz*dz>490000||!M4.sphereIn(R.PL,x,y+1,z,3.6))continue;vis[nv++]=i;cnt[c.type]++}
-  if(!nv)return;
+  if(!nv)return 0;
   off[0]=0;off[1]=cnt[0];off[2]=off[1]+cnt[1];off[3]=off[2]+cnt[2];off[4]=off[3]+cnt[3];const fill=[off[0],off[1],off[2],off[3],off[4]];
   for(let q=0;q<nv;q++){const c=cars[vis[q]],o=fill[c.type]++*8;
     I[o]=lerp(c.px,c.x,a);I[o+1]=lerp(c.py,c.y,a);I[o+2]=lerp(c.pz,c.z,a);I[o+3]=c.pyaw+angd(c.yaw,c.pyaw)*a;I[o+4]=c.pitch;I[o+5]=c.roll;I[o+6]=c.col;I[o+7]=(c.brake?1:0)+(c.siren?2:0)}
-  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform3fv(P.u.uPal,TRM.pal);gl.uniform4fv(P.u.uMat,TRM.mat);gl.uniform1f(P.u.uT,R.time);gl.disable(gl.CULL_FACE);
-  gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,I.subarray(0,nv*8));
-  const ext=G.ext.inst;
+  gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,I.subarray(0,nv*8));TRM.nv=nv;TR.drawn=nv;return nv}
+/* issue the draws of the collected cars with whatever program is bound (the attribute layout is shared by the colour and the shadow program) */
+function trIssue(){
+  const gl=G.gl,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,ext=G.ext.inst;
   if(ext){attrs(4);ext.vertexAttribDivisorANGLE(2,1);ext.vertexAttribDivisorANGLE(3,1)}else attrs(2);
   for(let t=0;t<5;t++){if(!cnt[t])continue;const M=TRM.types[t];
     gl.bindBuffer(gl.ARRAY_BUFFER,M.vb);gl.vertexAttribPointer(0,3,gl.FLOAT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,12);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,M.ib);
     if(ext){gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);gl.vertexAttribPointer(2,4,gl.FLOAT,false,32,off[t]*32);gl.vertexAttribPointer(3,4,gl.FLOAT,false,32,off[t]*32+16);ext.drawElementsInstancedANGLE(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0,cnt[t]);R.draws++}
     else{for(let k=0;k<cnt[t];k++){const o=(off[t]+k)*8;gl.vertexAttrib4f(2,I[o],I[o+1],I[o+2],I[o+3]);gl.vertexAttrib4f(3,I[o+4],I[o+5],I[o+6],I[o+7]);gl.drawElements(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0);R.draws++}}
     R.tris+=M.n/3*cnt[t]}
-  if(ext){ext.vertexAttribDivisorANGLE(2,0);ext.vertexAttribDivisorANGLE(3,0)}
-  TR.drawn=nv}
+  if(ext){ext.vertexAttribDivisorANGLE(2,0);ext.vertexAttribDivisorANGLE(3,0)}}
+function trDraw(){
+  if(!TRM.nv)return;const gl=G.gl,P=G.P.tr;
+  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform3fv(P.u.uPal,TRM.pal);gl.uniform4fv(P.u.uMat,TRM.mat);gl.uniform1f(P.u.uT,R.time);gl.disable(gl.CULL_FACE);
+  trIssue()}
 
 'use strict';
 /* ===== damage: crash energy -> five zones (front, rear, left, right, roof) -> effects on the driving, dents in the real car mesh, a small health display ===== */
@@ -2130,9 +2467,9 @@ let _dmgCool=0;
 function dmgFx(dt){
   const f=DMG.z[0];if(f<.3&&!DMG.wrecked)return;_dmgCool-=dt;
   const rate=DMG.fire||DMG.wrecked?.03:f>.6?.06:.12;
-  while(_dmgCool<=0){_dmgCool+=rate;const s=SMOKE[smokeHead++%64],sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
+  while(_dmgCool<=0){_dmgCool+=rate;const s=SMOKE[smokeHead++%SMOKE.length],sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
     s.x=C.x+sy*1.5+cy*(Math.random()-.5)*.6;s.z=C.z-cy*1.5+sy*(Math.random()-.5)*.6;s.y=C.y+.8;s.vx=C.vx*.3+(Math.random()-.5)*.8;s.vz=C.vz*.3+(Math.random()-.5)*.8;s.vy=1.6+Math.random()*1.4;s.age=0;s.life=.9+Math.random()*.7;
-    s.sz=.5+f*.6;s.a=.35+f*.3;s.fire=(DMG.fire||DMG.wrecked)&&Math.random()<.45?1:0;s.dark=1}}
+    s.k=0;s.sz=.5+f*.6;s.a=.35+f*.3;s.fire=(DMG.fire||DMG.wrecked)&&Math.random()<.45?1:0;s.dark=1}}
 /* ---- the small health display (a car seen from above, five zones, and a bar) ---- */
 function dmgHud(c,x,y,u){
   const w=u*.52,h=u*1.12,r=w*.22,z=DMG.z,col=d=>{d=Math.min(1,d);const g=d<.5?[75+d*2*170,224,122-d*2*60]:[245,224-(d-.5)*2*160,62-(d-.5)*2*10];return'rgb('+(g[0]|0)+','+(g[1]|0)+','+(g[2]|0)+')'};
@@ -2374,7 +2711,7 @@ async function boot(){
     loadMsg(.45,'Starting the graphics…');await nextTick();
     const cv=$('gl'),isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0,ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
     Q.aa=QS.has('aa')?QS.get('aa')=='1':ios;Q.scale=QS.has('scale')?parseFloat(QS.get('scale')):(ios?.85:.8);if(QS.has('fixed'))Q.min=Q.max=Q.scale;
-    glInit(cv,Q.aa);cv.addEventListener('webglcontextlost',e=>{e.preventDefault();running=false;showErr('The graphics context was lost (the phone reclaimed memory). Reload the page.')});uiInit();uiResize();
+    glInit(cv,false);cv.addEventListener('webglcontextlost',e=>{e.preventDefault();running=false;showErr('The graphics context was lost (the phone reclaimed memory). Reload the page.')});uiInit();uiResize();
     loadMsg(.5,'Building the city and trees…');await nextTick();
     renderInit();await nextTick();
     loadMsg(.92,'Almost there…');mapInit();
@@ -2382,18 +2719,18 @@ async function boot(){
     if(QS.has('start')){const q=QS.get('start').split(',').map(Number);sx=q[0];sz=q[1];a=(q[2]||0)}
     else{/* start on the ring, in the right-hand carriageway */const nx=-Math.cos(a+0),nz=Math.sin(a);sx+=Math.cos(a)*5.6;sz+=Math.sin(a)*5.6}
     carPlace(sx,sz,a,sp.Y[i0]+.5);camStep(0,true);
-    TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();safeInit();
+    TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.base=TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();safeInit();
     if(QS.has('cops')){const q=QS.get('cops');if(q=='off')COP.on=false;else copSetDiff(q)}if(QS.get('safe')=='all')for(const k in SAFE.owned)SAFE.owned[k]=true;
     BOOT.genMs=performance.now()-t0;
     loadMsg(1,'Ready  ('+Math.round(BOOT.genMs/100)/10+' s, '+R.stats.buildings+' buildings, '+R.stats.trees+' trees)');
     if(QS.has('go')||window.__autoGo){startRun()}else{const go=$('go');go.style.display='block';go.onclick=()=>{audioStart();startRun()}}
-    window.RACER={C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
+    window.RACER={GFX,GFXT,GOV,SHD,SMOKE,SPARK,LAMPS,NEONS,CARL,gfxGovern,gfxSetTier,gfxSetMode,C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
   }catch(e){showErr('Startup failed: '+(e&&e.message||e));console.error(e)}}
 let last=0,acc=0,running=false;const DT=1/120;
 function startRun(){$('load').classList.add('off');running=true;last=performance.now();requestAnimationFrame(loop)}
 function renderOnce(w,h){R.alpha=1;viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.tz,CAM.fov,w||UI.cw,h||UI.ch);renderFrame(w||UI.cw,h||UI.ch)}
 function frame(ms){
-  uiInputs(ms/1000);
+  gfxFrameStart();uiInputs(ms/1000);gfxUpdate(ms/1000);
   const halt=UI.paused||UI.mapOpen;
   if(!halt){acc+=Math.min(ms/1000,.1);let n=0;while(acc>=DT&&n<14){worldStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
   R.alpha=halt?1:acc/DT;if(R.alpha>1)R.alpha=1;
@@ -2402,7 +2739,7 @@ function frame(ms){
   R.time+=halt?0:ms/1000;
   if(!UI.mapOpen){viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.tz,CAM.fov,UI.cw,UI.ch);renderFrame(UI.cw,UI.ch)}
   if((UI.hf=(UI.hf|0)+1)&1||UI.paused||UI.mapOpen||UI.ms>24)hudDraw();audioUpdate()}
-function loop(now){if(!running)return;const ms=Math.min(100,now-last);last=now;if(ms>0){Q.frame(ms);try{frame(ms)}catch(e){showErr('Frame error: '+(e&&e.message||e));running=false;console.error(e);return}}requestAnimationFrame(loop)}
+function loop(now){if(!running)return;const ms=Math.min(100,now-last);last=now;if(ms>0){Q.frame(ms);try{frame(ms);gfxFrameEnd(ms)}catch(e){showErr('Frame error: '+(e&&e.message||e));running=false;console.error(e);return}}requestAnimationFrame(loop)}
 window.addEventListener('resize',()=>{if(UI.hud){uiResize()}});
 window.addEventListener('load',boot);
 

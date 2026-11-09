@@ -204,38 +204,4 @@ function camStep(dt,snap){
   const la=9+sp*8;CAM.tx=C.x+Math.sin(cyw)*la;CAM.tz=C.z-Math.cos(cyw)*la;CAM.ty=C.y+1.15+(C.camY-(C.y+h))*.2+C.vy*.02;
   const shk=C.shake*.12;if(shk>.002){CAM.x+=(Math.random()-.5)*shk;CAM.y+=(Math.random()-.5)*shk;CAM.z+=(Math.random()-.5)*shk}
   const tf=1.05+sp*.22+(C.boosting?.1:0);C.fov+=(tf-C.fov)*(snap?1:1-Math.exp(-dt*3));CAM.fov=C.fov}
-/* ---------- effects: blob shadow, smoke, skid marks ---------- */
-const SKID=[],SKMAX=240;let skidHead=0;const SMOKE=[];for(let i=0;i<64;i++)SMOKE.push({x:0,y:0,z:0,vx:0,vy:0,vz:0,age:9,life:1,sz:1,a:0});let smokeHead=0;
-const lastSk=[[0,0,0,0],[0,0,0,0]];let skCool=0;
-function fxUpdate(dt){
-  /* tyre smoke + skid marks from the rear wheels while sliding */
-  const act=C.grounded&&C.speed>10&&C.slip>.1&&(C.drift>.35||C.dActive),sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
-  for(let w=0;w<2;w++){const sd=w?1:-1,px=C.x-sy*1.3+cy*sd*.8,pz=C.z+cy*1.3+sy*sd*.8;
-    if(act){const L=lastSk[w];if(L[3]){const q=SKID[skidHead%SKMAX]=SKID[skidHead%SKMAX]||new Float32Array(8);q[0]=L[0];q[1]=L[1];q[2]=px;q[3]=pz;q[4]=C.y;q[5]=C.t;q[6]=Math.min(1,Math.max(C.drift,C.slip*3));skidHead++}L[0]=px;L[1]=pz;L[3]=1}else lastSk[w][3]=0}
-  if(act||C.boosting){skCool-=dt;while(skCool<=0){skCool+=.035;const s=SMOKE[smokeHead++%64],sd=Math.random()<.5?-1:1;s.x=C.x-sy*1.4+cy*sd*.8;s.z=C.z+cy*1.4+sy*sd*.8;s.y=C.y+.25;s.vx=C.vx*.25+(Math.random()-.5)*1.5;s.vz=C.vz*.25+(Math.random()-.5)*1.5;s.vy=1+Math.random()*1.2;s.age=0;s.life=.9+Math.random()*.6;s.sz=.9;s.a=act?.5:.3;s.fire=!act;s.dark=0}}
-  for(const s of SMOKE){if(s.age<s.life){s.age+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;s.vy*=Math.max(0,1-dt*1.2)}}dmgFx(dt)}
-function fxDraw(){
-  const gl=G.gl,P=G.P.fx,F=R.fxF;let n=0;
-  const quad=(x0,y0,z0,x1,y1,z1,x2,y2,z2,x3,y3,z3,r,g,b,a)=>{if(n>=R.fxMax)return;let o=n*36;
-    F[o]=x0;F[o+1]=y0;F[o+2]=z0;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=a;F[o+7]=0;F[o+8]=0;o+=9;
-    F[o]=x1;F[o+1]=y1;F[o+2]=z1;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=a;F[o+7]=1;F[o+8]=0;o+=9;
-    F[o]=x2;F[o+1]=y2;F[o+2]=z2;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=a;F[o+7]=1;F[o+8]=1;o+=9;
-    F[o]=x3;F[o+1]=y3;F[o+2]=z3;F[o+3]=r;F[o+4]=g;F[o+5]=b;F[o+6]=a;F[o+7]=0;F[o+8]=1;n++};
-  const x=C.x,z=C.z,sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
-  /* blob shadow under the car (mode 0 batch comes first) */
-  const gy=C.gs+.04,L=2.6,Wd=1.35;quad(x+sy*-L-cy*Wd,gy,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,gy,z+cy*L+sy*Wd,x+sy*L+cy*Wd,gy,z-cy*L+sy*Wd,x+sy*L-cy*Wd,gy,z-cy*L-sy*Wd,0,0,0,.5/(1+Math.max(0,C.y-C.gs)*.4));
-  trShadows(quad);
-  const nShadow=n;
-  /* skid marks (mode 2 batch) */
-  const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,a=.55*(1-age/40)*q[6];if(l>6)continue;
-    quad(q[0]-nx,y,q[1]-nz,q[0]+nx,y,q[1]+nz,q[2]+nx,y,q[3]+nz,q[2]-nx,y,q[3]-nz,.02,.02,.02,a)}
-  const nSkid=n;safePads(quad);const nPad=n;
-  /* smoke + exhaust flame puffs (mode 1 batch): camera-facing quads */
-  const rx=R.rt[0],rz=R.rt[2];for(const s of SMOKE){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sz=s.sz+t*2.6,a=s.a*(1-t)*(1-t);const ux=R.up[0]*sz,uy=R.up[1]*sz,uz=R.up[2]*sz,hx=rx*sz,hz=rz*sz;
-    const dk=s.dark&&!s.fire?.25:1,cr=(s.fire?1:.86)*dk,cg=(s.fire?.55-.4*t:.86)*dk,cb=(s.fire?.2:.88)*dk;quad(s.x-hx-ux,s.y-uy,s.z-hz-uz,s.x+hx-ux,s.y-uy,s.z+hz-uz,s.x+hx+ux,s.y+uy,s.z+hz+uz,s.x-hx+ux,s.y+uy,s.z-hz+uz,cr,cg,cb,a)}
-  if(!n)return;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.bindBuffer(gl.ARRAY_BUFFER,R.fx);gl.bufferSubData(gl.ARRAY_BUFFER,0,F.subarray(0,n*36));gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,R.fxIx);attrs(3);
-  gl.vertexAttribPointer(0,3,gl.FLOAT,false,36,0);gl.vertexAttribPointer(1,4,gl.FLOAT,false,36,12);gl.vertexAttribPointer(2,2,gl.FLOAT,false,36,28);gl.disable(gl.CULL_FACE);
-  gl.uniform1f(P.u.uMode,0);gl.drawElements(gl.TRIANGLES,nShadow*6,gl.UNSIGNED_SHORT,0);
-  if(nSkid>nShadow){gl.uniform1f(P.u.uMode,2);gl.drawElements(gl.TRIANGLES,(nSkid-nShadow)*6,gl.UNSIGNED_SHORT,nShadow*12)}
-  if(nPad>nSkid){gl.uniform1f(P.u.uMode,3);gl.drawElements(gl.TRIANGLES,(nPad-nSkid)*6,gl.UNSIGNED_SHORT,nSkid*12)}
-  if(n>nPad){gl.uniform1f(P.u.uMode,1);gl.drawElements(gl.TRIANGLES,(n-nPad)*6,gl.UNSIGNED_SHORT,nPad*12)}R.draws+=4}
+/* (the effects - shadow blob, skid marks, smoke, spray, sparks, light glows and beams - are in 41_fx.js) */

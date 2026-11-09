@@ -58,9 +58,9 @@ let _dmgCool=0;
 function dmgFx(dt){
   const f=DMG.z[0];if(f<.3&&!DMG.wrecked)return;_dmgCool-=dt;
   const rate=DMG.fire||DMG.wrecked?.03:f>.6?.06:.12;
-  while(_dmgCool<=0){_dmgCool+=rate;const s=SMOKE[smokeHead++%64],sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
+  while(_dmgCool<=0){_dmgCool+=rate;const s=SMOKE[smokeHead++%SMOKE.length],sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
     s.x=C.x+sy*1.5+cy*(Math.random()-.5)*.6;s.z=C.z-cy*1.5+sy*(Math.random()-.5)*.6;s.y=C.y+.8;s.vx=C.vx*.3+(Math.random()-.5)*.8;s.vz=C.vz*.3+(Math.random()-.5)*.8;s.vy=1.6+Math.random()*1.4;s.age=0;s.life=.9+Math.random()*.7;
-    s.sz=.5+f*.6;s.a=.35+f*.3;s.fire=(DMG.fire||DMG.wrecked)&&Math.random()<.45?1:0;s.dark=1}}
+    s.k=0;s.sz=.5+f*.6;s.a=.35+f*.3;s.fire=(DMG.fire||DMG.wrecked)&&Math.random()<.45?1:0;s.dark=1}}
 /* ---- the small health display (a car seen from above, five zones, and a bar) ---- */
 function dmgHud(c,x,y,u){
   const w=u*.52,h=u*1.12,r=w*.22,z=DMG.z,col=d=>{d=Math.min(1,d);const g=d<.5?[75+d*2*170,224,122-d*2*60]:[245,224-(d-.5)*2*160,62-(d-.5)*2*10];return'rgb('+(g[0]|0)+','+(g[1]|0)+','+(g[2]|0)+')'};

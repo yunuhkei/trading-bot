@@ -4,7 +4,7 @@
 class MB{constructor(){this.cap=512;this.f=new Float32Array(this.cap*7);this.u=new Uint8Array(this.f.buffer);this.s=new Int8Array(this.f.buffer);this.n=0;this.ix=new Uint16Array(this.cap*4);this.ni=0;
   this.x0=1e9;this.x1=-1e9;this.y0=1e9;this.y1=-1e9;this.z0=1e9;this.z1=-1e9}
  grow(){const c=this.cap*2,f=new Float32Array(c*7);f.set(this.f);this.f=f;this.u=new Uint8Array(f.buffer);this.s=new Int8Array(f.buffer);this.cap=c;const ix=new Uint16Array(c*4);ix.set(this.ix);this.ix=ix}
- v(x,y,z,nx,ny,nz,r,g,b,u,v,w){if(this.n>=this.cap)this.grow();const o=this.n*7,B=this.n*28;this.f[o]=x;this.f[o+1]=y;this.f[o+2]=z;this.s[B+12]=Math.round(nx*127);this.s[B+13]=Math.round(ny*127);this.s[B+14]=Math.round(nz*127);this.s[B+15]=w?127:0;
+ v(x,y,z,nx,ny,nz,r,g,b,u,v,w){if(this.n>=this.cap)this.grow();const o=this.n*7,B=this.n*28;this.f[o]=x;this.f[o+1]=y;this.f[o+2]=z;this.s[B+12]=Math.round(nx*127);this.s[B+13]=Math.round(ny*127);this.s[B+14]=Math.round(nz*127);this.s[B+15]=w===2?-127:(w?127:0);
   this.u[B+16]=r;this.u[B+17]=g;this.u[B+18]=b;this.u[B+19]=255;this.f[o+5]=u;this.f[o+6]=v;
   if(x<this.x0)this.x0=x;if(x>this.x1)this.x1=x;if(y<this.y0)this.y0=y;if(y>this.y1)this.y1=y;if(z<this.z0)this.z0=z;if(z>this.z1)this.z1=z;return this.n++}
  t(a,b,c){if(this.ni+3>this.ix.length){const ix=new Uint16Array(this.ix.length*2);ix.set(this.ix);this.ix=ix}this.ix[this.ni++]=a;this.ix[this.ni++]=b;this.ix[this.ni++]=c}
@@ -64,7 +64,9 @@ function buildRoadMeshes(){
       out.push({V,I,cx:(bx0+bx1)/2,cy:(by0+by1)/2,cz:(bz0+bz1)/2,rad:Math.hypot(bx1-bx0,by1-by0,bz1-bz0)/2+2})}}
   return out}
 /* ---------- barriers, bridge decks + piers, lamp posts ---------- */
-const COLC=[],COLR=[],COLO=[];/* colliders: circles [x,z,r], rects [x0,z0,x1,z1,top], rotated rects [cx,z,hx,hz,cos,sin,top] */
+const COLC=[],COLR=[],COLO=[];
+/* lights that glow: street lamp heads (x,y,z) and neon signs (x,y,z,r,g,b,size); the renderer draws a glow for the ones near the car and lights the wet road with them */
+const LAMPS=[],NEONS=[];/* colliders: circles [x,z,r], rects [x0,z0,x1,z1,top], rotated rects [cx,z,hx,hz,cos,sin,top] */
 function buildFurniture(){
   const cc=[170,166,158];
   for(const r of ROADS){const n=r.n,cnt=r.closed?n:n-1;
@@ -93,7 +95,7 @@ function buildFurniture(){
     for(let i=2;i<n-2;i+=step){if(r.br[i]||(r.city&&r.mk[i]<.5)||r.wk[i]<.9)continue;const j=Math.min(n-1,i+1),dx=r.X[j]-r.X[i-1],dz=r.Z[j]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=((cnt2++)&1)?1:-1;
       if(r.style==1&&!r.city&&(cnt2&1))continue;
       const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-(r.city?.1:.35);pbox(0,px,gy,pz,.13,gy+7.2,.13,92,94,98,0,.7);
-      pbox(0,px-nx*sd*1.1,gy+7.1,pz-nz*sd*1.1,.9*Math.abs(nx)+.1,gy+7.3,.9*Math.abs(nz)+.1,92,94,98,0,1);pbox(0,px-nx*sd*1.9,gy+6.95,pz-nz*sd*1.9,.35*Math.abs(nx)+.25,gy+7.12,.35*Math.abs(nz)+.25,255,236,180,0,1);COLC.push(px,pz,.45,gy-.5,gy+7.2)}}
+      pbox(0,px-nx*sd*1.1,gy+7.1,pz-nz*sd*1.1,.9*Math.abs(nx)+.1,gy+7.3,.9*Math.abs(nz)+.1,92,94,98,0,1);pbox(0,px-nx*sd*1.9,gy+6.95,pz-nz*sd*1.9,.35*Math.abs(nx)+.25,gy+7.12,.35*Math.abs(nz)+.25,255,236,180,2,1);COLC.push(px,pz,.45,gy-.5,gy+7.2);LAMPS.push(px-nx*sd*1.9,gy+6.9,pz-nz*sd*1.9)}}
 }
 /* ---------- districts: San Francisco style downtown + hills, Golden Gate Park, the LA style Valley, countryside ---------- */
 /* rotated box (walls with window tiling + roof); collider registered by the caller */
@@ -139,7 +141,14 @@ const inUrban=(x,z,m)=>{if(inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PAR
 function buildCity(){
   const rng=mulberry(1337);let nb=0,pyramid=false;const CORE={x:-870,z:310};
   const reg=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
-  const bld=(cx,cz,hx,hz,cs,sn,h,c,win)=>{const gy=gmin(cx,cz,hx,hz,cs,sn);pboxR(1,cx,cz,hx,hz,cs,sn,gy-1.5,gy+h,c[0],c[1],c[2],win!==false,.62);reg(cx,cz,hx,hz,cs,sn,gy+h);nb++;return gy};
+  const NEONC=[[255,40,120],[40,220,255],[255,190,40],[130,90,255],[60,255,150],[255,90,40]],nrng=mulberry(7771);
+  /* a neon sign on a wall of a building: a glowing bar standing out of the wall; most tall downtown buildings get one or two */
+  const neon=(cx,cz,hx,hz,cs,sn,gy,h)=>{const k=1+(nrng()<.4?1:0);for(let q=0;q<k;q++){const side=(nrng()*4)|0,c=NEONC[(nrng()*NEONC.length)|0],vert=nrng()<.45,y0=gy+3+nrng()*Math.max(0,Math.min(h-6,14));
+      const ax=side&1?1:0,sg=side<2?1:-1;let lx,lz,hl,hd;                     /* local centre on the wall, and half sizes along it */
+      const along=(nrng()-.5)*(ax?hz:hx)*1.2;if(ax){lx=sg*(hx+.25);lz=along;hl=[.25,vert?.5:Math.min(3.2,hz*.35)]}else{lz=sg*(hz+.25);lx=along;hl=[vert?.5:Math.min(3.2,hx*.35),.25]}
+      const wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs,yy0=vert?y0:y0+3,yy1=vert?y0+Math.min(7,h*.4):y0+3+1.1;pboxR(1,wx,wz,hl[0],hl[1],cs,sn,yy0,yy1,c[0],c[1],c[2],2,1);
+      NEONS.push(wx,(yy0+yy1)/2,wz,c[0]/255,c[1]/255,c[2]/255,vert?3.4:4.2)}};
+  const bld=(cx,cz,hx,hz,cs,sn,h,c,win)=>{const gy=gmin(cx,cz,hx,hz,cs,sn);pboxR(1,cx,cz,hx,hz,cs,sn,gy-1.5,gy+h,c[0],c[1],c[2],win!==false,.62);reg(cx,cz,hx,hz,cs,sn,gy+h);nb++;if(h>=7&&win!==false&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0))&&nrng()<.7)neon(cx,cz,hx,hz,cs,sn,gy,h);return gy};
   const treesIn=(B,n)=>{for(let k=0;k<n;k++){const u=lerp(B.u0+4,B.u1-4,rng()),v=lerp(B.v0+4,B.v1-4,rng()),p=B.W(u,v);if(nearRoadXZ(p[0],p[1],6))continue;ptree(p[0],p[1],rng,terrainH(p[0],p[1]));COLC.push(p[0],p[1],.55,terrainH(p[0],p[1])-.5,terrainH(p[0],p[1])+12)}};
   for(const g of GRIDS){
     if(g.kind=='la'){
@@ -246,7 +255,7 @@ function buildCity(){
         const lots=rng()<.3?1:2,gap=2+rng()*3,tall=Math.max(0,1-dcore/340);
         for(let a=0;a<lots;a++){const lw=wu/lots,u=B.u0+lw*(a+.5),[px,pz]=B.W(u,cv),hx0=lw/2-gap/2,hz0=wv/2-gap/2,c=[[150,160,175],[176,170,158],[126,140,158],[112,122,138],[188,184,176],[96,108,126]][(rng()*6)|0],h=18+rng()*24+tall*tall*(60+rng()*130);
           if(!pyramid&&dcore<150&&a==0){pyramid=true;const gy=gmin(px,pz,hx0,hz0,cs,sn),hb=Math.min(hx0,hz0)-2;pboxR(1,px,pz,hb+4,hb+4,cs,sn,gy-1.5,gy+10,206,204,198,true,.7);ppyramid(1,px,pz,hb,gy+10,230,cs,sn);reg(px,pz,hb*.6,hb*.6,cs,sn,gy+120);nb++;continue}
-          const ph=7+rng()*6,gy=bld(px,pz,hx0,hz0,cs,sn,Math.min(h,ph),[c[0]*.92,c[1]*.9,c[2]*.88]);const ins=1+rng()*4;pboxR(1,px,pz,hx0-ins,hz0-ins,cs,sn,gy+Math.min(h,ph),gy+h,c[0],c[1],c[2],true,.62);reg(px,pz,hx0-ins,hz0-ins,cs,sn,gy+h)}}
+          const ph=7+rng()*6,gy=bld(px,pz,hx0,hz0,cs,sn,Math.min(h,ph),[c[0]*.92,c[1]*.9,c[2]*.88]);const ins=1+rng()*4;pboxR(1,px,pz,hx0-ins,hz0-ins,cs,sn,gy+Math.min(h,ph),gy+h,c[0],c[1],c[2],true,.62);reg(px,pz,hx0-ins,hz0-ins,cs,sn,gy+h);if(nrng()<.85)neon(px,pz,hx0,hz0,cs,sn,gy,Math.min(h,ph))}}
       else if(th>22||rng()<.6){/* Victorian row houses: narrow pastel fronts side by side */
         const depth=Math.min(17,wv/2-1.5);let maxH=0;
         for(const side of[-1,1]){const v=side<0?B.v0+depth/2:B.v1-depth/2;let u=B.u0;const hs=[];
@@ -254,7 +263,7 @@ function buildCity(){
             pboxR(1,px,pz,w/2-.12,depth/2,cs,sn,gy-2.5,gy+h,c[0],c[1],c[2],true,.7);
             proofR(1,px,pz,w/2-.12,depth/2,cs,sn,gy+h,1.8+rng()*1.4,150,110,96,false);
             /* a bay window pushed out over the sidewalk */pboxR(1,...B.W(pu,v+side*(depth/2+.7)),w*.3,.75,cs,sn,gy+2.2,gy+h-1.6,Math.min(255,c[0]+14),Math.min(255,c[1]+14),Math.min(255,c[2]+14),true,.8);
-            maxH=Math.max(maxH,gy+h);u+=w}
+            if(nrng()<.1)neon(px,pz,w/2-.12,depth/2,cs,sn,gy,h);maxH=Math.max(maxH,gy+h);u+=w}
           const [rx,rz]=B.W(cu,v);reg(rx,rz,wu/2,depth/2,cs,sn,maxH);nb++}}
       else{/* mid-rise apartments in brick and stucco */
         const lots=2,lw=wu/lots;for(let a=0;a<lots;a++){const u=B.u0+lw*(a+.5),[px,pz]=B.W(u,cv),c=rng()<.5?BRICK[(rng()*4)|0]:PASTEL[(rng()*PASTEL.length)|0];bld(px,pz,lw/2-3,wv/2-3,cs,sn,16+rng()*16,c,true)}}})}

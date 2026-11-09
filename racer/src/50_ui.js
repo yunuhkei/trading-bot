@@ -43,21 +43,19 @@ function uiLayout(){
   const rx=w-m-u*1.05;add('reset','RESET',rx,m,u*1.05,u*.55,v=>{if(v)IN.respawn=1},'#8a94a6');
   const ax=rx-u*.15-u*1.4;add('auto','AUTO',ax,m,u*1.4,u*.55,v=>{if(v)IN.auto=!IN.auto},'#8a94a6');
   const px=ax-u*.15-u*.65;add('pause','II',px,m,u*.65,u*.55,v=>{if(v)UI.paused=true},'#8a94a6');
-  add('stat','FPS',px-u*.15-u*.8,m,u*.8,u*.55,v=>{if(v)UI.showStats=!UI.showStats},'#8a94a6');
+  const sxp=px-u*.15-u*.8;add('stat','FPS',sxp,m,u*.8,u*.55,v=>{if(v)UI.showStats=!UI.showStats},'#8a94a6');
+  /* graphics setting: AUTO (picks the tier from measured frame cost), HIGH, LOW */
+  add('qual','GFX '+GFX.mode.toUpperCase(),sxp-u*.15-u*1.5,m,u*1.5,u*.55,v=>{if(v){gfxSetMode(GFX.mode=='auto'?'high':GFX.mode=='high'?'low':'auto');UI.bn.qual.label='GFX '+GFX.mode.toUpperCase();safeToast('Graphics: '+GFX.mode.toUpperCase()+(GFX.mode=='auto'?'  (now '+GFX.cur.name+')':''),2)}},'#8a94a6');
   UI.bn={};b.forEach(x=>UI.bn[x.id]=x);
   UI.btnU=u}
 function uiResize(){
   const cv=$('gl'),dpr=Math.min(window.devicePixelRatio||1,2),cw=window.innerWidth,ch=window.innerHeight;UI.w=cw;UI.h=ch;UI.dpr=dpr;
   UI.hud.width=Math.round(cw*Math.min(dpr,2));UI.hud.height=Math.round(ch*Math.min(dpr,2));
   Q.apply();uiLayout()}
-/* quality governor: render scale only (cheap, effective); keeps frame time near 16 ms */
+/* quality: the render scale and the tiers are decided in 31_gfx.js from measured frame cost; this keeps the screen-size bookkeeping and the smoothed frame time for the FPS readout */
 const Q={scale:.8,min:.45,max:1,acc:0,n:0,cool:0,aa:false,
-  apply(){const cv=$('gl'),dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(2,Math.round(UI.w*dpr*Q.scale)),h=Math.max(2,Math.round(UI.h*dpr*Q.scale));if(cv.width!=w||cv.height!=h){cv.width=w;cv.height=h}UI.cw=w;UI.ch=h;
-    const lo=Q.scale<.62;R.drawProp=[lo?380:560,lo?900:1500,lo?260:420];R.drawRoad=lo?1400:2200},
-  frame(ms){UI.ms+=(ms-UI.ms)*.08;Q.acc+=ms;Q.n++;Q.cool-=ms;
-    if(Q.n>=40){const avg=Q.acc/Q.n;Q.acc=0;Q.n=0;
-      if(avg>19&&Q.scale>Q.min&&Q.cool<=0){Q.scale=Math.max(Q.min,Q.scale-(avg>28?.12:.06));Q.cool=1200;Q.apply()}
-      else if(avg<12.5&&Q.scale<Q.max&&Q.cool<=-3000){Q.scale=Math.min(Q.max,Q.scale+.05);Q.cool=1200;Q.apply()}}}};
+  apply(){const cv=$('gl'),dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(2,Math.round(UI.w*dpr*Q.scale)),h=Math.max(2,Math.round(UI.h*dpr*Q.scale));if(cv.width!=w||cv.height!=h){cv.width=w;cv.height=h}UI.cw=w;UI.ch=h},
+  frame(ms){UI.ms+=(ms-UI.ms)*.08}};
 /* read inputs into IN each frame */
 function uiInputs(dt){
   const K=UI.keys;let st=0;
@@ -138,7 +136,7 @@ function hudDraw(){
   /* the thumb-stick ring where the left thumb is */
   {const t=UI.stickT;if(t){c.globalAlpha=.5;c.strokeStyle='#fff';c.lineWidth=3;c.beginPath();c.arc(t.x0,t.y0,Math.max(46,UI.w*.075),0,TAU);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(clamp(t.x,t.x0-Math.max(46,UI.w*.075),t.x0+Math.max(46,UI.w*.075)),t.y0,18,0,TAU);c.fill();c.globalAlpha=1}}
   /* stats */
-  if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px ui-monospace,Menlo,monospace';c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'AA '+(G.aa?'on':'off')+'  dpr '+(window.devicePixelRatio||1),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
+  if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px ui-monospace,Menlo,monospace';c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'gfx '+GFX.cur.name+' ('+GFX.mode+')  work '+GFX.work.toFixed(1)+' ms  fxaa'+(GFX.cur.blur?' blur':'')+(GFX.cur.bloom?' bloom':'')+(GFX.shadowOn?' shadow'+GFX.cur.shadow:''),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
   copHud(c,W_,H_,u);safeHud(c,W_,H_,u);
   if(UI.paused&&!window.__shot){c.fillStyle='rgba(0,0,0,.55)';c.fillRect(0,0,W_,H_);c.fillStyle='#fff';c.textAlign='center';c.font='800 28px sans-serif';c.fillText('PAUSED - tap to resume',W_/2,H_/2)}
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}

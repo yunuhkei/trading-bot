@@ -7,7 +7,7 @@
 const TRN=72,HN=12,NSM=21,DTS=.2;                             /* the horizon has HN points; their spacing c.hs grows with speed (6 m in town, 10 m on the highway: 66 to 110 m) */
 const TTYPES=[{n:'sedan',hl:2.25,hw:.9,m:1300},{n:'hatch',hl:2.0,hw:.88,m:1100},{n:'suv',hl:2.4,hw:.95,m:1900},{n:'van',hl:2.7,hw:1.0,m:2300},{n:'cop',hl:2.25,hw:.9,m:1600}];
 const TCOLS=[[.74,.74,.76],[.07,.07,.08],[.5,.51,.54],[.55,.07,.07],[.09,.17,.36],[.84,.84,.82],[.1,.22,.15],[.55,.46,.3],[.78,.58,.08],[.3,.1,.26],[.16,.27,.4],[.4,.4,.36],[.82,.82,.84]];
-const TR={cars:[],on:true,prof:true,ms:0,max:56,t:0,sub:0,rng:null,boot:1,nAlive:0,target:0,head:new Int32Array(4096),stamp:0,P:null,seedBase:20240601,acc:0,visMin:140,visFar:380,rSpawn:430,rDespawn:540,
+const TR={cars:[],on:true,prof:true,ms:0,max:56,base:56,t:0,sub:0,rng:null,boot:1,nAlive:0,target:0,head:new Int32Array(4096),stamp:0,P:null,seedBase:20240601,acc:0,visMin:140,visFar:380,rSpawn:430,rDespawn:540,
   stat:{spawn:0,despawn:0,hits:0,wrecks:0,aiCrash:0,msSum:0,ticks:0,msMax:0,stuck:0,turns:0,lc:0,ign:0,forced:0}};
 function trNewCar(i){return{i,alive:0,state:0,kind:0,type:0,col:0,m:1300,I:1,hl:2.25,hw:.9,e:null,u:0,L:null,lu:0,x:0,z:0,y:0,yaw:0,v:0,vx:0,vz:0,om:0,px:0,pz:0,py:0,pyaw:0,pitch:0,roll:0,seed:0,v0f:1,A:2.2,T:1.3,off:0,offT:0,offHold:0,brake:0,wait:0,ign:0,age:0,hitT:0,stamp:0,nxt:-1,
   acc:0,think:0,crT:-9,hold:0,yHold:0,yGap:0,yWho:-9,yAt:0,stopT:0,yPrev:-1,pl:null,pjid:-1,lcCool:0,prio:0,hn:0,hend:0,hnTrue:0,hs:6,bg:99,yTo:-1,ns:0,vS:2.5,sx:new Float32Array(NSM),sz:new Float32Array(NSM),sdx:new Float32Array(NSM),sdz:new Float32Array(NSM),hx:new Float32Array(HN+2),hz:new Float32Array(HN+2),hv:new Float32Array(HN+2),vlim:0,flags:0,wt:0,cm:0,siren:0,block:0,life:0,pickJ:-1,pickL:null,role:0,ramCd:0,los:null,stk:0}}
@@ -329,6 +329,8 @@ function trSpawn(){
     for(const c of TR.cars)if(c.alive&&c.e===e&&!c.L){const dd=(c.u-u)*e.ds;if(dd>0&&dd<45&&c.v<v)v=c.v}
     const c=trPlace(e,u,type,col,v,seed);return c}
   return null}
+/* the graphics tier scales how many cars the player sees (a stronger phone gets more) */
+function trSetMul(m){TR.max=Math.min(TRN-4,Math.round(TR.base*m))}
 function trTarget(){trProbe(C.x,C.z);let cls=1;if(TRP.ri>=0&&TRP.d<60){const r=ROADS[TRP.ri];cls=lgLimit(r)[1]}else TRP.ri=-1;
   const d=trDens(C.x,C.z,cls);return Math.round(lerp(8,TR.max,d))}
 /* ---------------- the tick ---------------- */

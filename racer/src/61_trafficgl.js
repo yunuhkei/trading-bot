@@ -64,22 +64,27 @@ function trShadows(quad){
   for(const c of TR.cars){if(!c.alive)continue;const dx=c.x-C.x,dz=c.z-C.z;if(dx*dx+dz*dz>25600)continue;
     const x=lerp(c.px,c.x,a),z=lerp(c.pz,c.z,a),yaw=c.pyaw+angd(c.yaw,c.pyaw)*a,sy=Math.sin(yaw),cy=Math.cos(yaw),L=c.hl+.5,Wd=c.hw+.35,y=lerp(c.py,c.y,a)+.05;
     quad(x+sy*-L-cy*Wd,y,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,y,z+cy*L+sy*Wd,x+sy*L+cy*Wd,y,z-cy*L+sy*Wd,x+sy*L-cy*Wd,y,z-cy*L-sy*Wd,0,0,0,.42)}}
-function trDraw(){
-  if(!TR.on||!TRM.ready||!TR.nAlive)return;
-  const gl=G.gl,P=G.P.tr,a=R.alpha,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,vis=TRM.vis,cars=TR.cars;cnt[0]=cnt[1]=cnt[2]=cnt[3]=cnt[4]=0;let nv=0;
+/* collect the visible cars into the instance buffer (once per frame; the colour pass and the shadow pass both draw from it) */
+function trPrep(){
+  TRM.nv=0;if(!TR.on||!TRM.ready||!TR.nAlive)return 0;
+  const gl=G.gl,a=R.alpha,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,vis=TRM.vis,cars=TR.cars;cnt[0]=cnt[1]=cnt[2]=cnt[3]=cnt[4]=0;let nv=0;
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const x=lerp(c.px,c.x,a),y=lerp(c.py,c.y,a),z=lerp(c.pz,c.z,a),dx=x-R.cx,dz=z-R.cz;if(dx*dx+dz*dz>490000||!M4.sphereIn(R.PL,x,y+1,z,3.6))continue;vis[nv++]=i;cnt[c.type]++}
-  if(!nv)return;
+  if(!nv)return 0;
   off[0]=0;off[1]=cnt[0];off[2]=off[1]+cnt[1];off[3]=off[2]+cnt[2];off[4]=off[3]+cnt[3];const fill=[off[0],off[1],off[2],off[3],off[4]];
   for(let q=0;q<nv;q++){const c=cars[vis[q]],o=fill[c.type]++*8;
     I[o]=lerp(c.px,c.x,a);I[o+1]=lerp(c.py,c.y,a);I[o+2]=lerp(c.pz,c.z,a);I[o+3]=c.pyaw+angd(c.yaw,c.pyaw)*a;I[o+4]=c.pitch;I[o+5]=c.roll;I[o+6]=c.col;I[o+7]=(c.brake?1:0)+(c.siren?2:0)}
-  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform3fv(P.u.uPal,TRM.pal);gl.uniform4fv(P.u.uMat,TRM.mat);gl.uniform1f(P.u.uT,R.time);gl.disable(gl.CULL_FACE);
-  gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,I.subarray(0,nv*8));
-  const ext=G.ext.inst;
+  gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,I.subarray(0,nv*8));TRM.nv=nv;TR.drawn=nv;return nv}
+/* issue the draws of the collected cars with whatever program is bound (the attribute layout is shared by the colour and the shadow program) */
+function trIssue(){
+  const gl=G.gl,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,ext=G.ext.inst;
   if(ext){attrs(4);ext.vertexAttribDivisorANGLE(2,1);ext.vertexAttribDivisorANGLE(3,1)}else attrs(2);
   for(let t=0;t<5;t++){if(!cnt[t])continue;const M=TRM.types[t];
     gl.bindBuffer(gl.ARRAY_BUFFER,M.vb);gl.vertexAttribPointer(0,3,gl.FLOAT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,12);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,M.ib);
     if(ext){gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);gl.vertexAttribPointer(2,4,gl.FLOAT,false,32,off[t]*32);gl.vertexAttribPointer(3,4,gl.FLOAT,false,32,off[t]*32+16);ext.drawElementsInstancedANGLE(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0,cnt[t]);R.draws++}
     else{for(let k=0;k<cnt[t];k++){const o=(off[t]+k)*8;gl.vertexAttrib4f(2,I[o],I[o+1],I[o+2],I[o+3]);gl.vertexAttrib4f(3,I[o+4],I[o+5],I[o+6],I[o+7]);gl.drawElements(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0);R.draws++}}
     R.tris+=M.n/3*cnt[t]}
-  if(ext){ext.vertexAttribDivisorANGLE(2,0);ext.vertexAttribDivisorANGLE(3,0)}
-  TR.drawn=nv}
+  if(ext){ext.vertexAttribDivisorANGLE(2,0);ext.vertexAttribDivisorANGLE(3,0)}}
+function trDraw(){
+  if(!TRM.nv)return;const gl=G.gl,P=G.P.tr;
+  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform3fv(P.u.uPal,TRM.pal);gl.uniform4fv(P.u.uMat,TRM.mat);gl.uniform1f(P.u.uT,R.time);gl.disable(gl.CULL_FACE);
+  trIssue()}
