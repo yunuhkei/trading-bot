@@ -798,6 +798,8 @@ class Lab:
         if dead:
             lines.append(f"• Busted, staying dead ({len(dead)}): " + ", ".join(dead))
         lines += [f"• {x}" for x in self.plan_lines(now)]
+        if self.fast:
+            lines.append(f"• {self.fast.line()}")
         on = self.timing_on(now)
         hour = local_time(now).hour
         hour = f"{hour % 12 or 12}{'a' if hour < 12 else 'p'}"
