@@ -57,7 +57,7 @@ const TRGEN=[
  {L:4.75,W:1.92,H:1.76,wb:2.85,fo:.95,nose:.86,hood:1.06,cowl:1.34,roofF:2.12,roofR:3.62,rearS:4.12,deck:1.16,tail:1.1,hw0:.84,hwMax:.95,hwMaxS:2.5,hwTail:.9,crown:.06,tum:.07,rf:.37,rr:.37,wf:.25,wr:.25,rimF:.24,rimR:.24,tf:.8,tr:.8,sill:.27,gw:.86,gt:.78,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.3,grille:'wide',roofRails:1,cladding:.33,exh:1,exhOff:.6},     /* SUV */
  {L:5.2,W:1.98,H:2.06,wb:3.2,fo:.88,nose:1.0,hood:1.08,cowl:1.05,roofF:1.45,roofR:4.2,rearS:5.0,deck:1.5,tail:1.5,hw0:.88,hwMax:.96,hwMaxS:2.5,hwTail:.94,crown:.05,tum:.05,rf:.36,rr:.36,wf:.23,wr:.23,rimF:.22,rimR:.22,tf:.82,tr:.82,sill:.28,gw:.9,gt:.88,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.25,grille:'wide',cladding:.22},       /* van */
  null];                                                                                                                                                                                                                                                                               /* police: the sedan with a dark lower body */
-const TRMATMAP=[0,1,2,2,5,3,4,6,5,2,2,12,0,6,2,6,5,13,6];      /* generator material -> traffic material (11 plate -> white, 17 amber, 18 grille -> dark) */
+const TRMATMAP=[0,1,2,2,5,3,4,6,5,2,2,12,0,6,2,6,5,13,6,2];      /* generator material -> traffic material (11 plate -> white, 17 amber, 18 grille -> dark) */
 function trGenType(i){
   const base=TRGEN[i==4?0:i],spec=Object.assign({noSkirt:1},base);if(i==4)spec.lowerDark=.66;
   const R=cgBuild(spec,{lo:1,mid:1}),S=R.S,P=[],N=[],M=[],I=[];let o=0;

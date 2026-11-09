@@ -23,6 +23,14 @@ const L=require('./rlib.js');
   /* daylight dims the glows of lamps and head lights */
   const D=await T.ev(()=>{envApply('day');const a=1-.78*Math.min(1,ENV.sunC[0]/2.6);envApply('overcast');const b=1-.78*Math.min(1,ENV.sunC[0]/2.6);return{day:a,over:b}});
   ok(D.day<.35&&D.over>.6,'5 lamp and head light glows are dimmed in daylight (x'+D.day.toFixed(2)+' in the day, x'+D.over.toFixed(2)+' overcast)');
+  /* batch K: gloss black and carbon on every car, the showroom environment in the menu and back */
+  const K=await T.ev(()=>{const rows=[];for(const def of RACER.CAR_ROSTER){const b=RACER.cgBuild(def.spec).body;let g=0,w=0;for(let v=0;v<b.nv;v++){if(b.M[v]==CGM.gloss)g++;if(b.M[v]==CGM.rim||b.M[v]==CGM.chrome)w++}rows.push({g,w})}return rows});
+  ok(K.every(r=>r.g>40),'6 every car has gloss black pillars / panels (fewest '+Math.min(...K.map(r=>r.g))+' vertices)');
+  const Mn=await T.ev(()=>{const {UI,MENU}=RACER;UI.paused=false;envApply('day');const before=ENV.name;RACER.menuOpen();const inMenu={name:ENV.name,stu:ENV.stu,fog:ENV.fog};let err=0;try{renderOnce();const gl=G.gl;err=gl.getError()}catch(e){err=-1}
+    RACER.menuClose();return{before,inMenu,after:ENV.name,stuAfter:ENV.stu||0,err}});
+  ok(Mn.inMenu.name==='studio'&&Mn.inMenu.stu===1&&Mn.inMenu.fog>1/30,'7 the car menu switches to the studio look (near fog, soft boxes)');
+  ok(Mn.after===Mn.before&&!Mn.stuAfter,'8 closing the menu brings back the weather you had ('+Mn.before+' -> '+Mn.inMenu.name+' -> '+Mn.after+')');
+  ok(Mn.err===0,'9 the showroom frame draws with no GL error');
   console.log('errs',T.errs.slice(0,3));ok(T.errs.length===0,'no page errors');
   await T.close();process.exit(bad?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});

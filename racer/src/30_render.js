@@ -7,23 +7,25 @@ const R={lv:6,N:64,tex:{},terVB:null,terIB:null,terRing:null,ringN:0,fullN:0,sky
    the clouds (lit and shaded colour, how much sky they cover), how wet the road is and how many windows are lit. ENV holds the current ones; envApply copies a preset in. */
 const ENVP={
  /* a clear, sunny day: high warm sun, blue sky with scattered cloud, clean air, dry road, hard shadows */
- day:{label:'DAY',sun:[-.52,.60,-.60],sunC:[3.0,2.7,2.25],ambT:[.40,.55,.82],ambB:[.20,.19,.16],hor:[.50,.66,.92],zen:[.09,.25,.64],fog:1/3400,fogY:.0008,fogSun:.5,gr:[1.14,.8,.32,.92],clA:[1.2,1.2,1.2],clB:[.50,.58,.74],sk:[.42,.72,.04,0],sd:[1,1.3,.40,.28],wet:0,night:0,shadow:.85},
+ day:{label:'DAY',sun:[-.52,.60,-.60],sunC:[3.0,2.7,2.25],ambT:[.40,.55,.82],ambB:[.20,.19,.16],hor:[.50,.66,.92],zen:[.09,.25,.64],fog:1/3400,fogY:.0008,fogSun:.5,gr:[1.2,.8,.4,.92],clA:[1.2,1.2,1.2],clB:[.50,.58,.74],sk:[.42,.72,.04,0],sd:[1,1.3,.40,.28],wet:0,night:0,shadow:.85},
+ /* the showroom (the car menu): a dark void, big soft light boxes overhead and at the sides that show as long highlights in the paint, a glossy floor */
+ studio:{label:'STUDIO',sun:[.38,.78,.5],sunC:[1.5,1.48,1.46],ambT:[.42,.46,.58],ambB:[.08,.08,.1],hor:[.03,.034,.05],zen:[.01,.012,.022],fog:1/13,fogY:.0,fogSun:0,gr:[1.12,.4,.4,.95],clA:[.2,.2,.2],clB:[.1,.1,.1],sk:[2,3,0,0],sd:[0,0,.5,0],wet:.95,night:0,shadow:.7,stu:1},
  /* a gloomy, overcast day: the sun is a pale patch behind cloud, the light comes from the whole sky, the horizon is thick grey haze, the road is wet */
  overcast:{label:'OVERCAST',sun:[-.42,.66,-.62],sunC:[.82,.84,.88],ambT:[.50,.55,.64],ambB:[.19,.19,.20],hor:[.46,.50,.55],zen:[.20,.24,.31],fog:1/1150,fogY:.0010,fogSun:.12,gr:[.72,1,.30,1],clA:[.60,.63,.68],clB:[.27,.29,.34],sk:[.34,.72,.12,.62],sd:[1,0,.5,.55],wet:.85,night:.27,shadow:.5},
  /* golden hour: the sun low and orange, long shadows, a glowing haze, a wet road that mirrors it */
  sunset:{label:'SUNSET',sun:[-.80,.16,-.58],sunC:[3.4,1.75,.72],ambT:[.34,.30,.44],ambB:[.15,.10,.08],hor:[1.0,.60,.34],zen:[.16,.19,.42],fog:1/1700,fogY:.0009,fogSun:1.0,gr:[1.1,1.4,.34,1],clA:[1.25,.72,.42],clB:[.34,.27,.40],sk:[.46,.76,0,.18],sd:[1.3,1.6,.45,.5],wet:.5,night:.45,shadow:.9}};
-const ENV={sun:new Float32Array(3),sunC:new Float32Array(3),ambT:new Float32Array(3),ambB:new Float32Array(3),hor:new Float32Array(3),zen:new Float32Array(3),clA:new Float32Array(3),clB:new Float32Array(3),gr:new Float32Array(4),sk:new Float32Array(4),sd:new Float32Array(4),fog:0,fogY:0,fogSun:0,wet:0,night:0,shadow:.5,name:''};
+const ENV={sun:new Float32Array(3),sunC:new Float32Array(3),ambT:new Float32Array(3),ambB:new Float32Array(3),hor:new Float32Array(3),zen:new Float32Array(3),clA:new Float32Array(3),clB:new Float32Array(3),gr:new Float32Array(4),sk:new Float32Array(4),sd:new Float32Array(4),fog:0,fogY:0,fogSun:0,wet:0,night:0,shadow:.5,stu:0,name:''};
 const ENV_NAMES=['day','overcast','sunset'];
 function envApply(name){const p=ENVP[name]||ENVP.day;ENV.name=ENVP[name]?name:'day';
   const l=Math.hypot(p.sun[0],p.sun[1],p.sun[2]);for(let i=0;i<3;i++)ENV.sun[i]=p.sun[i]/l;
   for(const k of['sunC','ambT','ambB','hor','zen','clA','clB'])ENV[k].set(p[k]);ENV.gr.set(p.gr);ENV.sk.set(p.sk);ENV.sd.set(p.sd);
-  ENV.fog=p.fog;ENV.fogY=p.fogY;ENV.fogSun=p.fogSun;ENV.wet=p.wet;ENV.night=p.night;ENV.shadow=p.shadow;
+  ENV.fog=p.fog;ENV.fogY=p.fogY;ENV.fogSun=p.fogSun;ENV.wet=p.wet;ENV.night=p.night;ENV.shadow=p.shadow;ENV.stu=p.stu||0;
   if(typeof GFX!=='undefined'){GFX.wet=p.wet;GFX.night=p.night}if(typeof SHD!=='undefined')SHD.strength=p.shadow;
   R.envVer=(R.envVer||0)+1}
 function envInit(){let m=QS.get('env');try{if(!m)m=localStorage.getItem('racer.env')}catch(e){}envApply(ENVP[m]?m:'day')}
 /* ---- the sky cube map: six 128 x 128 faces of the sky shader (linear, stored as sqrt(c/4)), mip-mapped; redrawn when the weather changes and every few seconds for the drift of the clouds ---- */
 const CUBE_DIR=[[[1,0,0],[0,0,-1],[0,-1,0]],[[-1,0,0],[0,0,1],[0,-1,0]],[[0,1,0],[1,0,0],[0,0,1]],[[0,-1,0],[1,0,0],[0,0,-1]],[[0,0,1],[1,0,0],[0,-1,0]],[[0,0,-1],[-1,0,0],[0,-1,0]]];
-function skyCubeInit(){const gl=G.gl,S=128;const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_CUBE_MAP,t);
+function skyCubeInit(){const gl=G.gl,S=256;const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_CUBE_MAP,t);
   for(let f=0;f<6;f++)gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X+f,0,gl.RGBA,S,S,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
   gl.texParameteri(gl.TEXTURE_CUBE_MAP,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_CUBE_MAP,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_CUBE_MAP,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_CUBE_MAP,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
@@ -90,7 +92,7 @@ function renderInit(){
   R.fxN=0;
   carGLInit();trGLInit();gfxInit();envInit();skyCubeInit();
 }
-function setEnvU(P){const gl=G.gl,u=P.u,E=ENV;gl.uniform3f(u.uCam,R.cx,R.cy,R.cz);if(u.uSun!=null){gl.uniform3fv(u.uSun,E.sun);gl.uniform3fv(u.uSunC,E.sunC);gl.uniform3fv(u.uAmbT,E.ambT);gl.uniform3fv(u.uAmbB,E.ambB);gl.uniform3fv(u.uHor,E.hor);gl.uniform3fv(u.uZen,E.zen);gl.uniform4f(u.uFogP,E.fog,E.fogY,E.fogSun,R.time);gl.uniform4fv(u.uGr,E.gr);if(u.uEnv!=null&&R.cube){gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_CUBE_MAP,R.cube.tex);gl.uniform1i(u.uEnv,5)}if(u.uSk!=null)gl.uniform4fv(u.uSk,E.sk);if(u.uClA!=null){gl.uniform3fv(u.uClA,E.clA);gl.uniform3fv(u.uClB,E.clB);gl.uniform4fv(u.uSd,E.sd)}}}
+function setEnvU(P){const gl=G.gl,u=P.u,E=ENV;gl.uniform3f(u.uCam,R.cx,R.cy,R.cz);if(u.uSun!=null){gl.uniform3fv(u.uSun,E.sun);gl.uniform3fv(u.uSunC,E.sunC);gl.uniform3fv(u.uAmbT,E.ambT);gl.uniform3fv(u.uAmbB,E.ambB);gl.uniform3fv(u.uHor,E.hor);gl.uniform3fv(u.uZen,E.zen);gl.uniform4f(u.uFogP,E.fog,E.fogY,E.fogSun,R.time);gl.uniform4fv(u.uGr,E.gr);if(u.uEnv!=null&&R.cube){gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_CUBE_MAP,R.cube.tex);gl.uniform1i(u.uEnv,5)}if(u.uSk!=null)gl.uniform4fv(u.uSk,E.sk);if(u.uStu!=null)gl.uniform1f(u.uStu,E.stu);if(u.uClA!=null){gl.uniform3fv(u.uClA,E.clA);gl.uniform3fv(u.uClB,E.clB);gl.uniform4fv(u.uSd,E.sd)}}}
 function setMapU(P){const gl=G.gl,u=P.u;gl.uniform4f(u.uMap,W.half,.5/W.N,W.hrange,W.hmin)}
 /* camera + frame */
 function viewSet(cx,cy,cz,tx,ty,tz,fov,w,h){R.cx=cx;R.cy=cy;R.cz=cz;R.fov=fov;M4.look(R.V,cx,cy,cz,tx,ty,tz);M4.persp(R.Pm,fov,w/h,.8,12000);M4.mul(R.VP,R.Pm,R.V);M4.planes(R.PL,R.VP);

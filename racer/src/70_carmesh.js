@@ -2,10 +2,10 @@
 /* ===== procedural car bodies: smooth lofted bodywork, wheel wells, real wheels, lights, intakes, wings, exhausts, mirrors =====
    Nothing here is a real car: every body is made from numbers (a spec) by the same code, in the style of the cars it takes its inspiration from.
    Model axes: x to the right, y up, z BACKWARDS (the nose is at -L/2), metres, origin on the ground under the middle of the wheelbase's centre of the body (z = 0 half way along). */
-const CGM={paint:0,glass:1,trim:2,carbon:3,chrome:4,head:5,tail:6,rubber:7,rim:8,caliper:9,exh:10,plate:11,stripe:12,under:13,disc:14,inter:15,steel:16,amber:17,grille:18};
+const CGM={paint:0,glass:1,trim:2,carbon:3,chrome:4,head:5,tail:6,rubber:7,rim:8,caliper:9,exh:10,plate:11,stripe:12,under:13,disc:14,inter:15,steel:16,amber:17,grille:18,gloss:19};
 /* per material: colour (sRGB bytes) and [metal, roughness, emissive, clear coat] / 255 for the car shader */
-const CGCOL=[[255,255,255],[8,10,14],[20,20,22],[34,35,40],[205,210,216],[255,244,190],[255,34,24],[14,14,15],[188,192,198],[205,28,28],[178,182,188],[230,230,224],[240,240,240],[18,18,20],[150,152,158],[34,34,38],[160,164,170],[255,150,24],[30,30,32]];
-const CGMAT=[[140,66,0,255],[215,22,0,0],[0,170,0,0],[70,80,0,160],[235,60,0,0],[0,40,255,60],[0,40,255,60],[0,205,0,0],[215,80,0,40],[70,90,0,140],[240,70,0,0],[0,150,0,0],[120,70,0,230],[0,200,0,0],[200,110,0,0],[0,150,0,40],[225,90,0,0],[0,60,150,0],[110,255,0,0]];
+const CGCOL=[[255,255,255],[8,10,14],[20,20,22],[34,35,40],[205,210,216],[255,244,190],[255,34,24],[14,14,15],[226,229,235],[205,28,28],[178,182,188],[230,230,224],[240,240,240],[18,18,20],[150,152,158],[34,34,38],[160,164,170],[255,150,24],[30,30,32],[12,12,14]];
+const CGMAT=[[140,66,0,255],[215,22,0,0],[0,170,0,0],[70,80,0,160],[235,60,0,0],[0,40,255,60],[0,40,255,60],[0,205,0,0],[150,60,0,60],[70,90,0,140],[240,70,0,0],[0,150,0,0],[120,70,0,230],[0,200,0,0],[200,110,0,0],[0,150,0,40],[225,90,0,0],[0,60,150,0],[110,255,0,0],[40,26,0,230]];
 class CGB{constructor(){this.P=[];this.N=[];this.M=[];this.I=[];this.S=[];this.Pt=[];this.cur=0}
   v(x,y,z,nx,ny,nz,m,sh){this.P.push(x,y,z);this.N.push(nx,ny,nz);this.M.push(m);this.S.push(sh==null?1:sh);this.Pt.push(this.cur);return this.M.length-1}
   t(a,b,c){this.I.push(a,b,c)}q(a,b,c,d){this.t(a,b,c);this.t(a,c,d)}
@@ -64,7 +64,7 @@ function cgBody(S,mb,opt){
   for(const ax of[S.fo,S.fo+S.wb]){const r=(ax==S.fo?S.rf:S.rr)+.12;for(let s=ax-r;s<=ax+r+1e-6;s+=opt.lo?(opt.mid?.09:.13):.04)set.push(s)}
   set.sort((a,b)=>a-b);const ss=[];for(const s of set){if(s<=0||s>=L)continue;if(!ss.length||s-ss[ss.length-1]>.018)ss.push(s)}
   const ni=ss.length,rings=[],capF=(S.capF||.34)*.88,capR=(S.capR||.5)*.62;
-  for(const s of ss){const r=cgTubRing(S,s,K);let sc=1;const d0=s,d1=L-s;if(d0<capF)sc=Math.pow(1-Math.pow((capF-d0)/capF,2.4),1/2.4);else if(d1<capR)sc=Math.pow(1-Math.pow((capR-d1)/capR,3.4),1/3.4);
+  for(const s of ss){const r=cgTubRing(S,s,K);let sc=1;const d0=s,d1=L-s;if(d0<capF)sc=Math.pow(1-Math.pow((capF-d0)/capF,3.2),1/3.2);else if(d1<capR)sc=Math.pow(1-Math.pow((capR-d1)/capR,3.4),1/3.4);
     const yb=r[0][1],yt=r[r.length-1][1];const cy=(yb+yt)/2;if(sc<1){const hs=.3+.7*sc;for(const p of r){p[0]*=sc;p[1]=cy+(p[1]-cy)*hs}}rings.push(r)}
   const M=rings[0].length,nj=2*M-2;
   const P=new Float32Array(ni*nj*3),ctr=new Float32Array(ni*3),flag=new Uint8Array(ni*nj),dark=new Float32Array(ni*nj);
@@ -74,16 +74,16 @@ function cgBody(S,mb,opt){
   /* wheel wells: the side of the body is pushed in where a wheel is (the wheel sits in the opening), and those cells are painted dark */
   const wheels=[[S.fz,S.rf,S.wf,S.tf],[S.rz,S.rr,S.wr,S.tr]];
   for(let i=0;i<ni;i++)for(let j=0;j<nj;j++){const k=(i*nj+j)*3,x=P[k],y=P[k+1],z=P[k+2];
-    for(const[wz,R,w,tx]of wheels){const ra=R+.062,dz=z-wz,dy=y-R,dd=Math.sqrt(dz*dz+dy*dy)-ra;if(dd<.02&&Math.abs(x)>tx-w/2-.01){const xin=tx-w/2-.035,t=_cl(-(dd-.02)/.09,0,1),e=t*t*(3-2*t);P[k]=Math.sign(x)*(Math.abs(x)*(1-e)+Math.min(Math.abs(x),xin)*e);flag[i*nj+j]=1}   /* a smooth slope into the arch, not a step */
+    for(const[wz,R,w,tx]of wheels){const ra=R+.062,dz=z-wz,dy=y-R,dd=Math.sqrt(dz*dz+dy*dy)-ra;if(dd<-.012&&Math.abs(x)>tx-w/2-.01){const xin=tx-w/2-.035,t=_cl(-(dd+.012)/.08,0,1),e=t*t*(3-2*t);P[k]=Math.sign(x)*(Math.abs(x)*(1-e)+Math.min(Math.abs(x),xin)*e);flag[i*nj+j]=1}   /* a smooth slope into the arch, not a step */
       /* the arch edge is shaded dark with a smooth ramp (a gradient of the vertex colour, not a ring of dark squares) */
-      if(Math.abs(x)>tx-w/2-.06){const t=_cl(.5-dd/.04,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t))}}
+      if(opt.lo&&Math.abs(x)>tx-w/2-.06){const t=_cl(.5-dd/.04,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t))}}
     /* a livery with a dark lower body (police cars) */
     if(S.lowerDark&&Math.abs(P[k])>.3){const t=_cl((S.lowerDark-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.96)}
     /* dark lower valances at the nose and the tail */
-    if(!S.noSkirt){const sN=z+L/2,t=Math.max(_cl((S.sill+.30-y)/.07,0,1)*_cl((.75-sN)/.25,0,1),_cl((S.sill+.44-y)/.08,0,1)*_cl((sN-(L-.7))/.25,0,1));if(t>0)dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}
+    if(!S.noSkirt){const sN=z+L/2,t=Math.max(_cl((S.sill+.30-y)/.02,0,1)*_cl((.75-sN)/.12,0,1),_cl((S.sill+.44-y)/.022,0,1)*_cl((sN-(L-.7))/.12,0,1));if(t>0)dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}
     if(S.cladding){const t=_cl((S.sill+S.cladding-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.93)}
     /* black side skirts: a ramp up the lower side */
-    if(!S.noSkirt&&Math.abs(P[k])>.35){const t=_cl((S.sill+.23-y)/.1,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}}
+    if(!S.noSkirt&&Math.abs(P[k])>.35){const t=_cl((S.sill+.2-y)/.035,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}}
   const Nn=cgGridNormals(P,ni,nj,true,ctr);
   /* vertices per (grid point, material) so that materials can change across a cell without breaking the smooth shading */
   const map=new Map();const vtx=(i,j,m)=>{const key=(i*nj+j)*16+m;let v=map.get(key);if(v===undefined){const k=(i*nj+j)*3;v=mb.v(P[k],P[k+1],P[k+2],Nn[k],Nn[k+1],Nn[k+2],m,1-.93*dark[i*nj+j]);map.set(key,v)}return v};
@@ -125,7 +125,7 @@ function cgGlasshouse(S,mb,opt){
   for(let i=0;i<ni-1;i++){const s=(ss[i]+ss[i+1])/2;for(let j=0;j<nj-1;j++){const isSide=Math.max(idxOf(j),idxOf(j+1))<=K2;let m=CGM.paint;
       if(isSide){/* the side window: its front edge follows the A pillar (up and back), its rear edge the C pillar (up and forward); everything else on the side is pillar */
         const k0=(i*nj+j)*3,yb0=P[(i*nj+(j<M?0:nj-1))*3+1],ym=(P[k0+1]+P[(i*nj+j+1)*3+1])/2,t=_cl((ym-yb0)/Math.max(.05,S.H-yb0),0,1),sF=S.cowl+.12+(S.roofF-S.cowl)*t*.95,sR=S.rearS-.3-(S.rearS-S.roofR-.3)*Math.pow(t,1.3);
-        m=(s>sF&&s<sR&&!(S.bpillar&&Math.abs(s-(sF+sR)/2)<.045))?CGM.glass:(opt.lo?CGM.paint:CGM.carbon)}
+        m=(s>sF&&s<sR&&!(S.bpillar&&Math.abs(s-(sF+sR)/2)<.045))?CGM.glass:(opt.lo?CGM.paint:CGM.gloss)}
       else if(s<S.roofF-.02){m=CGM.glass}                                                  /* windshield */
       else if(s<=S.roofR){m=S.glassRoof?CGM.glass:CGM.paint}
       else m=(S.rearGlass&&s<S.roofR+(S.rearS-S.roofR)*.58)?CGM.glass:CGM.paint
@@ -215,12 +215,17 @@ function cgDetails(S,mb,opt){
   /* ---- spoiler / wing ---- */
   const dz=S.zs(L-.2);
   if(S.wing=='duck'){cgBox(mb,0,S.deck+.04,S.zs(L-.16),S.hwTail*.78,.035,.1,CGM.paint,.15)}
-  else if(S.wing=='lip'){cgBox(mb,0,S.deck+.015,S.zs(L-.08),S.hwTail*.8,.018,.05,CGM.carbon,.0)}
+  else if(S.wing=='lip'){cgBox(mb,0,S.deck+.015,S.zs(L-.08),S.hwTail*.8,.018,.05,CGM.carbon,.0);cgBox(mb,0,S.deck+.04,S.zs(L-.05),S.hwTail*.8,.01,.025,CGM.carbon,-.5)}      /* a lip with a kick */
   else if(S.wing=='gt'||S.wing=='big'){const big=S.wing=='big',hy2=S.deck+(big?.36:.24),ww=S.hwTail*(big?.98:.9),ch=big?.17:.13;
-    cgBox(mb,0,hy2,S.zs(L-(big?.28:.22)),ww,.012,ch,CGM.carbon,-.1);
-    for(const sg of[-1,1]){cgBox(mb,sg*ww,hy2,S.zs(L-(big?.28:.22)),.012,big?.1:.07,ch+.02,CGM.carbon,-.05);cgBox(mb,sg*S.hwTail*.5,S.deck+(hy2-S.deck)/2,S.zs(L-(big?.3:.24)),.028,(hy2-S.deck)/2+.01,.05,CGM.carbon,0)}}
+    cgBox(mb,0,hy2,S.zs(L-(big?.28:.22)),ww,.012,ch,CGM.carbon,-.1);cgBox(mb,0,hy2+.045,S.zs(L-(big?.3:.24))-.02,ww*.97,.008,ch*.55,CGM.carbon,-.36);        /* two elements: the main plane and a flap above it */
+    for(const sg of[-1,1]){cgBox(mb,sg*ww,hy2+.02,S.zs(L-(big?.28:.22)),.012,big?.14:.1,ch+.04,CGM.carbon,-.05);cgBox(mb,sg*S.hwTail*.5,S.deck+(hy2-S.deck)/2,S.zs(L-(big?.3:.24)),.028,(hy2-S.deck)/2+.01,.05,CGM.carbon,0)}}
+  /* ---- aero: a splitter that sticks out in front, blades along the sills, canards, a tall-finned diffuser ---- */
+  if(S.splitter){const zf=S.zs(.0),sw=S.hw0*.96;cgBox(mb,0,S.sill+.012,zf+.045,sw,.014,.1,CGM.carbon,.03);                       /* the splitter plate */
+    for(const sg of[-1,1]){cgBox(mb,sg*(sw-.01),S.sill+.04,zf+.06,.016,.045,.1,CGM.carbon,0);                                /* its end fences */
+      const zm=S.zs(S.fo+S.wb*.5),hl=Math.max(.3,S.wb*.5-S.rf-S.rr*.5-.2),xs=S.curves.half(S.fo+S.wb*.5)*(1-.0)-.02;
+      cgBox(mb,sg*xs,S.sill+.02,zm,.034,.014,hl,CGM.carbon,0);cgBox(mb,sg*(xs+.012),S.sill+.045,zm,.012,.035,hl*.95,CGM.carbon,0)}}   /* side blades */
   /* ---- diffuser and exhaust ---- */
-  if(S.diff){cgBox(mb,0,S.sill+.075,S.zs(L-.27),S.hwTail*.6,.012,.14,CGM.carbon,-.14);for(let k=-2;k<=2;k++)cgBox(mb,k*S.hwTail*.25,S.sill+.09,S.zs(L-.28),.008,.04,.12,CGM.carbon,-.14)}
+  if(S.diff){cgBox(mb,0,S.sill+.07,S.zs(L-.27),S.hwTail*.66,.012,.15,CGM.carbon,-.15);for(let k=-3;k<=3;k++)cgBox(mb,k*S.hwTail*.2,S.sill+.1,S.zs(L-.28),.009,.06,.14,CGM.carbon,-.15);cgBox(mb,0,S.sill+.2,S.zs(L-.05),S.hwTail*.7,.012,.03,CGM.carbon,0)}
   if(S.rearVent!==0&&!opt.lo)cgDisc(mb,S.near(0,S.sill+.69,S.zs(L-.05)),S.hwTail*.46,.055,CGM.grille,18,.004);          /* a vent panel between the lights and the diffuser */
   const ex=S.exh||0;for(let k=0;k<ex;k++){const px=ex==1?(S.exhOff||0):S.exhS=='center'?(k-(ex-1)/2)*.15:(k%2?1:-1)*(S.hwTail*(.52+.12*((k>>1)))),py=S.sill+.13+(S.exhS=='high'?.28:0);cgCylZ(mb,px,py,S.zs(L-.09),S.zs(L+.03),.042,CGM.exh,12);cgCylZ(mb,px,py,S.zs(L+.012),S.zs(L+.036),.049,CGM.chrome,14)}
   S._lights=lights}
@@ -303,14 +308,20 @@ function cgWheel(R,w,rimR,spokes,style,rimCol,lo,tread){
       if(style=='mesh'){for(const sg of[-1,1]){const sw2=sg*.5;const pts=[[r0,-.01,a],[r1,-.014+sw2*.0,a+sg*.4],[r1,.014,a+sg*.4],[r0,.01,a]];plate(pts,fx+.01,1);plate(pts.slice().reverse(),fx-.012,-1)}}
       else if(style=='turbine'){const pts=[[r0,-.03,a],[r1,-.04,a+.32],[r1,.04,a+.32],[r0,.03,a]];plate(pts,fx+.012,1);plate(pts.slice().reverse(),fx-.012,-1)}
       else if(style=='split'){for(const sg of[-1,1]){const pts=[[r0,sg*.01-.012,a+sg*.035],[r1,sg*.062-.017,a],[r1,sg*.062+.017,a],[r0,sg*.01+.012,a+sg*.035]];plate(pts,fx+.011,1);plate(pts.slice().reverse(),fx-.012,-1)}}
-      else{const pts=[[r0,-.032,a],[r1,-.058,a],[r1,.058,a],[r0,.032,a]];plate(pts,fx+.012,1);plate(pts.slice().reverse(),fx-.012,-1);
+      else{const wv=(r,t)=>{const ca=Math.cos(a),sa=Math.sin(a);return[r,t,ca,sa]},V=(r,t,x,nx,ny,nz)=>mb.v(x,Math.cos(a)*r-Math.sin(a)*t,Math.sin(a)*r+Math.cos(a)*t,nx,ny,nz,CGM.rim);
+        /* a spoke with a ridge: two sloped faces, so it has a highlight line and a shadow side */
+        const w0=.026,w1=.044,xr=fx+.03,xe=fx+.008,sl0=Math.hypot(1,.5),n1=[.55,0,.45],n2=[.55,0,-.45];
+        const A0=V(r0,-w0,xe,.5,0,-.7),A1=V(r0,0,xr,1,0,0),A2=V(r0,w0,xe,.5,0,.7),B0=V(r1,-w1,xe,.5,0,-.7),B1=V(r1,0,xr-.004,1,0,0),B2=V(r1,w1,xe,.5,0,.7);mb.q(A0,A1,B1,B0);mb.q(A1,A2,B2,B1);
+        const C0=V(r0,-w0,fx-.012,-1,0,0),C2=V(r0,w0,fx-.012,-1,0,0),D0=V(r1,-w1,fx-.012,-1,0,0),D2=V(r1,w1,fx-.012,-1,0,0);mb.q(C0,C2,D2,D0);void wv;void sl0;void n1;void n2;
+        const pts=[[r0,-.032,a],[r1,-.058,a],[r1,.058,a],[r0,.032,a]];
         /* the edge of the spoke, so it has a thickness */const e=[[r0,.032,a],[r1,.058,a]];const i0=mb.v(fx+.012,Math.cos(a)*e[0][0]-Math.sin(a)*e[0][1],Math.sin(a)*e[0][0]+Math.cos(a)*e[0][1],0,0,1,CGM.rim),i1=mb.v(fx+.012,Math.cos(a)*e[1][0]-Math.sin(a)*e[1][1],Math.sin(a)*e[1][0]+Math.cos(a)*e[1][1],0,0,1,CGM.rim),i2=mb.v(fx-.012,Math.cos(a)*e[1][0]-Math.sin(a)*e[1][1],Math.sin(a)*e[1][0]+Math.cos(a)*e[1][1],0,0,1,CGM.rim),i3=mb.v(fx-.012,Math.cos(a)*e[0][0]-Math.sin(a)*e[0][1],Math.sin(a)*e[0][0]+Math.cos(a)*e[0][1],0,0,1,CGM.rim);mb.q(i0,i1,i2,i3)}}
     revolve([[.08,fx+.004],[.075,fx+.02],[.05,fx+.03],[0,fx+.032]],CGM.rim);                       /* the hub */
+    revolve([[rimR*.9,fx+.004],[rimR*.94,fx+.016],[rimR*.985,fx+.012],[rimR,fx]],CGM.chrome);           /* a polished lip round the face */
     for(let k=0;k<5;k++){const a=k/5*Math.PI*2+.3;cgDiscW(mb,fx+.026,Math.cos(a)*.052,Math.sin(a)*.052,.011,CGM.chrome)}}                                              /* the lug nuts */
   /* brake disc (drilled) and caliper behind the spokes */
   revolve([[rimR*.86,fx-.07],[rimR*.86,fx-.09],[.07,fx-.09],[.07,fx-.07]],CGM.disc);
   for(let k=0;k<16;k++){const a=k/16*Math.PI*2,r=rimR*.73;cgDiscW(mb,fx-.0695,Math.cos(a)*r,Math.sin(a)*r,.012,CGM.under)}
-  const ca=.9;cgBox(mb,fx-.05,Math.cos(ca)*rimR*.7,Math.sin(ca)*rimR*.7,.035,.075,.05,CGM.caliper,0);
+  const ca=.9;cgBox(mb,fx-.05,Math.cos(ca)*rimR*.72,Math.sin(ca)*rimR*.72,.04,.095,.065,CGM.caliper,0);cgBox(mb,fx-.012,Math.cos(ca)*rimR*.72,Math.sin(ca)*rimR*.72,.012,.08,.05,CGM.caliper,0);
   mb.rim=rimCol;return mb}
 /* a small flat disc facing +x on a wheel at (y, z) */
 function cgDiscW(mb,x,y,z,r,m){const c=mb.v(x,y,z,1,0,0,m),ring=[];for(let i=0;i<6;i++){const a=i/6*Math.PI*2;ring.push(mb.v(x,y+Math.cos(a)*r,z+Math.sin(a)*r,1,0,0,m))}for(let i=0;i<6;i++)mb.t(c,ring[i],ring[(i+1)%6])}

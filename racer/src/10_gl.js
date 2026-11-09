@@ -8,7 +8,7 @@ const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uF
 'vec3 tone(vec3 c){c*=uGr.w;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,uGr.x),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));'+
  'float g=dot(c,vec3(.3333));c*=mix(mix(vec3(1.),vec3(.90,.99,1.10),uGr.y),mix(vec3(1.),vec3(1.04,1.0,.95),uGr.y),smoothstep(.05,.8,g));return c*c*(3.-2.*c)*uGr.z+c*(1.-uGr.z);}\n'+
 /* the sky as a mip-mapped cube map (rendered at start-up and when the weather changes, see skyCubeUpdate): reflections of the real sky, clouds and sun. Stored as sqrt(colour / 4). */
-'uniform samplerCube uEnv;vec3 envl(vec3 r,float rough){vec3 d=textureCube(uEnv,r,rough*5.5).rgb;return d*d*4.;}\n'+
+'uniform samplerCube uEnv;vec3 envl(vec3 r,float rough){vec3 d=textureCube(uEnv,r,rough*7.).rgb;return d*d*4.;}\n'+
 'vec3 skyc(vec3 r){vec3 d=textureCube(uEnv,r,2.).rgb;return d*d*4.;}\n'+
 /* thick haze: distance fog towards the horizon colour, thinning with height above the camera */
 'vec3 fogm(vec3 c,vec3 wp){vec3 d=wp-uCam;float L=length(d);vec3 v=d/max(L,1e-3);float k=uFogP.x;float f=1.-exp(-L*L*k*k);f*=exp(-max(wp.y-uCam.y,0.)*uFogP.y);'+
@@ -31,7 +31,7 @@ const CSHSRC='uniform vec4 uSk;float csh(vec2 p){float t=uFogP.w;vec2 q=p*.00021
 const SH={
  /* ---- sky: full-screen triangle ---- */
  skyV:'attribute vec2 aP;varying vec2 vU;void main(){vU=aP;gl_Position=vec4(aP,.99999,1.);}',
- skyF:PRE+'varying vec2 vU;uniform vec3 uFw,uRt,uUp,uClA,uClB;uniform vec2 uTan;uniform vec4 uSk,uSd;uniform sampler2D uNz;\n'+ENVSRC+
+ skyF:PRE+'varying vec2 vU;uniform vec3 uFw,uRt,uUp,uClA,uClB;uniform vec2 uTan;uniform vec4 uSk,uSd;uniform float uStu;uniform sampler2D uNz;\n'+ENVSRC+
  'void main(){vec3 rd=normalize(uFw+uRt*vU.x*uTan.x+uUp*vU.y*uTan.y);float y=rd.y;float sd=max(dot(rd,uSun),0.);'+
  /* the dome: pale grey-blue overhead, lighter towards the haze at the horizon; below the horizon it is the haze itself */
  'vec3 col=mix(uHor,uZen,pow(clamp(y,0.,1.),uSd.z));\n#ifdef CUBE\ncol=mix(col,mix(uHor*.7,uAmbB*.9+uSunC*.03,smoothstep(0.,-.3,y)),smoothstep(.0,-.02,y));\n#else\ncol=mix(col,uHor,smoothstep(0.,-.1,y));\n#endif\nfloat occ=0.;'+
@@ -42,7 +42,9 @@ const SH={
   /* low layer: darker, faster, ragged strips */
   'vec2 p2=(uCam.xz+rd.xz*(700./yy))*.00055+w*2.6+.5;float n2=texture2D(uNz,p2).g*.6+texture2D(uNz,p2*3.1).r*.4;float th2=smoothstep(.5,.82,n2)*uSk.w*smoothstep(.02,.3,y);col=mix(col,uClB*.62*(.9+.6*lit),th2);occ=max(occ,th2);}'+
  'col+=uSunC*(pow(sd,5.)*.055+pow(sd,60.)*.05)*uSd.x*smoothstep(-.05,.3,y);col+=uSunC*smoothstep(.99985,.99996,sd)*uSd.y*smoothstep(-.01,.03,y)*clamp(1.-occ*1.3,0.,1.);'+
- 'col=mix(col,uHor,exp(-max(y,0.)*7.)*uSd.w);\n#ifdef CUBE\ngl_FragColor=vec4(sqrt(min(col,vec3(4.))*.25),1.);\n#else\n'+
+ 'col=mix(col,uHor,exp(-max(y,0.)*7.)*uSd.w);\n'+
+ /* the showroom: soft boxes overhead and at the sides (they become the long highlights in the paint) */
+ '#ifdef CUBE\nif(uStu>.5){float a=smoothstep(.55,.62,rd.y)*(1.-smoothstep(.4,.46,abs(rd.x)))*(1.-smoothstep(.6,.68,abs(rd.z)));float b1=smoothstep(.66,.72,rd.x)*(1.-smoothstep(.32,.38,abs(rd.z)))*smoothstep(-.1,0.,rd.y)*(1.-smoothstep(.5,.6,rd.y));float b2=smoothstep(.66,.72,-rd.x)*(1.-smoothstep(.32,.38,abs(rd.z)))*smoothstep(-.1,0.,rd.y)*(1.-smoothstep(.5,.6,rd.y));float c=smoothstep(.72,.78,-rd.z)*(1.-smoothstep(.2,.26,abs(rd.x)))*smoothstep(.04,.1,rd.y)*(1.-smoothstep(.34,.4,rd.y));col+=vec3(3.2,3.2,3.4)*a+vec3(1.9,2.2,2.7)*b1+vec3(2.7,2.3,1.9)*b2+vec3(2.4)*c;}\n#endif\n#ifdef CUBE\ngl_FragColor=vec4(sqrt(min(col,vec3(4.))*.25),1.);\n#else\n'+
  'gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);\n#endif\n}',
  /* ---- terrain clipmap: one static NxN grid drawn once per level, displaced by the height texture ---- */
  terV:'attribute vec2 aIJ;uniform mat4 uVP;uniform vec4 uLv;varying vec3 vW;varying vec3 vN;varying float vK;\n'+HSRC+
@@ -127,27 +129,27 @@ const SH={
   'if(isw*w.a>.5){vec3 V=normalize(uCam-vW);float fr=pow(1.-max(dot(n,V),0.),3.);col+=envl(reflect(-V,n),.18)*(.1+.65*fr);}'+
   'col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- car: baked garage mesh, procedural environment reflections, per-vertex material classes ---- */
- carV:'attribute vec4 aP;attribute vec4 aN;attribute vec4 aC;uniform mat4 uVP;uniform mat4 uM;uniform vec4 uMat['+40+'];varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;varying vec3 vL;'+
-  'void main(){vec4 w=uM*vec4(aP.xyz,1.);vL=aP.xyz*(1./8192.);vW=w.xyz;vN=mat3(uM[0].xyz,uM[1].xyz,uM[2].xyz)*aN.xyz;vC=pow(aC.rgb,vec3(2.2));vM=uMat[int(aN.w*127.+.5)];gl_Position=uVP*w;}',
- carF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;varying vec3 vL;uniform float uGl,uAlpha,uZc;uniform vec3 uBr,uPaint,uWh;uniform vec4 uDm,uCr;\n'+ENVSRC+
+ carV:'attribute vec4 aP;attribute vec4 aN;attribute vec4 aC;uniform mat4 uVP;uniform mat4 uM;uniform vec4 uMat['+40+'];varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;varying vec3 vL;varying vec3 vMn;'+
+  'void main(){vec4 w=uM*vec4(aP.xyz,1.);vMn=aN.xyz;vL=aP.xyz*(1./8192.);vW=w.xyz;vN=mat3(uM[0].xyz,uM[1].xyz,uM[2].xyz)*aN.xyz;vC=pow(aC.rgb,vec3(2.2));vM=uMat[int(aN.w*127.+.5)];gl_Position=uVP*w;}',
+ carF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;varying vec3 vL;varying vec3 vMn;uniform float uGl,uAlpha,uZc;uniform vec3 uBr,uPaint,uWh;uniform vec4 uDm,uCr,uArch;\n'+ENVSRC+
  /* a fake environment to reflect: dark wet ground, bright hazy horizon, overcast dome, a soft bright patch where the sun is behind the cloud, and a long overhead softbox for the clear-coat highlight line */
  'vec3 cenv(vec3 r,float rg){vec3 c=envl(r,rg);float sd=max(dot(r,uSun),0.);c+=uSunC*pow(sd,mix(240.,12.,rg))*mix(2.4,.14,rg)*step(.0,uSun.y);c+=vec3(.95,.98,1.05)*smoothstep(.16,.02,abs(r.z*.6+r.x*.15))*smoothstep(.5,.85,r.y)*(1.-rg)*.35;return c;}\n'+
  'float h3(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}\n'+
- 'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float metal=vM.x,rg=vM.y,emis=vM.z,coat=vM.w;vec3 alb=vC;if(coat>.99){alb*=uPaint;alb=mix(vec3(dot(alb,vec3(.3,.59,.11))),alb,1.12)*.9;}'+
+ 'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float metal=vM.x,rg=vM.y,emis=vM.z,coat=vM.w;vec3 alb=vC;if(coat>.99){alb*=uPaint;alb=min(mix(vec3(dot(alb,vec3(.3,.59,.11))),alb,1.15)*.9,vec3(.5));}'+
   /* damage: a dead head or tail light goes dark (the side from the model x, the kind from the colour) */
   'float isG=step(.8,vM.x)*step(vM.y,.12),sdx=step(0.,vL.x),tl0=step(.8,alb.r)*step(alb.g,.3);float dead=mix(mix(uDm.x,uDm.y,sdx),mix(uDm.z,uDm.w,sdx),tl0)*step(.5,emis);emis*=1.-dead;alb=mix(alb,vec3(.02),dead*.85);'+
   /* grilles and vents: a diamond mesh of bright wires over darkness (the material with roughness 1), fading to its average at a distance so it does not shimmer */
-  'if(uWh.x>.5){\n  /* wheels: lettering on the tyre wall, and the spokes smear into a dark disc as the car speeds up */\n  float rr=length(vL.yz)/uWh.y;if(abs(vM.y-.804)<.012){float an=atan(vL.z,vL.y),bd=1.-smoothstep(.015,.03,abs(rr-.835)),dsh=step(.42,fract(an*12.7))*step(.22,fract(an*2.9+.3)),rb2=1.-smoothstep(.008,.016,abs(rr-.74));alb=mix(alb,vec3(.20,.20,.21),clamp(bd*dsh*.85+rb2*.5,0.,1.));}\n  if(vM.x>.8&&vM.y>.28&&vM.y<.4){alb=mix(alb,vec3(.08),uWh.z*.65);metal*=1.-uWh.z*.5;}}\n  float grl=step(.98,vM.y);if(grl>.5){float a1=fract((vL.x+vL.y)*44.),a2=fract((vL.x-vL.y)*44.);float mshw=mix(step(.2,a1)*step(.2,a2),.55,smoothstep(7.,18.,length(uCam-vW)));alb=mix(vec3(.34,.35,.37),vec3(.004),mshw);metal=.85*(1.-mshw);rg=mix(.25,1.,mshw);}'+
+  'if(uWh.x>.5){\n  /* wheels: lettering on the tyre wall, and the spokes smear into a dark disc as the car speeds up */\n  float rr=length(vL.yz)/uWh.y;if(abs(vM.y-.804)<.012){float an=atan(vL.z,vL.y),bd=1.-smoothstep(.015,.03,abs(rr-.835)),dsh=step(.42,fract(an*12.7))*step(.22,fract(an*2.9+.3)),rb2=1.-smoothstep(.008,.016,abs(rr-.74));alb=mix(alb,vec3(.20,.20,.21),clamp(bd*dsh*.85+rb2*.5,0.,1.));}\n  if(abs(vM.x-.588)<.03&&abs(vM.y-.235)<.02){alb=mix(alb,vec3(.08),uWh.z*.65);metal*=1.-uWh.z*.5;}}\n  /* carbon fibre: a twill weave (the material with roughness .31 and clear coat .63), laid out on the plane the panel lies in, fading out with distance */\n  if(abs(vM.y-.31)<.02&&abs(vM.w-.627)<.01){vec3 an=abs(normalize(vMn));vec2 q=an.y>.6?vL.xz:(an.x>.6?vL.zy:vL.xy);q*=105.;float tw=step(.5,fract(q.x+q.y))*step(.5,fract(q.x-q.y)*1.),wv=mix(.55+.9*step(.5,fract(q.x*.5))*step(.5,fract(q.y*.5))*.0+.9*abs(sin(q.x*3.14159))*abs(sin(q.y*3.14159)),.9,smoothstep(3.,10.,length(uCam-vW)));alb*=mix(.35,1.5,wv)*.9+.1;metal=.6;}\n  /* the wheel arches: a crisp black circle round each wheel on the flank (drawn per pixel, so the edge is a clean curve and not a row of mesh teeth) */\n  if(uWh.x<.5&&abs(vL.x)>.3&&vM.x<.7){vec2 d1=vec2(vL.z-uArch.x,vL.y-uArch.y),d2=vec2(vL.z-uArch.z,vL.y-uArch.w);float ar=1.-smoothstep(0.,.01,min(length(d1)-(uArch.y+.056),length(d2)-(uArch.w+.056)));alb=mix(alb,vec3(.008),ar*.98);metal*=1.-ar;coat*=1.-ar;emis*=1.-ar;}\n  float grl=step(.98,vM.y);if(grl>.5){float a1=fract((vL.x+vL.y)*44.),a2=fract((vL.x-vL.y)*44.);float mshw=mix(step(.2,a1)*step(.2,a2),.55,smoothstep(7.,18.,length(uCam-vW)));alb=mix(vec3(.34,.35,.37),vec3(.004),mshw);metal=.85*(1.-mshw);rg=mix(.25,1.,mshw);}'+
   /* metallic flakes in the paint: a tiny, view-dependent sparkle from a hash of the position */
   'vec3 fq=floor(vW*140.);n=normalize(n+(vec3(h3(fq),h3(fq+3.1),h3(fq+7.7))-.5)*.016*coat);'+
   'float ndv=max(dot(n,V),0.);vec3 R=reflect(-V,n);'+
-  'float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl*.9;float ao=.5+.5*smoothstep(0.,.5,vW.y-uBr.y);'+
+  'float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl*.5;float ao=.35+.65*smoothstep(0.,.45,vW.y-uBr.y);'+
   /* road dirt and spray thrown up the lower body */
   'float dirt=smoothstep(.62,.12,vW.y-uBr.y);alb*=1.-dirt*.38*(1.-emis);'+
   'vec3 F0=mix(vec3(.04),alb,metal);vec3 fr=F0+(1.-F0)*pow(1.-ndv,5.);vec3 col=alb*(1.-metal)*irr*ao;'+
   'col+=cenv(R,max(rg,.35))*fr*ao*mix(.35,1.,metal);'+
   /* clear coat: a second, sharper reflection over the paint */
-  'col+=cenv(R,.1)*(.075+.925*pow(1.-ndv,5.))*coat*1.2*(1.-dirt*.6);'+
+  'col+=cenv(R,.05)*(.09+.91*pow(1.-ndv,5.))*coat*1.3*(1.-dirt*.5);'+
   /* glass: a clear reflection of the sky, strong at a glancing angle */
   'col+=isG*envl(R,.04)*(.09+.91*pow(1.-ndv,3.))*.95;'+
   /* lights: the emissive material is the head and tail lights (red ones glow harder on the brakes) */

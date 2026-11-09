@@ -16,14 +16,14 @@ const carPaintOf=i=>{const k=CAROWN.color[CAR_ROSTER[i].id]|0;return k>0?CAR_PAI
 /* the figures a car is described by, as 0..1 bars */
 function carStats(d){const r=d.real;return[['TOP SPEED',_cl((r.top-240)/200,.05,1),Math.round(r.top)+' km/h'],['ACCEL',_cl((4.9-r.t100)/2.8,.05,1),r.t100.toFixed(1)+' s to 100'],['GRIP',_cl((r.lat-.9)/.65,.05,1),r.lat.toFixed(2)+' g'],['BRAKES',_cl((41-r.brk)/18,.05,1),r.brk+' m from 100'],['LIGHTNESS',_cl((2000-r.kg)/1500,.05,1),r.kg+' kg']]}
 const DRV={RR:'rear-engine RWD',MR:'mid-engine RWD',FR:'front-engine RWD',AWD:'AWD',RWD:'RWD'};
-function menuOpen(){if(MENU.open)return;MENU.open=1;MENU.i=CARSEL.cur;MENU.t=0;MENU.pi=CARSEL.cur;UI.stickT=null;IN.thr=IN.brk=IN.hand=IN.nitro=0}
+function menuOpen(){if(MENU.open)return;MENU.open=1;MENU.prevEnv=ENV.name;envApply('studio');MENU.i=CARSEL.cur;MENU.t=0;MENU.pi=CARSEL.cur;UI.stickT=null;IN.thr=IN.brk=IN.hand=IN.nitro=0}
 function menuPreview(i){MENU.i=_cl(i,0,CAR_ROSTER.length-1);if(MENU.i!=CARM.idx){carInstall(CAR_ROSTER[MENU.i],carPaintOf(MENU.i));CARM.idx=MENU.i}}
-function menuClose(){if(!MENU.open)return;MENU.open=0;if(CARM.idx!=CARSEL.cur){carInstall(CAR_ROSTER[CARSEL.cur],carPaintOf(CARSEL.cur));CARM.idx=CARSEL.cur}}
+function menuClose(){if(!MENU.open)return;MENU.open=0;if(MENU.prevEnv)envApply(MENU.prevEnv);if(CARM.idx!=CARSEL.cur){carInstall(CAR_ROSTER[CARSEL.cur],carPaintOf(CARSEL.cur));CARM.idx=CARSEL.cur}}
 function menuChoose(){const i=MENU.i;if(!carOwned(i)){safeToast('LOCKED  (how to earn it is not set yet)',2.6);return}carSelect(i);CARM.idx=i;carInstall(CAR_ROSTER[i],carPaintOf(i));carSave();safeToast(CAR_ROSTER[i].name+' selected',2);menuClose()}
 function menuPaint(k){const id=CAR_ROSTER[MENU.i].id;CAROWN.color[id]=k;carInstall(CAR_ROSTER[MENU.i],carPaintOf(MENU.i));CARM.idx=MENU.i;carSave()}
 function menuUnlockAll(){CAROWN.all=!CAROWN.all;carSave()}
 /* the camera: round the car, a little above */
-function menuCam(dt){MENU.t+=dt;const a=MENU.t*.42+.7,d=6.4,x=C.x+Math.sin(a)*d,z=C.z+Math.cos(a)*d;CAM.x=x;CAM.z=z;CAM.y=C.y+1.55;CAM.tx=C.x+Math.cos(a)*1.3;CAM.tz=C.z-Math.sin(a)*1.3;CAM.ty=C.y+.55;CAM.fov=.62}
+function menuCam(dt){MENU.t+=dt;const a=MENU.t*.42+.7,d=8.4,x=C.x+Math.sin(a)*d,z=C.z+Math.cos(a)*d;CAM.x=x;CAM.z=z;CAM.y=C.y+1.25;CAM.tx=C.x+Math.cos(a)*2.5;CAM.tz=C.z-Math.sin(a)*2.5;CAM.ty=C.y+.5;CAM.fov=.62}
 /* layout and drawing share one function: it returns the buttons. Everything is placed top to bottom in units of u (the button size), so it fits a 375 px high phone. */
 function menuLayout(W_,H_,u){
   const b=[],m=u*.3,pw=Math.min(W_*.47,u*8.4),px=W_-pw-m,py=m,ph=H_-m*2,add=(id,x,y,w,h,act)=>b.push({id,x,y,w,h,act});
