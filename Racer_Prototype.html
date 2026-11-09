@@ -279,6 +279,9 @@ function buildRoad(d,dry){
   const yf=d.from||d.yFrom,yt=d.to||d.yTo;if(d.yLine)for(let i=0;i<n;i++)Y[i]=lerp(d.yLine[0],d.yLine[1],r.S[i]/r.len);
   if(yf)blend(yf,0,true);if(yt)blend(yt,0,false);
   if((yf||yt)&&d.flat==null&&!d.cityField&&!d.yLine){const g=(d.grade||.085)*ds,p0=Y[0],p1=Y[n-1];for(let it=0;it<3;it++){if(yf)Y[0]=p0;for(let i=1;i<n;i++)Y[i]=clamp(Y[i],Y[i-1]-g,Y[i-1]+g);if(yt)Y[n-1]=p1;for(let i=n-2;i>=0;i--)Y[i]=clamp(Y[i],Y[i+1]-g,Y[i+1]+g)}}
+  /* jump hills: a run of n sin^2 crests of the given length and height starting f of the way along the road. A crest of height h and length L has a crest radius of about L^2/(2 pi^2 h),
+     and a car leaves the ground over it once v^2/radius > gravity (so a 6 m, 68 m crest launches a car at about 68 mph) */
+  if(d.humps)for(const h of d.humps){const s0=h.f*r.len;for(let i=0;i<n;i++){const t=(r.S[i]-s0)/h.len;if(t>0&&t<h.n)Y[i]+=h.amp*Math.pow(Math.sin(Math.PI*t),2)}}
   /* overpasses: lift a stretch of this road above whatever it crosses (bridgeOver names the roads to find the crossing with) */
   r.br=new Uint8Array(n);
   const bl=(d.bridge||[]).slice();if(d.bridgeOver)for(const id of d.bridgeOver){const o=ROADS.find(q=>q.id==id),c=o&&crossPoint(r,o);if(c)bl.push({x:c[0],z:c[1],len:100,h:9.5})}
@@ -374,7 +377,7 @@ function perimeter(id,B,hw,lift){const r=30,P=[];
 function loopRoad(id,cx,cz,r,hw,lift){const P=[];for(let k=0;k<8;k++){const a=k*TAU/8;P.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}return buildRoad({id,closed:1,hw,lanes:1,style:0,lift,pts:P})}
 function defineRoads(){
   ROADS.length=0;GRIDS.length=0;cityEnds.length=0;_cj=null;
-  const ring=buildCurvy({id:'ring',closed:1,hw:13,lanes:3,style:1,smooth:120,minR:75,wig:{a1:430,l1:900,a2:120,l2:360,seed:3,straight:[[.60,.72]]},
+  const ring=buildCurvy({id:'ring',closed:1,hw:13,lanes:3,style:1,smooth:120,minR:75,humps:[{f:.64,n:3,len:68,amp:6}],wig:{a1:430,l1:900,a2:120,l2:360,seed:3,straight:[[.60,.72]]},
     pts:[[-1640,120],[-1560,-520],[-1180,-980],[-620,-1260],[-60,-1380],[560,-1290],[1130,-1020],[1520,-540],[1680,60],[1560,700],[1320,1260],[700,1580],[-30,1560],[-640,1400],[-1160,1050],[-1500,600]]});
   const ramp=(par,hx,hz,nx,nz,hw)=>rampPts(par,jn(par,hx,hz),nx,nz,hw);          /* leave a road at the sample nearest (hx,hz), heading for (nx,nz) */
   const rampIn=(par,hx,hz,px,pz,hw)=>rampPts(par,jn(par,hx,hz),px,pz,hw).reverse(); /* arrive onto a road at the sample nearest (hx,hz), coming from (px,pz) */
@@ -414,11 +417,11 @@ function defineRoads(){
   {const bi=jn(bv,520,130);buildCurvy({id:'mh',hw:7,lanes:1,style:0,from:'ring',to:'bv',lift:.09,smooth:35,grade:.13,minR:34,wig:{a1:120,l1:380,a2:34,l2:150,seed:31,fade:260},
     pts:ramp(ring,1480,-190,1330,-170,7).concat([[1330,-170],[1160,-195],[990,-150],[820,-135],[670,-100],[570,-70],[520,-10]]).concat([tIn(bv,520,-10)])})}
   /* the southern highway: ring (south) -> long straight on the plains -> a turnaround loop at the beach lookout; the east link meets it from the north */
-  const sh=buildCurvy({id:'sh',hw:12,lanes:2,style:1,from:'ring',lift:.07,smooth:150,grade:.05,minR:85,wig:{a1:220,l1:700,a2:60,l2:260,seed:23,straight:[[.52,.88]],fade:260},
+  const sh=buildCurvy({id:'sh',hw:12,lanes:2,style:1,from:'ring',lift:.07,smooth:150,grade:.05,minR:85,humps:[{f:.53,n:3,len:68,amp:6},{f:.76,n:3,len:68,amp:6}],wig:{a1:220,l1:700,a2:60,l2:260,seed:23,straight:[[.52,.88]],fade:260},
     pts:ramp(ring,40,1850,40,1850,12).concat([[300,2260],[800,2420],[1500,2440],[2100,2420],[2500,2420],[2610,2418]])});
   loopRoad('lookout',2650,2418,40,6,.09);
   /* the east link: ring (east) -> south along the east side -> onto the southern highway */
-  const el=buildCurvy({id:'el',hw:10,lanes:2,style:1,from:'ring',to:'sh',yFrom:null,lift:.08,smooth:100,minR:65,wig:{a1:230,l1:620,a2:66,l2:250,seed:29,straight:[[.62,.80]],fade:200},
+  const el=buildCurvy({id:'el',hw:10,lanes:2,style:1,from:'ring',to:'sh',yFrom:null,lift:.08,smooth:100,minR:65,humps:[{f:.66,n:3,len:68,amp:6}],wig:{a1:230,l1:620,a2:66,l2:250,seed:29,straight:[[.62,.80]],fade:200},
     pts:ramp(ring,2000,1060,2000,1060,10).concat([[2000,1060],[2300,1560],[2410,2000],[2412,2280],tIn(sh,2412,2280)])});
   /* the coast road (Highway 1 style): out of Market's south-west end, over the ring, along the beach, round a headland and onto the southern highway */
   {buildCurvy({id:'cr',hw:9,lanes:1,style:0,to:'sh',yFrom:'sfp',lift:.06,smooth:70,minR:45,bridgeOver:['ring'],wig:{a1:190,l1:480,a2:60,l2:200,seed:17,fade:200},
@@ -443,9 +446,13 @@ function defineRoads(){
   perimeter('psp',RESORT,11,.055);
   buildCurvy({id:'psl',hw:9,lanes:1,style:0,to:'el',yFrom:'psp',lift:.1,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:43,fade:120},pts:[[RESORT.x1,1660],[1980,1650],[2100,1610],tIn(el,2100,1610)]});
   buildCurvy({id:'pss',hw:9,lanes:1,style:0,to:'sh',yFrom:'psp',lift:.1,minR:50,wig:{a1:40,l1:320,a2:10,l2:130,seed:47,fade:140},pts:[[1620,RESORT.z1],[1612,2060],[1630,2250],tIn(sh,1630,2250)]});
-  const fixed=fixCrossings();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;
+  const fixed=fixCrossings();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;findJumps();
   return GRIDS}
 let BRIDGES_ADDED=[];
+/* where the jump hills are: [x,z,radius] (for the map and the region name) */
+const JUMPZ=[];
+function findJumps(){JUMPZ.length=0;for(const r of ROADS){if(!r.def||!r.def.humps)continue;for(const h of r.def.humps){const s0=h.f*r.len,s1=s0+h.n*h.len;let a=0,b=0;for(let i=0;i<r.n;i++){if(r.S[i]<=s0)a=i;if(r.S[i]<=s1)b=i}
+      JUMPZ.push([(r.X[a]+r.X[b])/2,(r.Z[a]+r.Z[b])/2,Math.hypot(r.X[a]-r.X[b],r.Z[a]-r.Z[b])/2+60])}}}
 const roadById=id=>ROADS.find(r=>r.id==id);
 
 'use strict';
@@ -922,14 +929,14 @@ function carDraw(){
 const CARS_RENDER=null;
 /* ---------- state ---------- */
 const GRAV=24;
-const C={x:0,y:0,z:0,yaw:0,vx:0,vz:0,vy:0,pitch:0,roll:0,px:0,py:0,pz:0,pyaw:0,ppitch:0,proll:0,spin:0,steerVis:0,wyaw:0,bob:0,
+const C={jump:null,jx:0,jz:0,slideT:0,kv:0,liftT:0,ke:0,E:0,handT:0,hk:0,handOn:0,slideDir:1,lastSteer:1,airMax:0,x:0,y:0,z:0,yaw:0,vx:0,vz:0,vy:0,pitch:0,roll:0,px:0,py:0,pz:0,pyaw:0,ppitch:0,proll:0,spin:0,steerVis:0,wyaw:0,bob:0,
   gs:0,gsp:0,gf:0,ax:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0};
 const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
 const WB=1.35,TR=.8,RADIUS=1.05;
 /* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
-const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:19,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.1,snapV:.006,gsTau:.03,gfTau:.008,coast:4.5};
+const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5};
 function carPlace(x,z,yaw,yh){C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6}
-function respawn(){IN.nitro=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1}
+function respawn(){IN.nitro=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1;C.grounded=1;C.air=0;C.liftT=0;C.kv=0;C.drift=0;C.slideT=0}
 const gw=(x,z,y)=>groundAt(x,z,y);
 function carStep(dt){
   C.px=C.x;C.py=C.y;C.pz=C.z;C.pyaw=C.yaw;C.ppitch=C.pitch;C.proll=C.roll;
@@ -941,12 +948,33 @@ function carStep(dt){
   g2=gw(C.x-fx*ro-rx*hw,C.z-fz*ro-rz*hw,C.y);const on2=RQ.on;g3=gw(C.x-fx*ro+rx*hw,C.z-fz*ro+rz*hw,C.y);const on3=RQ.on;
   const gy=(g0+g1+g2+g3)*.25;C.onRoad=(on0+on1+on2+on3)>=2;
   const slope=((g0+g1)-(g2+g3))*.5/(fo+ro);       /* >0 nose up */
+  const mr=((g1+g3)-(g0+g2))*.5/(2*hw),m2=1+slope*slope+mr*mr;   /* ground gradient: along the car (slope) and to its right (mr) */
   const tp=Math.atan2((g0+g1)*.5-(g2+g3)*.5,fo+ro),tr=Math.atan2((g1+g3)*.5-(g0+g2)*.5,hw*2);
   /* ---- vertical: the car sticks to the road unless it really leaves it (small kinks must never let go of the tyres) ---- */
   const k=1-Math.exp(-dt/HND.gsTau);C.gs+=(gy-C.gs)*k;let vG=(C.gs-C.gsp)/dt;C.gsp=C.gs;{const vm=.7*C.speed+4;vG=vG>vm?vm:vG<-vm?-vm:vG}   /* the ground cannot push the car faster than the road slope allows */C.gf+=(gy-C.gf)*(1-Math.exp(-dt/HND.gfTau));
   C.vy-=GRAV*dt;C.y+=C.vy*dt;
   const snap=HND.snap+HND.snapV*C.speed;
-  if(C.y<=C.gf+snap&&C.vy-vG<6){if(!C.grounded){const imp=-(C.vy-vG);if(imp>5){C.shake=Math.min(1,C.shake+imp*.04);C.bob=-Math.min(.18,imp*.012)}C.air=0}C.y=C.gf;C.vy=vG>40?40:vG<-40?-40:vG;C.grounded=1}else{C.grounded=0;C.air+=dt}
+  /* TAKE-OFF: the car follows the ground only while the ground pushes up on it. Over a crest of vertical curvature k (1/m, negative on a crest) the ground needs the car to accelerate
+     downwards by k v^2; gravity can only give it g. Once -k v^2 is more than g the tyres lose the road and the car flies on with the velocity it had (a ballistic arc). */
+  const wasGr=C.grounded;let crest=false;
+  if(C.grounded&&C.speed>16){const ux=C.vx/C.speed,uz=C.vz/C.speed,d=clamp(C.speed*.09,3.5,9),hA=gw(C.x+ux*d,C.z+uz*d,C.y),hB=gw(C.x-ux*d,C.z-uz*d,C.y);
+    const kv=(clamp(hA-gy,-d,d)+clamp(hB-gy,-d,d))/(d*d);C.kv+=(kv-C.kv)*(1-Math.exp(-dt/HND.kvTau));
+    crest=-C.kv*C.speed*C.speed>GRAV*HND.leave}
+  else C.kv*=Math.max(0,1-dt*8);
+  if(C.liftT>0)C.liftT-=dt;
+  if(C.grounded&&crest){C.grounded=0;C.air=0;C.liftT=.12;C.vy=C.vy<vG?C.vy:vG}                           /* leave with the ground's own vertical speed */
+  if(C.grounded?(C.y<=C.gf+snap&&C.vy-vG<6):(C.liftT<=0&&C.y<=C.gf+snap*.6&&C.vy-vG<0)){
+    if(!C.grounded){
+      /* LANDING: only the part of the velocity that points into the ground is absorbed (that energy, half vn squared, is gone); the part along the ground stays.
+         So a flat landing keeps all its speed, a landing on a down slope turns the fall into forward speed and a landing on an up slope loses some. */
+      const nrm=Math.sqrt(m2),vn=(C.vy-(slope*f+mr*s))/nrm,imp=vn<0?-vn:0;
+      if(imp>0){f+=vn*slope/nrm;s+=vn*mr/nrm;
+        if(imp>HND.landBottom){const l=Math.min(.1,(imp-HND.landBottom)*.008);f*=1-l;s*=1-l}      /* bottoming out costs a little more */
+        C.hit=Math.max(C.hit,imp*.5)}
+      if(imp>5){C.shake=Math.min(1,C.shake+imp*.04);C.bob=-Math.min(.2,imp*.012)}
+      if(C.air>C.airMax)C.airMax=C.air;if(C.air>.4)C.jump={t:C.t,air:C.air,d:Math.hypot(C.x-C.jx,C.z-C.jz)};C.air=0}
+    C.y=C.gf;C.vy=vG>40?40:vG<-40?-40:vG;C.grounded=1}else{C.grounded=0;C.air+=dt}
+  if(wasGr&&!C.grounded){C.jx=C.x;C.jz=C.z}
   if(C.y<gy-.03)C.y=gy-.03;
   const gr=C.grounded;
   /* ---- inputs ---- */
@@ -961,13 +989,19 @@ function carStep(dt){
     if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8}   /* brake, then reverse */
     a-=Math.sign(f)*(.35+af*af*.0004);                 /* rolling + air drag */
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */
-    a-=slope*GRAV*.9;                                  /* hills */
+    a-=GRAV*slope/m2;                                  /* hills: gravity along the ground (climbing turns speed into height, descending turns height into speed) */
+    s-=GRAV*mr/m2*dt;                                  /* and sideways down a camber */
     f+=a*dt;
     if(thr==0&&brk==0&&!IN.auto)f-=Math.sign(f)*Math.min(af,HND.coast*dt)}
   /* ---- lateral: grip first (the car runs wide before it slides), the handbrake starts a controlled drift ---- */
   const sp=Math.min(1,af/60);const steer=C.steer;
   const spd=Math.hypot(f,s),hand=IN.hand&&spd>6&&gr;
-  C.drift+=((hand?1:0)-C.drift)*Math.min(1,dt*(hand?14:9));
+  /* the drift pedal: pressing it kicks the tail out (a slide, towards the way you steer), and the longer it is held the harder the locked wheels brake */
+  if(hand){if(!C.handOn){C.handOn=1;C.handT=0;C.slideDir=Math.abs(steer)>.12?Math.sign(steer):Math.abs(C.wyaw)>.05?Math.sign(C.wyaw):C.lastSteer}C.handT+=dt;C.hk=Math.min(1,C.handT/HND.handRamp);C.slideT=HND.slideWin}
+  else{C.handOn=0;C.handT=0;C.hk*=Math.max(0,1-dt*6);C.slideT=Math.max(0,C.slideT-dt)}
+  const sl=hand?1:(gr&&spd>6?C.slideT/HND.slideWin:0);   /* a tap keeps the slide going for a moment after the finger lifts */
+  if(Math.abs(steer)>.3)C.lastSteer=Math.sign(steer);
+  {const dT=hand?1:.75*sl;C.drift+=(dT-C.drift)*Math.min(1,dt*(dT>C.drift?14:lerp(9,HND.driftRelease,Math.min(1,C.slip*4))))}   /* a real slide lets go of the tyres more slowly */
   const dr=C.drift;let beta=0;
   if(gr){
     /* the most sideways acceleration the tyres give: a little aero grip at speed, much less on grass */
@@ -977,7 +1011,9 @@ function carStep(dt){
     /* drift assist: the stick chooses the slide angle, the assist holds it and straightens the car the moment you let go */
     /* full-circle slide angle (signed forward speed): at speed the stick asks for a modest slide, as the drift sheds speed the allowed angle grows until a full-stick handbrake spins the car right round */
     beta=spd>2?Math.atan2(s,f):0;
-    const bmax=lerp(HND.betaSlow,HND.betaFast,sstep(10,34,spd)),bt=-steer*bmax,omD=clamp(HND.kBeta*angd(beta,bt),-HND.omDrift,HND.omDrift);
+    const bmax=lerp(HND.betaSlow,HND.betaFast,sstep(10,34,spd));let bt=-steer*bmax;
+    if(sl>0){const minA=Math.min(HND.tapAng,HND.tapFrac*bmax)*sl*(hand?lerp(1,.5,sstep(.6,1.8,C.handT)):1),sg=Math.abs(steer)>.12?Math.sign(steer):C.slideDir;if(Math.abs(bt)<minA)bt=-sg*minA}   /* even with the stick centred the tap asks for a slide */
+    const omD=clamp(HND.kBeta*angd(beta,bt),-HND.omDrift,HND.omDrift);
     /* lateral friction: strong normally, weak in a drift; always limited, so a hit or a hard turn cannot snap the car around */
     let kg=HND.grip*surf;if(brk>0&&af>20&&Math.abs(steer)>.5)kg=Math.min(kg,HND.gripBrake);
     kg=lerp(kg,HND.gripDrift,dr);const fr=lerp(1.3*A,(HND.driftFric+HND.driftFricV*af)*(.6+.4*surf),dr);
@@ -986,7 +1022,7 @@ function carStep(dt){
     if(dr>.02){const e=Math.sqrt(Math.max(0,f*f+s0*s0-s*s));f=Math.sign(f||1)*lerp(Math.abs(f),e,dr)}
     /* sliding costs a little speed; so does cornering at the limit */
     /* the handbrake is a brake: rear wheels locked, so a slide sheds speed (a straight pull still slows you; a full slide a lot more) */
-    if(dr>.02&&spd>.5){const D=HND.driftBrake*dr*(.5+.5*Math.min(1,Math.abs(Math.sin(beta))*2)),kk2=Math.max(0,1-D*dt/spd);f*=kk2;s*=kk2}
+    if(dr>.02&&spd>.5){const D=HND.driftBrake*dr*(HND.handBrake0+(1-HND.handBrake0)*C.hk)*(.5+.5*Math.min(1,Math.abs(Math.sin(beta))*2)),kk2=Math.max(0,1-D*dt/spd);f*=kk2;s*=kk2}
     const ratio=Math.min(1.2,Math.abs(C.wyaw)*af/Math.max(A,1));f-=Math.sign(f)*HND.scrub*A*ratio*ratio*(1-dr)*dt;
     let wt=lerp(omN,omD,dr);
     /* steering assist: with the thumb off the stick the car quietly follows the road (fades out as you steer) */
@@ -995,7 +1031,7 @@ function carStep(dt){
       wt+=want*1.6*Math.min(1,af/35)*(1-Math.min(1,Math.abs(steer)/.22))}}
     {const lim=lerp(A/Math.max(af,4),HND.omDrift,dr);wt=wt>lim?lim:wt<-lim?-lim:wt}   /* nothing (assist included) may ask for more than the tyres have */
     C.wyaw+=(wt-C.wyaw)*(1-Math.exp(-dt*lerp(HND.respond,HND.respondDrift,dr)));
-  }else{C.wyaw*=Math.max(0,1-dt*.6)}
+  }else{C.wyaw*=Math.max(0,1-dt*.6);const kd=Math.max(0,1-HND.airDrag*spd*dt);f*=kd;s*=kd;C.vy*=kd}   /* airborne: gravity and air drag only */
   /* back to world velocity with the OLD heading: the car turns, the velocity does not, so the difference becomes slip */
   C.vx=fx*f+rx*s;C.vz=fz*f+rz*s;
   C.yaw+=C.wyaw*dt;
@@ -1021,7 +1057,7 @@ function carStep(dt){
   /* body roll in corners and squat/dive */
   if(gr)C.bob*=Math.max(0,1-dt*8);
   C.spin+=f*dt/.34;C.steerVis+=((-steer*.5*(1-sp*.55))-C.steerVis)*Math.min(1,dt*14);
-  C.speed=Math.hypot(C.vx,C.vz);C.fwd=f;C.lat=s;C.kmh=C.speed*3.6;C.braking=brk>0&&f>1.5?1:0;C.t+=dt;C.distance+=C.speed*dt;C.shake*=Math.max(0,1-dt*5);C.flash*=Math.max(0,1-dt*3);C.hit*=Math.max(0,1-dt*6);
+  C.speed=Math.hypot(C.vx,C.vz);C.ke=.5*(C.speed*C.speed+C.vy*C.vy);C.E=C.ke+GRAV*C.y;C.fwd=f;C.lat=s;C.kmh=C.speed*3.6;C.braking=brk>0&&f>1.5?1:0;C.t+=dt;C.distance+=C.speed*dt;C.shake*=Math.max(0,1-dt*5);C.flash*=Math.max(0,1-dt*3);C.hit*=Math.max(0,1-dt*6);
   /* last safe spot (on a road, moving, dry) for respawns */
   if(C.onRoad&&gr&&C.speed>3&&C.t-C.safeT>.6){C.safeT=C.t;C.safeX=C.x;C.safeZ=C.z;C.safeY=C.y;C.safeYaw=C.yaw}
   /* water */
@@ -1183,7 +1219,7 @@ function drawMap(ctx,cx,cy,rad,zoomM,rot){
   ctx.translate(cx,cy);ctx.rotate(rot);ctx.scale(s,s);ctx.translate(-(C.x+W.half)*pxm,-(C.z+W.half)*pxm);ctx.imageSmoothingEnabled=true;ctx.drawImage(UI.mapCv,0,0);ctx.restore();
   ctx.save();ctx.translate(cx,cy);ctx.fillStyle='#ff7a1a';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,-rad*.14);ctx.lineTo(rad*.09,rad*.1);ctx.lineTo(0,rad*.05);ctx.lineTo(-rad*.09,rad*.1);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
   ctx.beginPath();ctx.arc(cx,cy,rad,0,TAU);ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.85)';ctx.stroke()}
-const REGIONS=[['Golden Gate Park',()=>inBox(C.x,C.z,PARK,10)],['Russian Hill',()=>Math.hypot(C.x+1100,C.z+70)<200],['Twin Peaks',()=>Math.hypot(C.x+620,C.z-760)<260],['Downtown',()=>inBox(C.x,C.z,CITY,20)],['The Valley',()=>inBox(C.x,C.z,VALLEY,20)],['Santa Cruz Pier',()=>inBox(C.x,C.z,{x0:BEACH.x0,z0:BEACH.z1,x1:BEACH.x1,z1:BEACH.z1+260},0)],['Santa Cruz',()=>inBox(C.x,C.z,BEACH,30)],['Palm Springs',()=>inBox(C.x,C.z,RESORT,30)],['Mulholland ridge',()=>C.x>450&&C.x<1650&&C.z>-420&&C.z<20&&terrainH(C.x,C.z)>40],['Mountain pass',()=>terrainH(C.x,C.z)>130&&C.x>600&&C.z<-700],['Pacific coast',()=>C.x<-1700],['North shore',()=>C.z<-2000],['Southern plains',()=>C.z>1700],['Highlands',()=>C.x>1300&&C.z<-300],['Orbital ring',()=>Math.hypot(C.x*.9,C.z-100)>1100],['Suburbs',()=>true]];
+const REGIONS=[['Jump hills',()=>JUMPZ.some(j=>Math.hypot(C.x-j[0],C.z-j[1])<j[2])],['Golden Gate Park',()=>inBox(C.x,C.z,PARK,10)],['Russian Hill',()=>Math.hypot(C.x+1100,C.z+70)<200],['Twin Peaks',()=>Math.hypot(C.x+620,C.z-760)<260],['Downtown',()=>inBox(C.x,C.z,CITY,20)],['The Valley',()=>inBox(C.x,C.z,VALLEY,20)],['Santa Cruz Pier',()=>inBox(C.x,C.z,{x0:BEACH.x0,z0:BEACH.z1,x1:BEACH.x1,z1:BEACH.z1+260},0)],['Santa Cruz',()=>inBox(C.x,C.z,BEACH,30)],['Palm Springs',()=>inBox(C.x,C.z,RESORT,30)],['Mulholland ridge',()=>C.x>450&&C.x<1650&&C.z>-420&&C.z<20&&terrainH(C.x,C.z)>40],['Mountain pass',()=>terrainH(C.x,C.z)>130&&C.x>600&&C.z<-700],['Pacific coast',()=>C.x<-1700],['North shore',()=>C.z<-2000],['Southern plains',()=>C.z>1700],['Highlands',()=>C.x>1300&&C.z<-300],['Orbital ring',()=>Math.hypot(C.x*.9,C.z-100)>1100],['Suburbs',()=>true]];
 function regionName(){for(const r of REGIONS)if(r[1]())return r[0];return''}
 /* ---------- HUD ---------- */
 function hudDraw(){
@@ -1198,6 +1234,9 @@ function hudDraw(){
   c.textAlign='left';c.fillStyle='rgba(255,255,255,.75)';c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillText('NITRO',nx,ny-5);
   /* drift score */
   if(C.driftTime>.25){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#7fd4ff';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=5;c.fillText('DRIFT  '+Math.round(C.driftScore),W_*.5,u*1.5);c.restore()}
+  /* air time while flying, then the length of the jump */
+  if(!C.grounded&&C.air>.3){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.5)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=5;c.fillText('AIR  '+C.air.toFixed(1)+' s',W_*.5,u*2.25);c.restore()}
+  else if(C.jump&&C.t-C.jump.t<2.2&&C.grounded){const a=Math.min(1,2.2-(C.t-C.jump.t));c.save();c.globalAlpha=a;c.textAlign='center';c.font='800 '+Math.round(u*.5)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=5;c.fillText('JUMP  '+Math.round(C.jump.d*3.281)+' ft  ·  '+C.jump.air.toFixed(1)+' s',W_*.5,u*2.25);c.restore()}
   /* minimap */
   const mm=UI.mm;drawMap(c,mm.cx,mm.cy,mm.r,420,-C.yaw);c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.85)';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText('MAP',mm.cx,mm.cy+mm.r+u*.3);c.restore();
   /* location banner */
@@ -1224,7 +1263,7 @@ function drawWorldMap(c,W_,H_,u){
   c.imageSmoothingEnabled=true;c.drawImage(UI.mapCv,x0,y0,S,S);c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=2;c.strokeRect(x0,y0,S,S);
   const sc=S/W.size,px=x=>x0+(x+W.half)*sc,pz=z=>y0+(z+W.half)*sc;
   c.textAlign='center';c.font='800 '+Math.max(8,Math.round(u*.22))+'px -apple-system,Roboto,sans-serif';c.lineJoin='round';
-  for(const L of MAPLBL){c.textAlign=L[4]=='r'?'right':'center';c.strokeStyle='rgba(0,0,0,.85)';c.lineWidth=3.5;c.strokeText(L[0],px(L[1]),pz(L[2]));c.fillStyle=L[3]?'#fff':'#8fb8e0';c.fillText(L[0],px(L[1]),pz(L[2]))}c.textAlign='center';
+  for(const L of MAPLBL.concat(JUMPZ.map(j=>['JUMPS',j[0],j[1]-75,1]))){c.textAlign=L[4]=='r'?'right':'center';c.strokeStyle='rgba(0,0,0,.85)';c.lineWidth=3.5;c.strokeText(L[0],px(L[1]),pz(L[2]));c.fillStyle=L[3]?'#fff':'#8fb8e0';c.fillText(L[0],px(L[1]),pz(L[2]))}c.textAlign='center';
   /* you */
   const t=C.t,pxp=px(C.x),pzp=pz(C.z);c.save();c.translate(pxp,pzp);c.strokeStyle='rgba(255,122,26,'+(.75-.4*Math.sin(t*6))+')';c.lineWidth=2;c.beginPath();c.arc(0,0,8+3*Math.sin(t*6),0,TAU);c.stroke();
   c.rotate(C.yaw);c.fillStyle='#ff7a1a';c.strokeStyle='#fff';c.lineWidth=1.8;c.beginPath();c.moveTo(0,-9);c.lineTo(6,7);c.lineTo(0,3);c.lineTo(-6,7);c.closePath();c.fill();c.stroke();c.restore();
@@ -1246,7 +1285,7 @@ function audioStart(){if(AU.ctx||window.__noAudio)return;try{const A=window.Audi
   const wn=mkNoise(),wf=x.createBiquadFilter();wf.type='lowpass';wf.frequency.value=700;AU.windG=x.createGain();AU.windG.gain.value=0;wn.connect(wf);wf.connect(AU.windG);AU.windG.connect(master);wn.start();
   const tn=mkNoise(),tf=x.createBiquadFilter();tf.type='bandpass';tf.frequency.value=1500;tf.Q.value=2.2;AU.tireG=x.createGain();AU.tireG.gain.value=0;tn.connect(tf);tf.connect(AU.tireG);AU.tireG.connect(master);tn.start();AU.ready=true}catch(e){}}
 function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.state=='suspended')x.resume();
-  const sp=Math.min(1,C.speed/80),gear=Math.min(5,Math.floor(C.speed/16)),gp=(C.speed-gear*16)/16,rpm=.22+(Math.min(1,gp*.9+.1)*.55)+(IN.thr||IN.auto?.12:0)+(C.boosting?.1:0);
+  const sp=Math.min(1,C.speed/80),gear=Math.min(5,Math.floor(C.speed/16)),gp=(C.speed-gear*16)/16,rpm=.22+(Math.min(1,gp*.9+.1)*.55)+(IN.thr||IN.auto?.12:0)+(C.boosting?.1:0)+(C.grounded?0:.16);
   const f=38+rpm*150;AU.eng.frequency.setTargetAtTime(f,t,.04);AU.eng2.frequency.setTargetAtTime(f*.503,t,.04);AU.lp.frequency.setTargetAtTime(500+rpm*1400,t,.05);
   AU.gain.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:.07+.07*rpm+(C.boosting?.05:0),t,.05);AU.windG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:sp*sp*.22,t,.1);AU.tireG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:(C.grounded&&C.drift>.3?.12*C.drift:0)+(C.hit>3?.05:0),t,.05)}
 

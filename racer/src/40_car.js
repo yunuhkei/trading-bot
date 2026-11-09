@@ -28,14 +28,14 @@ function carDraw(){
 const CARS_RENDER=null;
 /* ---------- state ---------- */
 const GRAV=24;
-const C={x:0,y:0,z:0,yaw:0,vx:0,vz:0,vy:0,pitch:0,roll:0,px:0,py:0,pz:0,pyaw:0,ppitch:0,proll:0,spin:0,steerVis:0,wyaw:0,bob:0,
+const C={jump:null,jx:0,jz:0,slideT:0,kv:0,liftT:0,ke:0,E:0,handT:0,hk:0,handOn:0,slideDir:1,lastSteer:1,airMax:0,x:0,y:0,z:0,yaw:0,vx:0,vz:0,vy:0,pitch:0,roll:0,px:0,py:0,pz:0,pyaw:0,ppitch:0,proll:0,spin:0,steerVis:0,wyaw:0,bob:0,
   gs:0,gsp:0,gf:0,ax:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0};
 const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
 const WB=1.35,TR=.8,RADIUS=1.05;
 /* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
-const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:19,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.1,snapV:.006,gsTau:.03,gfTau:.008,coast:4.5};
+const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5};
 function carPlace(x,z,yaw,yh){C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6}
-function respawn(){IN.nitro=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1}
+function respawn(){IN.nitro=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1;C.grounded=1;C.air=0;C.liftT=0;C.kv=0;C.drift=0;C.slideT=0}
 const gw=(x,z,y)=>groundAt(x,z,y);
 function carStep(dt){
   C.px=C.x;C.py=C.y;C.pz=C.z;C.pyaw=C.yaw;C.ppitch=C.pitch;C.proll=C.roll;
@@ -47,12 +47,33 @@ function carStep(dt){
   g2=gw(C.x-fx*ro-rx*hw,C.z-fz*ro-rz*hw,C.y);const on2=RQ.on;g3=gw(C.x-fx*ro+rx*hw,C.z-fz*ro+rz*hw,C.y);const on3=RQ.on;
   const gy=(g0+g1+g2+g3)*.25;C.onRoad=(on0+on1+on2+on3)>=2;
   const slope=((g0+g1)-(g2+g3))*.5/(fo+ro);       /* >0 nose up */
+  const mr=((g1+g3)-(g0+g2))*.5/(2*hw),m2=1+slope*slope+mr*mr;   /* ground gradient: along the car (slope) and to its right (mr) */
   const tp=Math.atan2((g0+g1)*.5-(g2+g3)*.5,fo+ro),tr=Math.atan2((g1+g3)*.5-(g0+g2)*.5,hw*2);
   /* ---- vertical: the car sticks to the road unless it really leaves it (small kinks must never let go of the tyres) ---- */
   const k=1-Math.exp(-dt/HND.gsTau);C.gs+=(gy-C.gs)*k;let vG=(C.gs-C.gsp)/dt;C.gsp=C.gs;{const vm=.7*C.speed+4;vG=vG>vm?vm:vG<-vm?-vm:vG}   /* the ground cannot push the car faster than the road slope allows */C.gf+=(gy-C.gf)*(1-Math.exp(-dt/HND.gfTau));
   C.vy-=GRAV*dt;C.y+=C.vy*dt;
   const snap=HND.snap+HND.snapV*C.speed;
-  if(C.y<=C.gf+snap&&C.vy-vG<6){if(!C.grounded){const imp=-(C.vy-vG);if(imp>5){C.shake=Math.min(1,C.shake+imp*.04);C.bob=-Math.min(.18,imp*.012)}C.air=0}C.y=C.gf;C.vy=vG>40?40:vG<-40?-40:vG;C.grounded=1}else{C.grounded=0;C.air+=dt}
+  /* TAKE-OFF: the car follows the ground only while the ground pushes up on it. Over a crest of vertical curvature k (1/m, negative on a crest) the ground needs the car to accelerate
+     downwards by k v^2; gravity can only give it g. Once -k v^2 is more than g the tyres lose the road and the car flies on with the velocity it had (a ballistic arc). */
+  const wasGr=C.grounded;let crest=false;
+  if(C.grounded&&C.speed>16){const ux=C.vx/C.speed,uz=C.vz/C.speed,d=clamp(C.speed*.09,3.5,9),hA=gw(C.x+ux*d,C.z+uz*d,C.y),hB=gw(C.x-ux*d,C.z-uz*d,C.y);
+    const kv=(clamp(hA-gy,-d,d)+clamp(hB-gy,-d,d))/(d*d);C.kv+=(kv-C.kv)*(1-Math.exp(-dt/HND.kvTau));
+    crest=-C.kv*C.speed*C.speed>GRAV*HND.leave}
+  else C.kv*=Math.max(0,1-dt*8);
+  if(C.liftT>0)C.liftT-=dt;
+  if(C.grounded&&crest){C.grounded=0;C.air=0;C.liftT=.12;C.vy=C.vy<vG?C.vy:vG}                           /* leave with the ground's own vertical speed */
+  if(C.grounded?(C.y<=C.gf+snap&&C.vy-vG<6):(C.liftT<=0&&C.y<=C.gf+snap*.6&&C.vy-vG<0)){
+    if(!C.grounded){
+      /* LANDING: only the part of the velocity that points into the ground is absorbed (that energy, half vn squared, is gone); the part along the ground stays.
+         So a flat landing keeps all its speed, a landing on a down slope turns the fall into forward speed and a landing on an up slope loses some. */
+      const nrm=Math.sqrt(m2),vn=(C.vy-(slope*f+mr*s))/nrm,imp=vn<0?-vn:0;
+      if(imp>0){f+=vn*slope/nrm;s+=vn*mr/nrm;
+        if(imp>HND.landBottom){const l=Math.min(.1,(imp-HND.landBottom)*.008);f*=1-l;s*=1-l}      /* bottoming out costs a little more */
+        C.hit=Math.max(C.hit,imp*.5)}
+      if(imp>5){C.shake=Math.min(1,C.shake+imp*.04);C.bob=-Math.min(.2,imp*.012)}
+      if(C.air>C.airMax)C.airMax=C.air;if(C.air>.4)C.jump={t:C.t,air:C.air,d:Math.hypot(C.x-C.jx,C.z-C.jz)};C.air=0}
+    C.y=C.gf;C.vy=vG>40?40:vG<-40?-40:vG;C.grounded=1}else{C.grounded=0;C.air+=dt}
+  if(wasGr&&!C.grounded){C.jx=C.x;C.jz=C.z}
   if(C.y<gy-.03)C.y=gy-.03;
   const gr=C.grounded;
   /* ---- inputs ---- */
@@ -67,13 +88,19 @@ function carStep(dt){
     if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8}   /* brake, then reverse */
     a-=Math.sign(f)*(.35+af*af*.0004);                 /* rolling + air drag */
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */
-    a-=slope*GRAV*.9;                                  /* hills */
+    a-=GRAV*slope/m2;                                  /* hills: gravity along the ground (climbing turns speed into height, descending turns height into speed) */
+    s-=GRAV*mr/m2*dt;                                  /* and sideways down a camber */
     f+=a*dt;
     if(thr==0&&brk==0&&!IN.auto)f-=Math.sign(f)*Math.min(af,HND.coast*dt)}
   /* ---- lateral: grip first (the car runs wide before it slides), the handbrake starts a controlled drift ---- */
   const sp=Math.min(1,af/60);const steer=C.steer;
   const spd=Math.hypot(f,s),hand=IN.hand&&spd>6&&gr;
-  C.drift+=((hand?1:0)-C.drift)*Math.min(1,dt*(hand?14:9));
+  /* the drift pedal: pressing it kicks the tail out (a slide, towards the way you steer), and the longer it is held the harder the locked wheels brake */
+  if(hand){if(!C.handOn){C.handOn=1;C.handT=0;C.slideDir=Math.abs(steer)>.12?Math.sign(steer):Math.abs(C.wyaw)>.05?Math.sign(C.wyaw):C.lastSteer}C.handT+=dt;C.hk=Math.min(1,C.handT/HND.handRamp);C.slideT=HND.slideWin}
+  else{C.handOn=0;C.handT=0;C.hk*=Math.max(0,1-dt*6);C.slideT=Math.max(0,C.slideT-dt)}
+  const sl=hand?1:(gr&&spd>6?C.slideT/HND.slideWin:0);   /* a tap keeps the slide going for a moment after the finger lifts */
+  if(Math.abs(steer)>.3)C.lastSteer=Math.sign(steer);
+  {const dT=hand?1:.75*sl;C.drift+=(dT-C.drift)*Math.min(1,dt*(dT>C.drift?14:lerp(9,HND.driftRelease,Math.min(1,C.slip*4))))}   /* a real slide lets go of the tyres more slowly */
   const dr=C.drift;let beta=0;
   if(gr){
     /* the most sideways acceleration the tyres give: a little aero grip at speed, much less on grass */
@@ -83,7 +110,9 @@ function carStep(dt){
     /* drift assist: the stick chooses the slide angle, the assist holds it and straightens the car the moment you let go */
     /* full-circle slide angle (signed forward speed): at speed the stick asks for a modest slide, as the drift sheds speed the allowed angle grows until a full-stick handbrake spins the car right round */
     beta=spd>2?Math.atan2(s,f):0;
-    const bmax=lerp(HND.betaSlow,HND.betaFast,sstep(10,34,spd)),bt=-steer*bmax,omD=clamp(HND.kBeta*angd(beta,bt),-HND.omDrift,HND.omDrift);
+    const bmax=lerp(HND.betaSlow,HND.betaFast,sstep(10,34,spd));let bt=-steer*bmax;
+    if(sl>0){const minA=Math.min(HND.tapAng,HND.tapFrac*bmax)*sl*(hand?lerp(1,.5,sstep(.6,1.8,C.handT)):1),sg=Math.abs(steer)>.12?Math.sign(steer):C.slideDir;if(Math.abs(bt)<minA)bt=-sg*minA}   /* even with the stick centred the tap asks for a slide */
+    const omD=clamp(HND.kBeta*angd(beta,bt),-HND.omDrift,HND.omDrift);
     /* lateral friction: strong normally, weak in a drift; always limited, so a hit or a hard turn cannot snap the car around */
     let kg=HND.grip*surf;if(brk>0&&af>20&&Math.abs(steer)>.5)kg=Math.min(kg,HND.gripBrake);
     kg=lerp(kg,HND.gripDrift,dr);const fr=lerp(1.3*A,(HND.driftFric+HND.driftFricV*af)*(.6+.4*surf),dr);
@@ -92,7 +121,7 @@ function carStep(dt){
     if(dr>.02){const e=Math.sqrt(Math.max(0,f*f+s0*s0-s*s));f=Math.sign(f||1)*lerp(Math.abs(f),e,dr)}
     /* sliding costs a little speed; so does cornering at the limit */
     /* the handbrake is a brake: rear wheels locked, so a slide sheds speed (a straight pull still slows you; a full slide a lot more) */
-    if(dr>.02&&spd>.5){const D=HND.driftBrake*dr*(.5+.5*Math.min(1,Math.abs(Math.sin(beta))*2)),kk2=Math.max(0,1-D*dt/spd);f*=kk2;s*=kk2}
+    if(dr>.02&&spd>.5){const D=HND.driftBrake*dr*(HND.handBrake0+(1-HND.handBrake0)*C.hk)*(.5+.5*Math.min(1,Math.abs(Math.sin(beta))*2)),kk2=Math.max(0,1-D*dt/spd);f*=kk2;s*=kk2}
     const ratio=Math.min(1.2,Math.abs(C.wyaw)*af/Math.max(A,1));f-=Math.sign(f)*HND.scrub*A*ratio*ratio*(1-dr)*dt;
     let wt=lerp(omN,omD,dr);
     /* steering assist: with the thumb off the stick the car quietly follows the road (fades out as you steer) */
@@ -101,7 +130,7 @@ function carStep(dt){
       wt+=want*1.6*Math.min(1,af/35)*(1-Math.min(1,Math.abs(steer)/.22))}}
     {const lim=lerp(A/Math.max(af,4),HND.omDrift,dr);wt=wt>lim?lim:wt<-lim?-lim:wt}   /* nothing (assist included) may ask for more than the tyres have */
     C.wyaw+=(wt-C.wyaw)*(1-Math.exp(-dt*lerp(HND.respond,HND.respondDrift,dr)));
-  }else{C.wyaw*=Math.max(0,1-dt*.6)}
+  }else{C.wyaw*=Math.max(0,1-dt*.6);const kd=Math.max(0,1-HND.airDrag*spd*dt);f*=kd;s*=kd;C.vy*=kd}   /* airborne: gravity and air drag only */
   /* back to world velocity with the OLD heading: the car turns, the velocity does not, so the difference becomes slip */
   C.vx=fx*f+rx*s;C.vz=fz*f+rz*s;
   C.yaw+=C.wyaw*dt;
@@ -127,7 +156,7 @@ function carStep(dt){
   /* body roll in corners and squat/dive */
   if(gr)C.bob*=Math.max(0,1-dt*8);
   C.spin+=f*dt/.34;C.steerVis+=((-steer*.5*(1-sp*.55))-C.steerVis)*Math.min(1,dt*14);
-  C.speed=Math.hypot(C.vx,C.vz);C.fwd=f;C.lat=s;C.kmh=C.speed*3.6;C.braking=brk>0&&f>1.5?1:0;C.t+=dt;C.distance+=C.speed*dt;C.shake*=Math.max(0,1-dt*5);C.flash*=Math.max(0,1-dt*3);C.hit*=Math.max(0,1-dt*6);
+  C.speed=Math.hypot(C.vx,C.vz);C.ke=.5*(C.speed*C.speed+C.vy*C.vy);C.E=C.ke+GRAV*C.y;C.fwd=f;C.lat=s;C.kmh=C.speed*3.6;C.braking=brk>0&&f>1.5?1:0;C.t+=dt;C.distance+=C.speed*dt;C.shake*=Math.max(0,1-dt*5);C.flash*=Math.max(0,1-dt*3);C.hit*=Math.max(0,1-dt*6);
   /* last safe spot (on a road, moving, dry) for respawns */
   if(C.onRoad&&gr&&C.speed>3&&C.t-C.safeT>.6){C.safeT=C.t;C.safeX=C.x;C.safeZ=C.z;C.safeY=C.y;C.safeYaw=C.yaw}
   /* water */

@@ -86,6 +86,9 @@ function buildRoad(d,dry){
   const yf=d.from||d.yFrom,yt=d.to||d.yTo;if(d.yLine)for(let i=0;i<n;i++)Y[i]=lerp(d.yLine[0],d.yLine[1],r.S[i]/r.len);
   if(yf)blend(yf,0,true);if(yt)blend(yt,0,false);
   if((yf||yt)&&d.flat==null&&!d.cityField&&!d.yLine){const g=(d.grade||.085)*ds,p0=Y[0],p1=Y[n-1];for(let it=0;it<3;it++){if(yf)Y[0]=p0;for(let i=1;i<n;i++)Y[i]=clamp(Y[i],Y[i-1]-g,Y[i-1]+g);if(yt)Y[n-1]=p1;for(let i=n-2;i>=0;i--)Y[i]=clamp(Y[i],Y[i+1]-g,Y[i+1]+g)}}
+  /* jump hills: a run of n sin^2 crests of the given length and height starting f of the way along the road. A crest of height h and length L has a crest radius of about L^2/(2 pi^2 h),
+     and a car leaves the ground over it once v^2/radius > gravity (so a 6 m, 68 m crest launches a car at about 68 mph) */
+  if(d.humps)for(const h of d.humps){const s0=h.f*r.len;for(let i=0;i<n;i++){const t=(r.S[i]-s0)/h.len;if(t>0&&t<h.n)Y[i]+=h.amp*Math.pow(Math.sin(Math.PI*t),2)}}
   /* overpasses: lift a stretch of this road above whatever it crosses (bridgeOver names the roads to find the crossing with) */
   r.br=new Uint8Array(n);
   const bl=(d.bridge||[]).slice();if(d.bridgeOver)for(const id of d.bridgeOver){const o=ROADS.find(q=>q.id==id),c=o&&crossPoint(r,o);if(c)bl.push({x:c[0],z:c[1],len:100,h:9.5})}
@@ -181,7 +184,7 @@ function perimeter(id,B,hw,lift){const r=30,P=[];
 function loopRoad(id,cx,cz,r,hw,lift){const P=[];for(let k=0;k<8;k++){const a=k*TAU/8;P.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}return buildRoad({id,closed:1,hw,lanes:1,style:0,lift,pts:P})}
 function defineRoads(){
   ROADS.length=0;GRIDS.length=0;cityEnds.length=0;_cj=null;
-  const ring=buildCurvy({id:'ring',closed:1,hw:13,lanes:3,style:1,smooth:120,minR:75,wig:{a1:430,l1:900,a2:120,l2:360,seed:3,straight:[[.60,.72]]},
+  const ring=buildCurvy({id:'ring',closed:1,hw:13,lanes:3,style:1,smooth:120,minR:75,humps:[{f:.64,n:3,len:68,amp:6}],wig:{a1:430,l1:900,a2:120,l2:360,seed:3,straight:[[.60,.72]]},
     pts:[[-1640,120],[-1560,-520],[-1180,-980],[-620,-1260],[-60,-1380],[560,-1290],[1130,-1020],[1520,-540],[1680,60],[1560,700],[1320,1260],[700,1580],[-30,1560],[-640,1400],[-1160,1050],[-1500,600]]});
   const ramp=(par,hx,hz,nx,nz,hw)=>rampPts(par,jn(par,hx,hz),nx,nz,hw);          /* leave a road at the sample nearest (hx,hz), heading for (nx,nz) */
   const rampIn=(par,hx,hz,px,pz,hw)=>rampPts(par,jn(par,hx,hz),px,pz,hw).reverse(); /* arrive onto a road at the sample nearest (hx,hz), coming from (px,pz) */
@@ -221,11 +224,11 @@ function defineRoads(){
   {const bi=jn(bv,520,130);buildCurvy({id:'mh',hw:7,lanes:1,style:0,from:'ring',to:'bv',lift:.09,smooth:35,grade:.13,minR:34,wig:{a1:120,l1:380,a2:34,l2:150,seed:31,fade:260},
     pts:ramp(ring,1480,-190,1330,-170,7).concat([[1330,-170],[1160,-195],[990,-150],[820,-135],[670,-100],[570,-70],[520,-10]]).concat([tIn(bv,520,-10)])})}
   /* the southern highway: ring (south) -> long straight on the plains -> a turnaround loop at the beach lookout; the east link meets it from the north */
-  const sh=buildCurvy({id:'sh',hw:12,lanes:2,style:1,from:'ring',lift:.07,smooth:150,grade:.05,minR:85,wig:{a1:220,l1:700,a2:60,l2:260,seed:23,straight:[[.52,.88]],fade:260},
+  const sh=buildCurvy({id:'sh',hw:12,lanes:2,style:1,from:'ring',lift:.07,smooth:150,grade:.05,minR:85,humps:[{f:.53,n:3,len:68,amp:6},{f:.76,n:3,len:68,amp:6}],wig:{a1:220,l1:700,a2:60,l2:260,seed:23,straight:[[.52,.88]],fade:260},
     pts:ramp(ring,40,1850,40,1850,12).concat([[300,2260],[800,2420],[1500,2440],[2100,2420],[2500,2420],[2610,2418]])});
   loopRoad('lookout',2650,2418,40,6,.09);
   /* the east link: ring (east) -> south along the east side -> onto the southern highway */
-  const el=buildCurvy({id:'el',hw:10,lanes:2,style:1,from:'ring',to:'sh',yFrom:null,lift:.08,smooth:100,minR:65,wig:{a1:230,l1:620,a2:66,l2:250,seed:29,straight:[[.62,.80]],fade:200},
+  const el=buildCurvy({id:'el',hw:10,lanes:2,style:1,from:'ring',to:'sh',yFrom:null,lift:.08,smooth:100,minR:65,humps:[{f:.66,n:3,len:68,amp:6}],wig:{a1:230,l1:620,a2:66,l2:250,seed:29,straight:[[.62,.80]],fade:200},
     pts:ramp(ring,2000,1060,2000,1060,10).concat([[2000,1060],[2300,1560],[2410,2000],[2412,2280],tIn(sh,2412,2280)])});
   /* the coast road (Highway 1 style): out of Market's south-west end, over the ring, along the beach, round a headland and onto the southern highway */
   {buildCurvy({id:'cr',hw:9,lanes:1,style:0,to:'sh',yFrom:'sfp',lift:.06,smooth:70,minR:45,bridgeOver:['ring'],wig:{a1:190,l1:480,a2:60,l2:200,seed:17,fade:200},
@@ -250,7 +253,11 @@ function defineRoads(){
   perimeter('psp',RESORT,11,.055);
   buildCurvy({id:'psl',hw:9,lanes:1,style:0,to:'el',yFrom:'psp',lift:.1,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:43,fade:120},pts:[[RESORT.x1,1660],[1980,1650],[2100,1610],tIn(el,2100,1610)]});
   buildCurvy({id:'pss',hw:9,lanes:1,style:0,to:'sh',yFrom:'psp',lift:.1,minR:50,wig:{a1:40,l1:320,a2:10,l2:130,seed:47,fade:140},pts:[[1620,RESORT.z1],[1612,2060],[1630,2250],tIn(sh,1630,2250)]});
-  const fixed=fixCrossings();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;
+  const fixed=fixCrossings();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;findJumps();
   return GRIDS}
 let BRIDGES_ADDED=[];
+/* where the jump hills are: [x,z,radius] (for the map and the region name) */
+const JUMPZ=[];
+function findJumps(){JUMPZ.length=0;for(const r of ROADS){if(!r.def||!r.def.humps)continue;for(const h of r.def.humps){const s0=h.f*r.len,s1=s0+h.n*h.len;let a=0,b=0;for(let i=0;i<r.n;i++){if(r.S[i]<=s0)a=i;if(r.S[i]<=s1)b=i}
+      JUMPZ.push([(r.X[a]+r.X[b])/2,(r.Z[a]+r.Z[b])/2,Math.hypot(r.X[a]-r.X[b],r.Z[a]-r.Z[b])/2+60])}}}
 const roadById=id=>ROADS.find(r=>r.id==id);

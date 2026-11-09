@@ -89,7 +89,7 @@ function drawMap(ctx,cx,cy,rad,zoomM,rot){
   ctx.translate(cx,cy);ctx.rotate(rot);ctx.scale(s,s);ctx.translate(-(C.x+W.half)*pxm,-(C.z+W.half)*pxm);ctx.imageSmoothingEnabled=true;ctx.drawImage(UI.mapCv,0,0);ctx.restore();
   ctx.save();ctx.translate(cx,cy);ctx.fillStyle='#ff7a1a';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,-rad*.14);ctx.lineTo(rad*.09,rad*.1);ctx.lineTo(0,rad*.05);ctx.lineTo(-rad*.09,rad*.1);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
   ctx.beginPath();ctx.arc(cx,cy,rad,0,TAU);ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.85)';ctx.stroke()}
-const REGIONS=[['Golden Gate Park',()=>inBox(C.x,C.z,PARK,10)],['Russian Hill',()=>Math.hypot(C.x+1100,C.z+70)<200],['Twin Peaks',()=>Math.hypot(C.x+620,C.z-760)<260],['Downtown',()=>inBox(C.x,C.z,CITY,20)],['The Valley',()=>inBox(C.x,C.z,VALLEY,20)],['Santa Cruz Pier',()=>inBox(C.x,C.z,{x0:BEACH.x0,z0:BEACH.z1,x1:BEACH.x1,z1:BEACH.z1+260},0)],['Santa Cruz',()=>inBox(C.x,C.z,BEACH,30)],['Palm Springs',()=>inBox(C.x,C.z,RESORT,30)],['Mulholland ridge',()=>C.x>450&&C.x<1650&&C.z>-420&&C.z<20&&terrainH(C.x,C.z)>40],['Mountain pass',()=>terrainH(C.x,C.z)>130&&C.x>600&&C.z<-700],['Pacific coast',()=>C.x<-1700],['North shore',()=>C.z<-2000],['Southern plains',()=>C.z>1700],['Highlands',()=>C.x>1300&&C.z<-300],['Orbital ring',()=>Math.hypot(C.x*.9,C.z-100)>1100],['Suburbs',()=>true]];
+const REGIONS=[['Jump hills',()=>JUMPZ.some(j=>Math.hypot(C.x-j[0],C.z-j[1])<j[2])],['Golden Gate Park',()=>inBox(C.x,C.z,PARK,10)],['Russian Hill',()=>Math.hypot(C.x+1100,C.z+70)<200],['Twin Peaks',()=>Math.hypot(C.x+620,C.z-760)<260],['Downtown',()=>inBox(C.x,C.z,CITY,20)],['The Valley',()=>inBox(C.x,C.z,VALLEY,20)],['Santa Cruz Pier',()=>inBox(C.x,C.z,{x0:BEACH.x0,z0:BEACH.z1,x1:BEACH.x1,z1:BEACH.z1+260},0)],['Santa Cruz',()=>inBox(C.x,C.z,BEACH,30)],['Palm Springs',()=>inBox(C.x,C.z,RESORT,30)],['Mulholland ridge',()=>C.x>450&&C.x<1650&&C.z>-420&&C.z<20&&terrainH(C.x,C.z)>40],['Mountain pass',()=>terrainH(C.x,C.z)>130&&C.x>600&&C.z<-700],['Pacific coast',()=>C.x<-1700],['North shore',()=>C.z<-2000],['Southern plains',()=>C.z>1700],['Highlands',()=>C.x>1300&&C.z<-300],['Orbital ring',()=>Math.hypot(C.x*.9,C.z-100)>1100],['Suburbs',()=>true]];
 function regionName(){for(const r of REGIONS)if(r[1]())return r[0];return''}
 /* ---------- HUD ---------- */
 function hudDraw(){
@@ -104,6 +104,9 @@ function hudDraw(){
   c.textAlign='left';c.fillStyle='rgba(255,255,255,.75)';c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillText('NITRO',nx,ny-5);
   /* drift score */
   if(C.driftTime>.25){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#7fd4ff';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=5;c.fillText('DRIFT  '+Math.round(C.driftScore),W_*.5,u*1.5);c.restore()}
+  /* air time while flying, then the length of the jump */
+  if(!C.grounded&&C.air>.3){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.5)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=5;c.fillText('AIR  '+C.air.toFixed(1)+' s',W_*.5,u*2.25);c.restore()}
+  else if(C.jump&&C.t-C.jump.t<2.2&&C.grounded){const a=Math.min(1,2.2-(C.t-C.jump.t));c.save();c.globalAlpha=a;c.textAlign='center';c.font='800 '+Math.round(u*.5)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=5;c.fillText('JUMP  '+Math.round(C.jump.d*3.281)+' ft  ·  '+C.jump.air.toFixed(1)+' s',W_*.5,u*2.25);c.restore()}
   /* minimap */
   const mm=UI.mm;drawMap(c,mm.cx,mm.cy,mm.r,420,-C.yaw);c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.85)';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText('MAP',mm.cx,mm.cy+mm.r+u*.3);c.restore();
   /* location banner */
@@ -130,7 +133,7 @@ function drawWorldMap(c,W_,H_,u){
   c.imageSmoothingEnabled=true;c.drawImage(UI.mapCv,x0,y0,S,S);c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=2;c.strokeRect(x0,y0,S,S);
   const sc=S/W.size,px=x=>x0+(x+W.half)*sc,pz=z=>y0+(z+W.half)*sc;
   c.textAlign='center';c.font='800 '+Math.max(8,Math.round(u*.22))+'px -apple-system,Roboto,sans-serif';c.lineJoin='round';
-  for(const L of MAPLBL){c.textAlign=L[4]=='r'?'right':'center';c.strokeStyle='rgba(0,0,0,.85)';c.lineWidth=3.5;c.strokeText(L[0],px(L[1]),pz(L[2]));c.fillStyle=L[3]?'#fff':'#8fb8e0';c.fillText(L[0],px(L[1]),pz(L[2]))}c.textAlign='center';
+  for(const L of MAPLBL.concat(JUMPZ.map(j=>['JUMPS',j[0],j[1]-75,1]))){c.textAlign=L[4]=='r'?'right':'center';c.strokeStyle='rgba(0,0,0,.85)';c.lineWidth=3.5;c.strokeText(L[0],px(L[1]),pz(L[2]));c.fillStyle=L[3]?'#fff':'#8fb8e0';c.fillText(L[0],px(L[1]),pz(L[2]))}c.textAlign='center';
   /* you */
   const t=C.t,pxp=px(C.x),pzp=pz(C.z);c.save();c.translate(pxp,pzp);c.strokeStyle='rgba(255,122,26,'+(.75-.4*Math.sin(t*6))+')';c.lineWidth=2;c.beginPath();c.arc(0,0,8+3*Math.sin(t*6),0,TAU);c.stroke();
   c.rotate(C.yaw);c.fillStyle='#ff7a1a';c.strokeStyle='#fff';c.lineWidth=1.8;c.beginPath();c.moveTo(0,-9);c.lineTo(6,7);c.lineTo(0,3);c.lineTo(-6,7);c.closePath();c.fill();c.stroke();c.restore();
@@ -152,6 +155,6 @@ function audioStart(){if(AU.ctx||window.__noAudio)return;try{const A=window.Audi
   const wn=mkNoise(),wf=x.createBiquadFilter();wf.type='lowpass';wf.frequency.value=700;AU.windG=x.createGain();AU.windG.gain.value=0;wn.connect(wf);wf.connect(AU.windG);AU.windG.connect(master);wn.start();
   const tn=mkNoise(),tf=x.createBiquadFilter();tf.type='bandpass';tf.frequency.value=1500;tf.Q.value=2.2;AU.tireG=x.createGain();AU.tireG.gain.value=0;tn.connect(tf);tf.connect(AU.tireG);AU.tireG.connect(master);tn.start();AU.ready=true}catch(e){}}
 function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.state=='suspended')x.resume();
-  const sp=Math.min(1,C.speed/80),gear=Math.min(5,Math.floor(C.speed/16)),gp=(C.speed-gear*16)/16,rpm=.22+(Math.min(1,gp*.9+.1)*.55)+(IN.thr||IN.auto?.12:0)+(C.boosting?.1:0);
+  const sp=Math.min(1,C.speed/80),gear=Math.min(5,Math.floor(C.speed/16)),gp=(C.speed-gear*16)/16,rpm=.22+(Math.min(1,gp*.9+.1)*.55)+(IN.thr||IN.auto?.12:0)+(C.boosting?.1:0)+(C.grounded?0:.16);
   const f=38+rpm*150;AU.eng.frequency.setTargetAtTime(f,t,.04);AU.eng2.frequency.setTargetAtTime(f*.503,t,.04);AU.lp.frequency.setTargetAtTime(500+rpm*1400,t,.05);
   AU.gain.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:.07+.07*rpm+(C.boosting?.05:0),t,.05);AU.windG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:sp*sp*.22,t,.1);AU.tireG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:(C.grounded&&C.drift>.3?.12*C.drift:0)+(C.hit>3?.05:0),t,.05)}
