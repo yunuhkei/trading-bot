@@ -377,6 +377,8 @@ class Lab:
         self._fast_state = state.get("fast")
         self.direct = None                                # the direct buyer (pump.fun test-runs, practice), set by run()
         self._direct_state = state.get("direct")
+        self.sniper = None                                # the sniper (REAL money, bot/sniper.py), set by run()
+        self._sniper_state = state.get("sniper")
         self._streak: tuple = (-1e18, [])
         # market signs every 5 minutes, to find out later what shows up before a good stretch
         self.signs: list = state.get("signs") or []
@@ -466,14 +468,14 @@ class Lab:
             return
         a.pending[mint] = {"side": "buy", "at": now + self.lb, "why": why, "signal": now, "via": via}
         a.cash -= a.per_trade                                           # reserved
-        for sh in (self.fast, self.direct):
+        for sh in (self.fast, self.direct, self.sniper):
             if sh and a.ghost and a.key == FAST_WATCH:
                 sh.lab_buy(mint, now)
 
     def _sell(self, a: Account, mint: str, now: float, why: str):
         if mint in a.positions and not a.positions[mint].get("selling"):
             a.positions[mint]["selling"] = {"at": now + self.ls, "why": why}
-            for sh in (self.fast, self.direct):
+            for sh in (self.fast, self.direct, self.sniper):
                 if sh and a.ghost and a.key == FAST_WATCH:
                     sh.lab_sell(mint, now, why)
 
@@ -510,7 +512,7 @@ class Lab:
         a.pnl += profit
         a.best, a.worst = max(a.best, profit), min(a.worst, profit)
         a.tally(p["t"], profit)
-        for sh in (self.fast, self.direct):
+        for sh in (self.fast, self.direct, self.sniper):
             if sh and a.ghost and a.key == FAST_WATCH:
                 sh.lab_result(coin.mint, profit / p["cost"])
         if a.ghost and a.key not in SUPER:                # the families' results, for the market-signs log
@@ -603,6 +605,8 @@ class Lab:
             lt = local_time(now)
             self._clock = (m, lt.hour)
             day = lt.strftime("%Y-%m-%d")
+            if self.sniper:
+                self.sniper.settle_day(day)
             if self.plan["day"] is None:
                 self.plan.update(day=day, start=self.value(self.accts["timing"]), n=self.accts["timing"].n,
                                  ghost_start=self.ghosts["timing"].pnl)
@@ -811,7 +815,7 @@ class Lab:
         if dead:
             lines.append(f"• Busted, staying dead ({len(dead)}): " + ", ".join(dead))
         lines += [f"• {x}" for x in self.plan_lines(now)]
-        for sh in (self.fast, self.direct):
+        for sh in (self.fast, self.direct, self.sniper):
             if sh:
                 lines.append(f"• {sh.line()}")
         on = self.timing_on(now)
@@ -865,6 +869,8 @@ class Lab:
         f = self.fast.hour(now) if self.fast else None
         if f and f["tried"]:
             lines.append(f"• Through Jupiter only {f['ok']} of {f['tried']} could be bought in time.")
+        if self.sniper and (self.sniper.cfg.get("live") or self.sniper.trades):
+            lines.append(f"• {self.sniper.line()}")
 
         # the super bots
         p, sup = self.plan, self.accts["timing"]
@@ -973,7 +979,8 @@ class Lab:
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
                 "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs,
                 "fast": self.fast.to_state() if self.fast else self._fast_state,
-                "direct": self.direct.to_state() if self.direct else self._direct_state}
+                "direct": self.direct.to_state() if self.direct else self._direct_state,
+                "sniper": self.sniper.to_state() if self.sniper else self._sniper_state}
 
     def ghost_state(self) -> dict:
         out = {}
@@ -1000,7 +1007,8 @@ class Lab:
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
                 "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs,
                 "fast": self.fast.to_state() if self.fast else self._fast_state,
-                "direct": self.direct.to_state() if self.direct else self._direct_state}
+                "direct": self.direct.to_state() if self.direct else self._direct_state,
+                "sniper": self.sniper.to_state() if self.sniper else self._sniper_state}
 
 
 async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180,
@@ -1014,6 +1022,11 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
     fast_session = aiohttp.ClientSession() if (lab.fast or lab.direct) else None
     fast_task = asyncio.create_task(lab.fast.run(fast_session, end)) if lab.fast else None
     direct_task = asyncio.create_task(lab.direct.run(fast_session, end)) if lab.direct else None
+    sniper_session = aiohttp.ClientSession() if lab.sniper else None
+    if lab.sniper:
+        for mint in list(lab.sniper.open):                  # anything left from a run that was killed: sell it now
+            lab.sniper.queue.append(("sell", mint, time.time(), "left from the last run"))
+    sniper_task = asyncio.create_task(lab.sniper.run(sniper_session, end)) if lab.sniper else None
     while time.time() < end:
         try:
             async with aiohttp.ClientSession() as s:
@@ -1048,6 +1061,9 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
                                      f"pump.fun events and {new:,} brand-new coins. Scoreboard when this run ends (~6 h).")
                         if now - last_save >= save_every:            # a killed job keeps its accounts
                             last_save = now
+                            if lab.sniper:                           # sniper.yaml can switch it off any time
+                                from .sniper import config as sniper_config
+                                lab.sniper.cfg = sniper_config()
                             peek(lab, now)
                             try:
                                 STATE.write_text(json.dumps(lab.snapshot()))
@@ -1066,6 +1082,10 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
     for t in (fast_task, direct_task):
         if t:
             t.cancel()
+    if sniper_task:
+        await asyncio.wait([sniper_task], timeout=30)
+        await lab.sniper.sell_all(sniper_session, "the run ended")
+        await sniper_session.close()
     if fast_session:
         await fast_session.close()
 
@@ -1109,6 +1129,16 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
     lab.direct = DirectBuyer(state.get("direct"), lab.sol_usd)
     lab.direct.fee = lambda mint: lab.coins[mint].fee if mint in lab.coins else None
     lab.direct.program_of = lab.token_programs.get
+    from .sniper import Sniper, config as sniper_config
+    from .solbot import KeyProblem, keypair
+    try:
+        kp = keypair()
+    except KeyProblem as ex:
+        kp = None
+        log.warning("sniper: the wallet key didn't work: %s", ex)
+    lab.sniper = Sniper(kp, state.get("sniper"), lab.sol_usd, tell, sniper_config())
+    lab.sniper.curve, lab.sniper.program_of = lab.curve_tokens, lab.token_programs.get
+    lab.sniper.fee = lambda mint: lab.coins[mint].fee if mint in lab.coins else None
     if resume_super:                                    # the owner's check said go
         was = lab.plan["mode"]
         add = lab.resume_super()
@@ -1125,6 +1155,8 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
         print(lab.fast.line(), flush=True)
         print("DIRECT " + json.dumps(lab.direct.summary()), flush=True)
         print(lab.direct.line(), flush=True)
+        print("SNIPER " + json.dumps(lab.sniper.to_state()), flush=True)
+        print(lab.sniper.line(), flush=True)
         for k, a in lab.accts.items():
             for t in a.trades[-5:]:
                 print(f"  {k}: {t['name']} {t['profit']:+.2f} in {t['s']} s ({t['why_in']} -> {t['why_out']}, filled {t['lag']} s late)")
@@ -1141,4 +1173,17 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
         pass
     finally:
         STATE.write_text(json.dumps(lab.to_state()))
+        if lab.sniper and lab.sniper.open and lab.sniper.kp:    # stopped mid-run: try to sell what the sniper holds
+            try:
+                asyncio.run(asyncio.wait_for(_sell_now(lab.sniper), 9))
+            except BaseException as ex:                          # whatever's left is sold at the next start
+                log.warning("sniper: selling at the end didn't finish: %s", ex)
+            STATE.write_text(json.dumps(lab.to_state()))
         print(lab.board(), flush=True)                  # the hourly reports already went to the phone
+
+
+async def _sell_now(sniper):
+    import aiohttp
+
+    async with aiohttp.ClientSession() as s:
+        await sniper.sell_all(s, "the run was stopped")

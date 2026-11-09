@@ -1,0 +1,32 @@
+# One small REAL round trip for the sniper (bot/sniper.py): wait for a brand-new pump.fun coin, buy a dollar of it from
+# the bot's wallet straight on pump.fun, hold a few seconds, sell it all. It proves the whole path works with real money
+# before the sniper is switched on. Run by hand only.
+name: sniper-check
+on:
+  workflow_dispatch:
+    inputs:
+      usd:
+        description: "Dollars to buy (keep it tiny)"
+        default: "1"
+      hold:
+        description: "Seconds to hold before selling"
+        default: "12"
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Buy and sell one coin
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+          SOLANA_BOT_KEY: ${{ secrets.SOLANA_BOT_KEY }}
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+          USD: ${{ inputs.usd }}
+          HOLD: ${{ inputs.hold }}
+        run: python -m bot sniper-check --usd "$USD" --hold "$HOLD"

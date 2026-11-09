@@ -37,11 +37,14 @@ jobs:
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
           JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}   # quotes only (the fast buyer practices; nothing is sent)
+          SOLANA_BOT_KEY: ${{ secrets.SOLANA_BOT_KEY }}     # the sniper's wallet: it trades only when sniper.yaml says live
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}     # sends the sniper's trades
           FIRST_REPORT: ${{ inputs.first_report }}
           RESUME_SUPER: ${{ inputs.resume_super }}
-        run: >-
-          python -m bot launch-lab --minutes 340 ${FIRST_REPORT:+--first-report "$FIRST_REPORT"}
-          $( [ "$RESUME_SUPER" = "yes" ] && echo --resume-super )
+        # pull new commits every 5 minutes, so a change to sniper.yaml (like live: false) reaches the running lab
+        run: |
+          (while sleep 300; do git pull -q --ff-only origin main || true; done) &
+          python -m bot launch-lab --minutes 340 ${FIRST_REPORT:+--first-report "$FIRST_REPORT"} $( [ "$RESUME_SUPER" = "yes" ] && echo --resume-super )
       - uses: actions/cache/save@v4
         if: always()
         with:

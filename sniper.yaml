@@ -1,0 +1,13 @@
+# The sniper (bot/sniper.py): REAL money from the bot's wallet. It buys what the launch lab's "Snipe every new coin"
+# buys, straight on pump.fun, and sells when the lab sells. The lab re-reads this file every 5 minutes, so setting
+# `live: false` stops new buys within about 5 minutes (whatever it holds is still sold as usual).
+sniper:
+  live: false                    # OFF until the owner says go
+  per_trade: 25                  # dollars a trade
+  max_open: 3                    # coins held at once
+  budget: 95                     # its money: it never spends more than this; profit above it is set aside each midnight
+  floor: 50                      # if its money falls to this: sell everything, stop, ping the phone
+  slippage_buy: 0.30             # don't buy if the price ran more than 30% past the lab's by the time the buy lands
+  slippage_sell: 0.50            # first try: accept down to half the expected sale; then 25%; then anything
+  priority_microlamports: 5000000  # priority fee: about 0.0007 SOL (~6 cents) a trade, to land fast
+  reserve_sol: 0.02              # SOL never spent (network fees and the coins' token accounts)

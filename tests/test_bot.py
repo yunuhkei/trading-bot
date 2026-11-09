@@ -3241,3 +3241,147 @@ def test_direct_buyer_test_runs_the_snipes_and_reads_the_live_curve():
     assert s["signals"] == 1 and s["bought"] == 1 and s["finished"] == 1 and s["lab_ret"] == -0.02
     assert "Direct buyer (pump.fun test-runs, no money): 1 snipes, 1 would have gone through" in d.line()
     assert "Nothing is ever sent" in d.line()
+
+
+def _fake_chain(owner, mint, sol_change, token_change, fail_first_sends=0):
+    """A stand-in for the network: sends confirm, and the transaction shows the wallet's SOL and token change."""
+    import base64
+    import struct
+
+    calls = []
+    sends = [0]
+    curve = bytearray(160)
+    struct.pack_into("<QQ", curve, 8, int(800_000_000 * 1e6), int(40 * 1e9))
+
+    class Resp:
+        def __init__(self, d): self.d = d
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def json(self, content_type=None): return self.d
+
+    class Session:
+        def post(self, url, json=None, timeout=None):
+            m = json["method"]
+            calls.append(m)
+            if m == "getLatestBlockhash":
+                return Resp({"result": {"value": {"blockhash": "11111111111111111111111111111111"}}})
+            if m == "sendTransaction":
+                sends[0] += 1
+                return Resp({"result": f"SIG{sends[0]}"})
+            if m == "getSignatureStatuses":
+                bad = sends[0] <= fail_first_sends
+                return Resp({"result": {"value": [{"confirmationStatus": "confirmed", "err": {"x": 1} if bad else None}]}})
+            if m == "getTransaction":
+                tok_pre = [] if token_change[0] > 0 else [{"owner": owner, "mint": mint, "uiTokenAmount": {"amount": str(-token_change[0])}}]
+                tok_post = [{"owner": owner, "mint": mint, "uiTokenAmount": {"amount": str(token_change[0])}}] if token_change[0] > 0 else []
+                tx = {"meta": {"preBalances": [10_000_000_000], "postBalances": [10_000_000_000 + sol_change[0]],
+                               "preTokenBalances": tok_pre, "postTokenBalances": tok_post},
+                      "transaction": {"message": {"accountKeys": [{"pubkey": owner}]}}}
+                return Resp({"result": tx})
+            if m == "getAccountInfo":
+                return Resp({"result": {"value": {"data": [base64.b64encode(bytes(curve)).decode(), "base64"],
+                                                  "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}}})
+            raise AssertionError(m)
+    return Session(), calls
+
+
+def test_sniper_stays_off_and_keeps_to_its_limits():
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    s = sn.Sniper(kp, cfg={**sn.DEFAULTS, "live": False})
+    assert s.can_buy("M1") == "off"
+    s.cfg["live"] = True
+    assert s.can_buy("M1") is None
+    s.open = {f"M{i}": {"spent": int(0.25e9)} for i in range(3)}                  # 3 held: full
+    assert s.can_buy("M9") == "full"
+    s.open = {"M1": {"spent": int(0.5e9)}}                                       # $75 of $95 in coins at $150/SOL
+    assert s.can_buy("M9") == "not enough left in its budget"
+    s.open = {}
+    s.plan["paused"] = "2026-11-10"
+    assert s.can_buy("M9") == "paused after 2 losing days"
+    s.plan["paused"], s.plan["stopped"] = None, 1
+    assert s.can_buy("M9") == "stopped at the floor"
+    assert sn.Sniper(None, cfg={**sn.DEFAULTS, "live": True}).can_buy("M9") == "off"   # no wallet key: never trades
+    assert sn.config().get("live") is False                                      # sniper.yaml ships switched off
+
+
+def test_sniper_follows_the_owners_plan_at_midnight():
+    from bot import sniper as sn
+
+    told = []
+    s = sn.Sniper(None, tell=lambda t, m: told.append((t, m)), cfg=dict(sn.DEFAULTS))
+    s.settle_day("2026-11-10")
+    s.plan["pnl"] = s.plan["day_pnl"] = 30.0
+    s.settle_day("2026-11-11")                                    # a winning day: the $30 above the budget is set aside
+    assert s.plan["set_aside"] == 30.0 and s.money() == 95.0 and "Set aside $30.00" in told[-1][1]
+    s.plan["pnl"] += -10; s.plan["day_pnl"] = -10.0
+    s.settle_day("2026-11-12")                                    # losing day 1 of 2: not topped up
+    assert s.money() == 85.0 and s.plan["streak"] == 1 and not s.plan["paused"]
+    s.plan["pnl"] += -5; s.plan["day_pnl"] = -5.0
+    s.settle_day("2026-11-13")                                    # 2 in a row: paused until the owner's check
+    assert s.plan["paused"] == "2026-11-12" and told[-1][0] == "🎯 Sniper paused"
+
+
+def test_sniper_buys_and_sells_for_real_on_a_stand_in_network():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    owner, mint = str(kp.pubkey()), "So11111111111111111111111111111111111111112"
+    told = []
+    s = sn.Sniper(kp, sol_usd=100.0, tell=lambda t, m: told.append((t, m)), cfg={**sn.DEFAULTS, "live": True, "floor": 94.5})
+    s.program_of = lambda m: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    s.curve = lambda m, lam: 6_000_000.0
+    sol, tok = [-252_000_000], [5_900_000_000_000]               # the buy: 0.252 SOL out (incl. fees, rent), 5.9M tokens in
+    session, calls = _fake_chain(owner, mint, sol, tok)
+    s.lab_buy(mint, 0.0)
+    assert s.queue and mint in s.busy
+    real_sleep = asyncio.sleep
+
+    async def quick(t):
+        await real_sleep(0)
+    asyncio.sleep = quick
+    try:
+        asyncio.run(s.buy(session, mint, 0.0))
+        assert s.open[mint]["tokens"] == 5_900_000_000_000 and s.open[mint]["spent"] == 252_000_000
+        assert calls[:2] == ["getLatestBlockhash", "sendTransaction"] and mint not in s.busy
+        sol[0], tok[0] = 240_000_000, -5_900_000_000_000         # the sale: 0.24 SOL back (incl. the account's rent)
+        asyncio.run(s.sell(session, mint, 0.0, "time's up"))
+    finally:
+        asyncio.sleep = real_sleep
+    t = s.trades[-1]
+    assert mint not in s.open and round(t["pnl"], 2) == -1.20 and s.plan["day_pnl"] == t["pnl"]
+    assert s.plan["stopped"] and told[-1][0] == "🎯 Sniper stopped at its floor"        # $93.80 is under the $94.50 floor
+    assert "Sniper (REAL money, STOPPED at its floor)" in s.line()
+
+
+def test_sniper_retries_a_failed_sale_and_reports_a_stuck_coin():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    owner, mint = str(kp.pubkey()), "So11111111111111111111111111111111111111112"
+    told = []
+    s = sn.Sniper(kp, sol_usd=100.0, tell=lambda t, m: told.append((t, m)), cfg={**sn.DEFAULTS, "live": True})
+    s.open[mint] = {"mint": mint, "tokens": 1000, "spent": 250_000_000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}
+    session, calls = _fake_chain(owner, mint, [240_000_000], [-1000], fail_first_sends=99)     # every send fails
+    real_sleep = asyncio.sleep
+
+    async def quick(t):
+        await real_sleep(0)
+    asyncio.sleep = quick
+    try:
+        asyncio.run(s.sell(session, mint, 0.0, "stop"))
+    finally:
+        asyncio.sleep = real_sleep
+    assert calls.count("sendTransaction") == 3 and mint in s.open and s.open[mint]["stuck"] == 1
+    assert told[-1][0] == "🎯 Sniper: couldn't sell a coin"

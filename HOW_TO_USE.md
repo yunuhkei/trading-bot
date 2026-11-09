@@ -528,6 +528,16 @@ sale goes through. First live check, 18 snipes side by side: through Jupiter 11 
 direct 15 would have gone through, +23.2% a bet against the lab's +19.1% on the same bets. Not tested yet: how fast a
 real transaction lands when other bots are racing for the same coin (only real sends can show that).
 
+**Sniper** (`bot/sniper.py`, REAL money, `sniper.yaml`): buys what "Snipe every new coin" buys, straight on pump.fun
+from the bot's wallet (SOLANA_BOT_KEY), sent through Helius, and sells when the lab sells (closing the coin's token
+account so its rent comes back). Off unless `sniper.yaml` says `live: true`; the running lab re-reads that file every 5
+minutes. Limits: `per_trade` dollars a trade, `max_open` coins at once, never more than `budget`; a price cap on every
+buy (`slippage_buy`); sells retry and a coin it can't sell is reported. The owner's plan: each midnight profit above the
+budget is set aside (never traded again; withdraw it), a losing day isn't topped up, 2 losing days in a row pause it until
+the owner's check; at `floor` it sells everything and stops. What it holds when a run ends is sold; anything left from a
+killed run is sold at the next start. The ping has a "Sniper (REAL money ...)" line. `sniper-check` (the workflow) does
+one tiny real round trip ($1 by default) to prove the path works.
+
 **The owner's money plan** (the super bot follows it): $1,000 stays in, no trade over $250. At midnight (Milwaukee time) a
 winning day takes out everything above $1,000; a losing day isn't topped up; after 2 losing days in a row it goes into
 practice mode: it stops using its money and only trades on paper (its ghost) until the owner's next check. The phone gets

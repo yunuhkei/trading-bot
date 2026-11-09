@@ -428,6 +428,9 @@ def main(argv=None):
     ll.add_argument("--minutes", type=float, default=340)
     ll.add_argument("--status", action="store_true", help="print each strategy's record")
     ll.add_argument("--first-report", type=float, default=None, help="send a report this many minutes in")
+    sc = sub.add_parser("sniper-check", help="REAL money, small: buy a brand-new coin on pump.fun and sell it right after")
+    sc.add_argument("--usd", type=float, default=1.0)
+    sc.add_argument("--hold", type=float, default=12.0)
     ll.add_argument("--resume-super", action="store_true",
                     help="after practice mode: the super bot uses its money again, topped back up to $1,000")
     co = sub.add_parser("callouts", help="track meme-coin callouts (boosts, trending, Telegram) and how they did")
@@ -492,6 +495,21 @@ def main(argv=None):
         cmd_solbot(args, cfg)
     elif args.cmd == "kalshi":
         cmd_kalshi(args, cfg)
+    elif args.cmd == "sniper-check":
+        import asyncio
+        import json as _json
+
+        from .signals import alert_target, notify
+        from .sniper import check
+
+        target = alert_target()
+        tell = (lambda t, m: notify(target, t, m, tag="dart")) if target else (lambda t, m: print(t, m))
+        res = asyncio.run(check(args.usd, args.hold, tell))
+        print("SNIPER CHECK " + _json.dumps(res))
+        msg = (f"Bought ${args.usd:g} of a brand-new coin straight on pump.fun (landed {res['buy_landed_s']} s after "
+               f"spotting it), sold it {args.hold:g} s later: {res['result_usd']:+.4f} dollars after all fees."
+               if res.get("outcome") == "ok" else res.get("outcome"))
+        tell("🎯 Sniper check (real money)", msg)
     elif args.cmd == "launch-lab":
         cmd_launch_lab(args, cfg)
     elif args.cmd == "callouts":
