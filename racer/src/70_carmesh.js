@@ -27,26 +27,36 @@ function cgGridNormals(P,ni,nj,wrap,ctr){const N=new Float32Array(ni*nj*3);
     if(nx*ox+ny*oy+nz*oz<0){nx=-nx;ny=-ny;nz=-nz}N[k]=nx/l;N[k+1]=ny/l;N[k+2]=nz/l}return N}
 /* ---------------- the spec: defaults and the curves derived from the few numbers a car is described by ---------------- */
 function cgSpec(o){
-  const S=Object.assign({L:4.5,W:1.86,H:1.28,wb:2.45,fo:.92,nose:.56,hood:.80,cowl:1.62,roofF:2.12,roofR:3.0,rearS:3.5,deck:.97,tail:.80,hw0:.80,hwMax:.93,hwMaxS:3.0,hwTail:.82,crown:.09,tum:.05,flare:.05,
-    rf:.335,rr:.345,wf:.255,wr:.305,rimF:.235,rimR:.245,tf:.775,tr:.80,sill:.12,gw:.80,gt:.66,
+  const S=Object.assign({L:4.5,W:1.86,H:1.28,wb:2.45,fo:.92,nose:.56,hood:.80,cowl:1.62,roofF:2.12,roofR:3.0,rearS:3.5,deck:.97,tail:.80,hw0:.80,hwMax:.93,hwMaxS:3.0,hwTail:.82,crown:.09,tum:.09,dip:.012,flare:.035,flareR:.075,crest:.032,crestR:.05,tuck:.03,
+    rf:.335,rr:.345,wf:.255,wr:.305,rimF:.235,rimR:.245,tf:.775,tr:.80,sill:.095,gw:.72,gt:.6,
     glassRoof:0,rearGlass:1,bpillar:0,spoke:5,wheelStyle:'spoke',head:'round',tail_:'bar',intake:'mid',wing:'none',duct:0,exh:2,exhS:'twin',louvres:0,stripe:0,mirror:1,diff:1,splitter:1,sideIntake:0,quad:1,grille:'none',drl:0,gills:0,buttress:0,scoop:0,canards:0,shark:0,plates:1,seat:'two',chromeTrim:0,tread:1,lhd:1},o||{});
   S.fz=-S.L/2+S.fo;S.rz=S.fz+S.wb;                        /* axle positions along z (front is negative) */
   S.zs=s=>s-S.L/2;                                         /* s measured from the nose -> z */
   S.hwF=S.W/2;return S}
 /* ---------------- the body ---------------- */
 function cgTubRing(S,s,K){K=K||S.K||16;
-  const f=S.curves,hw=f.half(s)+S.flare*(Math.exp(-Math.pow((s-S.fo)/.5,2))+Math.exp(-Math.pow((s-(S.fo+S.wb))/.5,2))),yb=f.bot(s),yt=f.top(s),crown=S.crown*(s>S.gs0&&s<S.gs1?.35:1),ys=yt-crown,tum=S.tum,rb=Math.min(.06,(ys-yb)*.35);
+  const gF=Math.exp(-Math.pow((s-S.fo)/.5,2)),gR=Math.exp(-Math.pow((s-(S.fo+S.wb))/.55,2));
+  const f=S.curves,hw=f.half(s)+S.fF*gF+S.fR*gR,yb=f.bot(s),yt=f.top(s),crown=S.crown*(s>S.gs0&&s<S.gs1?.35:1),ys=yt-crown,tum=S.tum,rb=Math.min(.06,(ys-yb)*.35);
+  /* fender and haunch crests: the shoulder rises over each wheel and the middle of the bonnet and deck sits lower between them (not under the cabin) */
+  const cab=1-.85*sstep(S.gs0-.1,S.gs0+.35,s)*(1-sstep(S.gs1-.35,S.gs1+.1,s)),cr=K>8?cab*(S.crest*Math.exp(-Math.pow((s-S.fo)/.6,2))+(S.crestR==null?S.crest:S.crestR)*Math.exp(-Math.pow((s-(S.fo+S.wb))/.62,2))):0;
+  /* the side air intake, carved into the flank behind the door (mid-engine cars) */
+  const scD=K>8&&S.sideIntake?(.04+.1*S.sideIntake)*Math.exp(-Math.pow((s-(S.roofR+.12))/.34,2)):0;
   const pts=[];pts.push([0,yb]);pts.push([hw*.78,yb]);
   for(let k=1;k<=2;k++){const a=-Math.PI/2+k*Math.PI/6;pts.push([hw-rb+rb*Math.cos(a),yb+rb+rb*Math.sin(a)])}
   const y0=yb+rb,hs=ys-y0,cf=(S.crease==null?1:S.crease)*sstep(.9,1.7,s)*(1-sstep(S.L-1.3,S.L-.45,s))*(K>8?1:0);
-  for(let k=0;k<=K;k++){const t=k/K,rid=cf*(.012*Math.exp(-Math.pow((t-.68)/.07,2))-.008*Math.exp(-Math.pow((t-.37)/.06,2)));pts.push([hw*(1-tum*t*t)+rid,y0+hs*t])}      /* a shoulder crease and a groove above the sill: the flank catches light along them like a pressed panel */
-  const xs=hw*(1-tum);const n=3.15;for(let k=1;k<=5;k++){const a=k/5*Math.PI/2,c=Math.cos(a),sn=Math.sin(a);pts.push([xs*Math.pow(c,2/n),ys+(yt-ys)*Math.pow(sn,2/n)])}
+  const tw=.4;
+  for(let k=0;k<=K;k++){const t=k/K,rid=cf*(.012*Math.exp(-Math.pow((t-.68)/.07,2))-.008*Math.exp(-Math.pow((t-.37)/.06,2))),
+      bar=1-S.tuck*Math.pow(Math.max(0,1-t/tw),2)-tum*Math.pow(Math.max(0,(t-tw)/(1-tw)),2),sc=scD*Math.exp(-Math.pow((t-.5)/.19,2));
+    pts.push([hw*bar+rid-sc,y0+hs*t+cr*t*t*t])}      /* a barrel section (widest at the hip line), a shoulder crease and a groove above the sill, the crest rising over the wheels, the intake scoop */
+  const xs=pts[pts.length-1][0],n=K>8?5.2:3.15;          /* a tighter shoulder radius on the detailed bodies: a flatter top and a crisper edge, like pressed metal */for(let k=1;k<=5;k++){const a=k/5*Math.PI/2,c=Math.cos(a),sn=Math.sin(a),tt=k/5;pts.push([xs*Math.pow(c,2/n),ys+(yt-ys)*Math.pow(sn,2/n)+cr*(1-tt)*(1-tt)-S.dip*cab*tt*tt*(gF+gR>.05?1:0)])}
   return pts}
 function cgBodyCurves(S){
   const L=S.L,top=[[0,S.nose*.8],[.18,S.nose*.97],[.5,S.nose+.025],[S.cowl*.5,(S.nose+S.hood)/2+.01],[S.cowl,S.hood],[(S.cowl+S.rearS)/2,(S.hood+S.deck)/2+.02],[S.rearS,S.deck],[L-.4,S.deck-.025],[L,S.tail]];
   const half=[[0,S.hw0*.9],[.35,S.hw0],[S.fo,S.hw0+(S.hwMax-S.hw0)*.35],[S.fo+S.wb*.45,S.hw0+(S.hwMax-S.hw0)*.55],[S.hwMaxS,S.hwMax],[L-.5,S.hwTail],[L,S.hwTail*.94]];
   const bot=[[0,S.sill+.03],[.4,S.sill],[L-.7,S.sill+.01],[L-.25,S.sill+.07],[L,S.sill+.12]];
-  S.curves={top:cgCurve(top),half:cgCurve(half),bot:cgCurve(bot)};return S.curves}
+  S.curves={top:cgCurve(top),half:cgCurve(half),bot:cgCurve(bot)};
+  /* wheels sit inside the fenders: at each axle the body is at least as wide as the outside of the tyre, plus a couple of centimetres */
+  S.fF=Math.max(S.flare,S.tf+S.wf/2+.024-S.curves.half(S.fo));S.fR=Math.max(S.flareR==null?S.flare:S.flareR,S.tr+S.wr/2+.024-S.curves.half(S.fo+S.wb));return S.curves}
 function cgBody(S,mb,opt){
   const L=S.L,K=S.K=opt.lo?(opt.mid?8:5):16;S.gs0=S.cowl;S.gs1=S.rearS;cgBodyCurves(S);const zc=S.curves;
   /* stations along the car: even, with more near the wheels (for the arches) and at the two ends */
@@ -54,7 +64,7 @@ function cgBody(S,mb,opt){
   for(const ax of[S.fo,S.fo+S.wb]){const r=(ax==S.fo?S.rf:S.rr)+.12;for(let s=ax-r;s<=ax+r+1e-6;s+=opt.lo?(opt.mid?.09:.13):.04)set.push(s)}
   set.sort((a,b)=>a-b);const ss=[];for(const s of set){if(s<=0||s>=L)continue;if(!ss.length||s-ss[ss.length-1]>.018)ss.push(s)}
   const ni=ss.length,rings=[],capF=(S.capF||.34)*.88,capR=(S.capR||.5)*.62;
-  for(const s of ss){const r=cgTubRing(S,s,K);let sc=1;const d0=s,d1=L-s;if(d0<capF)sc=Math.pow(1-Math.pow((capF-d0)/capF,2.4),1/2.4);else if(d1<capR)sc=Math.pow(1-Math.pow((capR-d1)/capR,2.2),1/2.2);
+  for(const s of ss){const r=cgTubRing(S,s,K);let sc=1;const d0=s,d1=L-s;if(d0<capF)sc=Math.pow(1-Math.pow((capF-d0)/capF,2.4),1/2.4);else if(d1<capR)sc=Math.pow(1-Math.pow((capR-d1)/capR,3.4),1/3.4);
     const yb=r[0][1],yt=r[r.length-1][1];const cy=(yb+yt)/2;if(sc<1){const hs=.3+.7*sc;for(const p of r){p[0]*=sc;p[1]=cy+(p[1]-cy)*hs}}rings.push(r)}
   const M=rings[0].length,nj=2*M-2;
   const P=new Float32Array(ni*nj*3),ctr=new Float32Array(ni*3),flag=new Uint8Array(ni*nj),dark=new Float32Array(ni*nj);
@@ -66,11 +76,11 @@ function cgBody(S,mb,opt){
   for(let i=0;i<ni;i++)for(let j=0;j<nj;j++){const k=(i*nj+j)*3,x=P[k],y=P[k+1],z=P[k+2];
     for(const[wz,R,w,tx]of wheels){const ra=R+.062,dz=z-wz,dy=y-R,dd=Math.sqrt(dz*dz+dy*dy)-ra;if(dd<.02&&Math.abs(x)>tx-w/2-.01){const xin=tx-w/2-.035,t=_cl(-(dd-.02)/.09,0,1),e=t*t*(3-2*t);P[k]=Math.sign(x)*(Math.abs(x)*(1-e)+Math.min(Math.abs(x),xin)*e);flag[i*nj+j]=1}   /* a smooth slope into the arch, not a step */
       /* the arch edge is shaded dark with a smooth ramp (a gradient of the vertex colour, not a ring of dark squares) */
-      if(Math.abs(x)>tx-w/2-.06){const t=_cl(.5-dd/.075,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t))}}
+      if(Math.abs(x)>tx-w/2-.06){const t=_cl(.5-dd/.04,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t))}}
     /* a livery with a dark lower body (police cars) */
     if(S.lowerDark&&Math.abs(P[k])>.3){const t=_cl((S.lowerDark-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.96)}
     /* dark lower valances at the nose and the tail */
-    if(!S.noSkirt){const sN=z+L/2,t=_cl((S.sill+.27-y)/.07,0,1)*Math.max(_cl((.75-sN)/.25,0,1),_cl((sN-(L-.65))/.25,0,1));if(t>0)dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.9)}
+    if(!S.noSkirt){const sN=z+L/2,t=Math.max(_cl((S.sill+.30-y)/.07,0,1)*_cl((.75-sN)/.25,0,1),_cl((S.sill+.44-y)/.08,0,1)*_cl((sN-(L-.7))/.25,0,1));if(t>0)dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}
     if(S.cladding){const t=_cl((S.sill+S.cladding-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.93)}
     /* black side skirts: a ramp up the lower side */
     if(!S.noSkirt&&Math.abs(P[k])>.35){const t=_cl((S.sill+.23-y)/.1,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}}
@@ -180,7 +190,7 @@ function cgDetails(S,mb,opt){
     {const p3=S.head!='pop'?S.near(sg*(hx+.16),hy-.012,S.zs(.17)):S.near(sg*(hx+.12),S.nose*.55,S.zs(.1));cgDisc(mb,p3,.05,.013,CGM.amber,10,.0085,sg*.45)}}
   lights.hx=hx;lights.hy=hy;lights.hz=-L/2+.1;
   /* ---- front intake and side intakes ---- */
-  if(S.intake!='none'){const p=S.near(0,S.sill+.13,S.zs(.1));const wI=S.intake=='wide'?.62:S.intake=='mid'?.42:.3;cgDisc(mb,p,hw*wI,.075,CGM.grille,16,.005);
+  if(S.intake!='none'){const p=S.near(0,S.sill+.13,S.zs(.1));const wI=S.intake=='wide'?.62:S.intake=='mid'?.42:.3;cgDisc(mb,p,hw*wI,.1,CGM.grille,18,.005);
     for(const sg of[-1,1]){const q=S.near(sg*hw*.82,S.sill+.1,S.zs(.14));cgDisc(mb,q,.09,.06,CGM.grille,10,.005,sg*.3)}}
   if(S.duct){const p=S.near(0,S.hood,S.zs(S.cowl*.55));cgDisc(mb,p,.12,.2,CGM.grille,12,.004)}      /* a bonnet vent */
   /* ---- side intakes behind the doors (mid-engine cars) ---- */
@@ -211,6 +221,7 @@ function cgDetails(S,mb,opt){
     for(const sg of[-1,1]){cgBox(mb,sg*ww,hy2,S.zs(L-(big?.28:.22)),.012,big?.1:.07,ch+.02,CGM.carbon,-.05);cgBox(mb,sg*S.hwTail*.5,S.deck+(hy2-S.deck)/2,S.zs(L-(big?.3:.24)),.028,(hy2-S.deck)/2+.01,.05,CGM.carbon,0)}}
   /* ---- diffuser and exhaust ---- */
   if(S.diff){cgBox(mb,0,S.sill+.075,S.zs(L-.27),S.hwTail*.6,.012,.14,CGM.carbon,-.14);for(let k=-2;k<=2;k++)cgBox(mb,k*S.hwTail*.25,S.sill+.09,S.zs(L-.28),.008,.04,.12,CGM.carbon,-.14)}
+  if(S.rearVent!==0&&!opt.lo)cgDisc(mb,S.near(0,S.sill+.69,S.zs(L-.05)),S.hwTail*.46,.055,CGM.grille,18,.004);          /* a vent panel between the lights and the diffuser */
   const ex=S.exh||0;for(let k=0;k<ex;k++){const px=ex==1?(S.exhOff||0):S.exhS=='center'?(k-(ex-1)/2)*.15:(k%2?1:-1)*(S.hwTail*(.52+.12*((k>>1)))),py=S.sill+.13+(S.exhS=='high'?.28:0);cgCylZ(mb,px,py,S.zs(L-.09),S.zs(L+.03),.042,CGM.exh,12);cgCylZ(mb,px,py,S.zs(L+.012),S.zs(L+.036),.049,CGM.chrome,14)}
   S._lights=lights}
 /* a torus (the steering wheel) */
@@ -222,7 +233,8 @@ function cgTorus(mb,cx,cy,cz,R,r,tilt,m){const n=14,k=6,ct=Math.cos(tilt),st=Mat
 function cgInterior(S,mb){
   const M=CGM.inter,hw=S.curves.half(S.cowl)*S.gw,sCab=(S.cowl+S.roofR)/2+.18,belt=cgTopAt(S,sCab,hw*.5)-.03,sx=Math.min(.42,hw*.55),drv=S.lhd?-1:1,room=Math.max(.2,S.H-belt-.1);
   /* the seats sit low (their lower half is under the body line); only the backrest and the headrest show through the windows */
-  const seat=(x,sz)=>{const y0=belt-.3;cgBox(mb,x,y0+.05,S.zs(sz),.23,.05,.25,M,0);cgBox(mb,x,y0+.3,S.zs(sz+.26),.22,.27,.06,M,-.28);cgBox(mb,x,y0+.64,S.zs(sz+.33),.085,.075,.045,M,-.28)};
+  /* the seats must fit under the roof: on a low car the backrest and headrest are scaled down to stay 6 cm below the glass */
+  const seat=(x,sz)=>{const y0=belt-.3,k=Math.min(1,Math.max(.35,(S.H-.06-y0)/(.64+.075)));cgBox(mb,x,y0+.05,S.zs(sz),.23,.05,.25,M,0);cgBox(mb,x,y0+.3*k,S.zs(sz+.26),.22,.27*k,.06,M,-.28);cgBox(mb,x,y0+.64*k,S.zs(sz+.33),.085,.075*k,.045,M,-.28)};
   if(S.seat=='centre')seat(0,sCab);else{seat(-sx,sCab);seat(sx,sCab)}
   const sD=S.cowl+.2,yD=cgTopAt(S,sD,0);cgBox(mb,0,yD-.07,S.zs(sD),hw*.82,.05,.2,M,.08);cgBox(mb,drv*sx,yD-.03,S.zs(sD+.05),.26,.04,.1,M,0);       /* dash and instrument hood */
   cgBox(mb,0,belt-.05,S.zs(sCab+.02),.06,.07,.34,M,0);                                                                                              /* the centre console */
