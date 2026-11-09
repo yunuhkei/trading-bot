@@ -61,7 +61,11 @@ SUPER = ("timing", "streak")  # $1,000 and $250 trades like the rest; real money
 STREAK_S, STREAK_TRADES = 1800, 5     # super bot 2: a strategy is hot when it made money in its last 30 min (5+ trades)
 COOLED = 3                            # ...and it's dropped the moment its last 3 trades all lost (good stretches end fast)
 SIGN_EVERY = 300                      # the market-signs log: one row every 5 minutes, kept for KEEP_DAYS
-FAST_WATCH = "snipe"                  # the fast buyer (bot/fast_buyer.py) shadows this strategy's ghost with real prices
+FAST_WATCH = "snipe"
+# the learning records (every strategy's record by hour and day, the time-of-day splits, the signs log) start over at
+# the mayhem fix: before it the lab was blind to mayhem coins crashing (from Nov 8 5:37 pm) or had stuck bets (before),
+# so the super bot would have learned from fake wins
+CLEAN_SINCE = 1794239640.0           # 2026-11-09 09:54 am Milwaukee time                  # the fast buyer (bot/fast_buyer.py) shadows this strategy's ghost with real prices
 SUPER_TOP = 3                  # with this many versions, copy only the best 3 for an hour (luck makes some look good)
 
 
@@ -372,6 +376,15 @@ class Lab:
         self.ghosts = {k: Account(k, saved.get(k) or (state.get("accounts") or {}).get(k)) for k in STRATEGIES}
         for g in self.ghosts.values():
             g.ghost = True
+        self.clean_since = state.get("clean_since")
+        if self.clean_since != CLEAN_SINCE:               # records from before the fix: start the learning over
+            for g in self.ghosts.values():
+                g.n, g.wins, g.pnl, g.best, g.worst, g.trades = 0, 0, 0.0, 0.0, 0.0, []
+                g.by_hour = [[0, 0, 0.0] for _ in range(24)]
+                g.days = {}
+                g.window = {"in": [0, 0, 0.0], "out": [0, 0, 0.0]}
+            state["signs"] = [r for r in state.get("signs") or [] if r.get("t", 0) >= CLEAN_SINCE]
+            self.clean_since = CLEAN_SINCE
         self.rng = random.Random(seed)
         self.random_plan: dict[str, float] = {}
         self.events = int(state.get("events", 0))
@@ -988,7 +1001,7 @@ class Lab:
             accts[k] = d
         return {"accounts": accts, "events": self.events, "t": time.time(), "hello": self.hello_done,
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
-                "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs,
+                "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs, "clean_since": self.clean_since,
                 "fast": self.fast.to_state() if self.fast else self._fast_state,
                 "direct": self.direct.to_state() if self.direct else self._direct_state,
                 "sniper": self.sniper.to_state() if self.sniper else self._sniper_state}
@@ -1016,7 +1029,7 @@ class Lab:
         return {"accounts": {k: a.to_dict() for k, a in self.accts.items()}, "events": self.events, "t": time.time(),
                 "hello": self.hello_done,
                 "activity": [[round(b[0]), b[1], b[2], round(b[3], 1)] for b in self.activity],
-                "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs,
+                "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs, "clean_since": self.clean_since,
                 "fast": self.fast.to_state() if self.fast else self._fast_state,
                 "direct": self.direct.to_state() if self.direct else self._direct_state,
                 "sniper": self.sniper.to_state() if self.sniper else self._sniper_state}

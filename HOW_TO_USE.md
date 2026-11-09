@@ -544,6 +544,10 @@ was blind to them crashing and booked fake profits on them (the snipes' great Su
 reads them (the mayhem flag in each trade and launch event, checked against the chain) and no strategy buys them. On
 normal coins the lab and real prices agreed within a point (snipes: -5.3% vs -4.7% a bet on Nov 9's morning).
 
+**Clean start (Nov 9, 9:54 am):** every strategy's learning record (by hour and day, the time-of-day splits, the
+signs log) was wiped and started over at the mayhem fix (`CLEAN_SINCE`), because the records before it were built on
+the blind spot (fake wins) or the stuck bets. The super bot learns only from clean data from then on.
+
 **Sniper hours and the owner's condition:** `live_hours` limits it to some hours ([2, 3] = 2-3 am); at the start of
 them it goes live only if the practice direct buyer's real prices over the last `gate_hours` were at least
 `gate_min_ret` a bet on `gate_min_sold`+ sold snipes, and pings either way.

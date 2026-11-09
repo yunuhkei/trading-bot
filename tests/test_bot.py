@@ -2743,7 +2743,7 @@ def test_launch_lab_splits_results_by_time_of_day_and_keeps_old_trades_counted()
     old = {"cash": 1100.0, "n": 5, "wins": 3, "pnl": 100.0,
            "trades": [{"t": at(15), "s": 30, "profit": 50.0}, {"t": at(15), "s": 30, "profit": -20.0},
                       {"t": at(16), "s": 30, "profit": 40.0}]}
-    lab = ll.Lab(state={"accounts": {"volume_spike": old}})
+    lab = ll.Lab(state={"accounts": {"volume_spike": old}, "clean_since": ll.CLEAN_SINCE})    # already clean
     a, g = lab.accts["volume_spike"], lab.ghosts["volume_spike"]
     assert a.slot(11, 17) == (5, 3, 100.0)              # the 2 trades it no longer has count in the oldest kept hour
     assert g.slot(11, 17) == (5, 3, 100.0)              # the ghost starts from the same record
@@ -3476,3 +3476,23 @@ def test_sniper_never_tries_to_sell_a_coin_the_wallet_no_longer_holds():
     asyncio.run(s.sell(session, mint, 0.0, "left from the last run"))
     assert "sendTransaction" not in calls and mint not in s.open
     assert s.stats == {"sell: already gone from the wallet": 1}
+
+
+def test_launch_lab_starts_the_learning_over_from_the_mayhem_fix():
+    from bot import launch_lab as ll
+
+    lab = ll.Lab()
+    g = lab.ghosts["snipe"]
+    g.tally(ll.CLEAN_SINCE - 3600, 500.0)                  # a fake win from the blind-spot days
+    g.n, g.pnl = 1, 500.0
+    old = lab.snapshot()
+    old.pop("clean_since")
+    old["signs"] = [{"t": ll.CLEAN_SINCE - 60, "fam": {}}, {"t": ll.CLEAN_SINCE + 60, "fam": {}}]
+    fresh = ll.Lab(state=old)                              # a save from before the fix: its records start over
+    f = fresh.ghosts["snipe"]
+    assert f.n == 0 and f.pnl == 0 and f.days == {} and sum(b[0] for b in f.by_hour) == 0
+    assert [r["t"] for r in fresh.signs] == [ll.CLEAN_SINCE + 60]
+    kept = ll.Lab(state=fresh.snapshot())                  # from then on, records carry over as usual
+    assert kept.clean_since == ll.CLEAN_SINCE and kept.ghosts["snipe"].n == 0
+    f.tally(ll.CLEAN_SINCE + 600, 10.0); f.n = 1
+    assert ll.Lab(state=fresh.snapshot()).ghosts["snipe"].n == 1
