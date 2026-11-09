@@ -1,74 +1,242 @@
 {
- "updated": 1793816956.5582526,
+ "updated": 1794226003.3711147,
  "level": "the biggest winners (few won on 2+ coins)",
  "wallets": {
-  "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2": {
+  "9aU4GWeG6F6dc94ZJTRXzC8xuSkHyiNidWYcfyhcTqB3": {
    "coins": [
-    "NIO"
+    "STANK"
    ],
-   "profit": 263.37,
+   "profit": 1913.88,
    "wins": [
     {
-     "coin": "NIO",
-     "bought_usd": 382.43,
-     "x": 1.69,
-     "profit": 263.37
+     "coin": "STANK",
+     "bought_usd": 1091.09,
+     "x": 2.78,
+     "profit": 1913.88
     }
    ]
   },
-  "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ": {
+  "JL7SaMF4CZtpUb8q89oH5F5EE4zV6s7xjCtr1pv7K7g": {
    "coins": [
-    "PEAK"
+    "STANK"
    ],
-   "profit": 198.44,
+   "profit": 553.39,
    "wins": [
     {
-     "coin": "PEAK",
-     "bought_usd": 93.2,
-     "x": 3.13,
-     "profit": 198.44
+     "coin": "STANK",
+     "bought_usd": 371.55,
+     "x": 2.49,
+     "profit": 553.39
     }
    ]
   },
-  "CVLLaoAu3QWCfRuWUp4P29AJ9QpBu25ziThJsuq7BWJT": {
+  "7n1k48xLJmgsdjcisNYWvDuAh6jpmYWofLnKpWktDmjS": {
    "coins": [
-    "PEAK"
+    "STANK"
    ],
-   "profit": 170.13,
+   "profit": 478.56,
    "wins": [
     {
-     "coin": "PEAK",
-     "bought_usd": 107.24,
-     "x": 2.59,
-     "profit": 170.13
+     "coin": "STANK",
+     "bought_usd": 251.28,
+     "x": 2.9,
+     "profit": 478.56
     }
    ]
   },
-  "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh": {
+  "DJv4vKoNMWpNKNkhXAXLs3xq5TQS93ujxt9EyP2CUeu2": {
    "coins": [
-    "PEAK"
+    "STANK"
    ],
-   "profit": 131.28,
+   "profit": 460.03,
    "wins": [
     {
-     "coin": "PEAK",
-     "bought_usd": 88.9,
-     "x": 2.48,
-     "profit": 131.28
+     "coin": "STANK",
+     "bought_usd": 335.23,
+     "x": 2.37,
+     "profit": 460.03
     }
    ]
   },
-  "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp": {
+  "13C6e1ba6uNckhRuq5g6mvwbPTw4oD32S4vaDHFqQXPB": {
    "coins": [
-    "RICO"
+    "PIRATE"
    ],
-   "profit": 102.08,
+   "profit": 395.02,
    "wins": [
     {
-     "coin": "RICO",
-     "bought_usd": 184.35,
-     "x": 2.22,
-     "profit": 102.08
+     "coin": "PIRATE",
+     "bought_usd": 1356.01,
+     "x": 1.67,
+     "profit": 395.02
+    }
+   ]
+  },
+  "AY8hKzMQva6otqqDU7DZVF2rFLK7VHt9NRKq9kY2Hwvr": {
+   "coins": [
+    "AudaCity"
+   ],
+   "profit": 375.19,
+   "wins": [
+    {
+     "coin": "AudaCity",
+     "bought_usd": 519.2,
+     "x": 1.72,
+     "profit": 375.19
+    }
+   ]
+  },
+  "G7m3Y1eL4whGEUA1pcTZhiRZ7dkGZjAwTkg3BYFP9xw6": {
+   "coins": [
+    "STANK"
+   ],
+   "profit": 267.31,
+   "wins": [
+    {
+     "coin": "STANK",
+     "bought_usd": 167.06,
+     "x": 2.6,
+     "profit": 267.31
+    }
+   ]
+  },
+  "9t9w5AWoWcGKDFAmsK8zCHP6xvpPmABHnQBSWznWpGnV": {
+   "coins": [
+    "ARNOLD"
+   ],
+   "profit": 208.98,
+   "wins": [
+    {
+     "coin": "ARNOLD",
+     "bought_usd": 173.91,
+     "x": 2.2,
+     "profit": 208.98
+    }
+   ]
+  },
+  "A5TwbfXN3Ye1WghbNyMP3awF6QPhM42Sbg8HAhkmRgfU": {
+   "coins": [
+    "ARNOLD"
+   ],
+   "profit": 191.28,
+   "wins": [
+    {
+     "coin": "ARNOLD",
+     "bought_usd": 199.63,
+     "x": 1.96,
+     "profit": 191.28
+    }
+   ]
+  },
+  "AC7qdo9u8ATgFiGz3TsxB2sGXBRkN4qy8smC2CnKggoZ": {
+   "coins": [
+    "DESSA"
+   ],
+   "profit": 170.3,
+   "wins": [
+    {
+     "coin": "DESSA",
+     "bought_usd": 608.03,
+     "x": 1.9,
+     "profit": 170.3
+    }
+   ]
+  },
+  "sssssVx7D5Rdpxc5sG9dScUpRpa7jvZfGVkGiQZWwFk": {
+   "coins": [
+    "Alice"
+   ],
+   "profit": 153.78,
+   "wins": [
+    {
+     "coin": "Alice",
+     "bought_usd": 222.78,
+     "x": 3.0,
+     "profit": 153.78
+    }
+   ]
+  },
+  "AdDxYkq8oKBViZNqdQPgADRnCXTHgcYWHMCg9XeGg1cD": {
+   "coins": [
+    "AudaCity"
+   ],
+   "profit": 138.0,
+   "wins": [
+    {
+     "coin": "AudaCity",
+     "bought_usd": 300.58,
+     "x": 1.74,
+     "profit": 138.0
+    }
+   ]
+  },
+  "kEFiAX3jo5NmemysQov342TZ9mGh6yp92GDRjhA8XDf": {
+   "coins": [
+    "Alice"
+   ],
+   "profit": 131.09,
+   "wins": [
+    {
+     "coin": "Alice",
+     "bought_usd": 169.83,
+     "x": 2.86,
+     "profit": 131.09
+    }
+   ]
+  },
+  "BFfYQYq6MnTZSjuwWPFXXc56rwN4MYcK3QUzQNmcwXEU": {
+   "coins": [
+    "STANK"
+   ],
+   "profit": 128.02,
+   "wins": [
+    {
+     "coin": "STANK",
+     "bought_usd": 88.09,
+     "x": 2.45,
+     "profit": 128.02
+    }
+   ]
+  },
+  "4JQHa3WBXdP8zQ4uVM2p1EuWpMGyJgZEiEi5bxMAGywE": {
+   "coins": [
+    "STANK"
+   ],
+   "profit": 116.0,
+   "wins": [
+    {
+     "coin": "STANK",
+     "bought_usd": 89.72,
+     "x": 2.29,
+     "profit": 116.0
+    }
+   ]
+  },
+  "56znSHaLqgMPS7bohrFQiUQv8jkqwiasW4uiJf8sKhwS": {
+   "coins": [
+    "STANK"
+   ],
+   "profit": 101.12,
+   "wins": [
+    {
+     "coin": "STANK",
+     "bought_usd": 101.86,
+     "x": 2.81,
+     "profit": 101.12
+    }
+   ]
+  },
+  "EgjPNPN8heTK4CJFfL4LDjPJebqVYDUz833yTA4C8TNU": {
+   "coins": [
+    "STANK"
+   ],
+   "profit": 75.38,
+   "wins": [
+    {
+     "coin": "STANK",
+     "bought_usd": 97.91,
+     "x": 2.51,
+     "profit": 75.38
     }
    ]
   }
@@ -77,189 +245,509 @@
   {
    "coin": "NIO",
    "mint": "7SL2VnfYsChvog5oQY9Nmtqu1wceaMiQzWoqoLQpump",
-   "gain": 1.29,
-   "low_t": 1793748900.0,
-   "high_t": 1793764800.0,
-   "swaps": 40,
-   "smart": 1
+   "gain": 1.37,
+   "low_t": 1794111600.0,
+   "high_t": 1794209400.0,
+   "swaps": 78,
+   "smart": 2
   },
   {
    "coin": "AudaCity",
    "mint": "DKYcjobF7HPtL9RyQBRdeRQ2iWvizpfbgWwPWNXdpump",
-   "gain": 2.05,
-   "low_t": 1793580000.0,
-   "high_t": 1793730600.0,
-   "swaps": 107,
-   "smart": 2
-  },
-  {
-   "coin": "RAM",
-   "mint": "6QUHcqYuiPRHxhnYZoygewXtNQr9kUrhc9Tmwgtbpump",
-   "gain": 1.05,
-   "low_t": 1793788500.0,
-   "high_t": 1793800500.0,
-   "swaps": 235,
-   "smart": 0
+   "gain": 1.25,
+   "low_t": 1793886000.0,
+   "high_t": 1793980200.0,
+   "swaps": 124,
+   "smart": 5
   },
   {
    "coin": "BTC",
    "mint": "C5xph2yL6gMdxmuLGxJBkGpmuDFfyi5fqkBNhvL6pump",
-   "gain": 1.59,
+   "gain": 190.39,
+   "skipped": "no swaps read"
+  },
+  {
+   "coin": "DESSA",
+   "mint": "npz2FhoufQ7pKqhGpaipYWacrAkidyW2yDpVWSvpump",
+   "gain": 1.78,
+   "low_t": 1794063600.0,
+   "high_t": 1794188700.0,
+   "swaps": 151,
+   "smart": 1
+  },
+  {
+   "coin": "CLAUDIA",
+   "mint": "2j5SaS7xy776qCBpyPQbZjyQSAtKiFgrwjfErthnW2ZM",
+   "gain": 4.88,
    "skipped": "no swaps read"
   },
   {
    "coin": "FLOAT",
    "mint": "Bv1a7cEj5aRnJQhMw4kRQqAFesMSd5LwcDnUzq52BMmr",
+   "gain": 5.02,
+   "skipped": "no swaps read"
+  },
+  {
+   "coin": "PIRATE",
+   "mint": "2StNe98imN7M6K341a7a4xvc8eNTvLCde5EugAKfLoat",
    "gain": 1.05,
-   "low_t": 1793743500.0,
-   "high_t": 1793814000.0,
-   "swaps": 75,
+   "low_t": 1794175800.0,
+   "high_t": 1794191700.0,
+   "swaps": 191,
+   "smart": 2
+  },
+  {
+   "coin": "Alice",
+   "mint": "BdouwEr3mwXkT6S6EmHNCjn9oEtykRKCKiUSTRF9pump",
+   "gain": 7.46,
+   "low_t": 1794096300.0,
+   "high_t": 1794177900.0,
+   "swaps": 149,
+   "smart": 2
+  },
+  {
+   "coin": "STANK",
+   "mint": "5wsjHxT5nW5jQuVupXUNnYszF3WoWCfGGk9LMcsCJzY8",
+   "gain": 2.97,
+   "low_t": 1794123300.0,
+   "high_t": 1794218700.0,
+   "swaps": 305,
+   "smart": 12
+  },
+  {
+   "coin": "Jos\u00e9",
+   "mint": "87CQtouHSb6YCXaPZ1pp8jD56VudRMXBVqU3oDMD1UJT",
+   "gain": 1.13,
+   "low_t": 1794088500.0,
+   "high_t": 1794095400.0,
+   "swaps": 237,
    "smart": 0
   },
   {
-   "coin": "CHOO",
-   "mint": "EJAxERvKU4kEVXn3NarjvRtgaMaJyP9ZuMeKA7JJpump",
-   "gain": 5.89,
-   "skipped": "no swaps read"
-  },
-  {
-   "coin": "MAMESUKE",
-   "mint": "SCGBBnSwnekytGFHgyeHHxPMiN7xDxsWFGg9JgFSTNK",
-   "gain": 74.42,
-   "skipped": "no swaps read"
-  },
-  {
-   "coin": "PEAK",
-   "mint": "APLPiTjBWzwfZ5U1TBeqLF9XJ7dV7XKGe7j4BZhkDray",
-   "gain": 3.55,
-   "low_t": 1793739300.0,
-   "high_t": 1793797200.0,
-   "swaps": 140,
-   "smart": 5
-  },
-  {
-   "coin": "RICO",
-   "mint": "8kuQg3WivDtL85VEdw2jEmSXjYt6EEeYBATJ4DtQpump",
-   "gain": 2.5,
-   "low_t": 1793744400.0,
-   "high_t": 1793805000.0,
-   "swaps": 462,
-   "smart": 10
-  },
-  {
-   "coin": "JEANPHIL",
-   "mint": "GTBxUiw6wJdmmkCGZgRHLyYxqu1vG4KtRpeox6yDpump",
-   "gain": 1.1,
-   "low_t": 1793646600.0,
-   "high_t": 1793812800.0,
-   "swaps": 46,
-   "smart": 0
-  },
-  {
-   "coin": "DOPE",
-   "mint": "33jENUQnjoitkMFpvNJcSHyLAHFWJuHwT6E3E8CNpump",
-   "gain": 1.1,
-   "low_t": 1793673900.0,
-   "high_t": 1793807100.0,
-   "swaps": 47,
+   "coin": "ARNOLD",
+   "mint": "nG3jfPQHU2ZQhPERkTZD8YPSAsrrWiePPDcm9jxpump",
+   "gain": 1.49,
+   "low_t": 1794104400.0,
+   "high_t": 1794197700.0,
+   "swaps": 94,
    "smart": 2
   }
  ],
  "coins_checked": [
   "NIO",
   "AudaCity",
-  "DJT",
-  "AMD",
-  "RAM",
   "BTC",
-  "POLYMARKET",
+  "DESSA",
+  "CLAUDIA",
   "FLOAT",
+  "GTA6",
+  "PIRATE",
+  "Alice",
+  "STANK",
+  "Jos\u00e9",
+  "ARNOLD",
   "Dacity",
-  "CHOO",
-  "MAMESUKE",
-  "ZCAT",
-  "PEAK",
-  "GTR",
-  "RICO",
+  "UODF",
+  "WEALTH",
   "SI",
-  "JEANPHIL",
-  "DOPE",
-  "GLITCH",
-  "baton"
+  "CBUCKS",
+  "MAMESUKE",
+  "swordcat",
+  "UODF"
  ],
  "calls": {
-  "pages": 1999,
-  "tx": 18222
+  "pages": 2093,
+  "tx": 30881
  },
  "approved": [
-  "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp"
+  "kEFiAX3jo5NmemysQov342TZ9mGh6yp92GDRjhA8XDf",
+  "G7m3Y1eL4whGEUA1pcTZhiRZ7dkGZjAwTkg3BYFP9xw6",
+  "JL7SaMF4CZtpUb8q89oH5F5EE4zV6s7xjCtr1pv7K7g",
+  "AdDxYkq8oKBViZNqdQPgADRnCXTHgcYWHMCg9XeGg1cD",
+  "DJv4vKoNMWpNKNkhXAXLs3xq5TQS93ujxt9EyP2CUeu2",
+  "EgjPNPN8heTK4CJFfL4LDjPJebqVYDUz833yTA4C8TNU"
  ],
  "copy_stats": {
-  "HDghj2TcsAy7DuDWRtLCHB8nfZw2tcC9ezJXbbUcnjm2": {
-   "trades": 117,
-   "coins": 37,
-   "won": 0.3333333333333333,
-   "avg": -0.015196713037807215,
-   "avg_win": 0.683498192632174,
-   "avg_loss": -0.36454416587279787,
-   "profit_factor": 0.9374696629635136,
-   "hold_min": 27.116666666666667,
-   "weeks": 1,
-   "good_weeks": 0.0,
-   "days": 4.839918981481482,
-   "approved": false,
-   "why": "copying averaged -1.5% a trade; wins only 0.94x its losses"
-  },
-  "AiiHDkNU6TbF4AG7f4dZczL4GwAfzSBNrwqYdBnS9qyJ": {
-   "trades": 10,
-   "coins": 4,
-   "won": 0.6,
-   "avg": 0.06216670579935939,
-   "avg_win": 0.2737284826780938,
-   "avg_loss": -0.2551759595187422,
-   "profit_factor": 1.6090572356091537,
-   "hold_min": 7335.766666666666,
-   "weeks": 2,
-   "good_weeks": 0.5,
-   "days": 7.157997685185185,
-   "approved": false,
-   "why": "only 10 finished trades; only 4 coins; made money in only 50% of its weeks"
-  },
-  "CVLLaoAu3QWCfRuWUp4P29AJ9QpBu25ziThJsuq7BWJT": {
+  "9aU4GWeG6F6dc94ZJTRXzC8xuSkHyiNidWYcfyhcTqB3": {
    "trades": 0,
    "approved": false,
    "why": "only 0 finished trades; only 0 coins; copying averaged +0.0% a trade; wins only 0.00x its losses; holds 0.0 min (too fast to copy)"
   },
-  "BF8SNmcHFVBG3xegwnoCq3s212KgQvauQFVznzjv51zh": {
-   "trades": 34,
-   "coins": 1,
-   "won": 0.47058823529411764,
-   "avg": 0.3946670968611303,
-   "avg_win": 1.1170930464509556,
-   "avg_loss": -0.24748930277427028,
-   "profit_factor": 4.012179862783654,
-   "hold_min": 674.7,
-   "weeks": 2,
-   "good_weeks": 0.5,
-   "days": 6.856921296296297,
-   "approved": false,
-   "why": "only 1 coins; made money in only 50% of its weeks"
-  },
-  "71pAfN1nJhcLaezSRYvwdsNFE9PnY9hNfcxB4nZ1gdAp": {
-   "trades": 302,
-   "coins": 38,
-   "won": 0.44039735099337746,
-   "avg": 0.020882941361551156,
-   "avg_win": 0.21021752283901263,
-   "avg_loss": -0.12812001329230904,
-   "profit_factor": 1.291269447692377,
-   "hold_min": 60.0,
+  "JL7SaMF4CZtpUb8q89oH5F5EE4zV6s7xjCtr1pv7K7g": {
+   "trades": 85,
+   "coins": 27,
+   "won": 0.49411764705882355,
+   "avg": 0.8790074044956893,
+   "avg_win": 2.1696722905994323,
+   "avg_loss": -0.3816420191405244,
+   "profit_factor": 5.552886446418514,
+   "hold_min": 307.53333333333336,
    "weeks": 1,
    "good_weeks": 1.0,
-   "days": 3.3419444444444446,
+   "days": 2.798587962962963,
    "approved": true,
    "why": "passes"
+  },
+  "7n1k48xLJmgsdjcisNYWvDuAh6jpmYWofLnKpWktDmjS": {
+   "trades": 105,
+   "coins": 26,
+   "won": 0.6666666666666666,
+   "avg": 0.3584138974700483,
+   "avg_win": 0.7149996008298296,
+   "avg_loss": -0.3547575092495145,
+   "profit_factor": 4.0309201761079185,
+   "hold_min": 1088.5333333333333,
+   "weeks": 12,
+   "good_weeks": 0.5833333333333334,
+   "days": 96.97091435185185,
+   "approved": false,
+   "why": "made money in only 58% of its weeks"
+  },
+  "DJv4vKoNMWpNKNkhXAXLs3xq5TQS93ujxt9EyP2CUeu2": {
+   "trades": 102,
+   "coins": 39,
+   "won": 0.45098039215686275,
+   "avg": 0.04084550732453751,
+   "avg_win": 0.5142234424413541,
+   "avg_loss": -0.34800065366427607,
+   "profit_factor": 1.2137845813565058,
+   "hold_min": 132.6,
+   "weeks": 10,
+   "good_weeks": 0.6,
+   "days": 115.65597222222222,
+   "approved": true,
+   "why": "passes"
+  },
+  "13C6e1ba6uNckhRuq5g6mvwbPTw4oD32S4vaDHFqQXPB": {
+   "trades": 312,
+   "coins": 17,
+   "won": 0.2916666666666667,
+   "avg": -0.0008080254324709721,
+   "avg_win": 0.749958729248124,
+   "avg_loss": -0.30994727735977473,
+   "profit_factor": 0.9963195618405332,
+   "hold_min": 45.13333333333333,
+   "weeks": 2,
+   "good_weeks": 0.5,
+   "days": 4.534479166666666,
+   "approved": false,
+   "why": "copying averaged -0.1% a trade; wins only 1.00x its losses; made money in only 50% of its weeks"
+  },
+  "AY8hKzMQva6otqqDU7DZVF2rFLK7VHt9NRKq9kY2Hwvr": {
+   "trades": 33,
+   "coins": 6,
+   "won": 0.5151515151515151,
+   "avg": 0.44031096444556067,
+   "avg_win": 1.0301057407332543,
+   "avg_loss": -0.18634598536011407,
+   "profit_factor": 5.873415235718566,
+   "hold_min": 444.6,
+   "weeks": 2,
+   "good_weeks": 0.5,
+   "days": 3.9472916666666666,
+   "approved": false,
+   "why": "made money in only 50% of its weeks"
+  },
+  "G7m3Y1eL4whGEUA1pcTZhiRZ7dkGZjAwTkg3BYFP9xw6": {
+   "trades": 369,
+   "coins": 8,
+   "won": 0.5962059620596206,
+   "avg": 0.5698463354631828,
+   "avg_win": 1.1949896241743116,
+   "avg_loss": -0.353184023707611,
+   "profit_factor": 4.995736193466546,
+   "hold_min": 380.75,
+   "weeks": 1,
+   "good_weeks": 1.0,
+   "days": 3.3627314814814815,
+   "approved": true,
+   "why": "passes"
+  },
+  "9t9w5AWoWcGKDFAmsK8zCHP6xvpPmABHnQBSWznWpGnV": {
+   "trades": 593,
+   "coins": 40,
+   "won": 0.4114671163575042,
+   "avg": 0.5510578819390902,
+   "avg_win": 2.0111585905143103,
+   "avg_loss": -0.4697575131679406,
+   "profit_factor": 2.993208590232771,
+   "hold_min": 8304.683333333332,
+   "weeks": 9,
+   "good_weeks": 0.5555555555555556,
+   "days": 66.88092592592592,
+   "approved": false,
+   "why": "made money in only 56% of its weeks"
+  },
+  "A5TwbfXN3Ye1WghbNyMP3awF6QPhM42Sbg8HAhkmRgfU": {
+   "trades": 185,
+   "coins": 48,
+   "won": 0.32972972972972975,
+   "avg": -0.1360078580422023,
+   "avg_win": 0.4231197021771846,
+   "avg_loss": -0.41106254492432,
+   "profit_factor": 0.5063647807274554,
+   "hold_min": 93.81666666666666,
+   "weeks": 2,
+   "good_weeks": 0.5,
+   "days": 8.430648148148148,
+   "approved": false,
+   "why": "copying averaged -13.6% a trade; wins only 0.51x its losses; made money in only 50% of its weeks"
+  },
+  "AC7qdo9u8ATgFiGz3TsxB2sGXBRkN4qy8smC2CnKggoZ": {
+   "trades": 143,
+   "coins": 27,
+   "won": 0.6503496503496503,
+   "avg": 7.183343315208521,
+   "avg_win": 11.464500239003687,
+   "avg_loss": -0.7796085630504838,
+   "profit_factor": 27.352150111216798,
+   "hold_min": 2832.05,
+   "weeks": 3,
+   "good_weeks": 0.3333333333333333,
+   "days": 16.517210648148147,
+   "approved": false,
+   "why": "made money in only 33% of its weeks"
+  },
+  "sssssVx7D5Rdpxc5sG9dScUpRpa7jvZfGVkGiQZWwFk": {
+   "trades": 3,
+   "coins": 2,
+   "won": 0.0,
+   "avg": -0.014574690711069815,
+   "avg_win": 0.0,
+   "avg_loss": -0.014574690711069815,
+   "profit_factor": 0.0,
+   "hold_min": 16.7,
+   "weeks": 1,
+   "good_weeks": 0.0,
+   "days": 0.03836805555555556,
+   "approved": false,
+   "why": "only 3 finished trades; only 2 coins; copying averaged -1.5% a trade; wins only 0.00x its losses"
+  },
+  "AdDxYkq8oKBViZNqdQPgADRnCXTHgcYWHMCg9XeGg1cD": {
+   "trades": 174,
+   "coins": 17,
+   "won": 0.5747126436781609,
+   "avg": 0.15043205474269625,
+   "avg_win": 0.47512785454949996,
+   "avg_loss": -0.28834605310433586,
+   "profit_factor": 2.226715647388483,
+   "hold_min": 67.96666666666667,
+   "weeks": 2,
+   "good_weeks": 1.0,
+   "days": 4.436840277777778,
+   "approved": true,
+   "why": "passes"
+  },
+  "kEFiAX3jo5NmemysQov342TZ9mGh6yp92GDRjhA8XDf": {
+   "trades": 338,
+   "coins": 57,
+   "won": 0.44970414201183434,
+   "avg": 6.125574303335846,
+   "avg_win": 13.748056716465996,
+   "avg_loss": -0.10355110954470464,
+   "profit_factor": 108.49686816028209,
+   "hold_min": 2.9833333333333334,
+   "weeks": 1,
+   "good_weeks": 1.0,
+   "days": 0.2297800925925926,
+   "approved": true,
+   "why": "passes"
+  },
+  "BFfYQYq6MnTZSjuwWPFXXc56rwN4MYcK3QUzQNmcwXEU": {
+   "trades": 350,
+   "coins": 126,
+   "won": 0.3342857142857143,
+   "avg": -0.14887723054675883,
+   "avg_win": 0.42409931768373543,
+   "avg_loss": -0.43659506807022586,
+   "profit_factor": 0.48777404691233306,
+   "hold_min": 48.891666666666666,
+   "weeks": 2,
+   "good_weeks": 0.0,
+   "days": 7.527291666666667,
+   "approved": false,
+   "why": "copying averaged -14.9% a trade; wins only 0.49x its losses; made money in only 0% of its weeks"
+  },
+  "4JQHa3WBXdP8zQ4uVM2p1EuWpMGyJgZEiEi5bxMAGywE": {
+   "trades": 153,
+   "coins": 12,
+   "won": 0.16993464052287582,
+   "avg": -0.10566230982532497,
+   "avg_win": 0.5015685511880592,
+   "avg_loss": -0.22997728924538785,
+   "profit_factor": 0.4464933288717525,
+   "hold_min": 397.98333333333335,
+   "weeks": 2,
+   "good_weeks": 0.0,
+   "days": 11.403611111111111,
+   "approved": false,
+   "why": "copying averaged -10.6% a trade; wins only 0.45x its losses; made money in only 0% of its weeks"
+  },
+  "56znSHaLqgMPS7bohrFQiUQv8jkqwiasW4uiJf8sKhwS": {
+   "trades": 311,
+   "coins": 100,
+   "won": 0.36977491961414793,
+   "avg": 0.3405992738647245,
+   "avg_win": 1.7477740761460192,
+   "avg_loss": -0.4850390029839941,
+   "profit_factor": 2.114221085780382,
+   "hold_min": 55.38333333333333,
+   "weeks": 5,
+   "good_weeks": 0.4,
+   "days": 29.306041666666665,
+   "approved": false,
+   "why": "made money in only 40% of its weeks"
+  },
+  "9Hky1UEZ4eJvqQnike2sJPVmvxL34s5neoNyNk7LqJ4x": {
+   "trades": 646,
+   "coins": 30,
+   "won": 0.34365325077399383,
+   "avg": -0.032478507331564904,
+   "avg_win": 0.6210993316054473,
+   "avg_loss": -0.37468199847311373,
+   "profit_factor": 0.8679313024634061,
+   "hold_min": 70.64166666666667,
+   "weeks": 3,
+   "good_weeks": 0.6666666666666666,
+   "days": 14.836331018518518,
+   "approved": false,
+   "why": "copying averaged -3.2% a trade; wins only 0.87x its losses"
+  },
+  "JoMwefMTGxCQi4rzfykmHvdJcfPt2fwVNYsoAHRp8Ct": {
+   "trades": 18,
+   "coins": 9,
+   "won": 0.3333333333333333,
+   "avg": 3.6361916294823167,
+   "avg_win": 11.376221106417603,
+   "avg_loss": -0.23382310898532585,
+   "profit_factor": 24.32655428239034,
+   "hold_min": 998.55,
+   "weeks": 1,
+   "good_weeks": 1.0,
+   "days": 3.139340277777778,
+   "approved": false,
+   "why": "only 18 finished trades"
+  },
+  "2t17j9uuWRd5hmiDtsJLznapsN9d8seu3vFSGtwfNGnk": {
+   "trades": 235,
+   "coins": 24,
+   "won": 0.3574468085106383,
+   "avg": -0.09277806320210705,
+   "avg_win": 0.2770390169545204,
+   "avg_loss": -0.2985041210375819,
+   "profit_factor": 0.5162890867033527,
+   "hold_min": 90.46666666666667,
+   "weeks": 1,
+   "good_weeks": 0.0,
+   "days": 3.023645833333333,
+   "approved": false,
+   "why": "copying averaged -9.3% a trade; wins only 0.52x its losses"
+  },
+  "EgjPNPN8heTK4CJFfL4LDjPJebqVYDUz833yTA4C8TNU": {
+   "trades": 129,
+   "coins": 16,
+   "won": 0.5503875968992248,
+   "avg": 0.019920956047924952,
+   "avg_win": 0.20353022924573458,
+   "avg_loss": -0.2048421197631869,
+   "profit_factor": 1.2162980641866177,
+   "hold_min": 56.583333333333336,
+   "weeks": 3,
+   "good_weeks": 0.6666666666666666,
+   "days": 14.223645833333334,
+   "approved": true,
+   "why": "passes"
+  },
+  "BzDozYUbSnKRMuzbpPHfb95fFve3XKp9SsnR572i6Uwk": {
+   "trades": 40,
+   "coins": 2,
+   "won": 0.525,
+   "avg": 0.1936243236251436,
+   "avg_win": 0.5963203943198474,
+   "avg_loss": -0.25146080714268687,
+   "profit_factor": 2.6210484633058546,
+   "hold_min": 49592.26666666666,
+   "weeks": 3,
+   "good_weeks": 0.6666666666666666,
+   "days": 112.96988425925926,
+   "approved": false,
+   "why": "only 2 coins"
+  },
+  "4Cxv9M5H7ohw3fR7MSuouFcUyTD3f91zoftb93SQZo6F": {
+   "trades": 19,
+   "coins": 5,
+   "won": 0.5263157894736842,
+   "avg": 0.041626232847012466,
+   "avg_win": 0.3346832043839169,
+   "avg_loss": -0.2839926244162147,
+   "profit_factor": 1.3094362146118077,
+   "hold_min": 2426.4666666666667,
+   "weeks": 2,
+   "good_weeks": 0.5,
+   "days": 6.024907407407407,
+   "approved": false,
+   "why": "only 19 finished trades; made money in only 50% of its weeks"
+  },
+  "3Bs1V5oNcerRmLKHnRTGXzrNe1ZAet7EkvTGHKriKP1W": {
+   "trades": 70,
+   "coins": 11,
+   "won": 0.4142857142857143,
+   "avg": -0.09597519836213227,
+   "avg_win": 0.16771737770790143,
+   "avg_loss": -0.282489459484839,
+   "profit_factor": 0.4199426234754423,
+   "hold_min": 139.18333333333334,
+   "weeks": 1,
+   "good_weeks": 0.0,
+   "days": 3.2544791666666666,
+   "approved": false,
+   "why": "copying averaged -9.6% a trade; wins only 0.42x its losses"
+  },
+  "2FLpNio8tRwT2LQj5gRSHVSAmwhPxjXFJ1Ljr1MrwF3i": {
+   "trades": 42,
+   "coins": 8,
+   "won": 0.40476190476190477,
+   "avg": 21.208944166560816,
+   "avg_win": 53.41032195356427,
+   "avg_loss": -0.6879927286015323,
+   "profit_factor": 52.78982962835752,
+   "hold_min": 382.23333333333335,
+   "weeks": 4,
+   "good_weeks": 0.5,
+   "days": 115.36806712962964,
+   "approved": false,
+   "why": "made money in only 50% of its weeks"
+  },
+  "4jtY8ed7FxYKBVAM2yVp74H4MBMootLUPq3dxXwVdu9F": {
+   "trades": 241,
+   "coins": 113,
+   "won": 0.44813278008298757,
+   "avg": -0.02856887448604678,
+   "avg_win": 0.12845676950049562,
+   "avg_loss": -0.1560784199788782,
+   "profit_factor": 0.6683227585851225,
+   "hold_min": 143.03333333333333,
+   "weeks": 1,
+   "good_weeks": 0.0,
+   "days": 3.141284722222222,
+   "approved": false,
+   "why": "copying averaged -2.9% a trade; wins only 0.67x its losses"
+  },
+  "CyQRGSnTpeenWc91S7FmW9yZhjjLjvSPJXD6j8tUeCyF": {
+   "trades": 479,
+   "coins": 199,
+   "won": 0.4780793319415449,
+   "avg": 0.09071265198730873,
+   "avg_win": 0.7339845182221397,
+   "avg_loss": -0.49852437748379647,
+   "profit_factor": 1.3486398039047403,
+   "hold_min": 5.55,
+   "weeks": 5,
+   "good_weeks": 0.4,
+   "days": 34.6721875,
+   "approved": false,
+   "why": "made money in only 40% of its weeks"
   }
  },
- "scored_at": 1793830018.1501756
+ "scored_at": 1794226003.3711205
 }
