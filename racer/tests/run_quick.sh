@@ -1,0 +1,13 @@
+#!/bin/bash
+# Quick regression for Racer: builds the game, then runs the checks that finish in a few minutes.
+# Usage: racer/tests/run_quick.sh            (everything except the long road bots)
+#        racer/tests/run_quick.sh --bots     (also drives every road at 24 and 34 m/s, about 25 minutes)
+cd "$(dirname "$0")/../.." || exit 1
+python3 racer/build.py | tail -1
+T=racer/tests
+for t in netcheck raudit rload rfinal rtouch2 renergy rdrift2 rhandle rturn rjump rpen; do
+  echo; echo "=============== $t"; timeout 600 node $T/$t.js 2>&1 | tail -${LINES_PER_TEST:-40}
+done
+if [ "$1" = "--bots" ]; then
+  for s in 24 34; do echo; echo "=============== rbot at $s m/s"; SPD=$s node $T/rbot.js 2>&1 | grep -v " done .*hits 0  flights 0" | tail -40; done
+fi

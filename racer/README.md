@@ -23,7 +23,7 @@ It is built from the modules in `racer/src` by `python3 racer/build.py` (the out
   (with height ranges, so the deck of a bridge is not blocked by what is under it); steep banks are walls.
   Hills: the road-surface lookup picks the nearest road segment at the car's own level (never by height alone, which made the ground a staircase), every city street takes
   its height from one shared smoothed height field (so crossing streets are flush), connector roads blend to the street they join, the body height follows the ground
-  closely and the ground cannot launch the car faster than the slope allows. `racer` tests that measure this live in the session scratchpad, not in the repo. Everything is deterministic.
+  closely and the ground cannot launch the car faster than the slope allows. The tests that measure this are in `racer/tests/` (see its README for how to run them and the baseline numbers the driving feel must keep). Everything is deterministic.
 * **Rendering**: terrain is a GPU clip-map (6 rings, one draw each) displaced from a 16-bit height texture; roads are ribbons with analytic
   lane markings; buildings/trees/barriers are merged per 128 m cell and culled by distance + frustum; sky, fog and water are shaders.
   About 40-110 draw calls and 60-90k triangles per frame. No shadows or reflections. A render-scale governor keeps frame time near 16 ms.

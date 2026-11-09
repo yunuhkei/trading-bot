@@ -1,0 +1,11 @@
+const L=require('./rlib.js');
+(async()=>{const T=await L.launch({q:'go=1&scale=.4&fixed=1',w:300,h:200,mobile:false});
+ await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:120000});
+ const [x,z,rad]=[+process.argv[2],+process.argv[3],+process.argv[4]||14];
+ const r=await T.ev(([x,z,rad])=>{const o=[];
+   for(let i=0;i<COLC.length;i+=5)if(Math.hypot(COLC[i]-x,COLC[i+1]-z)<rad)o.push('C '+COLC[i].toFixed(1)+','+COLC[i+1].toFixed(1)+' r'+COLC[i+2].toFixed(2)+' y'+COLC[i+3].toFixed(1)+'..'+COLC[i+4].toFixed(1));
+   for(let i=0;i<COLR.length;i+=5)if(COLR[i+2]>x-rad&&COLR[i]<x+rad&&COLR[i+3]>z-rad&&COLR[i+1]<z+rad)o.push('R '+COLR.slice(i,i+5).map(v=>v.toFixed(1)).join(','));
+   for(let i=0;i<COLO.length;i+=7)if(Math.hypot(COLO[i]-x,COLO[i+1]-z)<rad+COLO[i+2]+COLO[i+3])o.push('O '+COLO.slice(i,i+7).map(v=>v.toFixed(1)).join(','));
+   const near=ROADS.filter(r=>{for(let i=0;i<r.n;i+=2)if(Math.hypot(r.X[i]-x,r.Z[i]-z)<rad)return true;return false}).map(r=>r.id);
+   return{o,near,th:terrainH(x,z)}},[x,z,rad]);
+ console.log(JSON.stringify(r,null,1));await T.close()})();
