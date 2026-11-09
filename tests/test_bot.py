@@ -3131,8 +3131,11 @@ def test_fast_buyer_shadows_the_snipes_with_real_quotes_and_never_sends():
     assert s["pnl"][0.001] == round(5.0 - 2 * 0.001 * 100, 2)      # +10% of $50, minus two network fees
     assert "real prices +10.0% a bet vs the lab's +8.0%" in f.line() and "Nothing is ever sent" in f.line()
     assert all("/swap/v1/quote" in u for u, _ in asked)              # nothing but price questions
+    f.missed["M9"] = 0.0                                          # a coin Jupiter couldn't buy in time
+    f.lab_result("M9", 0.30)
+    assert f.summary()["missed_lab_ret"] == 0.30 and "on the 1 it couldn't buy: +30.0% a bet" in f.line()
     g = fb.FastBuyer(f.to_state(), sol_usd=100.0)
-    assert g.summary() == s
+    assert g.summary() == f.summary()
 
 
 def test_fast_buyer_retries_a_refused_sale_and_counts_our_own_buy():

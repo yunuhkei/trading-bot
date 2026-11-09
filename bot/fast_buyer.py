@@ -38,6 +38,10 @@ class FastBuyer:
         self.trades: list = st.get("trades", [])[-500:]
         self.stats = Counter(st.get("stats", {}))
         self.lat: list = st.get("lat", [])[-500:]
+        # the lab's results on the coins Jupiter couldn't buy in time: if the snipes' profit is mostly there, a bot
+        # that trades through Jupiter would miss it
+        self.missed: dict = {}
+        self.missed_ret: list = st.get("missed_ret", [])[-1000:]
         self._next = 0.0
         self.curve = None                         # the lab's curve math: (mint, lamports) -> tokens, to compare
         # the lab's curve math for our own buy: a price quote for selling doesn't know we bought (we never did), so
@@ -46,7 +50,8 @@ class FastBuyer:
         self._lock = None
 
     def to_state(self) -> dict:
-        return {"trades": self.trades[-500:], "stats": dict(self.stats), "lat": self.lat[-500:]}
+        return {"trades": self.trades[-500:], "stats": dict(self.stats), "lat": self.lat[-500:],
+                "missed_ret": self.missed_ret[-1000:]}
 
     # the lab calls these (no waiting): they only queue the decision
     def lab_buy(self, mint: str, now: float, lab_tokens: float | None = None):
@@ -63,6 +68,8 @@ class FastBuyer:
                 return
         if mint in self.open:
             self.open[mint]["lab_ret"] = round(lab_return, 4)
+        elif self.missed.pop(mint, None) is not None:
+            self.missed_ret.append(round(lab_return, 4))
 
     async def _quote(self, session, in_mint: str, out_mint: str, amount: int) -> tuple[dict | None, float, str]:
         if self._lock is None:
@@ -106,6 +113,8 @@ class FastBuyer:
                 info = self.curve(mint, lamports)          # the lab's price at the moment the quote came back
             self.lat.append(round(took, 3))
             self.stats[f"buy {how}"] += 1
+            if not q:
+                self.missed[mint] = decided
             if q:
                 route = "+".join((x.get("swapInfo") or {}).get("label", "?") for x in q.get("routePlan", []))
                 self.open[mint] = {"mint": mint, "t": round(decided), "late": round(time.time() - decided, 2),
@@ -148,7 +157,9 @@ class FastBuyer:
                "unsellable": sum(1 for t in self.trades if "out" in t and not t.get("sell_ok")),
                "fails": {k[4:]: v for k, v in self.stats.items() if k.startswith("buy ") and k != "buy ok"},
                "answer_s": sorted(self.lat)[len(self.lat) // 2] if self.lat else None,
-               "vs_lab": None, "real_ret": None, "lab_ret": None, "pnl": {}}
+               "vs_lab": None, "real_ret": None, "lab_ret": None, "pnl": {},
+               "missed": len(self.missed_ret),
+               "missed_lab_ret": round(sum(self.missed_ret) / len(self.missed_ret), 4) if self.missed_ret else None}
         gaps = [t["vs_lab"] for t in done if t.get("vs_lab") is not None]
         if gaps:
             out["vs_lab"] = sorted(gaps)[len(gaps) // 2]
@@ -172,5 +183,7 @@ class FastBuyer:
                     f"{s['pnl'][FEES_SOL[-1]]:+,.2f} (5x fees)")
         if s["real_ret"] is not None:
             txt += f"; real prices {s['real_ret']:+.1%} a bet vs the lab's {s['lab_ret']:+.1%} on the same bets"
+        if s["missed_lab_ret"] is not None:
+            txt += f"; the lab's result on the {s['missed']} it couldn't buy: {s['missed_lab_ret']:+.1%} a bet"
         txt += ". Nothing is ever sent."
         return txt
