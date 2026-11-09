@@ -20,3 +20,8 @@ jobs:
           key: launch-lab-status-${{ github.run_id }}
           restore-keys: launch-lab-
       - run: python -m bot launch-lab --status
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lab-status
+          path: lab_status.json
+          retention-days: 3

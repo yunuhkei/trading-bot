@@ -1147,20 +1147,16 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
              + (f", topped back up to $1,000 (${add:,.0f} put in)." if add else "."))
     if status:
         print(lab.board())
-        # every strategy's record by day and hour (Milwaukee time), for a closer look at its best times
-        print("DAYS " + json.dumps({k: g.days for k, g in lab.ghosts.items() if g.days}), flush=True)
-        print("SIGNS " + json.dumps(lab.signs), flush=True)
-        print("ACTIVITY " + json.dumps(lab.activity), flush=True)
-        print("FAST " + json.dumps(lab.fast.summary()), flush=True)
-        print(lab.fast.line(), flush=True)
-        print("DIRECT " + json.dumps(lab.direct.summary()), flush=True)
-        print(lab.direct.line(), flush=True)
-        print("SNIPER " + json.dumps(lab.sniper.to_state()), flush=True)
-        print("DIRECT_TRADES " + json.dumps(lab.direct.trades), flush=True)
-        print(lab.sniper.line(), flush=True)
         for k, a in lab.accts.items():
             for t in a.trades[-5:]:
                 print(f"  {k}: {t['name']} {t['profit']:+.2f} in {t['s']} s ({t['why_in']} -> {t['why_out']}, filled {t['lag']} s late)")
+        # everything for a closer look, as one file (a single huge log line gets cut off by GitHub); the
+        # launch-lab-status workflow uploads it
+        Path("lab_status.json").write_text(json.dumps({
+            "days": {k: g.days for k, g in lab.ghosts.items() if g.days}, "signs": lab.signs, "activity": lab.activity,
+            "fast": lab.fast.summary(), "direct": lab.direct.summary(), "direct_trades": lab.direct.trades,
+            "sniper": lab.sniper.to_state()}))
+        print(lab.fast.line(), lab.direct.line(), lab.sniper.line(), sep="\n", flush=True)
         return
     import signal
 
