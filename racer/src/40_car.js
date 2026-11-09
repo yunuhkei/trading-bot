@@ -27,7 +27,7 @@ const CARS_RENDER=null;
 /* ---------- state ---------- */
 const GRAV=24;
 const C={dActive:0,dCombo:0,dTime:0,dGrace:0,dStart:0,dEnd:0,dLast:null,jump:null,jx:0,jz:0,slideT:0,kv:0,liftT:0,ke:0,E:0,handT:0,hk:0,handOn:0,slideDir:1,lastSteer:1,airMax:0,x:0,y:0,z:0,yaw:0,vx:0,vz:0,vy:0,pitch:0,roll:0,px:0,py:0,pz:0,pyaw:0,ppitch:0,proll:0,spin:0,steerVis:0,wyaw:0,bob:0,
-  gs:0,gsp:0,gf:0,ax:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0,boostK:0,camDr:0,camYV:0,fovV:0,distV:0};
+  gs:0,gsp:0,gf:0,ax:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0,boostK:0,camDr:0,camYV:0,fovV:0,distV:0,tapN:0,tapT:0,dbK:0,slideMax:.45};
 const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
 /* impacts: everything the car hits (src 0 a building/pole/tree, 1 a steep bank, 2 a hard landing, 3 traffic) is recorded with its energy for the damage system.
    E = energy lost in the crash in joules (1/2 m v^2 style: for a wall 1/2 m_player (1-e^2) vn^2, for a car 1/2 mu (1-e^2) vn^2 with mu the reduced mass), zone 0 front 1 rear 2 left 3 right (-1 unknown/underside) */
@@ -41,7 +41,7 @@ const WB=1.35,RADIUS=1.05;
 /* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
 const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5};
 function carPlace(x,z,yaw,yh){C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6}
-function respawn(){IN.nitro=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1;C.dActive=0;C.dLast=null;C.grounded=1;C.air=0;C.liftT=0;C.kv=0;C.drift=0;C.slideT=0}
+function respawn(){IN.nitro=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1;C.dActive=0;C.dLast=null;C.grounded=1;C.air=0;C.liftT=0;C.kv=0;C.drift=0;C.slideT=0;C.tapN=0;C.tapT=0;C.dbK=0}
 const gw=(x,z,y)=>groundAt(x,z,y);
 function carStep(dt){
   C.px=C.x;C.py=C.y;C.pz=C.z;C.pyaw=C.yaw;C.ppitch=C.pitch;C.proll=C.roll;
@@ -104,9 +104,12 @@ function carStep(dt){
   const sp=Math.min(1,af/60);const steer=C.steer;
   const spd=Math.hypot(f,s),hand=IN.hand&&spd>6&&gr;
   /* the drift pedal: pressing it kicks the tail out (a slide, towards the way you steer), and the longer it is held the harder the locked wheels brake */
-  if(hand){if(!C.handOn){C.handOn=1;C.handT=0;C.slideDir=Math.abs(steer)>.12?Math.sign(steer):Math.abs(C.wyaw)>.05?Math.sign(C.wyaw):C.lastSteer}C.handT+=dt;C.hk=Math.min(1,C.handT/HND.handRamp);C.slideT=HND.slideWin}
+  /* tapping the drift pedal again while the last tap's slide is still going builds the slide up, harder and harder (up to five taps): a bigger slide angle, a faster turn, less grip, a longer hold, more points. It fades 1.6 s after the last tap. */
+  C.tapT=Math.max(0,C.tapT-dt);{const tb=C.tapT>0?C.tapN/5:0;C.dbK+=(tb-C.dbK)*(1-Math.exp(-dt*(tb>C.dbK?10:1.6)))}
+  if(hand){if(!C.handOn){C.handOn=1;C.handT=0;C.slideDir=Math.abs(steer)>.12?Math.sign(steer):Math.abs(C.wyaw)>.05?Math.sign(C.wyaw):C.lastSteer;
+      if(C.tapT>0&&(C.drift>.2||C.slideT>0||C.dActive))C.tapN=Math.min(5,C.tapN+1);else C.tapN=0;C.tapT=1.6}C.handT+=dt;C.hk=Math.min(1,C.handT/HND.handRamp);C.slideMax=HND.slideWin*(1+1.2*C.dbK);C.slideT=C.slideMax}
   else{C.handOn=0;C.handT=0;C.hk*=Math.max(0,1-dt*6);C.slideT=Math.max(0,C.slideT-dt)}
-  const sl=hand?1:(gr&&spd>6?C.slideT/HND.slideWin:0);   /* a tap keeps the slide going for a moment after the finger lifts */
+  const sl=hand?1:(gr&&spd>6?C.slideT/Math.max(.05,C.slideMax):0);   /* a tap keeps the slide going for a moment after the finger lifts */
   if(Math.abs(steer)>.3)C.lastSteer=Math.sign(steer);
   {const dT=hand?1:.75*sl;C.drift+=(dT-C.drift)*Math.min(1,dt*(dT>C.drift?14:lerp(9,HND.driftRelease,Math.min(1,C.slip*4))))}   /* a real slide lets go of the tyres more slowly */
   const dr=C.drift;let beta=0;
@@ -118,12 +121,12 @@ function carStep(dt){
     /* drift assist: the stick chooses the slide angle, the assist holds it and straightens the car the moment you let go */
     /* full-circle slide angle (signed forward speed): at speed the stick asks for a modest slide, as the drift sheds speed the allowed angle grows until a full-stick handbrake spins the car right round */
     beta=spd>2?Math.atan2(s,f):0;
-    const bmax=lerp(HND.betaSlow,HND.betaFast,sstep(10,34,spd));let bt=-steer*bmax;
-    if(sl>0){const minA=Math.min(HND.tapAng,HND.tapFrac*bmax)*sl*(hand?lerp(1,.5,sstep(.6,1.8,C.handT)):1),sg=Math.abs(steer)>.12?Math.sign(steer):C.slideDir;if(Math.abs(bt)<minA)bt=-sg*minA}   /* even with the stick centred the tap asks for a slide */
-    const omD=clamp(HND.kBeta*angd(beta,bt),-HND.omDrift,HND.omDrift);
+    const bmax=lerp(HND.betaSlow,HND.betaFast,sstep(10,34,spd))*(1+.8*C.dbK);let bt=-steer*bmax;
+    if(sl>0){const minA=Math.min(HND.tapAng*(1+1.5*C.dbK),HND.tapFrac*bmax)*sl*(hand?lerp(1,.5,sstep(.6,1.8,C.handT)):1),sg=Math.abs(steer)>.12?Math.sign(steer):C.slideDir;if(Math.abs(bt)<minA)bt=-sg*minA}   /* even with the stick centred the tap asks for a slide */
+    const omDm=HND.omDrift*(1+.55*C.dbK),omD=clamp(HND.kBeta*(1+.4*C.dbK)*angd(beta,bt),-omDm,omDm);
     /* lateral friction: strong normally, weak in a drift; always limited, so a hit or a hard turn cannot snap the car around */
     let kg=HND.grip*surf;if(brk>0&&af>20&&Math.abs(steer)>.5)kg=Math.min(kg,HND.gripBrake);
-    kg=lerp(kg,HND.gripDrift,dr);const fr=lerp(1.3*A,(HND.driftFric+HND.driftFricV*af)*(.6+.4*surf),dr);
+    kg=lerp(kg,HND.gripDrift*(1-.4*C.dbK),dr);const fr=lerp(1.3*A,(HND.driftFric+HND.driftFricV*af)*(.6+.4*surf),dr);
     let ds=Math.min(Math.abs(s)*kg,fr)*dt;if(ds>Math.abs(s))ds=Math.abs(s);const s0=s;s-=Math.sign(s)*ds;
     /* in a drift the friction turns the car's path instead of eating its speed (the velocity is rotated, not braked) */
     if(dr>.02){const e=Math.sqrt(Math.max(0,f*f+s0*s0-s*s));f=Math.sign(f||1)*lerp(Math.abs(f),e,dr)}
@@ -137,7 +140,7 @@ function carStep(dt){
       const edge=clamp((Math.abs(RQ.lat)-.55*RQ.hw)/(.45*RQ.hw),0,1),want=dd-Math.sign(RQ.lat)*edge*.2;
       wt+=want*1.6*Math.min(1,af/35)*(1-Math.min(1,Math.abs(steer)/.22))}}
     wt+=DMG.pull*Math.min(1,af/12);                       /* a damaged side drags the car towards it (0 when undamaged) */
-    {const lim=lerp(A/Math.max(af,4),HND.omDrift,dr);wt=wt>lim?lim:wt<-lim?-lim:wt}   /* nothing (assist included) may ask for more than the tyres have */
+    {const lim=lerp(A/Math.max(af,4),HND.omDrift*(1+.55*C.dbK),dr);wt=wt>lim?lim:wt<-lim?-lim:wt}   /* nothing (assist included) may ask for more than the tyres have */
     C.wyaw+=(wt-C.wyaw)*(1-Math.exp(-dt*lerp(HND.respond,HND.respondDrift,dr)));
   }else{C.wyaw*=Math.max(0,1-dt*.6);const kd=Math.max(0,1-HND.airDrag*spd*dt);f*=kd;s*=kd;C.vy*=kd}   /* airborne: gravity and air drag only */
   /* back to world velocity with the OLD heading: the car turns, the velocity does not, so the difference becomes slip */
@@ -147,7 +150,7 @@ function carStep(dt){
   const slipA=spd>8?Math.abs(s)/spd:0;C.slip=slipA;
   /* any slide is a drift (whether or not the drift pedal is down: a slide that carries on after a tap, a slide after a landing or on grass); a short grace keeps the combo alive across a change of direction */
   const sliding=gr&&spd>10&&slipA>(C.dActive?.09:.15);
-  if(sliding){if(!C.dActive){C.dActive=1;C.dCombo=0;C.dTime=0;C.dStart=C.t;C.dLast=null}C.dGrace=.5;C.dTime+=dt;const pts=dt*spd*slipA*2;C.dCombo+=pts;C.driftScore+=pts;C.nos=Math.min(1,C.nos+dt*.2*Math.min(1,slipA*2.2+.3))}
+  if(sliding){if(!C.dActive){C.dActive=1;C.dCombo=0;C.dTime=0;C.dStart=C.t;C.dLast=null}C.dGrace=.5;C.dTime+=dt;const pts=dt*spd*slipA*2*(1+2*C.dbK);C.dCombo+=pts;C.driftScore+=pts;C.nos=Math.min(1,C.nos+dt*.2*Math.min(1,slipA*2.2+.3))}
   else if(C.dActive){C.dGrace-=dt;if(C.dGrace<=0){C.dActive=0;C.dEnd=C.t;C.dLast=C.dTime>.35&&C.dCombo>=1?{pts:Math.round(C.dCombo),t:C.t,start:C.dStart}:null}}
   C.nos=Math.min(1,C.nos+dt*.012);if(DMG.leak>0)C.nos=Math.max(0,C.nos-dt*DMG.leak);
   /* ---- move ---- */

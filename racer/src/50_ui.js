@@ -122,7 +122,7 @@ function hudDraw(){
      else if(age>hold){const k=(age-hold)/.6;if(k>=1)return;const e=1-(1-k)*(1-k);al=1-k;rise=e*22;sc=1-.15*k}
      c.save();c.globalAlpha=al;c.translate(W_*.5,y-rise);c.scale(sc,sc);c.textAlign='center';c.font=font;c.fillStyle=col;c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;c.fillText(txt,0,0);c.restore()};
    /* drift: counting up while sliding, then held and floated away */
-   if(C.dActive&&C.dTime>.3)toast('DRIFT  '+Math.round(C.dCombo),'#7fd4ff',H_*.31,-Math.min(.16,C.t-C.dStart-.3)-.0001,1);
+   if(C.dActive&&C.dTime>.3)toast('DRIFT  '+Math.round(C.dCombo)+(C.tapN>0&&C.tapT>0?'   x'+(C.tapN+1):''),'#7fd4ff',H_*.31,-Math.min(.16,C.t-C.dStart-.3)-.0001,1);
    else if(C.dLast){const age=C.t-C.dLast.t;if(age<2.4)toast('DRIFT  '+C.dLast.pts,'#7fd4ff',H_*.31,age,1.8)}
    /* air: counting while flying, then the jump, held and floated away */
    if(!C.grounded&&C.air>.3)toast('AIR  '+C.air.toFixed(1)+' s','#ffd24a',H_*.31+u*.5,-Math.min(.16,C.air-.3)-.0001,1);

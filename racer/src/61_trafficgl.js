@@ -61,9 +61,11 @@ const TRMATMAP=[0,1,2,2,5,3,4,6,5,2,2,5,0,6,2];
 function trGenType(i){
   const base=TRGEN[i==4?0:i],spec=Object.assign({noSkirt:1},base);if(i==4)spec.lowerDark=.66;
   const R=cgBuild(spec,{lo:1}),S=R.S,P=[],N=[],M=[],I=[];let o=0;
+  /* the police livery: white doors, roof and pillars, black bonnet, wings and boot (x, y, z in generator coordinates, front negative) */
+  const copLivery=(x,y,z,S)=>{const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
   const add=(mb,dx,dy,dz,mirX,mapM)=>{const n=mb.nv;for(let v=0;v<n;v++){const x=mb.P[v*3]*(mirX?-1:1)+dx,y=mb.P[v*3+1]+dy,z=-(mb.P[v*3+2]+dz);P.push(x,y,z);N.push(mb.N[v*3]*(mirX?-1:1),mb.N[v*3+1],-mb.N[v*3+2]);const m=TRMATMAP[mb.M[v]];
       /* the black lower body of a police car: the shade ramp of the generator marks it; the paint of the upper part stays the palette colour */
-      M.push(m==0&&mb.S&&mb.S[v]<.4?(spec.lowerDark?9:6):m)}
+      M.push(m==0&&mb.S&&mb.S[v]<.4?(spec.lowerDark?9:6):(m==0&&spec.lowerDark&&mb===R.body?copLivery(P[P.length-3],P[P.length-2],-P[P.length-1],S):m))}
     for(let k=0;k<mb.I.length;k++)I.push(mb.I[k]+o);o+=n};
   add(R.body,0,0,0,false);
   for(const[wz,wr,wheel,tx]of[[S.fz,S.rf,R.wheelF,S.tf],[S.rz,S.rr,R.wheelR,S.tr]])for(const sd of[-1,1])add(wheel,sd*tx,wr,wz,sd<0);
@@ -75,13 +77,14 @@ function trGenType(i){
     cgBox(bb,0,.5,-S.L/2-.05,.55,.018,.03,CGM.trim,0);cgBox(bb,0,.62,-S.L/2-.05,.5,.018,.03,CGM.trim,0);for(const sd of[-1,1])cgBox(bb,sd*.5,.55,-S.L/2-.04,.02,.11,.025,CGM.trim,0);     /* push bar */
     for(const sd of[-1,1]){cgBox(bb,sd*(S.curves.half(S.cowl)*S.gw+.07),S.H-.32,S.zs(S.cowl+.18),.025,.025,.05,CGM.chrome,0)}                          /* spotlights */
     cgBox(bb,.35,S.H+.14,S.zs(S.roofR+.25),.006,.12,.006,CGM.trim,0);                                                                    /* aerial */
-    const map2={[CGM.paint]:7,[CGM.glass]:8,[CGM.trim]:2,[CGM.head]:3,[CGM.chrome]:5};
+    for(const sd of[-1,1]){const x=sd*(S.curves.half(S.cowl+1.2)+.006),z0=S.zs(S.cowl+.2),z1=S.zs(S.roofR+.2),zc=(z0+z1)/2,hz=Math.abs(z1-z0)/2;cgBox(bb,x,.74,zc,.004,.045,hz,CGM.plate,0);cgBox(bb,x,.66,zc,.004,.022,hz,CGM.stripe,0);cgBox(bb,x,.80,zc+hz*.35,.004,.035,hz*.4,CGM.disc,0)}      /* door stripes: blue, gold, and a badge block */
+    const map2={[CGM.paint]:7,[CGM.glass]:8,[CGM.trim]:2,[CGM.head]:3,[CGM.chrome]:5,[CGM.plate]:10,[CGM.stripe]:11,[CGM.disc]:5};
     const nv0=P.length/3;for(let v=0;v<bb.nv;v++){P.push(bb.P[v*3],bb.P[v*3+1],-bb.P[v*3+2]);N.push(bb.N[v*3],bb.N[v*3+1],-bb.N[v*3+2]);M.push(map2[bb.M[v]]||2)}for(const k of bb.I)I.push(k+nv0)}
   return{P,N,M,I}}
 function trGLInit(){
   const gl=G.gl;TRM.pal=new Float32Array(TCOLS.length*3);TCOLS.forEach((c,i)=>{TRM.pal[i*3]=c[0];TRM.pal[i*3+1]=c[1];TRM.pal[i*3+2]=c[2]});
   /* materials: rgb albedo, alpha = glow (-1: the body colour of the car) */
-  TRM.mat=new Float32Array([0,0,0,-1, .03,.045,.06,0, .015,.015,.017,0, .85,.8,.62,1.5, .5,.02,.02,.5, .5,.5,.52,0, .015,.015,.015,0, .8,.1,.05,0, .1,.2,.9,0, .035,.035,.04,0, 0,0,0,0, 0,0,0,0]);
+  TRM.mat=new Float32Array([0,0,0,-1, .03,.045,.06,0, .015,.015,.017,0, .85,.8,.62,1.5, .5,.02,.02,.5, .5,.5,.52,0, .015,.015,.015,0, .8,.1,.05,0, .1,.2,.9,0, .035,.035,.04,0, .04,.09,.45,0, .62,.5,.12,0, .72,.72,.74,0]);
   const upload=(B)=>{const nv=B.P.length/3,ab=new ArrayBuffer(nv*16),f=new Float32Array(ab),b=new Int8Array(ab);
     for(let v=0;v<nv;v++){f[v*4]=B.P[v*3];f[v*4+1]=B.P[v*3+1];f[v*4+2]=B.P[v*3+2];b[v*16+12]=Math.round(B.N[v*3]*127);b[v*16+13]=Math.round(B.N[v*3+1]*127);b[v*16+14]=Math.round(B.N[v*3+2]*127);b[v*16+15]=B.M[v]}
     return{vb:mkBuf(gl.ARRAY_BUFFER,ab),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(B.I)),n:B.I.length,nv}};

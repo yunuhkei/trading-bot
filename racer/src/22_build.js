@@ -33,9 +33,30 @@ function ptrunk(cat,cx,y0,cz,rad,h,r,g,b){const m=pmb(cx,cz,cat,8),a=[];for(let 
 function pblob(cat,cx,y0,cz,rx,ry,r,g,b,rot){const m=pmb(cx,cz,cat,26),seg=7,rows=[[-.25,.78],[.35,1],[.95,.55]];const rings=[];
   rows.forEach(rw=>{const rr=[];for(let i=0;i<seg;i++){const a=rot+i/seg*TAU+rw[0],c=Math.cos(a),s=Math.sin(a),nl=1/Math.hypot(c,rw[0]*.7+.3,s);rr.push(m.v(cx+c*rx*rw[1],y0+ry*(.5+rw[0]*.55),cz+s*rx*rw[1],c*nl,(.3+rw[0]*.7)*nl,s*nl,r*(.75+rw[0]*.3),g*(.75+rw[0]*.3),b*(.75+rw[0]*.3),.03,.03,0))}rings.push(rr)});
   const top=m.v(cx,y0+ry*1.2,cz,0,1,0,r,g,b,.03,.03,0);for(let k=0;k<2;k++)for(let i=0;i<seg;i++){const j=(i+1)%seg;m.q(rings[k][i],rings[k][j],rings[k+1][j],rings[k+1][i])}for(let i=0;i<seg;i++)m.t(rings[2][i],rings[2][(i+1)%seg],top)}
-function ptree(x,z,rng,y){const t=rng(),sc=.8+rng()*.7,rot=rng()*6;
-  if(y>110||t<.55){const h=9*sc,rd=2.6*sc;ptrunk(2,x,y-.2,z,.28,2.2*sc,70,52,36);pcone(2,x,y+1.4*sc,z,rd,h*.62,22,66,34,7,rot);pcone(2,x,y+h*.45,z,rd*.68,h*.55,28,78,40,7,rot+.4)}
-  else{const g=100+rng()*50;ptrunk(2,x,y-.2,z,.3,3*sc,72,54,38);pblob(2,x,y+2*sc,z,3.2*sc,5*sc,46+rng()*30,g,40,rot)}}
+/* the greens of the broadleaf trees: a few desaturated shades and the odd autumn one, so no two stands look the same */
+const TGREEN=[[52,100,46],[62,112,50],[44,88,52],[78,116,48],[66,98,42],[40,82,58],[86,112,56]],TFALL=[[176,128,44],[190,100,46],[156,90,52]];
+function ptree(x,z,rng,y,hero){const t=rng(),sc=.8+rng()*.7,rot=rng()*6,hh=Math.sin(x*12.9898+z*78.233)*43758.5453,cl=hh-Math.floor(hh),h2=Math.sin(x*39.346+z*11.135)*24634.6345,pk=h2-Math.floor(h2);
+  if(y>110||t<.55){
+    if(hero){const h=11*sc,g=[22+cl*16,62+cl*24,34+cl*14];ptrunk(2,x,y-.2,z,.3,2.8*sc,70,52,36);                                          /* a fir: three tiers that overlap */
+      pcone(2,x,y+1.5*sc,z,3*sc,h*.5,g[0]*.85,g[1]*.85,g[2]*.85,7,rot);pcone(2,x,y+h*.32,z,2.35*sc,h*.46,g[0],g[1],g[2],7,rot+.5);pcone(2,x,y+h*.56,z,1.55*sc,h*.44,g[0]*1.14,g[1]*1.14,g[2]*1.1,7,rot+1)}
+    else{const h=9*sc,rd=2.6*sc;ptrunk(2,x,y-.2,z,.28,2.2*sc,70,52,36);pcone(2,x,y+1.4*sc,z,rd,h*.62,22,66,34,7,rot);pcone(2,x,y+h*.45,z,rd*.68,h*.55,28,78,40,7,rot+.4)}}
+  else{const q1=rng(),q2=rng(),c=pk<.07?TFALL[(cl*3)|0]:TGREEN[(cl*7)|0];
+    if(hero&&pk>.8){ptrunk(2,x,y-.2,z,.2,3*sc,72,60,46);pblob(2,x,y+1.2*sc,z,1.6*sc,7.6*sc,c[0]*.85,c[1]*.9,c[2]*.85,rot)}                       /* a poplar: a tall narrow column */
+    else if(hero){ptrunk(2,x,y-.2,z,.27,4.4*sc,72,54,38);pblob(2,x,y+2.1*sc,z,3.4*sc,5*sc,c[0],c[1],c[2],rot);                                /* an oak: a big crown with a second lobe off to one side */
+      const a=rot*1.7,ox=Math.cos(a)*2.3*sc,oz=Math.sin(a)*2.3*sc;pblob(2,x+ox,y+3.1*sc,z+oz,2.4*sc,3.4*sc,c[0]*1.1,c[1]*1.08,c[2]*1.05,rot+1)}
+    else{ptrunk(2,x,y-.2,z,.3,3*sc,72,54,38);pblob(2,x,y+2*sc,z,3.2*sc,5*sc,46+q2*30,100+q1*50,40,rot)}}}
+/* a bush, a boulder: a low squashed blob that sits on the ground */
+function pbush(x,z,y,rx,ry,r,g,b,rot){pblob(2,x,y-.4*ry,z,rx,ry,r,g,b,rot)}
+/* a bar of square section between two points (wires, rails, cactus arms, turbine parts); drawn from both sides so it never disappears */
+function pbar(cat,x0,y0,z0,x1,y1,z1,w,r,g,b){const m=pmb((x0+x1)/2,(z0+z1)/2,cat,8);let dx=x1-x0,dy=y1-y0,dz=z1-z0;const l=Math.hypot(dx,dy,dz)||1;dx/=l;dy/=l;dz/=l;
+  let ux=-dz,uz=dx;const ul=Math.hypot(ux,uz);if(ul<1e-4){ux=1;uz=0}else{ux/=ul;uz/=ul}
+  const vx=dy*uz,vy=dz*ux-dx*uz,vz=-dy*ux,k=[];
+  for(const p of[[x0,y0,z0],[x1,y1,z1]])for(const q of[[1,1],[-1,1],[-1,-1],[1,-1]]){const nx=ux*q[0]+vx*q[1],ny=vy*q[1],nz=uz*q[0]+vz*q[1],nl=Math.hypot(nx,ny,nz)||1;k.push(m.v(p[0]+nx*w/2,p[1]+ny*w/2,p[2]+nz*w/2,nx/nl,ny/nl,nz/nl,r,g,b,.03,.03,0))}
+  for(let i=0;i<4;i++){const j=(i+1)&3;m.q(k[i],k[j],k[4+j],k[4+i]);m.q(k[i],k[4+i],k[4+j],k[j])}}
+/* a smooth tapered column (turbine towers, silos) */
+function pfrus(cat,cx,y0,cz,r0,r1,h,r,g,b,seg){const m=pmb(cx,cz,cat,seg*2+2),a=[],sl=(r0-r1)/h,nl=1/Math.hypot(1,sl);
+  for(let i=0;i<seg;i++){const an=i/seg*TAU,c=Math.cos(an),s=Math.sin(an);a.push(m.v(cx+c*r0,y0,cz+s*r0,c*nl,sl*nl,s*nl,r*.75,g*.75,b*.75,.03,.03,0),m.v(cx+c*r1,y0+h,cz+s*r1,c*nl,sl*nl,s*nl,r,g,b,.03,.03,0))}
+  for(let i=0;i<seg;i++){const j=(i+1)%seg;m.t(a[i*2],a[j*2],a[j*2+1]);m.t(a[i*2],a[j*2+1],a[i*2+1])}}
 /* ---------- road ribbons ---------- */
 const ROAD_PIECE=64;
 let _cj=null;
@@ -149,7 +170,7 @@ function buildCity(){
       const wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs,yy0=vert?y0:y0+3,yy1=vert?y0+Math.min(7,h*.4):y0+3+1.1;pboxR(1,wx,wz,hl[0],hl[1],cs,sn,yy0,yy1,c[0],c[1],c[2],2,1);
       NEONS.push(wx,(yy0+yy1)/2,wz,c[0]/255,c[1]/255,c[2]/255,vert?3.4:4.2)}};
   const bld=(cx,cz,hx,hz,cs,sn,h,c,win)=>{const gy=gmin(cx,cz,hx,hz,cs,sn);pboxR(1,cx,cz,hx,hz,cs,sn,gy-1.5,gy+h,c[0],c[1],c[2],win!==false,.62);reg(cx,cz,hx,hz,cs,sn,gy+h);nb++;if(h>=7&&win!==false&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0))&&nrng()<.7)neon(cx,cz,hx,hz,cs,sn,gy,h);return gy};
-  const treesIn=(B,n)=>{for(let k=0;k<n;k++){const u=lerp(B.u0+4,B.u1-4,rng()),v=lerp(B.v0+4,B.v1-4,rng()),p=B.W(u,v);if(nearRoadXZ(p[0],p[1],6))continue;ptree(p[0],p[1],rng,terrainH(p[0],p[1]));COLC.push(p[0],p[1],.55,terrainH(p[0],p[1])-.5,terrainH(p[0],p[1])+12)}};
+  const treesIn=(B,n)=>{for(let k=0;k<n;k++){const u=lerp(B.u0+4,B.u1-4,rng()),v=lerp(B.v0+4,B.v1-4,rng()),p=B.W(u,v);if(nearRoadXZ(p[0],p[1],6))continue;ptree(p[0],p[1],rng,terrainH(p[0],p[1]),true);COLC.push(p[0],p[1],.55,terrainH(p[0],p[1])-.5,terrainH(p[0],p[1])+12)}};
   for(const g of GRIDS){
     if(g.kind=='la'){
       forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,[cx,cz]=B.W(cu,cv),r=rng(),cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0;
@@ -213,7 +234,7 @@ function buildCity(){
           const [px,pz]=P(cu+34,cv-2);lawn(px,pz,17,11,cs,sn,64,150,204,.3,12);
           const [cx0,cz0]=P(B.u0+26,B.v1-18),gy=bld(cx0,cz0,18,9,cs,sn,6.5,[236,226,210],true);proofR(1,cx0,cz0,19,10,cs,sn,gy+6.5,2.2,160,120,100,true);
           for(let k=0;k<22;k++){const u=lerp(B.u0+8,B.u1-8,rng()),v=lerp(B.v0+8,B.v1-8,rng()),p=P(u,v);if(Math.hypot(p[0]-px,p[1]-pz)<24||Math.hypot(p[0]-cx0,p[1]-cz0)<30)continue;
-            const y=terrainH(p[0],p[1]);if(rng()<.55)ppalm(p[0],p[1],rng,y);else ptree(p[0],p[1],rng,y);COLC.push(p[0],p[1],.55,y-.5,y+12)}}
+            const y=terrainH(p[0],p[1]);if(rng()<.55)ppalm(p[0],p[1],rng,y);else ptree(p[0],p[1],rng,y,true);COLC.push(p[0],p[1],.55,y-.5,y+12)}}
         else{/* villas: nine flat-roofed houses, each with a small pool */
           const lw=wu/3,ld=wv/3,HC=[[240,232,214],[226,196,170],[200,222,226],[236,214,180]];
           for(let a=0;a<3;a++)for(let b=0;b<3;b++){const u=B.u0+lw*(a+.5),v=B.v0+ld*(b+.5),[hx,hz]=P(u-4,v-6),h=3.4+rng()*.8,gy=bld(hx,hz,Math.min(13,lw*.28),Math.min(8,ld*.2),cs,sn,h,HC[(rng()*4)|0],true);
@@ -226,7 +247,7 @@ function buildCity(){
     if(g.kind=='town'){/* a small town: houses, a row of shops, trees, one landmark (church, water tower or lodge) */
       const TH={coast:{pal:PASTEL,rf:0},farm:{pal:[[240,238,230],[230,226,214],[196,64,56],[186,198,206],[232,220,170]],rf:0},desert:{pal:[[214,184,146],[226,200,160],[196,164,128],[232,214,180]],rf:1},pines:{pal:[[110,80,60],[130,96,70],[92,70,56],[150,112,80]],rf:2}}[g.theme]||{pal:PASTEL,rf:0};
       const SHOP=[[236,120,110],[250,200,96],[96,170,196],[240,240,232],[130,200,150],[214,150,90]];let lm=false;
-      const tree=(x,z)=>{const y=terrainH(x,z);if(y<2)return;if(g.theme=='desert'||g.theme=='coast')ppalm(x,z,rng,y);else ptree(x,z,rng,y);COLC.push(x,z,.5,y-.5,y+12)};
+      const tree=(x,z)=>{const y=terrainH(x,z);if(y<2)return;if(g.theme=='desert'||g.theme=='coast')ppalm(x,z,rng,y);else ptree(x,z,rng,y,true);COLC.push(x,z,.5,y-.5,y+12)};
       forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,r=rng();
         if(!lm&&r<.22){lm=true;const[px,pz]=B.W(cu,cv),y=terrainH(px,pz);
           if(g.theme=='desert'){for(const sx of[-3,3])for(const sz of[-3,3])pbox(1,px+sx,y-.4,pz+sz,.35,y+12,.35,150,150,156,false,.8);pbox(1,px,y+12,pz,5,y+19,5,196,196,200,false,.9);COLC.push(px,pz,4.8,y-.5,y+19)}
@@ -279,7 +300,7 @@ function buildCity(){
     const px=s.x+cs*11,pz=s.z+sn*11,y=terrainH(px,pz);pbox(1,px,y-.4,pz,.3,y+13,.3,200,200,206,false,.8);pbox(1,px,y+10,pz,2.4,y+14,.45,60,235,130,false,1);COLC.push(px,pz,.5,y-.5,y+13)}
   /* Golden Gate Park: dense trees round a lake, kept clear of the drive */
   {const pr=mulberry(909),lk=LAKES[0];let np=0;for(let x=PARK.x0+4;x<PARK.x1-4;x+=8)for(let z=PARK.z0+4;z<PARK.z1-4;z+=8){const px=x+(pr()-.5)*7,pz=z+(pr()-.5)*7;if(Math.hypot(px-lk[0],pz-lk[1])<lk[2]+5)continue;
-    const gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(W.D8[gj*W.N+gi]<5||pr()<.25||nearRoadXZ(px,pz,8))continue;ptree(px,pz,pr,terrainH(px,pz));COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);np++}}
+    const gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(W.D8[gj*W.N+gi]<5||pr()<.25||nearRoadXZ(px,pz,8))continue;ptree(px,pz,pr,terrainH(px,pz),true);COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);np++}}
   /* suburb: low houses on a loose grid around the city, clear of every road and of the districts */
   const sub=mulberry(77);let ns=0;
   for(const[SB,mx,mz]of[[CITY,420,380],[VALLEY,380,380],[TOWN_BAR,300,300],[TOWN_PAC,300,300],[TOWN_FRE,320,320],[TOWN_BIG,240,240]])
@@ -295,9 +316,120 @@ function buildCity(){
   for(let x=-2800;x<2800;x+=19)for(let z=-2800;z<2800;z+=19){
     const px=x+(tr()-.5)*16,pz=z+(tr()-.5)*16,gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(gi<2||gj<2||gi>=W.N-2||gj>=W.N-2)continue;
     const h=W.hm[gj*W.N+gi],dr=W.D8[gj*W.N+gi],sl=terrainSlope(px,pz);let p=0;
-    if(forestAt(px,pz,h,sl,dr))p=.66;else if(dr>13&&dr<45&&h>6&&sl<.4&&!inUrban(px,pz,60))p=.06+.2*sstep(1,2,fbm(px*.003,pz*.003,55,2)*2);
+    if(forestAt(px,pz,h,sl,dr))p=.66;else if(dr>13&&dr<95&&h>6&&sl<.4&&!inUrban(px,pz,60))p=(.11+.3*sstep(1,2,fbm(px*.003,pz*.003,55,2)*2))*(1-.65*sstep(40,95,dr));
     if(h<5||tr()>p||nearRoadXZ(px,pz,9))continue;ptree(px,pz,tr,h);COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);nt++}
-  return{buildings:nb,houses:ns,trees:nt}}
+  return{buildings:nb,houses:ns,trees:nt,scenery:buildScenery()}}
+/* ---------- scenery along the open roads: poles + wires, gantry signs, billboards, speed + curve signs, fences, groves, bushes, rocks, cacti, wind turbines, gas stations ---------- */
+function buildScenery(){
+  const sr=mulberry(5150),St={poles:0,delin:0,gantry:0,bill:0,chev:0,sign:0,fence:0,groves:0,trees:0,bush:0,rock:0,cactus:0,turb:0,gas:0,farm:0,hv:0,at:{gas:[],farm:[],bill:[],gantry:[],turb:[],hv:[]}};
+  const dryAt=(x,z)=>Math.min(1,sstep(1300,2300,z)*.8+sstep(500,1800,x)*.15+sstep(2600,3800,x)*.9);
+  const BB=[[214,64,52],[244,196,44],[44,108,214],[236,236,232],[34,148,92],[238,120,36],[130,60,170]];
+  const sideAt=(r,i,tx,tz,sd,g)=>{const o=r.hw*r.wk[i]+RSH+g,px=r.X[i]-tz*sd*o,pz=r.Z[i]+tx*sd*o;return[px,pz,terrainH(px,pz)]};
+  const free=(px,pz,y,g,dy)=>{const ty=terrainH(px,pz);return ty>3&&Math.abs(ty-y)<dy&&!nearRoadXZ(px,pz,Math.min(g*.7,6))};
+  const quad2=(m,A,B,C,D,nx,ny,nz,r,g,b)=>{const f=[A,B,C,D].map(p=>m.v(p[0],p[1],p[2],nx,ny,nz,r,g,b,.03,.03,0)),k=[D,C,B,A].map(p=>m.v(p[0],p[1],p[2],-nx,-ny,-nz,r*.8,g*.8,b*.8,.03,.03,0));m.q(f[0],f[1],f[2],f[3]);m.q(k[0],k[1],k[2],k[3])};
+  ROADS.forEach((r,ri)=>{if(r.city)return;const n=r.n,hwy=r.style==1,poleSide=((ri*5+3)&1)?1:-1;
+    const nx_={pole:sr()*40,del:sr()*40,gan:250+sr()*700,bill:300+sr()*800,sign:150+sr()*400,grove:0,turb:500+sr()*700,gas:700+sr()*1500,home:600+sr()*1200,hv:300+sr()*2000,hvn:0};
+    let d=0,pp=null,lastChev=-1e9;const fence=[{n:0},{n:0}],hv={n:0,sd:1,p:null};
+    for(let i=0;i<n;i++){const ip=(i-1+n)%n,inn=(i+1)%n;if(!r.closed&&(i<1||i>n-2))continue;
+      d+=Math.hypot(r.X[i]-r.X[ip],r.Z[i]-r.Z[ip]);if(r.br[i]||r.mk[i]<.99||r.wk[i]<.9)continue;
+      let tx=r.X[inn]-r.X[ip],tz=r.Z[inn]-r.Z[ip];const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;const nx=-tz,nz=tx,cx=r.X[i],cz=r.Z[i],Y=r.Y[i],hwl=r.hw*r.wk[i];
+      /* telegraph poles with two wires along one side of the two-lane roads */
+      if(!hwy&&r.hw<=11&&d>=nx_.pole){nx_.pole=d+52;const[px,pz,ty]=sideAt(r,i,tx,tz,poleSide,3.6);
+        if(free(px,pz,Y,2,3.5)){ptrunk(0,px,ty-.2,pz,.17,9.2,92,72,52);pboxR(0,px,pz,1.15,.07,nx,nz,ty+8.2,ty+8.45,70,58,44,false,1);COLC.push(px,pz,.3,ty-.5,ty+9);St.poles++;
+          if(pp&&Math.hypot(px-pp[0],pz-pp[1])<80)for(const o of[-.95,.95]){const a=[pp[0]+pp[3]*o,pp[2]+8.5,pp[1]+pp[4]*o],b=[px+nx*o,ty+8.5,pz+nz*o],mid=[(a[0]+b[0])/2,(a[1]+b[1])/2-.75,(a[2]+b[2])/2];pbar(0,a[0],a[1],a[2],mid[0],mid[1],mid[2],.05,24,24,28);pbar(0,mid[0],mid[1],mid[2],b[0],b[1],b[2],.05,24,24,28)}
+          pp=[px,pz,ty,nx,nz]}else pp=null}
+      /* white reflector posts along the edge of the highways */
+      if(hwy&&d>=nx_.del){nx_.del=d+44;for(const sd of[-1,1]){const[px,pz,ty]=sideAt(r,i,tx,tz,sd,.45);if(free(px,pz,Y,.5,2)){ptrunk(0,px,ty-.1,pz,.05,1.05,238,238,232);St.delin++}}}
+      /* overhead gantry signs on the highways: two legs, a beam, a green panel for each carriageway */
+      if(hwy&&hwl>=8&&d>=nx_.gan){nx_.gan=d+500+sr()*600;const a=sideAt(r,i,tx,tz,-1,2.6),b=sideAt(r,i,tx,tz,1,2.6);
+        if(free(a[0],a[1],Y,2.6,4)&&free(b[0],b[1],Y,2.6,4)){const o=hwl+RSH+2.6;
+          for(const p of[a,b]){ptrunk(1,p[0],p[2]-.4,p[1],.34,Y+7.3-p[2]+.4,112,116,122);COLC.push(p[0],p[1],.5,p[2]-.5,Y+7)}
+          pboxR(1,cx,cz,o,.35,nx,nz,Y+6.7,Y+7.35,112,116,122,false,.9);
+          for(const lat of[-hwl*.5,hwl*.5]){const sx=cx+nx*lat,sz=cz+nz*lat;pboxR(1,sx,sz,3.1,.1,nx,nz,Y+4.7,Y+6.7,14,104,68,false,1);
+            for(const sg of[-1,1])for(const[w,yc]of[[2.2,6.2],[1.4,5.7],[1.9,5.2]])pboxR(1,sx-nz*sg*.115,sz+nx*sg*.115,w,.015,nx,nz,Y+yc-.11,Y+yc+.11,240,240,234,false,1)}
+          St.at.gantry.push([cx,cz,tx,tz]);St.gantry++}}
+      /* billboards on stilts, facing the road */
+      if(d>=nx_.bill){nx_.bill=d+380+sr()*600;const sd=sr()<.5?-1:1,g=11+sr()*9,[px,pz,ty]=sideAt(r,i,tx,tz,sd,g);
+        if(free(px,pz,Y,g,3.5)&&!inBox(px,pz,CITY,100)&&!inBox(px,pz,VALLEY,100)){const c=BB[(sr()*BB.length)|0],c2=BB[(sr()*BB.length)|0],dk=c[0]+c[1]+c[2]>520?[24,24,30]:[245,245,240],k=sr();
+          for(const q of[-4,4]){ptrunk(1,px+tx*q,ty-.4,pz+tz*q,.34,9.4,100,100,106);COLC.push(px+tx*q,pz+tz*q,.5,ty-.5,ty+9)}
+          pboxR(1,px,pz,6.2,.22,tx,tz,ty+8.7,ty+13.5,c[0],c[1],c[2],false,.9);const fo=-sd*.25,ox=px+nx*fo,oz=pz+nz*fo;
+          pboxR(1,ox,oz,4.6,.02,tx,tz,ty+11.5,ty+12.7,dk[0],dk[1],dk[2],false,1);pboxR(1,ox,oz,3.2-k,.02,tx,tz,ty+10.0,ty+10.8,dk[0],dk[1],dk[2],false,1);pboxR(1,ox+tx*(k>.5?3.9:-3.9),oz+tz*(k>.5?3.9:-3.9),1.2,.02,tx,tz,ty+9.1,ty+9.9,c2[0],c2[1],c2[2],false,1);
+          St.at.bill.push([px,pz,tx,tz]);St.bill++}}
+      /* speed limit signs */
+      if(d>=nx_.sign){nx_.sign=d+420+sr()*300;for(const sd of(hwy?[-1,1]:[poleSide*-1])){const[px,pz,ty]=sideAt(r,i,tx,tz,sd,1.6);if(!free(px,pz,Y,1.6,2.5))continue;
+          ptrunk(0,px,ty-.2,pz,.045,2.5,150,150,156);pboxR(0,px,pz,.34,.02,nx,nz,ty+1.55,ty+2.45,236,236,232,false,1);
+          for(const sg of[-1,1])pboxR(0,px-nz*sg*.03,pz+nx*sg*.03,.2,.012,nx,nz,ty+1.78,ty+2.2,26,26,30,false,1);St.sign++}}
+      /* chevron boards on the outside of the bends */
+      {const a=(i-6+n)%n,b=(i+6)%n;if((r.closed||(i>6&&i<n-7))&&d-lastChev>(hwy?46:36)){const ax=r.X[i]-r.X[a],az=r.Z[i]-r.Z[a],bx=r.X[b]-r.X[i],bz=r.Z[b]-r.Z[i],al=Math.hypot(ax,az)||1,bl=Math.hypot(bx,bz)||1,cr=(ax*bz-az*bx)/(al*bl);
+        if(Math.abs(cr)>.2){const ix=bx/bl-ax/al,iz=bz/bl-az/al,sd=(nx*ix+nz*iz)>0?-1:1,[px,pz,ty]=sideAt(r,i,tx,tz,sd,1.5);
+          if(free(px,pz,Y,1.5,2.5)){lastChev=d;ptrunk(0,px,ty-.2,pz,.05,1.4,150,150,156);pboxR(0,px,pz,.8,.035,tx,tz,ty+1.2,ty+2.25,242,196,28,false,1);
+            pboxR(0,px-nx*sd*.05,pz-nz*sd*.05,.52,.012,tx,tz,ty+1.42,ty+2.03,26,26,30,false,1);St.chev++}}}}
+      /* fences, groves, bushes, rocks and cacti on both sides */
+      if(d>=nx_.grove){nx_.grove=d+15;
+        for(let si=0;si<2;si++){const sd=si?1:-1,dry0=dryAt(cx+nx*sd*30,cz+nz*sd*30),fz=fence[si];
+          /* a fence along fields */
+          if(fz.n>0){const[px,pz,ty]=sideAt(r,i,tx,tz,sd,2.8);if(free(px,pz,Y,2.8,3)){ptrunk(0,px,ty-.2,pz,.07,1.15,112,88,62);if(fz.p&&Math.hypot(px-fz.p[0],pz-fz.p[1])<24)for(const hh of[.45,.95])pbar(0,fz.p[0],fz.p[2]+hh,fz.p[1],px,ty+hh,pz,.07,124,100,72);fz.p=[px,pz,ty];fz.n--}else{fz.n=0;fz.p=null}}
+          else if(dry0<.5&&sr()<.025){fz.n=7+((sr()*9)|0);fz.p=null;St.fence++}
+          /* the tree belts come and go with a noise field; the dry country gets rocks and cacti instead */
+          const nz2=fbm((cx+nx*sd*30)*.004,(cz+nz*sd*30)*.004,77,2),g=4+sr()*24,[px,pz,ty]=sideAt(r,i,tx,tz,sd,g);
+          if(!free(px,pz,Y,g,7))continue;
+          if(dry0>.55){const q=sr();
+            if(q<.28){const h=3.2+sr()*3.4;ptrunk(2,px,ty-.2,pz,.3,h,72,112,66);const arms=1+((sr()*2)|0);for(let k=0;k<arms;k++){const a=sr()*TAU,ax=Math.cos(a),az=Math.sin(a),y1=ty+h*(.35+sr()*.2);pbar(2,px,y1,pz,px+ax*.95,y1,pz+az*.95,.27,72,112,66);pbar(2,px+ax*.95,y1,pz+az*.95,px+ax*.95,y1+1.2+sr()*.9,pz+az*.95,.27,76,118,70)}COLC.push(px,pz,.4,ty-.5,ty+h);St.cactus++}
+            else if(q<.45){const k=1+((sr()*3)|0);for(let j=0;j<k;j++){const ox=px+(sr()-.5)*4,oz=pz+(sr()-.5)*4,sc=.7+sr()*1.4,c=104+sr()*40,ty2=terrainH(ox,oz);pbush(ox,oz,ty2,1.5*sc,1.05*sc,c,c*.93,c*.82,sr()*6);if(j==0)COLC.push(ox,oz,1.1*sc,ty2-.5,ty2+1.3*sc)}St.rock++}
+            else if(q<.8){const sc=.7+sr()*.8,c=116+sr()*30;pbush(px,pz,ty,1.1*sc,.8*sc,c,c*.9,c*.5,sr()*6);St.bush++}}
+          else if(nz2>.36&&sr()<.2+.65*sstep(.4,.62,nz2)){const k=2+((sr()*5)|0);St.groves++;
+            for(let j=0;j<k;j++){const ox=px+(sr()-.5)*14,oz=pz+(sr()-.5)*14,ty2=terrainH(ox,oz);if(!free(ox,oz,Y,g,8))continue;ptree(ox,oz,sr,ty2,true);COLC.push(ox,oz,.55,ty2-.5,ty2+12);St.trees++}}
+          else if(sr()<.5){const sc=.8+sr()*.9,gr=sr()<.2?[132,128,66]:[48+sr()*26,92+sr()*30,44];pbush(px,pz,ty,1.3*sc,1.0*sc,gr[0],gr[1],gr[2],sr()*6);St.bush++}
+          if(g<12&&sr()<.5){const sc=.7+sr()*.8,gr=dry0>.55?[132,120,70]:[56+sr()*20,98+sr()*20,48],g2=3+sr()*3,[bx,bz,by]=sideAt(r,i,tx,tz,sd,g2);if(free(bx,bz,Y,g2,3)){pbush(bx,bz,by,1.0*sc,.75*sc,gr[0],gr[1],gr[2],sr()*6);St.bush++}}}}
+      /* wind turbines on the open country, in rows of three */
+      if(d>=nx_.turb){nx_.turb=d+800+sr()*900;const sd=sr()<.5?-1:1,g=70+sr()*120,rot=sr()*6,fx=Math.cos(rot),fz=Math.sin(rot);
+        for(let k=0;k<3;k++){const[bx,bz]=sideAt(r,i,tx,tz,sd,g),px=bx+tx*k*105+(sr()-.5)*14,pz=bz+tz*k*105+(sr()-.5)*14,ty=terrainH(px,pz);
+          if(ty<6||terrainSlope(px,pz)>.14||nearRoadXZ(px,pz,40)||inUrban(px,pz,120))continue;const h=48+sr()*10,hy=ty+h;
+          pfrus(1,px,ty-.6,pz,1.7,.95,h+.6,232,234,236,7);pboxR(1,px,pz,1.5,.85,fx,fz,hy-.9,hy+.9,226,228,232,false,.9);
+          const hx=px+fx*1.9,hz=pz+fz*1.9,sx=-fz,sz=fx,th0=sr()*TAU;
+          for(let b=0;b<3;b++){const th=th0+b*TAU/3,c=Math.cos(th),s=Math.sin(th),L=31,ux=sx*s,uy=c,uz=sz*s,wx=sx*c,wy=-s,wz=sz*c,m=pmb(px,pz,1,8);
+            quad2(m,[hx+wx*1.0,hy+wy*1.0,hz+wz*1.0],[hx-wx*1.0,hy-wy*1.0,hz-wz*1.0],[hx+ux*L-wx*.14,hy+uy*L-wy*.14,hz+uz*L-wz*.14],[hx+ux*L+wx*.14,hy+uy*L+wy*.14,hz+uz*L+wz*.14],fx,0,fz,236,238,240)}
+          COLC.push(px,pz,1.7,ty-.5,ty+14);St.at.turb.push([px,pz,tx,tz]);St.turb++}}
+      /* a farmstead (barn, silo, house) or, in the dry country, an adobe house with a water tower, back from the road */
+      if(!hwy&&r.hw<=13&&d>=nx_.home){nx_.home=d+1100+sr()*1700;const sd=sr()<.5?-1:1,g=34+sr()*34,[px,pz,ty]=sideAt(r,i,tx,tz,sd,g),cs=tx,sn=tz,fz=-sd,dry=dryAt(px,pz)>.55;
+        const Wd=(lx,lz)=>[px+lx*cs-lz*sn,pz+lx*sn+lz*cs];let ok=!inUrban(px,pz,80);
+        for(const c of[[-22,-16],[22,-16],[22,16],[-22,16],[0,0]]){const w=Wd(c[0],c[1]);if(!free(w[0],w[1],Y,g-14,3)){ok=false;break}}
+        if(ok){const gy=gmin(px,pz,20,14,cs,sn);let w;
+          if(!dry){w=Wd(-9,-fz*3);pboxR(1,w[0],w[1],7.5,5,cs,sn,gy-1,gy+5.5,170,54,46,true,.7);proofR(1,w[0],w[1],7.5,5,cs,sn,gy+5.5,3.2,112,58,50,true);reg2(w[0],w[1],7.5,5,cs,sn,gy+8);
+            pboxR(1,...Wd(-9,-fz*3+fz*5.04),2.3,.05,cs,sn,gy,gy+4,64,34,28,false,1);
+            w=Wd(-21,-fz*6);pfrus(1,w[0],gy-.4,w[1],2.5,2.4,11,204,204,208,8);pcone(1,w[0],gy+11,w[1],2.8,2.6,168,60,52,8,0);COLC.push(w[0],w[1],2.6,gy-.5,gy+13);
+            w=Wd(9,-fz*2);pboxR(1,w[0],w[1],5.2,4.2,cs,sn,gy-1,gy+4.4,236,232,222,true,.7);proofR(1,w[0],w[1],5.2,4.2,cs,sn,gy+4.4,2.4,150,92,78,true);reg2(w[0],w[1],5.2,4.2,cs,sn,gy+6.5);
+            w=Wd(12,-fz*13);pboxR(1,w[0],w[1],3.6,2.8,cs,sn,gy-.5,gy+3,160,150,138,false,.7);reg2(w[0],w[1],3.6,2.8,cs,sn,gy+3)}
+          else{w=Wd(0,0);pboxR(1,w[0],w[1],6.5,4.2,cs,sn,gy-1,gy+3.6,214,184,146,true,.75);pboxR(1,w[0],w[1],6.8,4.5,cs,sn,gy+3.6,gy+4.1,196,164,128,false,1);reg2(w[0],w[1],6.5,4.2,cs,sn,gy+4.1);
+            w=Wd(10,-fz*2);pboxR(1,w[0],w[1],3,3.2,cs,sn,gy-1,gy+2.8,226,200,160,false,.75);reg2(w[0],w[1],3,3.2,cs,sn,gy+2.8);
+            w=Wd(-16,-fz*6);for(const sx of[-1,1])for(const sz of[-1,1])ptrunk(1,w[0]+sx*2.1,gy-.3,w[1]+sz*2.1,.26,13,120,118,114);
+            pfrus(1,w[0],gy+13,w[1],3.3,3.3,4.6,176,172,168,8);pcone(1,w[0],gy+17.6,w[1],3.5,2.2,150,60,52,8,0);COLC.push(w[0],w[1],3,gy-.5,gy+13)}
+          for(let q=0;q<(dry?2:5);q++){const a=sr()*TAU,rr=13+sr()*8,tp=Wd(Math.cos(a)*rr*1.3,Math.sin(a)*rr),ty2=terrainH(tp[0],tp[1]);if(!free(tp[0],tp[1],Y,g-12,4))continue;
+            if(dry){ptrunk(2,tp[0],ty2-.2,tp[1],.3,3.4,72,112,66);COLC.push(tp[0],tp[1],.4,ty2-.5,ty2+3.4)}else{ptree(tp[0],tp[1],sr,ty2,true);COLC.push(tp[0],tp[1],.55,ty2-.5,ty2+12)}}
+          St.at.farm.push([px,pz,tx,tz]);St.farm++}}
+      /* high voltage lines marching along the highways: pairs of tall legs with a cross beam and three wires */
+      if(hwy){if(hv.n<=0&&d>=nx_.hv){hv.n=7+((sr()*8)|0);hv.sd=sr()<.5?-1:1;hv.p=null;nx_.hv=d+1e9;nx_.hvn=d}
+        if(hv.n>0&&d>=nx_.hvn){nx_.hvn=d+100;const[px,pz,ty]=sideAt(r,i,tx,tz,hv.sd,42+sr()*4);
+          if(free(px,pz,Y,36,6)){const L=21,o=3.8;for(const q of[-1,1]){const lx=px+nx*o*q,lz=pz+nz*o*q,t2=terrainH(lx,lz);ptrunk(1,lx,t2-.4,lz,.42,L+.4,150,152,158);COLC.push(lx,lz,.6,t2-.5,t2+20)}
+            pbar(1,px-nx*6.2,ty+L,pz-nz*6.2,px+nx*6.2,ty+L,pz+nz*6.2,.5,140,142,148);pbar(1,px-nx*o,ty+L-5,pz-nz*o,px+nx*o,ty+L-5,pz+nz*o,.35,140,142,148);
+            if(hv.p&&Math.hypot(px-hv.p[0],pz-hv.p[1])<130)for(const o2 of[-5.6,0,5.6]){const a=[hv.p[0]+hv.p[3]*o2,hv.p[2]+L-.3,hv.p[1]+hv.p[4]*o2],b=[px+nx*o2,ty+L-.3,pz+nz*o2],mid=[(a[0]+b[0])/2,(a[1]+b[1])/2-2.4,(a[2]+b[2])/2];pbar(1,a[0],a[1],a[2],mid[0],mid[1],mid[2],.09,26,26,30);pbar(1,mid[0],mid[1],mid[2],b[0],b[1],b[2],.09,26,26,30)}
+            hv.p=[px,pz,ty,nx,nz];hv.n--;St.hv++}else{hv.p=null;hv.n--}
+          if(hv.n<=0)nx_.hv=d+2500+sr()*3500}}
+      /* a gas station with a canopy, a shop and a tall price sign, beside the highways and the bigger roads */
+      if((hwy||r.hw>=9)&&d>=nx_.gas){nx_.gas=d+1800+sr()*2200;const sd=sr()<.5?-1:1,g=26,[px,pz,ty]=sideAt(r,i,tx,tz,sd,g),cs=tx,sn=tz,fz=-sd;
+        const Wd=(lx,lz)=>[px+lx*cs-lz*sn,pz+lx*sn+lz*cs];let ok=!inUrban(px,pz,60);
+        for(const c of[[-17,-13],[17,-13],[17,13],[-17,13],[0,0]]){const w=Wd(c[0],c[1]);if(!free(w[0],w[1],Y,g-6,2.6)){ok=false;break}}
+        if(ok){const gy=gmin(px,pz,17,13,cs,sn);pboxR(1,px,pz,17,13,cs,sn,gy-1.2,gy+.12,62,64,68,false,.9);
+          for(const sx of[-1,1])for(const sz of[-1,1]){const w=Wd(-3+sx*6.4,fz*2+sz*2.7);pbox(1,w[0],gy,w[1],.2,gy+4.7,.2,200,200,204,false,.8);COLC.push(w[0],w[1],.3,gy-.5,gy+4.7)}
+          let w=Wd(-3,fz*2);pboxR(1,w[0],w[1],8.2,3.6,cs,sn,gy+4.7,gy+5.3,232,232,236,false,.9);pboxR(1,w[0],w[1],8.3,3.7,cs,sn,gy+4.95,gy+5.2,206,50,42,false,1);
+          for(const sx of[-1,1]){const p=Wd(-3+sx*3,fz*2);pboxR(1,p[0],p[1],.4,.32,cs,sn,gy+.12,gy+1.4,212,212,216,false,.9);pboxR(1,p[0],p[1],.3,.33,cs,sn,gy+1.0,gy+1.25,40,60,150,false,1);COLC.push(p[0],p[1],.5,gy,gy+1.4)}
+          w=Wd(5.5,-fz*7);pboxR(1,w[0],w[1],7.2,3.6,cs,sn,gy+.12,gy+3.7,228,224,212,true,.7);pboxR(1,w[0],w[1],7.5,3.9,cs,sn,gy+3.7,gy+4.15,206,50,42,false,1);reg2(w[0],w[1],7.2,3.6,cs,sn,gy+4.2);
+          w=Wd(-14,fz*10.5);ptrunk(1,w[0],gy-.3,w[1],.36,11.5,196,196,202);pboxR(1,w[0],w[1],1.35,.16,nx,nz,gy+9.6,gy+13.4,226,56,40,false,1);
+          for(const sg of[-1,1])for(const[yc,c]of[[12.4,[250,244,230]],[11.2,[250,200,50]],[10.1,[250,200,50]]])pboxR(1,w[0]-nz*sg*.17,w[1]+nx*sg*.17,1.0,.012,nx,nz,gy+yc-.28,gy+yc+.28,c[0],c[1],c[2],false,1);
+          COLC.push(w[0],w[1],.5,gy-.5,gy+12);NEONS.push(w[0],gy+11.4,w[1],1,.55,.2,6);St.at.gas.push([px,pz,tx,tz]);St.gas++}}
+    }});
+  return St}
+const reg2=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
 /* finalise prop meshes into plain arrays the GL side uploads */
 function finishProps(){const out=[];PSET.forEach((L,k)=>{const cat=k&3;for(const m of L){if(!m.n)continue;out.push({cat,V:m.f.subarray(0,m.n*7),I:m.ix.subarray(0,m.ni),cx:(m.x0+m.x1)/2,cy:(m.y0+m.y1)/2,cz:(m.z0+m.z1)/2,rad:Math.hypot(m.x1-m.x0,m.y1-m.y0,m.z1-m.z0)/2+1})}});return out}
 /* ---------- spatial hash for road queries + colliders ---------- */
