@@ -197,12 +197,14 @@ let _attrOn=0;function attrs(n){const gl=G.gl;for(let i=0;i<Math.max(n,_attrOn);
 const W={half:3072,T:4,N:1536,sea:0,hmin:-60,hrange:720,hm:null,col:null,CN:1024,city:null};
 W.size=W.half*2;
 /* ---- the county's districts (San Francisco / California inspired). All coordinates in metres. ---- */
-const CITY={x0:-1330,z0:-150,x1:-470,z1:700};          /* the downtown box (two street grids meeting at Market Street) */
-const MARKET={x0:-1240,z0:700,x1:-520,z1:40,hw:13};      /* the diagonal avenue that splits the two grids */
-const PARK={x0:-1450,z0:380,x1:-1010,z1:470};           /* Golden Gate Park style green strip with a lake */
-const VALLEY={x0:250,z0:540,x1:1030,z1:1270};           /* LA style: wide boulevards, low buildings, palms */
+const CITY={x0:-1330,z0:-170,x1:-470,z1:700};          /* the downtown box (two street grids meeting at Market Street), ringed by a boulevard */
+const MARKET={x0:-1240,z0:700,x1:-470,z1:-6,hw:13};      /* the diagonal avenue that splits the two grids (corner to corner of the box) */
+const PARK={x0:-1450,z0:392,x1:-1010,z1:453};           /* Golden Gate Park style green strip with a lake, between two edge streets */
+const VALLEY={x0:230,z0:520,x1:1050,z1:1290};           /* LA style: wide boulevards, low buildings, palms */
+const BEACH={x0:-520,z0:2540,x1:-130,z1:2780};          /* Santa Cruz style beach town on the south coast, boardwalk + pier */
+const RESORT={x0:1380,z0:1420,x1:1860,z1:1900};         /* Palm Springs style desert resort: wide palm boulevards, pools, golf */
 const HILLS=[[-860,0,40,230],[-1100,-90,52,210],[-640,790,56,250],[-520,850,40,190],[-1390,250,22,150]];   /* Nob Hill, Russian Hill, Twin Peaks */
-const LAKES=[[-1235,425,42,-3]];
+const LAKES=[[-1235,412,22,-3]];
 const RIDGES=[[1580,-250,560,-70,74,130]];              /* the Mulholland ridge: x0,z0,x1,z1,height,half-width */
 const PEAKS=[[1950,-1950,330,900],[2550,-1000,200,600]];
 const inBox=(x,z,B,m)=>x>B.x0-m&&x<B.x1+m&&z>B.z0-m&&z<B.z1+m;
@@ -288,8 +290,8 @@ function buildRoad(d,dry){
   if(d.to)for(let i=0;i<n;i++)r.mk[i]=Math.min(r.mk[i],sstep(30,110,r.len-r.S[i]));
   /* width ramps in over the first stretch of a branch so it merges like a slip road */
   r.wk=new Float32Array(n).fill(1);
-  if(d.from)for(let i=0;i<n;i++)r.wk[i]=lerp(.25,1,sstep(0,120,r.S[i]));
-  if(d.to)for(let i=0;i<n;i++)r.wk[i]=Math.min(r.wk[i],lerp(.25,1,sstep(0,120,r.len-r.S[i])));
+  if(d.from&&d.taper)for(let i=0;i<n;i++)r.wk[i]=lerp(.25,1,sstep(0,120,r.S[i]));
+  if(d.to&&d.taper)for(let i=0;i<n;i++)r.wk[i]=Math.min(r.wk[i],lerp(.25,1,sstep(0,120,r.len-r.S[i])));
   r.rail=new Uint8Array(n);   /* bit0 left, bit1 right: filled in after carving (cliffs) + bridges */
   if(!dry)ROADS.push(r);return r}
 function switchbacks(cx,cz,arms){const o=[];arms.forEach((A,k)=>{const n=Math.max(3,Math.round(Math.abs(A[1]-A[0])/.12));for(let s=(k?1:0);s<=n;s++){const t=s/n,a=lerp(A[0],A[1],t),r=A[2]-(k<arms.length-1?(arms[k][2]-arms[k+1][2])*t*.0:0);o.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}});return o}
@@ -299,7 +301,7 @@ function wiggle(P,closed,o){
   const base=catmull(P,closed,60),n=base.n,X=base.X,Z=base.Z,step=base.step,len=step*(closed?n:n-1),pts=[];
   const P1=closed?Math.max(2,Math.round(len/o.l1)):0,P2=closed?Math.max(2,Math.round(len/o.l2)):0,fade=o.fade||240;
   for(let i=0;i<n;i++){const s=i*step,a=closed?(i+n-1)%n:Math.max(0,i-1),b=closed?(i+1)%n:Math.min(n-1,i+1);let tx=X[b]-X[a],tz=Z[b]-Z[a];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;
-    let amp=1;if(!closed)amp=Math.min(sstep(0,fade,s),sstep(0,fade,len-s));
+    let amp=1;if(!closed){const hd=o.hold==null?140:o.hold;amp=Math.min(sstep(hd,hd+fade,s),sstep(hd,hd+fade,len-s))}
     if(o.straight)for(const[f0,f1]of o.straight){const q=s/len,fd=.05;amp*=1-sstep(f0-fd,f0,q)*(1-sstep(f1,f1+fd,q))}
     const d=amp*(o.a1*vn1(s/(closed?len/P1:o.l1),o.seed,P1)+o.a2*vn1(s/(closed?len/P2:o.l2),o.seed+11,P2));pts.push([X[i]-tz*d,Z[i]+tx*d])}
   if(!closed){pts[0]=[P[0][0],P[0][1]];pts[n-1]=[P[P.length-1][0],P[P.length-1][1]]}
@@ -309,11 +311,13 @@ function minRadius(r,k){const n=r.n,lo=r.closed?0:Math.max(k,30),hi=r.closed?n:n
 function landOK(r){for(let i=0;i<r.n;i+=2)if(baseH(r.X[i],r.Z[i])<2.4)return false;return true}
 function segX(ax,az,bx,bz,cx,cz,dx,dz){const den=(bx-ax)*(dz-cz)-(bz-az)*(dx-cx);if(Math.abs(den)<1e-9)return null;const t=((cx-ax)*(dz-cz)-(cz-az)*(dx-cx))/den,u=((cx-ax)*(bz-az)-(cz-az)*(bx-ax))/den;return(t>=0&&t<=1&&u>=0&&u<=1)?[ax+t*(bx-ax),az+t*(bz-az)]:null}
 function trimTo(pts,par){for(let i=0;i<pts.length-1;i++)for(let k=0;k<par.n-1;k++){const p=segX(pts[i][0],pts[i][1],pts[i+1][0],pts[i+1][1],par.X[k],par.Z[k],par.X[k+1],par.Z[k+1]);if(p)return pts.slice(0,i+1).concat([[p[0],p[1]]])}return pts}
+const DISTRICT_BOXES=[CITY,VALLEY,BEACH,RESORT,PARK];
+function clearOf(r){const lo=r.closed?0:170;for(let i=0;i<r.n;i+=2){if(!r.closed&&(r.S[i]<lo||r.len-r.S[i]<lo))continue;for(const B of DISTRICT_BOXES)if(inBox(r.X[i],r.Z[i],B,46))return false}return true}
 function buildCurvy(def){
   const w=def.wig;if(!w)return buildRoad(def);
   let scale=1,r=null;
   for(let t=0;t<9;t++){const o=Object.assign({},w,{a1:w.a1*Math.pow(.9,t),a2:w.a2*Math.pow(.62,t)});scale=Math.pow(.9,t);let pts=wiggle(def.pts,!!def.closed,o);if(def.trimTo){const par=ROADS.find(q=>q.id==def.trimTo);if(par)pts=trimTo(pts,par)}r=buildRoad(Object.assign({},def,{pts}),true);
-    if((minRadius(r,5)>=(def.minR||60)&&landOK(r))||t==8)break}
+    if((minRadius(r,5)>=(def.minR||60)&&landOK(r)&&clearOf(r))||t==8)break}
   r.wigScale=scale;ROADS.push(r);return r}
 /* ---------- district street grids (rotated grids, clipped to a convex region and with rectangles cut out) ---------- */
 const GRIDS=[],cityEnds=[];
@@ -345,48 +349,100 @@ function fixCrossings(){
     const rbr=A.id=='ring'?B:B.id=='ring'?A:(ra>rb?A:B);if(rbr.city)continue;
     applyBridge(rbr,pt[0],pt[1],100,9.5);done.push(rbr.id+' over '+(rbr===A?B:A).id+' at '+Math.round(pt[0])+','+Math.round(pt[1]))}
   return done}
+/* ---------- junction helpers ---------- */
+const jn=(par,x,z)=>roadNear(par,x,z);
+const _tan=(par,i)=>{const n=par.n,a=par.closed?(i+1)%n:Math.min(n-1,i+1),b=par.closed?(i+n-1)%n:Math.max(0,i-1);let tx=par.X[a]-par.X[b],tz=par.Z[a]-par.Z[b];const l=Math.hypot(tx,tz)||1;return[tx/l,tz/l]};
+/* leave (or join) a road along its side: three control points that start touching the parent's edge, run alongside for a while and peel away, so the branch never lies on top of the parent */
+function rampPts(par,ix,nx,nz,hwB){
+  const n=par.n,ds=par.ds,I=i=>par.closed?((i%n)+n)%n:Math.max(0,Math.min(n-1,i)),[tx,tz]=_tan(par,I(ix)),px=par.X[I(ix)],pz=par.Z[I(ix)];
+  const side=((nx-px)*(-tz)+(nz-pz)*tx)>=0?1:-1,dir=((nx-px)*tx+(nz-pz)*tz)>=0?1:-1,off=par.hw*par.wk[I(ix)]+hwB+1.4,out=[];
+  {const dl0=Math.hypot(nx-px,nz-pz)||1;if(Math.abs((nx-px)*tx+(nz-pz)*tz)/dl0<.5)return[edgePt(par,I(ix),nx,nz)]}   /* leaving at a steep angle: a plain T */
+  let qi=ix;for(const[k,ex]of[[0,0],[Math.round(80/ds),6],[Math.round(170/ds),30]]){const i=I(ix+dir*k),[a,b]=_tan(par,i);out.push([par.X[i]-b*side*(off+ex),par.Z[i]+a*side*(off+ex)]);qi=i}
+  {const[Tx,Tz]=_tan(par,I(qi)),Q=out[2],dx=nx-Q[0],dz=nz-Q[1],dl=Math.hypot(dx,dz)||1,ux=dx/dl,uz=dz/dl,tx2=Tx*dir,tz2=Tz*dir,dot=tx2*ux+tz2*uz;
+   if(dot<.92&&dl>140){const bx=tx2+ux,bz=tz2+uz,bl=Math.hypot(bx,bz)||1,L=Math.max(70,Math.min(170,dl*.32));out.push([Q[0]+bx/bl*L,Q[1]+bz/bl*L])}}
+  return out}
+/* a T-junction end that touches the parent's edge from the side the branch comes from (instead of overlapping its lanes) */
+function edgePt(par,ix,fx,fz){const px=par.X[ix],pz=par.Z[ix],dx=fx-px,dz=fz-pz,l=Math.hypot(dx,dz)||1,e=par.hw*par.wk[ix]+1.0;return[px+dx/l*e,pz+dz/l*e]}
+/* a boulevard round a district: every street of the district ends on it */
+function perimeter(id,B,hw,lift){const r=30,P=[];
+  const edge=(ax,az,bx,bz)=>{const L=Math.hypot(bx-ax,bz-az),k=Math.max(1,Math.ceil(L/70));for(let i=0;i<k;i++)P.push([ax+(bx-ax)*i/k,az+(bz-az)*i/k])};
+  const arc=(cx,cz,a0)=>{for(let i=0;i<=4;i++){const a=a0+i*Math.PI/8;P.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}};
+  edge(B.x0+r,B.z0,B.x1-r,B.z0);arc(B.x1-r,B.z0+r,-Math.PI/2);edge(B.x1,B.z0+r,B.x1,B.z1-r);arc(B.x1-r,B.z1-r,0);edge(B.x1-r,B.z1,B.x0+r,B.z1);arc(B.x0+r,B.z1-r,Math.PI/2);edge(B.x0,B.z1-r,B.x0,B.z0+r);arc(B.x0+r,B.z0+r,Math.PI);
+  P.pop();   /* the last arc point is the first edge point */
+  const road=buildRoad({id,closed:1,hw,lanes:2,style:4,city:1,cityField:1,lift,pts:P});for(let i=0;i<road.n;i+=3)cityEnds.push([road.X[i],road.Z[i],id]);return road}
+/* a small turnaround loop at the end of a road */
+function loopRoad(id,cx,cz,r,hw,lift){const P=[];for(let k=0;k<8;k++){const a=k*TAU/8;P.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}return buildRoad({id,closed:1,hw,lanes:1,style:0,lift,pts:P})}
 function defineRoads(){
-  ROADS.length=0;GRIDS.length=0;cityEnds.length=0;
+  ROADS.length=0;GRIDS.length=0;cityEnds.length=0;_cj=null;
   const ring=buildCurvy({id:'ring',closed:1,hw:13,lanes:3,style:1,smooth:120,minR:75,wig:{a1:430,l1:900,a2:120,l2:360,seed:3,straight:[[.60,.72]]},
-    pts:[[-1640,120],[-1560,-520],[-1180,-980],[-620,-1260],[-60,-1380],[560,-1290],[1130,-1020],[1520,-540],[1680,60],[1560,700],[1180,1180],[620,1500],[-30,1560],[-640,1400],[-1160,1050],[-1500,600]]});
-  const pt=(rd,f)=>{const q=roadPt(rd,f);return[q[0],q[1]]};
-  const ptn=(rd,x,z)=>{const i=roadNear(rd,x,z);return[rd.X[i],rd.Z[i]]};
-  /* ===== San Francisco style downtown: two street grids that meet along the diagonal Market Street ===== */
+    pts:[[-1640,120],[-1560,-520],[-1180,-980],[-620,-1260],[-60,-1380],[560,-1290],[1130,-1020],[1520,-540],[1680,60],[1560,700],[1320,1260],[700,1580],[-30,1560],[-640,1400],[-1160,1050],[-1500,600]]});
+  const ramp=(par,hx,hz,nx,nz,hw)=>rampPts(par,jn(par,hx,hz),nx,nz,hw);          /* leave a road at the sample nearest (hx,hz), heading for (nx,nz) */
+  const rampIn=(par,hx,hz,px,pz,hw)=>rampPts(par,jn(par,hx,hz),px,pz,hw).reverse(); /* arrive onto a road at the sample nearest (hx,hz), coming from (px,pz) */
+  const tIn=(par,px,pz)=>edgePt(par,jn(par,px,pz),px,pz);  /* T-end touching a road's edge, on the side the branch comes from */
+  /* ===== San Francisco style downtown: a boulevard round the box, two street grids that meet along the diagonal Market Street ===== */
   const M=MARKET,ml=Math.hypot(M.x1-M.x0,M.z1-M.z0),mdx=(M.x1-M.x0)/ml,mdz=(M.z1-M.z0)/ml,nx=-mdz,nz=mdx,c0=nx*M.x0+nz*M.z0;   /* n points to the south-east of Market */
-  const cutPark={x0:PARK.x0-6,z0:PARK.z0-6,x1:PARK.x1+6,z1:PARK.z1+6};
+  const cutPark={x0:PARK.x0-2,z0:381,x1:PARK.x1+2,z1:464};   /* the park interior: the two streets along its edges (Fulton, Lincoln) stay, the cross streets stop at them */
   const us=[],vs=[];for(let x=-1290;x<=-470;x+=125)us.push(x);for(let z=-130;z<=690;z+=85)vs.push(z);
   const gN=gridStreets({id:'sfn',kind:'sfN',ox:0,oz:0,ang:0,us,vs,hw:7.5,style:3,lift:.02,planes:planesBox(CITY).concat([[nx,nz,c0]]),cut:[cutPark]});
   const us2=[],vs2=[];for(let u=0;u<=ml;u+=125)us2.push(u);for(let k=0;k<9;k++)vs2.push(42.5+85*k);
   const gS=gridStreets({id:'sfs',kind:'sfS',ox:M.x0,oz:M.z0,ang:Math.atan2(mdz,mdx),us:us2,vs:vs2,hw:7.5,style:3,lift:.03,planes:planesBox(CITY).concat([[-nx,-nz,-c0]]),cut:[cutPark]});
-  gN.hillBlock=null;
-  const market=buildRoad({id:'market',hw:M.hw,lanes:2,style:4,city:1,cityField:1,lift:.015,pts:[[M.x0,M.z0],[M.x1,M.z1]]});cityEnds.push([M.x0,M.z0,'market'],[M.x1,M.z1,'market']);
-  /* Lombard Street: eight hairpins down one steep block of Russian Hill */
+  buildRoad({id:'market',hw:M.hw,lanes:2,style:4,city:1,cityField:1,lift:.015,pts:[[M.x0,M.z0],[M.x1,M.z1]]});cityEnds.push([M.x0,M.z0,'market'],[M.x1,M.z1,'market']);
+  const sfp=perimeter('sfp',CITY,11,.025);
+  /* Lombard Street: eight hairpins down one block of Russian Hill, joining the two streets above and below it */
   {let bi=0,bj=0,bd=1e18;for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){const d=((us[i]+us[i+1])/2+1090)**2+((vs[j]+vs[j+1])/2+5)**2;if(d<bd){bd=d;bi=i;bj=j}}
     gN.skip=[bi+','+bj];const xc=(us[bi]+us[bi+1])/2,z0=vs[bj],z1=vs[bj+1],pts=[[xc,z0]];const nzz=7;for(let k=1;k<nzz;k++){pts.push([xc+(k%2?-30:30),z0+(z1-z0)*k/nzz])}pts.push([xc,z1]);
     buildRoad({id:'lombard',hw:3.8,lanes:1,style:2,lift:.05,yLine:[Hs(xc,z0)+.02,Hs(xc,z1)+.02],pts});gN.lombard={xc,z0,z1,bi,bj}}
-  /* Golden Gate Park drive (through the park, from the ring road to the grid) */
-  {const e=nearEnd(PARK.x1+8,(PARK.z0+PARK.z1)/2+20);buildCurvy({id:'jfk',hw:5.5,lanes:1,style:0,from:'ring',yTo:e[2],lift:.05,smooth:25,minR:35,wig:{a1:14,l1:260,a2:5,l2:110,seed:21,fade:120},pts:[ptn(ring,-1560,440),[-1490,446],[-1430,452],[-1350,458],[-1270,452],[-1200,460],[-1120,454],[-1040,456],[e[0],e[1]]]})}
-  /* Twin Peaks Boulevard: a winding road up to the saddle between the two peaks */
-  {const e=nearEnd(-720,650);buildRoad({id:'tp',hw:5.5,lanes:1,style:0,smooth:18,grade:.22,lift:.05,yFrom:e[2],pts:[[e[0],e[1]],[-705,668],[-668,662],[-648,684],[-686,704],[-728,722],[-706,748],[-656,742],[-628,766],[-596,788]]})}
-  /* connectors */
-  {const e=nearEnd(-1330,230);buildCurvy({id:'dc',hw:10,lanes:2,style:1,from:'ring',yTo:e[2],lift:.03,minR:45,wig:{a1:40,l1:240,a2:14,l2:110,seed:8,fade:90},pts:[pt(ring,.0),[-1560,160],[-1470,205],[-1400,225],[e[0],e[1]]]})}
-  const bv=buildCurvy({id:'bv',hw:10,lanes:2,style:1,to:'ring',yFrom:'market',lift:.04,smooth:70,minR:55,wig:{a1:230,l1:560,a2:70,l2:230,seed:5},pts:[[M.x1,M.z1],[-380,100],[-180,170],[60,150],[300,225],[620,200],[980,130],[1300,90],[1520,40],pt(ring,.5)]});
-  /* the mountain pass: leaves the ring in the north-east, climbs in switchbacks, comes down the north coast and rejoins the ring */
-  const sb=switchbacks(1950,-1950,[[2.04,2.5,1230],[2.5,1.42,1040],[1.42,2.5,860],[2.5,1.5,700],[1.5,2.35,600]]);
-  buildCurvy({id:'mp',hw:8.5,lanes:1,style:0,from:'ring',to:'ring',lift:.05,smooth:50,grade:.145,minR:0,wig:{a1:100,l1:520,a2:30,l2:200,seed:13,fade:300},pts:[ptn(ring,1394,-853)].concat(sb.slice(1)).concat([[1420,-1700],[1250,-1950],[1000,-2180],[650,-2420],[200,-2540],[-300,-2480],[-760,-2300],[-1110,-1960],[-1260,-1480],ptn(ring,-1180,-980)])});
-  /* coast road (Highway 1 style): out of Market's south-west end, over the ring, along the beach, a headland, then the plains */
-  buildCurvy({id:'cr',hw:9,lanes:1,style:0,yFrom:'market',lift:.06,smooth:70,minR:45,bridgeOver:['ring'],wig:{a1:190,l1:480,a2:60,l2:200,seed:17},pts:[[M.x0,M.z0],[-1380,780],[-1560,1000],[-1790,1250],[-1900,1600],[-1840,2000],[-1560,2300],[-1100,2480],[-560,2470],[-80,2380],[420,2330]]});
-  /* east link: ring east -> south along the east side, under the highway */
-  buildCurvy({id:'el',hw:10,lanes:2,style:1,from:'ring',lift:.08,smooth:100,minR:65,wig:{a1:230,l1:620,a2:66,l2:250,seed:29,straight:[[.62,.80]]},pts:[pt(ring,.63),[2000,1060],[2300,1560],[2420,2000],[2380,2420],[2330,2620]]});
-  /* southern highway: ring south -> a long straight on the plains -> beach lookout, over the east link */
-  buildCurvy({id:'sh',hw:12,lanes:2,style:1,from:'ring',lift:.07,smooth:150,grade:.05,minR:85,bridgeOver:['el'],wig:{a1:220,l1:700,a2:60,l2:260,seed:23,straight:[[.52,.88]]},pts:[pt(ring,.77),[40,1850],[300,2260],[800,2420],[1500,2440],[2100,2420],[2500,2420],[2680,2410]]});
-  /* Mulholland Drive: a very twisty ridge road in the hills, off the ring and down to the boulevard */
-  buildCurvy({id:'mh',hw:7,lanes:1,style:0,from:'ring',to:'bv',trimTo:'bv',lift:.09,smooth:35,grade:.13,minR:34,wig:{a1:120,l1:380,a2:34,l2:150,seed:31,fade:260},pts:[ptn(ring,1600,-120),[1480,-190],[1330,-170],[1160,-195],[990,-150],[820,-135],[670,-100],[570,-70],[500,10],[470,110],[440,230],[420,360]]})
-  /* ===== the Valley: LA style boulevards ===== */
+  /* Golden Gate Park drive: from the ring road through the park to Lincoln Way */
+  buildRoad({id:'jfk',hw:5.5,lanes:1,style:0,from:'ring',yTo:'sfp',lift:.05,smooth:25,
+    pts:ramp(ring,-1480,446,-1440,449,5.5).concat([[-1440,449],[-1392,444]]).concat([tIn(sfp,-1392,444)])});
+  buildRoad({id:'jfkp',hw:5.5,lanes:1,style:0,yFrom:'sfp',yTo:'sfnv7',lift:.05,smooth:25,
+    pts:[tIn(sfp,-1270,444),[-1262,446],[-1212,452],[-1162,444],[-1116,451],[-1082,454],[-1078,465]]});
+  /* Twin Peaks Boulevard: out of the grid, a loop up over the two peaks and back down into the grid */
+  {const e1=nearEnd(-760,700),e2=nearEnd(-552,700);buildRoad({id:'tp',hw:5.5,lanes:1,style:0,smooth:18,grade:.22,lift:.05,yFrom:e1[2],yTo:e2[2],pts:[[e1[0],e1[1]],[-762,738],[-735,772],[-690,792],[-650,772],[-620,802],[-640,836],[-598,862],[-556,838],[-540,800],[-547,758],[e2[0],e2[1]]]})}
+  /* ===== the long highways ===== */
+  /* Geary: ring (west) -> the downtown boulevard */
+  buildCurvy({id:'dc',hw:10,lanes:2,style:1,from:'ring',yTo:'sfp',lift:.03,minR:45,wig:{a1:40,l1:240,a2:14,l2:110,seed:8,fade:130},
+    pts:ramp(ring,-1480,195,-1410,212,10).concat([[-1410,212],[-1360,220],[CITY.x0,222]])});
+  /* the boulevard: Market's north-east end -> east across the hills to the ring */
+  const bv=buildCurvy({id:'bv',hw:10,lanes:2,style:1,to:'ring',yFrom:'sfp',lift:.04,smooth:70,minR:55,wig:{a1:230,l1:560,a2:70,l2:230,seed:5,fade:200},
+    pts:[[CITY.x1,-6],[-390,0],[-300,60],[-180,170],[60,150],[300,225],[620,200],[980,130],[1300,90]].concat(rampIn(ring,1440,50,1300,90,10))});
+  /* the mountain pass: out of the ring in the north-east, up the switchbacks, down the north coast and back onto the ring in the north-west */
+  const sb=switchbacks(1950,-1950,[[2.25,1.42,1040],[1.42,2.5,860],[2.5,1.5,700],[1.5,2.35,600]]);   /* the fan starts just outside the ring, so the pass leaves the ring and never has to cross it */
+  buildCurvy({id:'mp',hw:8.5,lanes:1,style:0,from:'ring',to:'ring',lift:.05,smooth:50,grade:.145,minR:0,wig:{a1:100,l1:520,a2:30,l2:200,seed:13,fade:300},
+    pts:ramp(ring,sb[0][0],sb[0][1],sb[4][0],sb[4][1],8.5).concat(sb.slice(4)).concat([[1420,-1700],[1250,-1950],[1000,-2180],[650,-2420],[200,-2540],[-300,-2480],[-760,-2300],[-1110,-1960],[-1260,-1480]]).concat(rampIn(ring,-1235,-1260,-1260,-1480,8.5))});
+  /* Mulholland: very twisty ridge road, off the ring and down onto the boulevard */
+  {const bi=jn(bv,520,130);buildCurvy({id:'mh',hw:7,lanes:1,style:0,from:'ring',to:'bv',lift:.09,smooth:35,grade:.13,minR:34,wig:{a1:120,l1:380,a2:34,l2:150,seed:31,fade:260},
+    pts:ramp(ring,1480,-190,1330,-170,7).concat([[1330,-170],[1160,-195],[990,-150],[820,-135],[670,-100],[570,-70],[520,-10]]).concat([tIn(bv,520,-10)])})}
+  /* the southern highway: ring (south) -> long straight on the plains -> a turnaround loop at the beach lookout; the east link meets it from the north */
+  const sh=buildCurvy({id:'sh',hw:12,lanes:2,style:1,from:'ring',lift:.07,smooth:150,grade:.05,minR:85,wig:{a1:220,l1:700,a2:60,l2:260,seed:23,straight:[[.52,.88]],fade:260},
+    pts:ramp(ring,40,1850,40,1850,12).concat([[300,2260],[800,2420],[1500,2440],[2100,2420],[2500,2420],[2610,2418]])});
+  loopRoad('lookout',2650,2418,40,6,.09);
+  /* the east link: ring (east) -> south along the east side -> onto the southern highway */
+  const el=buildCurvy({id:'el',hw:10,lanes:2,style:1,from:'ring',to:'sh',yFrom:null,lift:.08,smooth:100,minR:65,wig:{a1:230,l1:620,a2:66,l2:250,seed:29,straight:[[.62,.80]],fade:200},
+    pts:ramp(ring,2000,1060,2000,1060,10).concat([[2000,1060],[2300,1560],[2410,2000],[2412,2280],tIn(sh,2412,2280)])});
+  /* the coast road (Highway 1 style): out of Market's south-west end, over the ring, along the beach, round a headland and onto the southern highway */
+  {buildCurvy({id:'cr',hw:9,lanes:1,style:0,to:'sh',yFrom:'sfp',lift:.06,smooth:70,minR:45,bridgeOver:['ring'],wig:{a1:190,l1:480,a2:60,l2:200,seed:17,fade:200},
+    pts:[[M.x0,M.z0],[-1275,742],[-1380,790],[-1560,1000],[-1790,1250],[-1900,1600],[-1840,2000],[-1560,2300],[-1100,2470],[-560,2432],[-80,2400],[230,2452],[420,2438],[540,2398]].concat([tIn(sh,540,2398)])})}
+  /* ===== the Valley: LA style boulevards, ringed by a boulevard that joins the boulevard road and the ring ===== */
   const vu=[275,575,875,1015],vv=[565,825,1085,1245];
   gridStreets({id:'la',kind:'la',ox:0,oz:0,ang:0,us:vu,vs:vv,hw:12,style:4,lift:.05,planes:planesBox(VALLEY)});
-  {const e=nearEnd(575,560);const b2=ptn(bv,590,215);buildCurvy({id:'lan',hw:9,lanes:1,style:0,to:'bv',yFrom:e[2],lift:.05,minR:50,wig:{a1:24,l1:300,a2:7,l2:120,seed:37,fade:120},pts:[[e[0],e[1]],[582,470],[570,380],[592,300],[b2[0],b2[1]]]})}
-  {const e=nearEnd(1015,825);buildCurvy({id:'lae',hw:10,lanes:2,style:1,to:'ring',yFrom:e[2],lift:.05,minR:60,wig:{a1:40,l1:420,a2:10,l2:170,seed:41,fade:160},pts:[[e[0],e[1]],[1150,800],[1300,745],[1450,700],ptn(ring,1560,700)]})}
+  const lap=perimeter('lap',VALLEY,11,.055);
+  buildCurvy({id:'lan',hw:9,lanes:1,style:0,to:'bv',yFrom:'lap',lift:.1,minR:50,wig:{a1:24,l1:300,a2:7,l2:120,seed:37,fade:120},pts:[[640,VALLEY.z0],[622,470],[590,380],[600,300],tIn(bv,600,300)]});
+  buildCurvy({id:'lae',hw:10,lanes:2,style:1,to:'ring',yFrom:'lap',lift:.11,minR:60,wig:{a1:40,l1:420,a2:10,l2:170,seed:41,fade:160},pts:[[VALLEY.x1,826],[1150,800],[1300,745]].concat(rampIn(ring,1300,745,1300,745,10))});
+  /* ===== Santa Cruz: a beach town on the south coast with a boardwalk and a pier ===== */
+  const bu=[-470,-390,-310,-230,-170],bvv=[2580,2645,2710];
+  gridStreets({id:'bt',kind:'beach',ox:0,oz:0,ang:0,us:bu,vs:bvv,hw:6,style:3,lift:.05,planes:planesBox(BEACH)});
+  perimeter('btp',BEACH,8,.055);
+  {const c=ROADS.find(q=>q.id=='cr');buildRoad({id:'btl',hw:7,lanes:1,style:0,lift:.07,yFrom:'cr',yTo:'btp',pts:[tIn(c,-350,BEACH.z0),[-350,BEACH.z0]]})}
+  /* the pier: out over the water from the boardwalk (a bridge deck on piles, with a T-shaped head to turn round on) */
+  {const bp=ROADS.find(q=>q.id=='btp'),e=tIn(bp,-350,BEACH.z1+60),yd=Math.max(Hs(-350,BEACH.z1+4),3.2)+.2,zh=BEACH.z1+205;
+   buildRoad({id:'pier',hw:5,lanes:1,style:2,flat:yd,lift:.04,bridge:[{x:-350,z:BEACH.z1+110,len:500,h:0}],pts:[e,[-350,BEACH.z1+110],[-350,zh]]});
+   buildRoad({id:'pierhead',hw:5,lanes:1,style:2,flat:yd,lift:.04,bridge:[{x:-350,z:zh,len:500,h:0}],pts:[[-387,zh],[-350,zh],[-313,zh]]})}
+  /* ===== Palm Springs: a desert resort town of wide palm boulevards, joined to the east link and the southern highway ===== */
+  gridStreets({id:'ps',kind:'ps',ox:0,oz:0,ang:0,us:[1440,1620,1800],vs:[1480,1660,1840],hw:12,style:4,lift:.05,planes:planesBox(RESORT)});
+  perimeter('psp',RESORT,11,.055);
+  buildCurvy({id:'psl',hw:9,lanes:1,style:0,to:'el',yFrom:'psp',lift:.1,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:43,fade:120},pts:[[RESORT.x1,1660],[1980,1650],[2100,1610],tIn(el,2100,1610)]});
+  buildCurvy({id:'pss',hw:9,lanes:1,style:0,to:'sh',yFrom:'psp',lift:.1,minR:50,wig:{a1:40,l1:320,a2:10,l2:130,seed:47,fade:140},pts:[[1620,RESORT.z1],[1612,2060],[1630,2250],tIn(sh,1630,2250)]});
   const fixed=fixCrossings();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;
   return GRIDS}
 let BRIDGES_ADDED=[];
@@ -395,6 +451,7 @@ const roadById=id=>ROADS.find(r=>r.id==id);
 'use strict';
 /* ===== heightmap generation, road carving, ground colours, height queries ===== */
 const CUT_SLOPE=.36;
+const RAILS=false;   /* guardrails are switched off for now (set true to bring back the highway rails, cliff rails and bridge rails) */
 function hmIdx(x,z){return[(x+W.half)/W.T,(z+W.half)/W.T]}
 /* bilinear terrain height at a world position */
 function terrainH(x,z){const N=W.N;let gx=(x+W.half)/W.T,gz=(z+W.half)/W.T;gx=clamp(gx,0,N-1.001);gz=clamp(gz,0,N-1.001);const i=gx|0,j=gz|0,fx=gx-i,fz=gz-j,h=W.hm,o=j*N+i;
@@ -427,6 +484,7 @@ async function carveRoads(prog){
   return D}
 /* guardrails: continuous on the divided highways (except around junctions), wherever the ground falls away steeply beside a road, and always on bridges */
 function railPass(){
+  if(!RAILS){for(const r of ROADS)r.rail.fill(0);return}
   /* junctions: where a road starts or ends on another road */
   const jz=[];
   for(const r of ROADS){if(r.closed||r.city)continue;for(const e of[0,r.n-1]){const x=r.X[e],z=r.Z[e];for(const o of ROADS){if(o===r)continue;const k=roadNear(o,x,z);if(Math.hypot(o.X[k]-x,o.Z[k]-z)<o.hw+8){jz.push(x,z);break}}}}
@@ -450,7 +508,7 @@ function genColors(){
       const gr=[.075+.035*nz1,.16+.05*nz1,.04+.02*nz1],dg=[.30,.23,.095];
       c=[lerp(gr[0],dg[0],dry*(.5+nz2*.6)),lerp(gr[1],dg[1],dry*(.5+nz2*.6)),lerp(gr[2],dg[2],dry*(.5+nz2*.6))];
       const forest=forestAt(x,z,h,sl,dr);if(forest)c=[.04+.02*nz1,.09+.03*nz1,.02];
-      const inCity=inBox(x,z,CITY,10)||inBox(x,z,VALLEY,10);if(inCity)c=inBox(x,z,VALLEY,10)?[.2,.19,.17]:[.17,.165,.155];if(inBox(x,z,PARK,0))c=[.07+.03*nz1,.2+.05*nz1,.05];
+      const inCity=inBox(x,z,CITY,10)||inBox(x,z,VALLEY,10)||inBox(x,z,BEACH,10)||inBox(x,z,RESORT,10);if(inCity)c=inBox(x,z,VALLEY,10)?[.2,.19,.17]:inBox(x,z,BEACH,10)?[.36+.03*nz1,.31+.03*nz1,.22]:inBox(x,z,RESORT,10)?[.33+.03*nz1,.27+.03*nz1,.18]:[.17,.165,.155];if(inBox(x,z,PARK,0))c=[.07+.03*nz1,.2+.05*nz1,.05];
       /* sand */const sd=1-sstep(2.2,5.5,h+nz1*2);if(sd>0)c=[lerp(c[0],.46,sd),lerp(c[1],.37,sd),lerp(c[2],.22,sd)];
       if(h<.3){const w=sstep(-1.5,.3,h);c=[lerp(.2,c[0],w),lerp(.17,c[1],w),lerp(.1,c[2],w)]}
       /* rock on slopes and up high, snow on the peaks */
@@ -460,7 +518,7 @@ function genColors(){
       if(dr>0&&dr<22&&sl>.3&&!inCity){const e=(1-sstep(8,22,dr))*sstep(.3,.5,sl);c=[lerp(c[0],.2,e),lerp(c[1],.14,e),lerp(c[2],.08,e)]}
       const o=(j*CN+i)*4,s=sq(c[0],c[1],c[2]);col[o]=Math.min(255,s[0]*255);col[o+1]=Math.min(255,s[1]*255);col[o+2]=Math.min(255,s[2]*255);col[o+3]=255}}
 }
-function forestAt(x,z,h,sl,dr){if(h<7||h>300||sl>.5||dr<26)return false;if(inBox(x,z,CITY,80)||inBox(x,z,VALLEY,80)||inBox(x,z,PARK,40))return false;
+function forestAt(x,z,h,sl,dr){if(h<7||h>300||sl>.5||dr<26)return false;if(inBox(x,z,CITY,80)||inBox(x,z,VALLEY,80)||inBox(x,z,PARK,40)||inBox(x,z,BEACH,60)||inBox(x,z,RESORT,60))return false;
   const f=fbm(x*.0042,z*.0042,21,3)*1.0+.12*sstep(-200,900,x)*sstep(100,-900,z)+(fbm(x*.02,z*.02,22,2)-.5)*.2;return f>.58}
 /* RGBA8 texture data for the GPU: 16-bit height in R/G */
 function heightTexData(){const N=W.N,hm=W.hm,o=new Uint8Array(N*N*4);for(let k=0;k<N*N;k++){let v=Math.round((hm[k]-W.hmin)/W.hrange*65535);v=v<0?0:v>65535?65535:v;o[k*4]=v>>8;o[k*4+1]=v&255;o[k*4+2]=0;o[k*4+3]=255}return o}
@@ -507,10 +565,14 @@ function ptree(x,z,rng,y){const t=rng(),sc=.8+rng()*.7,rot=rng()*6;
 const ROAD_PIECE=64;
 let _cj=null;
 /* where city streets cross or end on each other: no lane markings there */
-function cityJunctions(){if(_cj)return _cj;const cr=ROADS.filter(r=>r.city),out=[];
-  for(let a=0;a<cr.length;a++)for(let b=a+1;b<cr.length;b++){const A=cr[a],B=cr[b],p=segX(A.X[0],A.Z[0],A.X[A.n-1],A.Z[A.n-1],B.X[0],B.Z[0],B.X[B.n-1],B.Z[B.n-1]);if(p)out.push(p[0],p[1])}
-  for(const A of cr)for(const e of[0,A.n-1])for(const B of cr){if(B===A)continue;/* an end touching another street */const dx=B.X[B.n-1]-B.X[0],dz=B.Z[B.n-1]-B.Z[0],l2=dx*dx+dz*dz||1;let t=((A.X[e]-B.X[0])*dx+(A.Z[e]-B.Z[0])*dz)/l2;t=t<0?0:t>1?1:t;if(Math.hypot(B.X[0]+dx*t-A.X[e],B.Z[0]+dz*t-A.Z[e])<4){out.push(A.X[e],A.Z[e]);break}}
-  return _cj=out}
+function cityJunctions(){if(_cj)return _cj;const cr=ROADS.filter(r=>r.city),cell=24,H=new Map(),cl=[];
+  cr.forEach((r,ri)=>{for(let i=0;i<r.n;i+=2){const k=Math.floor(r.X[i]/cell)+','+Math.floor(r.Z[i]/cell);let L=H.get(k);if(!L)H.set(k,L=[]);L.push(ri,i)}});
+  /* wherever the centre-lines of two streets meet (a crossing, or a street ending on another), gather the meeting samples into one junction point */
+  cr.forEach((A,ai)=>{for(let i=0;i<A.n;i+=2){const cx=Math.floor(A.X[i]/cell),cz=Math.floor(A.Z[i]/cell);let hit=false;
+    for(let a=-1;a<=1&&!hit;a++)for(let b=-1;b<=1&&!hit;b++){const L=H.get((cx+a)+','+(cz+b));if(!L)continue;for(let q=0;q<L.length;q+=2){const bi=L[q];if(bi===ai)continue;const B=cr[bi],j=L[q+1];if(Math.hypot(A.X[i]-B.X[j],A.Z[i]-B.Z[j])<(A.hw+B.hw)*.7){hit=true;break}}}
+    if(!hit)continue;let c=null;for(const k of cl)if(Math.hypot(k.x-A.X[i],k.z-A.Z[i])<26){c=k;break}
+    if(c){c.x=(c.x*c.n+A.X[i])/(c.n+1);c.z=(c.z*c.n+A.Z[i])/(c.n+1);c.n++}else cl.push({x:A.X[i],z:A.Z[i],n:1})}});
+  const out=[];for(const k of cl)out.push(k.x,k.z);return _cj=out}
 function buildRoadMeshes(){
   _cj=null;const out=[];
   for(const r of ROADS){
@@ -592,11 +654,11 @@ function forBlocks(g,fn){const hw=g.hw+3.8,pl=g.planes,Wd=(u,v)=>[g.ox+u*g.cs-v*
   for(let i=0;i<g.us.length-1;i++)for(let j=0;j<g.vs.length-1;j++){const u0=g.us[i]+hw,u1=g.us[i+1]-hw,v0=g.vs[j]+hw,v1=g.vs[j+1]-hw;if(u1-u0<14||v1-v0<14)continue;
     let ok=true,x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const[u,v]of[[u0,v0],[u1,v0],[u1,v1],[u0,v1]]){const p=Wd(u,v);x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);z0=Math.min(z0,p[1]);z1=Math.max(z1,p[1]);
-      for(let k=0;k<pl.length;k++){const m=(sf&&k==4)?MARKET.hw+10:8;if(pl[k][0]*p[0]+pl[k][1]*p[1]>pl[k][2]-m)ok=false}}
+      for(let k=0;k<pl.length;k++){const m=(sf&&k==4)?MARKET.hw+12:18;if(pl[k][0]*p[0]+pl[k][1]*p[1]>pl[k][2]-m)ok=false}}
     if(g.cut)for(const R of g.cut)if(x1>R.x0&&x0<R.x1&&z1>R.z0&&z0<R.z1)ok=false;
     if(ok)fn({i,j,u0,u1,v0,v1,W:Wd,g})}}
 const URB=[CITY,VALLEY];
-const inUrban=(x,z,m)=>inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PARK,m);
+const inUrban=(x,z,m)=>inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PARK,m)||inBox(x,z,BEACH,m)||inBox(x,z,RESORT,m);
 function buildCity(){
   const rng=mulberry(1337);let nb=0,pyramid=false;const CORE={x:-870,z:310};
   const reg=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
@@ -616,6 +678,64 @@ function buildCity(){
       /* palms along every boulevard */
       for(const r of g.roads){for(let i=3;i<r.n-3;i+=6){const a=(i+1<r.n?i+1:i),b=(i>0?i-1:i);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;if(r.mk[i]<.6)continue;
         for(const sd of[-1,1]){const px=r.X[i]-tz*sd*(r.hw+RSH+3.4),pz=r.Z[i]+tx*sd*(r.hw+RSH+3.4);ppalm(px,pz,rng,r.Y[i]-.3);COLC.push(px,pz,.5,terrainH(px,pz)-.5,terrainH(px,pz)+12)}}}
+      continue}
+    if(g.kind=='beach'){/* Santa Cruz: bungalows and motels, a boardwalk with a Ferris wheel, lifeguard towers, umbrellas on the sand */
+      const BUN=[[238,120,110],[250,200,96],[96,184,196],[246,246,238],[210,140,190],[130,200,150],[255,170,90],[110,150,214]];
+      const palm=(x,z)=>{const y=terrainH(x,z);if(y<1.5)return;ppalm(x,z,rng,y);COLC.push(x,z,.5,y-.5,y+12)};
+      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,r=rng();
+        if(r<.22){const [px,pz]=B.W(cu,cv),hx0=wu*.42,hz0=Math.min(7,wv*.2),c=BUN[(rng()*BUN.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,4.6,c,true);
+          const [sx,sz]=B.W(B.u0+5,B.v1-6);pbox(1,sx,gy,sz,.25,gy+9,.25,200,200,205,false,.7);pbox(1,sx,gy+7,sz,1.7,gy+9.2,.22,255,90,120,false,1);COLC.push(sx,sz,.4,gy-.5,gy+9);
+          const [qx,qz]=B.W(cu,cv+hz0+8);palm(qx,qz)}
+        else{const lw=wu/2,ld=wv/2;for(let a=0;a<2;a++)for(let b=0;b<2;b++){const u=B.u0+lw*(a+.5),v=B.v0+ld*(b+.5),[px,pz]=B.W(u,v),hx0=Math.min(8.5,lw*.36),hz0=Math.min(6.5,ld*.34),h=3.1+rng()*1.3,c=BUN[(rng()*BUN.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,c,true);
+          proofR(1,px,pz,hx0,hz0,cs,sn,gy+h,1.8+rng()*.8,[196,90,74,120][(rng()*4)|0],110,92,rng()<.5);if(rng()<.65){const [qx,qz]=B.W(u+hx0+3,v+hz0+2.5);palm(qx,qz)}}}});
+      /* boardwalk shops between the last street and the beach road, and a Ferris wheel */
+      {const zS=BEACH.z1-34,uP=-350;
+       for(let i=0;i<g.us.length-1;i++){const u0=g.us[i],u1=g.us[i+1],uc=(u0+u1)/2,half=(u1-u0)/2-g.hw-8;if(half<8)continue;
+         if(uc>uP-45&&uc<uP+45)continue;                                           /* the pier entrance */
+         if(i==g.us.length-3||(g.us.length<4&&i==1)){/* Ferris wheel */const gy=terrainH(uc,zS),cy=gy+19,R=15.5,N=20,C2=[[230,70,70],[240,200,60],[70,160,230],[90,200,120],[220,120,220]];
+           for(const sd of[-1,1]){pbox(1,uc+sd*9,gy-.5,zS,.7,cy,.7,200,204,212,false,.8);COLC.push(uc+sd*9,zS,1,gy-.5,gy+19)}
+           pbox(1,uc,cy-1.2,zS,1.5,cy+1.2,1.2,230,230,236,false,.9);
+           for(let k=0;k<N;k++){const an=k/N*TAU,c=C2[k%5];pbox(1,uc+Math.cos(an)*R,cy+Math.sin(an)*R-1.2,zS,1.15,cy+Math.sin(an)*R+1.2,1.0,c[0],c[1],c[2],false,.9);
+             if(k%2==0)for(const f of[.38,.69])pbox(1,uc+Math.cos(an)*R*f,cy+Math.sin(an)*R*f-.3,zS,.3,cy+Math.sin(an)*R*f+.3,.3,236,236,240,false,1)}
+           continue}
+         for(const k of[-1,1]){const px=uc+k*half*.52,hx0=half*.46,gy=bld(px,zS,hx0,7.5,1,0,4.4+rng()*1.2,BUN[(rng()*BUN.length)|0],true);
+           const c=BUN[(rng()*BUN.length)|0];pboxR(1,px,zS+9,hx0,1.8,1,0,gy+3,gy+3.5,c[0],c[1],c[2],false,1)}}}
+      /* lifeguard towers and beach umbrellas on the sand south of the beach road */
+      for(const x of[-455,-215]){const z=BEACH.z1+34,y=terrainH(x,z);if(y<1)continue;pbox(1,x-.9,y-.4,z-.9,.2,y+2,.2,230,230,236,false,.8);pbox(1,x+.9,y-.4,z-.9,.2,y+2,.2,230,230,236,false,.8);pbox(1,x-.9,y-.4,z+.9,.2,y+2,.2,230,230,236,false,.8);pbox(1,x+.9,y-.4,z+.9,.2,y+2,.2,230,230,236,false,.8);
+        pbox(1,x,y+2,z,1.5,y+4.1,1.5,240,70,60,true,.9);pbox(1,x,y+4.1,z,1.9,y+4.5,1.9,250,250,250,false,1);COLC.push(x,z,1.7,y-.5,y+4.5)}
+      {const ur=mulberry(3131),UC=[[240,70,60],[250,210,70],[70,160,230],[250,250,250],[240,130,60]];for(let k=0;k<26;k++){const x=lerp(BEACH.x0+20,BEACH.x1-20,ur()),z=BEACH.z1+22+ur()*24,y=terrainH(x,z);if(y<1.2||y>8||nearRoadXZ(x,z,9))continue;const c=UC[(ur()*5)|0];pbox(1,x,y-.2,z,.07,y+2.2,.07,230,230,236,false,.8);pcone(1,x,y+1.9,z,1.7,.55,c[0],c[1],c[2],8,ur()*6)}}
+      /* palms along the beach road and the pier road */
+      {const bp=ROADS.find(q=>q.id=='btp');if(bp)for(let i=4;i<bp.n-4;i+=5){const a=(i+1)%bp.n,b=(i+bp.n-1)%bp.n;let tx=bp.X[a]-bp.X[b],tz=bp.Z[a]-bp.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;if(bp.mk[i]<.6)continue;
+        for(const sd of[-1,1]){const px=bp.X[i]-tz*sd*(bp.hw+RSH+3.4),pz=bp.Z[i]+tx*sd*(bp.hw+RSH+3.4);if(nearRoadXZ(px,pz,1.5))continue;palm(px,pz)}}}
+      continue}
+    if(g.kind=='ps'){/* Palm Springs: mid-century hotels round big pools, a golf course, villas with pools, palm boulevards */
+      const lawn=(cx,cz,hx,hz,cs,sn,c0,c1,c2,lift,t)=>{t=t||14;const nu=Math.max(1,Math.ceil(hx*2/t)),nv=Math.max(1,Math.ceil(hz*2/t)),tu=hx*2/nu,tv=hz*2/nv;
+        for(let a=0;a<nu;a++)for(let b=0;b<nv;b++){const lu=-hx+tu*(a+.5),lv=-hz+tv*(b+.5),px=cx+lu*cs-lv*sn,pz=cz+lu*sn+lv*cs;let y=-1e9;
+          for(const[du,dv]of[[-1,-1],[1,-1],[1,1],[-1,1],[0,0]]){const qx=px+(du*tu/2)*cs-(dv*tv/2)*sn,qz=pz+(du*tu/2)*sn+(dv*tv/2)*cs;y=Math.max(y,terrainH(qx,qz))}
+          pflat(1,px,pz,tu/2+.05,tv/2+.05,cs,sn,y+lift,c0,c1,c2)}};
+      const palmAt=(x,z)=>{const y=terrainH(x,z);ppalm(x,z,rng,y);COLC.push(x,z,.5,y-.5,y+12)};
+      forBlocks(g,B=>{const cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,typ=(B.i+B.j*2)%4,P=(u,v)=>B.W(u,v),pm=(u,v)=>{const p=P(u,v);palmAt(p[0],p[1])};
+        if(typ==0||typ==3){/* hotel: a long main wing, a side wing, a pool deck */
+          const [mx,mz]=P(cu,B.v0+20),gy=bld(mx,mz,wu*.46,10,cs,sn,10,typ==0?[238,226,200]:[244,200,190],true);pboxR(1,mx,mz,wu*.46+3,13,cs,sn,gy+10,gy+10.7,70,170,180,false,1);
+          const [wx,wz]=P(B.u0+18,cv+8),gy2=bld(wx,wz,10,wv*.28,cs,sn,7.5,[236,170,170],true);pboxR(1,wx,wz,13,wv*.28+3,cs,sn,gy2+7.5,gy2+8.1,70,170,180,false,1);
+          const [dx,dz]=P(cu+26,cv+24);lawn(dx,dz,34,17,cs,sn,232,226,210,.1);lawn(dx,dz,24,10,cs,sn,72,176,214,.2,12);
+          for(const[u,v]of[[cu-4,cv+8],[cu+56,cv+8],[cu-4,cv+42],[cu+56,cv+42],[cu+26,cv+4],[cu+26,cv+46]])pm(u,v);
+          const [lx,lz]=P(cu,B.v1-14);lawn(lx,lz,wu*.36,9,cs,sn,64,64,70,.1,16);
+          const [sx,sz]=P(B.u1-10,B.v0+6),sy=terrainH(sx,sz);pbox(1,sx,sy-.5,sz,.5,sy+15,.5,236,236,240,false,.8);pbox(1,sx,sy+10,sz,3.2,sy+16,.5,250,120,150,false,1);COLC.push(sx,sz,.9,sy-.5,sy+15)}
+        else if(typ==1){/* golf course with a pond and a clubhouse */
+          lawn(...P(cu,cv),wu/2-3,wv/2-3,cs,sn,56,124,56,.1,16);lawn(...P(cu-10,cv-24),wu*.4,9,cs,sn,92,168,80,.2,16);lawn(...P(cu+12,cv+22),wu*.38,9,cs,sn,92,168,80,.2,16);
+          const [px,pz]=P(cu+34,cv-2);lawn(px,pz,17,11,cs,sn,64,150,204,.3,12);
+          const [cx0,cz0]=P(B.u0+26,B.v1-18),gy=bld(cx0,cz0,18,9,cs,sn,6.5,[236,226,210],true);proofR(1,cx0,cz0,19,10,cs,sn,gy+6.5,2.2,160,120,100,true);
+          for(let k=0;k<22;k++){const u=lerp(B.u0+8,B.u1-8,rng()),v=lerp(B.v0+8,B.v1-8,rng()),p=P(u,v);if(Math.hypot(p[0]-px,p[1]-pz)<24||Math.hypot(p[0]-cx0,p[1]-cz0)<30)continue;
+            const y=terrainH(p[0],p[1]);if(rng()<.55)ppalm(p[0],p[1],rng,y);else ptree(p[0],p[1],rng,y);COLC.push(p[0],p[1],.55,y-.5,y+12)}}
+        else{/* villas: nine flat-roofed houses, each with a small pool */
+          const lw=wu/3,ld=wv/3,HC=[[240,232,214],[226,196,170],[200,222,226],[236,214,180]];
+          for(let a=0;a<3;a++)for(let b=0;b<3;b++){const u=B.u0+lw*(a+.5),v=B.v0+ld*(b+.5),[hx,hz]=P(u-4,v-6),h=3.4+rng()*.8,gy=bld(hx,hz,Math.min(13,lw*.28),Math.min(8,ld*.2),cs,sn,h,HC[(rng()*4)|0],true);
+            pboxR(1,hx,hz,Math.min(13,lw*.28)+1.4,Math.min(8,ld*.2)+1.4,cs,sn,gy+h,gy+h+.45,226,226,230,false,1);
+            const [wx,wz]=P(u+3,v+12);lawn(wx,wz,9,5,cs,sn,232,226,210,.1,12);lawn(wx,wz,6.5,3,cs,sn,72,176,214,.2,12);pm(u+lw*.36,v+ld*.3);if(rng()<.6)pm(u-lw*.36,v+ld*.3)}}});
+      /* palms along the boulevards and the ring boulevard */
+      for(const r of g.roads.concat(ROADS.filter(q=>q.id=='psp'))){for(let i=3;i<r.n-3;i+=6){const a=(i+1<r.n?i+1:(i+1)%r.n),b=(i>0?i-1:r.n-1);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;if(r.mk[i]<.6)continue;
+        for(const sd of[-1,1]){const px=r.X[i]-tz*sd*(r.hw+RSH+3.4),pz=r.Z[i]+tx*sd*(r.hw+RSH+3.4);if(nearRoadXZ(px,pz,1.5))continue;palmAt(px,pz)}}}
       continue}
     /* San Francisco blocks */
     forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,[cx,cz]=B.W(cu,cv),cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,dcore=Math.hypot(cx-CORE.x,cz-CORE.z),th=terrainH(cx,cz),r=rng();
@@ -1063,7 +1183,7 @@ function drawMap(ctx,cx,cy,rad,zoomM,rot){
   ctx.translate(cx,cy);ctx.rotate(rot);ctx.scale(s,s);ctx.translate(-(C.x+W.half)*pxm,-(C.z+W.half)*pxm);ctx.imageSmoothingEnabled=true;ctx.drawImage(UI.mapCv,0,0);ctx.restore();
   ctx.save();ctx.translate(cx,cy);ctx.fillStyle='#ff7a1a';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,-rad*.14);ctx.lineTo(rad*.09,rad*.1);ctx.lineTo(0,rad*.05);ctx.lineTo(-rad*.09,rad*.1);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
   ctx.beginPath();ctx.arc(cx,cy,rad,0,TAU);ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.85)';ctx.stroke()}
-const REGIONS=[['Golden Gate Park',()=>inBox(C.x,C.z,PARK,10)],['Russian Hill',()=>Math.hypot(C.x+1100,C.z+70)<200],['Twin Peaks',()=>Math.hypot(C.x+620,C.z-760)<260],['Downtown',()=>inBox(C.x,C.z,CITY,20)],['The Valley',()=>inBox(C.x,C.z,VALLEY,20)],['Mulholland ridge',()=>C.x>450&&C.x<1650&&C.z>-420&&C.z<20&&terrainH(C.x,C.z)>40],['Mountain pass',()=>terrainH(C.x,C.z)>130&&C.x>600&&C.z<-700],['Pacific coast',()=>C.x<-1700],['North shore',()=>C.z<-2000],['Southern plains',()=>C.z>1700],['Highlands',()=>C.x>1300&&C.z<-300],['Orbital ring',()=>Math.hypot(C.x*.9,C.z-100)>1100],['Suburbs',()=>true]];
+const REGIONS=[['Golden Gate Park',()=>inBox(C.x,C.z,PARK,10)],['Russian Hill',()=>Math.hypot(C.x+1100,C.z+70)<200],['Twin Peaks',()=>Math.hypot(C.x+620,C.z-760)<260],['Downtown',()=>inBox(C.x,C.z,CITY,20)],['The Valley',()=>inBox(C.x,C.z,VALLEY,20)],['Santa Cruz Pier',()=>inBox(C.x,C.z,{x0:BEACH.x0,z0:BEACH.z1,x1:BEACH.x1,z1:BEACH.z1+260},0)],['Santa Cruz',()=>inBox(C.x,C.z,BEACH,30)],['Palm Springs',()=>inBox(C.x,C.z,RESORT,30)],['Mulholland ridge',()=>C.x>450&&C.x<1650&&C.z>-420&&C.z<20&&terrainH(C.x,C.z)>40],['Mountain pass',()=>terrainH(C.x,C.z)>130&&C.x>600&&C.z<-700],['Pacific coast',()=>C.x<-1700],['North shore',()=>C.z<-2000],['Southern plains',()=>C.z>1700],['Highlands',()=>C.x>1300&&C.z<-300],['Orbital ring',()=>Math.hypot(C.x*.9,C.z-100)>1100],['Suburbs',()=>true]];
 function regionName(){for(const r of REGIONS)if(r[1]())return r[0];return''}
 /* ---------- HUD ---------- */
 function hudDraw(){
@@ -1096,7 +1216,7 @@ function hudDraw(){
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}
   if(UI.mapOpen)drawWorldMap(c,W_,H_,u)
 }
-const MAPLBL=[['DOWNTOWN',-860,330,1],['RUSSIAN HILL',-1090,-190,1],['TWIN PEAKS',-640,940,1],['GOLDEN GATE PARK',-1440,400,1,'r'],['THE VALLEY',640,880,1],['MULHOLLAND',1000,-330,1],['ORBITAL RING',-150,-1120,1],['MOUNTAIN PASS',1850,-1800,1],['NORTH SHORE',-350,-2610,1],['PACIFIC COAST',-1850,1720,1],['SOUTHERN PLAINS',1200,2290,1],['EAST LINK',2200,1450,1],['OCEAN',-2640,-500,0]];
+const MAPLBL=[['DOWNTOWN',-860,330,1],['RUSSIAN HILL',-1090,-190,1],['TWIN PEAKS',-640,940,1],['GOLDEN GATE PARK',-1440,400,1,'r'],['THE VALLEY',640,880,1],['SANTA CRUZ',-325,2650,1],['PALM SPRINGS',1620,1660,1],['MULHOLLAND',1000,-330,1],['ORBITAL RING',-150,-1120,1],['MOUNTAIN PASS',1850,-1800,1],['NORTH SHORE',-350,-2610,1],['PACIFIC COAST',-1850,1720,1],['SOUTHERN PLAINS',1200,2290,1],['EAST LINK',2200,1450,1],['OCEAN',-2640,-500,0]];
 /* the whole county on one screen: where you are, the roads, the named areas */
 function drawWorldMap(c,W_,H_,u){
   c.fillStyle='#050a12';c.fillRect(0,0,W_,H_);

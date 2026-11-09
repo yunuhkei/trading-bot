@@ -40,10 +40,14 @@ function ptree(x,z,rng,y){const t=rng(),sc=.8+rng()*.7,rot=rng()*6;
 const ROAD_PIECE=64;
 let _cj=null;
 /* where city streets cross or end on each other: no lane markings there */
-function cityJunctions(){if(_cj)return _cj;const cr=ROADS.filter(r=>r.city),out=[];
-  for(let a=0;a<cr.length;a++)for(let b=a+1;b<cr.length;b++){const A=cr[a],B=cr[b],p=segX(A.X[0],A.Z[0],A.X[A.n-1],A.Z[A.n-1],B.X[0],B.Z[0],B.X[B.n-1],B.Z[B.n-1]);if(p)out.push(p[0],p[1])}
-  for(const A of cr)for(const e of[0,A.n-1])for(const B of cr){if(B===A)continue;/* an end touching another street */const dx=B.X[B.n-1]-B.X[0],dz=B.Z[B.n-1]-B.Z[0],l2=dx*dx+dz*dz||1;let t=((A.X[e]-B.X[0])*dx+(A.Z[e]-B.Z[0])*dz)/l2;t=t<0?0:t>1?1:t;if(Math.hypot(B.X[0]+dx*t-A.X[e],B.Z[0]+dz*t-A.Z[e])<4){out.push(A.X[e],A.Z[e]);break}}
-  return _cj=out}
+function cityJunctions(){if(_cj)return _cj;const cr=ROADS.filter(r=>r.city),cell=24,H=new Map(),cl=[];
+  cr.forEach((r,ri)=>{for(let i=0;i<r.n;i+=2){const k=Math.floor(r.X[i]/cell)+','+Math.floor(r.Z[i]/cell);let L=H.get(k);if(!L)H.set(k,L=[]);L.push(ri,i)}});
+  /* wherever the centre-lines of two streets meet (a crossing, or a street ending on another), gather the meeting samples into one junction point */
+  cr.forEach((A,ai)=>{for(let i=0;i<A.n;i+=2){const cx=Math.floor(A.X[i]/cell),cz=Math.floor(A.Z[i]/cell);let hit=false;
+    for(let a=-1;a<=1&&!hit;a++)for(let b=-1;b<=1&&!hit;b++){const L=H.get((cx+a)+','+(cz+b));if(!L)continue;for(let q=0;q<L.length;q+=2){const bi=L[q];if(bi===ai)continue;const B=cr[bi],j=L[q+1];if(Math.hypot(A.X[i]-B.X[j],A.Z[i]-B.Z[j])<(A.hw+B.hw)*.7){hit=true;break}}}
+    if(!hit)continue;let c=null;for(const k of cl)if(Math.hypot(k.x-A.X[i],k.z-A.Z[i])<26){c=k;break}
+    if(c){c.x=(c.x*c.n+A.X[i])/(c.n+1);c.z=(c.z*c.n+A.Z[i])/(c.n+1);c.n++}else cl.push({x:A.X[i],z:A.Z[i],n:1})}});
+  const out=[];for(const k of cl)out.push(k.x,k.z);return _cj=out}
 function buildRoadMeshes(){
   _cj=null;const out=[];
   for(const r of ROADS){
@@ -125,11 +129,11 @@ function forBlocks(g,fn){const hw=g.hw+3.8,pl=g.planes,Wd=(u,v)=>[g.ox+u*g.cs-v*
   for(let i=0;i<g.us.length-1;i++)for(let j=0;j<g.vs.length-1;j++){const u0=g.us[i]+hw,u1=g.us[i+1]-hw,v0=g.vs[j]+hw,v1=g.vs[j+1]-hw;if(u1-u0<14||v1-v0<14)continue;
     let ok=true,x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const[u,v]of[[u0,v0],[u1,v0],[u1,v1],[u0,v1]]){const p=Wd(u,v);x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);z0=Math.min(z0,p[1]);z1=Math.max(z1,p[1]);
-      for(let k=0;k<pl.length;k++){const m=(sf&&k==4)?MARKET.hw+10:8;if(pl[k][0]*p[0]+pl[k][1]*p[1]>pl[k][2]-m)ok=false}}
+      for(let k=0;k<pl.length;k++){const m=(sf&&k==4)?MARKET.hw+12:18;if(pl[k][0]*p[0]+pl[k][1]*p[1]>pl[k][2]-m)ok=false}}
     if(g.cut)for(const R of g.cut)if(x1>R.x0&&x0<R.x1&&z1>R.z0&&z0<R.z1)ok=false;
     if(ok)fn({i,j,u0,u1,v0,v1,W:Wd,g})}}
 const URB=[CITY,VALLEY];
-const inUrban=(x,z,m)=>inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PARK,m);
+const inUrban=(x,z,m)=>inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PARK,m)||inBox(x,z,BEACH,m)||inBox(x,z,RESORT,m);
 function buildCity(){
   const rng=mulberry(1337);let nb=0,pyramid=false;const CORE={x:-870,z:310};
   const reg=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
@@ -149,6 +153,64 @@ function buildCity(){
       /* palms along every boulevard */
       for(const r of g.roads){for(let i=3;i<r.n-3;i+=6){const a=(i+1<r.n?i+1:i),b=(i>0?i-1:i);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;if(r.mk[i]<.6)continue;
         for(const sd of[-1,1]){const px=r.X[i]-tz*sd*(r.hw+RSH+3.4),pz=r.Z[i]+tx*sd*(r.hw+RSH+3.4);ppalm(px,pz,rng,r.Y[i]-.3);COLC.push(px,pz,.5,terrainH(px,pz)-.5,terrainH(px,pz)+12)}}}
+      continue}
+    if(g.kind=='beach'){/* Santa Cruz: bungalows and motels, a boardwalk with a Ferris wheel, lifeguard towers, umbrellas on the sand */
+      const BUN=[[238,120,110],[250,200,96],[96,184,196],[246,246,238],[210,140,190],[130,200,150],[255,170,90],[110,150,214]];
+      const palm=(x,z)=>{const y=terrainH(x,z);if(y<1.5)return;ppalm(x,z,rng,y);COLC.push(x,z,.5,y-.5,y+12)};
+      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,r=rng();
+        if(r<.22){const [px,pz]=B.W(cu,cv),hx0=wu*.42,hz0=Math.min(7,wv*.2),c=BUN[(rng()*BUN.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,4.6,c,true);
+          const [sx,sz]=B.W(B.u0+5,B.v1-6);pbox(1,sx,gy,sz,.25,gy+9,.25,200,200,205,false,.7);pbox(1,sx,gy+7,sz,1.7,gy+9.2,.22,255,90,120,false,1);COLC.push(sx,sz,.4,gy-.5,gy+9);
+          const [qx,qz]=B.W(cu,cv+hz0+8);palm(qx,qz)}
+        else{const lw=wu/2,ld=wv/2;for(let a=0;a<2;a++)for(let b=0;b<2;b++){const u=B.u0+lw*(a+.5),v=B.v0+ld*(b+.5),[px,pz]=B.W(u,v),hx0=Math.min(8.5,lw*.36),hz0=Math.min(6.5,ld*.34),h=3.1+rng()*1.3,c=BUN[(rng()*BUN.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,c,true);
+          proofR(1,px,pz,hx0,hz0,cs,sn,gy+h,1.8+rng()*.8,[196,90,74,120][(rng()*4)|0],110,92,rng()<.5);if(rng()<.65){const [qx,qz]=B.W(u+hx0+3,v+hz0+2.5);palm(qx,qz)}}}});
+      /* boardwalk shops between the last street and the beach road, and a Ferris wheel */
+      {const zS=BEACH.z1-34,uP=-350;
+       for(let i=0;i<g.us.length-1;i++){const u0=g.us[i],u1=g.us[i+1],uc=(u0+u1)/2,half=(u1-u0)/2-g.hw-8;if(half<8)continue;
+         if(uc>uP-45&&uc<uP+45)continue;                                           /* the pier entrance */
+         if(i==g.us.length-3||(g.us.length<4&&i==1)){/* Ferris wheel */const gy=terrainH(uc,zS),cy=gy+19,R=15.5,N=20,C2=[[230,70,70],[240,200,60],[70,160,230],[90,200,120],[220,120,220]];
+           for(const sd of[-1,1]){pbox(1,uc+sd*9,gy-.5,zS,.7,cy,.7,200,204,212,false,.8);COLC.push(uc+sd*9,zS,1,gy-.5,gy+19)}
+           pbox(1,uc,cy-1.2,zS,1.5,cy+1.2,1.2,230,230,236,false,.9);
+           for(let k=0;k<N;k++){const an=k/N*TAU,c=C2[k%5];pbox(1,uc+Math.cos(an)*R,cy+Math.sin(an)*R-1.2,zS,1.15,cy+Math.sin(an)*R+1.2,1.0,c[0],c[1],c[2],false,.9);
+             if(k%2==0)for(const f of[.38,.69])pbox(1,uc+Math.cos(an)*R*f,cy+Math.sin(an)*R*f-.3,zS,.3,cy+Math.sin(an)*R*f+.3,.3,236,236,240,false,1)}
+           continue}
+         for(const k of[-1,1]){const px=uc+k*half*.52,hx0=half*.46,gy=bld(px,zS,hx0,7.5,1,0,4.4+rng()*1.2,BUN[(rng()*BUN.length)|0],true);
+           const c=BUN[(rng()*BUN.length)|0];pboxR(1,px,zS+9,hx0,1.8,1,0,gy+3,gy+3.5,c[0],c[1],c[2],false,1)}}}
+      /* lifeguard towers and beach umbrellas on the sand south of the beach road */
+      for(const x of[-455,-215]){const z=BEACH.z1+34,y=terrainH(x,z);if(y<1)continue;pbox(1,x-.9,y-.4,z-.9,.2,y+2,.2,230,230,236,false,.8);pbox(1,x+.9,y-.4,z-.9,.2,y+2,.2,230,230,236,false,.8);pbox(1,x-.9,y-.4,z+.9,.2,y+2,.2,230,230,236,false,.8);pbox(1,x+.9,y-.4,z+.9,.2,y+2,.2,230,230,236,false,.8);
+        pbox(1,x,y+2,z,1.5,y+4.1,1.5,240,70,60,true,.9);pbox(1,x,y+4.1,z,1.9,y+4.5,1.9,250,250,250,false,1);COLC.push(x,z,1.7,y-.5,y+4.5)}
+      {const ur=mulberry(3131),UC=[[240,70,60],[250,210,70],[70,160,230],[250,250,250],[240,130,60]];for(let k=0;k<26;k++){const x=lerp(BEACH.x0+20,BEACH.x1-20,ur()),z=BEACH.z1+22+ur()*24,y=terrainH(x,z);if(y<1.2||y>8||nearRoadXZ(x,z,9))continue;const c=UC[(ur()*5)|0];pbox(1,x,y-.2,z,.07,y+2.2,.07,230,230,236,false,.8);pcone(1,x,y+1.9,z,1.7,.55,c[0],c[1],c[2],8,ur()*6)}}
+      /* palms along the beach road and the pier road */
+      {const bp=ROADS.find(q=>q.id=='btp');if(bp)for(let i=4;i<bp.n-4;i+=5){const a=(i+1)%bp.n,b=(i+bp.n-1)%bp.n;let tx=bp.X[a]-bp.X[b],tz=bp.Z[a]-bp.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;if(bp.mk[i]<.6)continue;
+        for(const sd of[-1,1]){const px=bp.X[i]-tz*sd*(bp.hw+RSH+3.4),pz=bp.Z[i]+tx*sd*(bp.hw+RSH+3.4);if(nearRoadXZ(px,pz,1.5))continue;palm(px,pz)}}}
+      continue}
+    if(g.kind=='ps'){/* Palm Springs: mid-century hotels round big pools, a golf course, villas with pools, palm boulevards */
+      const lawn=(cx,cz,hx,hz,cs,sn,c0,c1,c2,lift,t)=>{t=t||14;const nu=Math.max(1,Math.ceil(hx*2/t)),nv=Math.max(1,Math.ceil(hz*2/t)),tu=hx*2/nu,tv=hz*2/nv;
+        for(let a=0;a<nu;a++)for(let b=0;b<nv;b++){const lu=-hx+tu*(a+.5),lv=-hz+tv*(b+.5),px=cx+lu*cs-lv*sn,pz=cz+lu*sn+lv*cs;let y=-1e9;
+          for(const[du,dv]of[[-1,-1],[1,-1],[1,1],[-1,1],[0,0]]){const qx=px+(du*tu/2)*cs-(dv*tv/2)*sn,qz=pz+(du*tu/2)*sn+(dv*tv/2)*cs;y=Math.max(y,terrainH(qx,qz))}
+          pflat(1,px,pz,tu/2+.05,tv/2+.05,cs,sn,y+lift,c0,c1,c2)}};
+      const palmAt=(x,z)=>{const y=terrainH(x,z);ppalm(x,z,rng,y);COLC.push(x,z,.5,y-.5,y+12)};
+      forBlocks(g,B=>{const cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,typ=(B.i+B.j*2)%4,P=(u,v)=>B.W(u,v),pm=(u,v)=>{const p=P(u,v);palmAt(p[0],p[1])};
+        if(typ==0||typ==3){/* hotel: a long main wing, a side wing, a pool deck */
+          const [mx,mz]=P(cu,B.v0+20),gy=bld(mx,mz,wu*.46,10,cs,sn,10,typ==0?[238,226,200]:[244,200,190],true);pboxR(1,mx,mz,wu*.46+3,13,cs,sn,gy+10,gy+10.7,70,170,180,false,1);
+          const [wx,wz]=P(B.u0+18,cv+8),gy2=bld(wx,wz,10,wv*.28,cs,sn,7.5,[236,170,170],true);pboxR(1,wx,wz,13,wv*.28+3,cs,sn,gy2+7.5,gy2+8.1,70,170,180,false,1);
+          const [dx,dz]=P(cu+26,cv+24);lawn(dx,dz,34,17,cs,sn,232,226,210,.1);lawn(dx,dz,24,10,cs,sn,72,176,214,.2,12);
+          for(const[u,v]of[[cu-4,cv+8],[cu+56,cv+8],[cu-4,cv+42],[cu+56,cv+42],[cu+26,cv+4],[cu+26,cv+46]])pm(u,v);
+          const [lx,lz]=P(cu,B.v1-14);lawn(lx,lz,wu*.36,9,cs,sn,64,64,70,.1,16);
+          const [sx,sz]=P(B.u1-10,B.v0+6),sy=terrainH(sx,sz);pbox(1,sx,sy-.5,sz,.5,sy+15,.5,236,236,240,false,.8);pbox(1,sx,sy+10,sz,3.2,sy+16,.5,250,120,150,false,1);COLC.push(sx,sz,.9,sy-.5,sy+15)}
+        else if(typ==1){/* golf course with a pond and a clubhouse */
+          lawn(...P(cu,cv),wu/2-3,wv/2-3,cs,sn,56,124,56,.1,16);lawn(...P(cu-10,cv-24),wu*.4,9,cs,sn,92,168,80,.2,16);lawn(...P(cu+12,cv+22),wu*.38,9,cs,sn,92,168,80,.2,16);
+          const [px,pz]=P(cu+34,cv-2);lawn(px,pz,17,11,cs,sn,64,150,204,.3,12);
+          const [cx0,cz0]=P(B.u0+26,B.v1-18),gy=bld(cx0,cz0,18,9,cs,sn,6.5,[236,226,210],true);proofR(1,cx0,cz0,19,10,cs,sn,gy+6.5,2.2,160,120,100,true);
+          for(let k=0;k<22;k++){const u=lerp(B.u0+8,B.u1-8,rng()),v=lerp(B.v0+8,B.v1-8,rng()),p=P(u,v);if(Math.hypot(p[0]-px,p[1]-pz)<24||Math.hypot(p[0]-cx0,p[1]-cz0)<30)continue;
+            const y=terrainH(p[0],p[1]);if(rng()<.55)ppalm(p[0],p[1],rng,y);else ptree(p[0],p[1],rng,y);COLC.push(p[0],p[1],.55,y-.5,y+12)}}
+        else{/* villas: nine flat-roofed houses, each with a small pool */
+          const lw=wu/3,ld=wv/3,HC=[[240,232,214],[226,196,170],[200,222,226],[236,214,180]];
+          for(let a=0;a<3;a++)for(let b=0;b<3;b++){const u=B.u0+lw*(a+.5),v=B.v0+ld*(b+.5),[hx,hz]=P(u-4,v-6),h=3.4+rng()*.8,gy=bld(hx,hz,Math.min(13,lw*.28),Math.min(8,ld*.2),cs,sn,h,HC[(rng()*4)|0],true);
+            pboxR(1,hx,hz,Math.min(13,lw*.28)+1.4,Math.min(8,ld*.2)+1.4,cs,sn,gy+h,gy+h+.45,226,226,230,false,1);
+            const [wx,wz]=P(u+3,v+12);lawn(wx,wz,9,5,cs,sn,232,226,210,.1,12);lawn(wx,wz,6.5,3,cs,sn,72,176,214,.2,12);pm(u+lw*.36,v+ld*.3);if(rng()<.6)pm(u-lw*.36,v+ld*.3)}}});
+      /* palms along the boulevards and the ring boulevard */
+      for(const r of g.roads.concat(ROADS.filter(q=>q.id=='psp'))){for(let i=3;i<r.n-3;i+=6){const a=(i+1<r.n?i+1:(i+1)%r.n),b=(i>0?i-1:r.n-1);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;if(r.mk[i]<.6)continue;
+        for(const sd of[-1,1]){const px=r.X[i]-tz*sd*(r.hw+RSH+3.4),pz=r.Z[i]+tx*sd*(r.hw+RSH+3.4);if(nearRoadXZ(px,pz,1.5))continue;palmAt(px,pz)}}}
       continue}
     /* San Francisco blocks */
     forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,[cx,cz]=B.W(cu,cv),cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,dcore=Math.hypot(cx-CORE.x,cz-CORE.z),th=terrainH(cx,cz),r=rng();

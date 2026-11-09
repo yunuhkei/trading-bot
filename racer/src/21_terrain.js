@@ -1,6 +1,7 @@
 'use strict';
 /* ===== heightmap generation, road carving, ground colours, height queries ===== */
 const CUT_SLOPE=.36;
+const RAILS=false;   /* guardrails are switched off for now (set true to bring back the highway rails, cliff rails and bridge rails) */
 function hmIdx(x,z){return[(x+W.half)/W.T,(z+W.half)/W.T]}
 /* bilinear terrain height at a world position */
 function terrainH(x,z){const N=W.N;let gx=(x+W.half)/W.T,gz=(z+W.half)/W.T;gx=clamp(gx,0,N-1.001);gz=clamp(gz,0,N-1.001);const i=gx|0,j=gz|0,fx=gx-i,fz=gz-j,h=W.hm,o=j*N+i;
@@ -33,6 +34,7 @@ async function carveRoads(prog){
   return D}
 /* guardrails: continuous on the divided highways (except around junctions), wherever the ground falls away steeply beside a road, and always on bridges */
 function railPass(){
+  if(!RAILS){for(const r of ROADS)r.rail.fill(0);return}
   /* junctions: where a road starts or ends on another road */
   const jz=[];
   for(const r of ROADS){if(r.closed||r.city)continue;for(const e of[0,r.n-1]){const x=r.X[e],z=r.Z[e];for(const o of ROADS){if(o===r)continue;const k=roadNear(o,x,z);if(Math.hypot(o.X[k]-x,o.Z[k]-z)<o.hw+8){jz.push(x,z);break}}}}
@@ -56,7 +58,7 @@ function genColors(){
       const gr=[.075+.035*nz1,.16+.05*nz1,.04+.02*nz1],dg=[.30,.23,.095];
       c=[lerp(gr[0],dg[0],dry*(.5+nz2*.6)),lerp(gr[1],dg[1],dry*(.5+nz2*.6)),lerp(gr[2],dg[2],dry*(.5+nz2*.6))];
       const forest=forestAt(x,z,h,sl,dr);if(forest)c=[.04+.02*nz1,.09+.03*nz1,.02];
-      const inCity=inBox(x,z,CITY,10)||inBox(x,z,VALLEY,10);if(inCity)c=inBox(x,z,VALLEY,10)?[.2,.19,.17]:[.17,.165,.155];if(inBox(x,z,PARK,0))c=[.07+.03*nz1,.2+.05*nz1,.05];
+      const inCity=inBox(x,z,CITY,10)||inBox(x,z,VALLEY,10)||inBox(x,z,BEACH,10)||inBox(x,z,RESORT,10);if(inCity)c=inBox(x,z,VALLEY,10)?[.2,.19,.17]:inBox(x,z,BEACH,10)?[.36+.03*nz1,.31+.03*nz1,.22]:inBox(x,z,RESORT,10)?[.33+.03*nz1,.27+.03*nz1,.18]:[.17,.165,.155];if(inBox(x,z,PARK,0))c=[.07+.03*nz1,.2+.05*nz1,.05];
       /* sand */const sd=1-sstep(2.2,5.5,h+nz1*2);if(sd>0)c=[lerp(c[0],.46,sd),lerp(c[1],.37,sd),lerp(c[2],.22,sd)];
       if(h<.3){const w=sstep(-1.5,.3,h);c=[lerp(.2,c[0],w),lerp(.17,c[1],w),lerp(.1,c[2],w)]}
       /* rock on slopes and up high, snow on the peaks */
@@ -66,7 +68,7 @@ function genColors(){
       if(dr>0&&dr<22&&sl>.3&&!inCity){const e=(1-sstep(8,22,dr))*sstep(.3,.5,sl);c=[lerp(c[0],.2,e),lerp(c[1],.14,e),lerp(c[2],.08,e)]}
       const o=(j*CN+i)*4,s=sq(c[0],c[1],c[2]);col[o]=Math.min(255,s[0]*255);col[o+1]=Math.min(255,s[1]*255);col[o+2]=Math.min(255,s[2]*255);col[o+3]=255}}
 }
-function forestAt(x,z,h,sl,dr){if(h<7||h>300||sl>.5||dr<26)return false;if(inBox(x,z,CITY,80)||inBox(x,z,VALLEY,80)||inBox(x,z,PARK,40))return false;
+function forestAt(x,z,h,sl,dr){if(h<7||h>300||sl>.5||dr<26)return false;if(inBox(x,z,CITY,80)||inBox(x,z,VALLEY,80)||inBox(x,z,PARK,40)||inBox(x,z,BEACH,60)||inBox(x,z,RESORT,60))return false;
   const f=fbm(x*.0042,z*.0042,21,3)*1.0+.12*sstep(-200,900,x)*sstep(100,-900,z)+(fbm(x*.02,z*.02,22,2)-.5)*.2;return f>.58}
 /* RGBA8 texture data for the GPU: 16-bit height in R/G */
 function heightTexData(){const N=W.N,hm=W.hm,o=new Uint8Array(N*N*4);for(let k=0;k<N*N;k++){let v=Math.round((hm[k]-W.hmin)/W.hrange*65535);v=v<0?0:v>65535?65535:v;o[k*4]=v>>8;o[k*4+1]=v&255;o[k*4+2]=0;o[k*4+3]=255}return o}

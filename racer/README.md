@@ -9,8 +9,17 @@ It is built from the modules in `racer/src` by `python3 racer/build.py` (the out
   **Downtown** = two street grids (one axis-aligned, one rotated to follow the diagonal **Market Street**, like SF), a tower district with a pyramid tower,
   Victorian row houses on **Nob Hill / Russian Hill** (grades over 20 percent) with a hairpin **Lombard Street** block, **Twin Peaks** with a winding road,
   **Golden Gate Park** (a long green strip with a lake and a park drive); **the Valley** = LA style wide palm-lined boulevards with strip malls, parking lots and stucco houses;
-  **Mulholland** = a very twisty ridge road in the hills. Roads that cross do so on real overpasses (found and built automatically, `fixCrossings`).
-  Collision: guardrails on all divided highways (except junctions), on cliffs and bridges; buildings (also the rotated ones), poles, trees and bridge piers are solid
+  **Mulholland** = a very twisty ridge road in the hills; **Santa Cruz** = a beach town on the south coast (bungalows, motels, a boardwalk with a Ferris wheel,
+  lifeguard towers, umbrellas and a pier you can drive out on); **Palm Springs** = a desert resort town of wide palm boulevards (mid-century hotels round pools,
+  a golf course, villas with pools).
+  **Network** (one connected road system, checked by a script that reports roads lying on top of each other, dead ends and disconnected pieces): every district is ringed
+  by a boulevard (`perimeter()`), every street of the district ends on it, and the highways join the boulevards: Geary and the park drive meet downtown's boulevard,
+  the boulevard road runs from downtown across the hills to the ring, the Valley joins it and the ring, the coast road runs from Market Street's south-west end
+  round the coast to the southern highway (past the Santa Cruz link), the east link joins the ring to the southern highway, Palm Springs joins the east link and the southern
+  highway, Mulholland runs from the ring to the boulevard road and the mountain pass leaves the ring and returns to it. Branches leave a road along its side and peel away
+  (`rampPts`) or end as a T on its edge (`edgePt`), so no road is built on top of another; where roads really cross (coast road over the ring) there is an overpass
+  (found and built automatically, `fixCrossings`).
+  Collision: there are no guardrails for now (`RAILS=false` in `src/21_terrain.js` brings back the highway, cliff and bridge rails); buildings (also the rotated ones), poles, trees and bridge piers are solid
   (with height ranges, so the deck of a bridge is not blocked by what is under it); steep banks are walls.
   Hills: the road-surface lookup picks the nearest road segment at the car's own level (never by height alone, which made the ground a staircase), every city street takes
   its height from one shared smoothed height field (so crossing streets are flush), connector roads blend to the street they join, the body height follows the ground

@@ -89,7 +89,7 @@ function drawMap(ctx,cx,cy,rad,zoomM,rot){
   ctx.translate(cx,cy);ctx.rotate(rot);ctx.scale(s,s);ctx.translate(-(C.x+W.half)*pxm,-(C.z+W.half)*pxm);ctx.imageSmoothingEnabled=true;ctx.drawImage(UI.mapCv,0,0);ctx.restore();
   ctx.save();ctx.translate(cx,cy);ctx.fillStyle='#ff7a1a';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,-rad*.14);ctx.lineTo(rad*.09,rad*.1);ctx.lineTo(0,rad*.05);ctx.lineTo(-rad*.09,rad*.1);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
   ctx.beginPath();ctx.arc(cx,cy,rad,0,TAU);ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.85)';ctx.stroke()}
-const REGIONS=[['Golden Gate Park',()=>inBox(C.x,C.z,PARK,10)],['Russian Hill',()=>Math.hypot(C.x+1100,C.z+70)<200],['Twin Peaks',()=>Math.hypot(C.x+620,C.z-760)<260],['Downtown',()=>inBox(C.x,C.z,CITY,20)],['The Valley',()=>inBox(C.x,C.z,VALLEY,20)],['Mulholland ridge',()=>C.x>450&&C.x<1650&&C.z>-420&&C.z<20&&terrainH(C.x,C.z)>40],['Mountain pass',()=>terrainH(C.x,C.z)>130&&C.x>600&&C.z<-700],['Pacific coast',()=>C.x<-1700],['North shore',()=>C.z<-2000],['Southern plains',()=>C.z>1700],['Highlands',()=>C.x>1300&&C.z<-300],['Orbital ring',()=>Math.hypot(C.x*.9,C.z-100)>1100],['Suburbs',()=>true]];
+const REGIONS=[['Golden Gate Park',()=>inBox(C.x,C.z,PARK,10)],['Russian Hill',()=>Math.hypot(C.x+1100,C.z+70)<200],['Twin Peaks',()=>Math.hypot(C.x+620,C.z-760)<260],['Downtown',()=>inBox(C.x,C.z,CITY,20)],['The Valley',()=>inBox(C.x,C.z,VALLEY,20)],['Santa Cruz Pier',()=>inBox(C.x,C.z,{x0:BEACH.x0,z0:BEACH.z1,x1:BEACH.x1,z1:BEACH.z1+260},0)],['Santa Cruz',()=>inBox(C.x,C.z,BEACH,30)],['Palm Springs',()=>inBox(C.x,C.z,RESORT,30)],['Mulholland ridge',()=>C.x>450&&C.x<1650&&C.z>-420&&C.z<20&&terrainH(C.x,C.z)>40],['Mountain pass',()=>terrainH(C.x,C.z)>130&&C.x>600&&C.z<-700],['Pacific coast',()=>C.x<-1700],['North shore',()=>C.z<-2000],['Southern plains',()=>C.z>1700],['Highlands',()=>C.x>1300&&C.z<-300],['Orbital ring',()=>Math.hypot(C.x*.9,C.z-100)>1100],['Suburbs',()=>true]];
 function regionName(){for(const r of REGIONS)if(r[1]())return r[0];return''}
 /* ---------- HUD ---------- */
 function hudDraw(){
@@ -122,7 +122,7 @@ function hudDraw(){
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}
   if(UI.mapOpen)drawWorldMap(c,W_,H_,u)
 }
-const MAPLBL=[['DOWNTOWN',-860,330,1],['RUSSIAN HILL',-1090,-190,1],['TWIN PEAKS',-640,940,1],['GOLDEN GATE PARK',-1440,400,1,'r'],['THE VALLEY',640,880,1],['MULHOLLAND',1000,-330,1],['ORBITAL RING',-150,-1120,1],['MOUNTAIN PASS',1850,-1800,1],['NORTH SHORE',-350,-2610,1],['PACIFIC COAST',-1850,1720,1],['SOUTHERN PLAINS',1200,2290,1],['EAST LINK',2200,1450,1],['OCEAN',-2640,-500,0]];
+const MAPLBL=[['DOWNTOWN',-860,330,1],['RUSSIAN HILL',-1090,-190,1],['TWIN PEAKS',-640,940,1],['GOLDEN GATE PARK',-1440,400,1,'r'],['THE VALLEY',640,880,1],['SANTA CRUZ',-325,2650,1],['PALM SPRINGS',1620,1660,1],['MULHOLLAND',1000,-330,1],['ORBITAL RING',-150,-1120,1],['MOUNTAIN PASS',1850,-1800,1],['NORTH SHORE',-350,-2610,1],['PACIFIC COAST',-1850,1720,1],['SOUTHERN PLAINS',1200,2290,1],['EAST LINK',2200,1450,1],['OCEAN',-2640,-500,0]];
 /* the whole county on one screen: where you are, the roads, the named areas */
 function drawWorldMap(c,W_,H_,u){
   c.fillStyle='#050a12';c.fillRect(0,0,W_,H_);
