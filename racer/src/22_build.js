@@ -218,12 +218,15 @@ function buildQueries(){
 const RQ={on:0,y:0,lat:0,hw:0,tx:0,tz:0,nx:0,nz:0,rail:0,ri:0,br:0,ds:0};
 function roadAt(x,z,yh){
   const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)/cs),cz=Math.floor((z+W.half)/cs);if(cx<0||cz<0||cx>=nc||cz>=nc)return false;
-  const c=cz*nc+cx;let best=1e9,found=false;
-  for(let q=QH.st[c];q<QH.st[c+1];q++){const s=QH.li[q],r=ROADS[QH.segR[s]],i=QH.segI[s],j=i+1<r.n?i+1:0;
-    const ax=r.X[i],az=r.Z[i],dx=r.X[j]-ax,dz=r.Z[j]-az,l2=dx*dx+dz*dz||1;let t=((x-ax)*dx+(z-az)*dz)/l2;t=t<0?0:t>1?1:t;
-    const px=ax+dx*t,pz=az+dz*t,ex=x-px,ez=z-pz,d=Math.sqrt(ex*ex+ez*ez),hw=r.hw*(r.wk[i]+(r.wk[j]-r.wk[i])*t)+RSH;if(d>hw)continue;
-    const yy=r.Y[i]+(r.Y[j]-r.Y[i])*t;if(Math.abs(yy-yh)>4.5)continue;
-    const score=Math.abs(yy-yh)+d*.05;if(score<best){best=score;found=true;const l=Math.sqrt(l2),tx=dx/l,tz=dz/l;RQ.y=yy;RQ.tx=tx;RQ.tz=tz;RQ.nx=-tz;RQ.nz=tx;RQ.lat=ex*RQ.nx+ez*RQ.nz;RQ.hw=hw-RSH;RQ.rail=r.rail[i]&r.rail[j];RQ.ri=QH.segR[s];RQ.br=r.br[i];RQ.ds=r.S[i]+(r.S[j]-r.S[i])*t}}
+  const c=cz*nc+cx;let found=false,bestL=1e9,bestF=1e9,fl=false;
+  /* two passes of the same rule: nearest road centre-line wins. First only surfaces within 1.3 m of the car's height (its own level); only if there is
+     none, anything within 4.5 m. That keeps a hairpin's upper leg or a crossing road from ever stealing the car. */
+  for(let pass=0;pass<2;pass++){const tol=pass?4.5:1.3;if(pass&&found)break;
+    for(let q=QH.st[c];q<QH.st[c+1];q++){const s=QH.li[q],r=ROADS[QH.segR[s]],i=QH.segI[s],j=i+1<r.n?i+1:0;
+      const ax=r.X[i],az=r.Z[i],dx=r.X[j]-ax,dz=r.Z[j]-az,l2=dx*dx+dz*dz||1;let t=((x-ax)*dx+(z-az)*dz)/l2;t=t<0?0:t>1?1:t;
+      const px=ax+dx*t,pz=az+dz*t,ex=x-px,ez=z-pz,d=Math.sqrt(ex*ex+ez*ez),hw=r.hw*(r.wk[i]+(r.wk[j]-r.wk[i])*t)+RSH;if(d>hw)continue;
+      const yy=r.Y[i]+(r.Y[j]-r.Y[i])*t;if(Math.abs(yy-yh)>tol)continue;
+      if(d<bestL){bestL=d;found=true;const l=Math.sqrt(l2),tx=dx/l,tz=dz/l;RQ.y=yy;RQ.tx=tx;RQ.tz=tz;RQ.nx=-tz;RQ.nz=tx;RQ.lat=ex*RQ.nx+ez*RQ.nz;RQ.hw=hw-RSH;RQ.rail=r.rail[i]&r.rail[j];RQ.ri=QH.segR[s];RQ.br=r.br[i];RQ.ds=r.S[i]+(r.S[j]-r.S[i])*t}}}
   return found}
 /* ground height under a point (road surface if on a road at that level, else terrain) */
 function groundAt(x,z,yh){const ty=terrainH(x,z);RQ.on=0;if(roadAt(x,z,yh)){const over=Math.abs(RQ.lat)-RQ.hw;let y=RQ.y-(over>0?Math.min(over,RSH)/RSH*.12:0);if(y>ty-2.2){RQ.on=1;return y}}return ty}

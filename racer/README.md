@@ -11,7 +11,10 @@ It is built from the modules in `racer/src` by `python3 racer/build.py` (the out
   **Golden Gate Park** (a long green strip with a lake and a park drive); **the Valley** = LA style wide palm-lined boulevards with strip malls, parking lots and stucco houses;
   **Mulholland** = a very twisty ridge road in the hills. Roads that cross do so on real overpasses (found and built automatically, `fixCrossings`).
   Collision: guardrails on all divided highways (except junctions), on cliffs and bridges; buildings (also the rotated ones), poles, trees and bridge piers are solid
-  (with height ranges, so the deck of a bridge is not blocked by what is under it); steep banks are walls. Everything is deterministic.
+  (with height ranges, so the deck of a bridge is not blocked by what is under it); steep banks are walls.
+  Hills: the road-surface lookup picks the nearest road segment at the car's own level (never by height alone, which made the ground a staircase), every city street takes
+  its height from one shared smoothed height field (so crossing streets are flush), connector roads blend to the street they join, the body height follows the ground
+  closely and the ground cannot launch the car faster than the slope allows. `racer` tests that measure this live in the session scratchpad, not in the repo. Everything is deterministic.
 * **Rendering**: terrain is a GPU clip-map (6 rings, one draw each) displaced from a 16-bit height texture; roads are ribbons with analytic
   lane markings; buildings/trees/barriers are merged per 128 m cell and culled by distance + frustum; sky, fog and water are shaders.
   About 40-110 draw calls and 60-90k triangles per frame. No shadows or reflections. A render-scale governor keeps frame time near 16 ms.

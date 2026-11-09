@@ -8,7 +8,7 @@ const CITY={x0:-1330,z0:-150,x1:-470,z1:700};          /* the downtown box (two 
 const MARKET={x0:-1240,z0:700,x1:-520,z1:40,hw:13};      /* the diagonal avenue that splits the two grids */
 const PARK={x0:-1450,z0:380,x1:-1010,z1:470};           /* Golden Gate Park style green strip with a lake */
 const VALLEY={x0:250,z0:540,x1:1030,z1:1270};           /* LA style: wide boulevards, low buildings, palms */
-const HILLS=[[-860,10,50,210],[-1100,-70,64,185],[-640,720,85,210],[-540,810,68,160],[-1390,250,24,150]];   /* Nob Hill, Russian Hill, Twin Peaks */
+const HILLS=[[-860,0,40,230],[-1100,-90,52,210],[-640,790,56,250],[-520,850,40,190],[-1390,250,22,150]];   /* Nob Hill, Russian Hill, Twin Peaks */
 const LAKES=[[-1235,425,42,-3]];
 const RIDGES=[[1580,-250,560,-70,74,130]];              /* the Mulholland ridge: x0,z0,x1,z1,height,half-width */
 const PEAKS=[[1950,-1950,330,900],[2550,-1000,200,600]];
@@ -60,6 +60,8 @@ function roadNear(r,x,z){let bi=0,bd=1e18;for(let i=0;i<r.n;i++){const d=(r.X[i]
 function smoothArr(a,rad,closed){const n=a.length,o=new Float32Array(n);for(let i=0;i<n;i++){let s=0,c=0;for(let k=-rad;k<=rad;k++){let j=i+k;if(closed)j=(j%n+n)%n;else if(j<0||j>=n)continue;s+=a[j];c++}o[i]=s/c}return o}
 function gradeLimit(y,ds,g,closed){const n=y.length,m=g*ds;for(let pass=0;pass<(closed?3:1);pass++){for(let i=1;i<n;i++)y[i]=clamp(y[i],y[i-1]-m,y[i-1]+m);for(let i=n-2;i>=0;i--)y[i]=clamp(y[i],y[i+1]-m,y[i+1]+m);if(closed){y[0]=clamp(y[0],y[n-1]-m,y[n-1]+m)}}}
 /* def: {id,hw,lanes,style,closed,pts,flat,from:[road,f],to:[road,f],bridge:[{x,z,len,h}],lift,yfix} ; style 0 two-way, 1 divided, 2 patch, 3 city street */
+/* a smoothed copy of the land (about 30 m blur): all city streets take their height from it, so streets that cross are always flush */
+function Hs(x,z){let s=baseH(x,z)*2,w=2;for(let k=0;k<8;k++){const a=k*.7854;s+=baseH(x+Math.cos(a)*14,z+Math.sin(a)*14)+baseH(x+Math.cos(a)*30,z+Math.sin(a)*30);w+=2}return s/w}
 function crossPoint(r,o){const rc=r.closed?r.n:r.n-1,oc=o.closed?o.n:o.n-1;
   for(let i=0;i<rc;i++){const j=(i+1)%r.n,ax=r.X[i],az=r.Z[i],bx=r.X[j],bz=r.Z[j];
     for(let k=0;k<oc;k++){const l=(k+1)%o.n,cx=o.X[k],cz=o.Z[k],dx=o.X[l],dz=o.Z[l],den=(bx-ax)*(dz-cz)-(bz-az)*(dx-cx);if(Math.abs(den)<1e-9)continue;
@@ -69,7 +71,8 @@ function buildRoad(d,dry){
   const ds=4,sp=catmull(d.pts,!!d.closed,ds),n=sp.n,X=sp.X,Z=sp.Z;
   let Y=new Float32Array(n);
   for(let i=0;i<n;i++)Y[i]=d.flat!=null?d.flat:Math.max(baseH(X[i],Z[i]),d.minY==null?3.2:d.minY);
-  if(d.flat==null){Y=smoothArr(Y,Math.round((d.smooth||90)/ds),!!d.closed);gradeLimit(Y,ds,d.grade||.085,!!d.closed)}
+  if(d.cityField){for(let i=0;i<n;i++)Y[i]=Math.max(Hs(X[i],Z[i]),3.2)}
+  else if(d.flat==null){Y=smoothArr(Y,Math.round((d.smooth||90)/ds),!!d.closed);gradeLimit(Y,ds,d.grade||.085,!!d.closed)}
   const r={id:d.id,n,X,Z,Y,ds:sp.step,hw:d.hw,lanes:d.lanes,style:d.style,closed:!!d.closed,lift:d.lift||0,city:!!d.city,def:d};
   r.S=new Float32Array(n);for(let i=1;i<n;i++)r.S[i]=r.S[i-1]+Math.hypot(X[i]-X[i-1],Z[i]-Z[i-1]);
   r.len=r.S[n-1]+(r.closed?Math.hypot(X[0]-X[n-1],Z[0]-Z[n-1]):0);
@@ -78,8 +81,9 @@ function buildRoad(d,dry){
   const blend=(ref,at,fromStart)=>{const rr=ROADS.find(q=>q.id==ref);if(!rr)return;
     for(let i=0;i<n;i++){const s=fromStart?r.S[i]:r.len-r.S[i];if(s>320)continue;let bd=1e18,bk=0;for(let k=0;k<rr.n;k++){const dd=(rr.X[k]-X[i])**2+(rr.Z[k]-Z[i])**2;if(dd<bd){bd=dd;bk=k}}
       const t=sstep(8,170,Math.sqrt(bd)),w=Math.max(t,sstep(150,320,s));Y[i]=lerp(rr.Y[bk],Y[i],w)}};
-  if(d.from)blend(d.from,0,true);if(d.to)blend(d.to,0,false);
-  if((d.from||d.to)&&d.flat==null){const g=(d.grade||.085)*ds,p0=Y[0],p1=Y[n-1];for(let it=0;it<3;it++){if(d.from)Y[0]=p0;for(let i=1;i<n;i++)Y[i]=clamp(Y[i],Y[i-1]-g,Y[i-1]+g);if(d.to)Y[n-1]=p1;for(let i=n-2;i>=0;i--)Y[i]=clamp(Y[i],Y[i+1]-g,Y[i+1]+g)}}
+  const yf=d.from||d.yFrom,yt=d.to||d.yTo;if(d.yLine)for(let i=0;i<n;i++)Y[i]=lerp(d.yLine[0],d.yLine[1],r.S[i]/r.len);
+  if(yf)blend(yf,0,true);if(yt)blend(yt,0,false);
+  if((yf||yt)&&d.flat==null&&!d.cityField&&!d.yLine){const g=(d.grade||.085)*ds,p0=Y[0],p1=Y[n-1];for(let it=0;it<3;it++){if(yf)Y[0]=p0;for(let i=1;i<n;i++)Y[i]=clamp(Y[i],Y[i-1]-g,Y[i-1]+g);if(yt)Y[n-1]=p1;for(let i=n-2;i>=0;i--)Y[i]=clamp(Y[i],Y[i+1]-g,Y[i+1]+g)}}
   /* overpasses: lift a stretch of this road above whatever it crosses (bridgeOver names the roads to find the crossing with) */
   r.br=new Uint8Array(n);
   const bl=(d.bridge||[]).slice();if(d.bridgeOver)for(const id of d.bridgeOver){const o=ROADS.find(q=>q.id==id),c=o&&crossPoint(r,o);if(c)bl.push({x:c[0],z:c[1],len:100,h:9.5})}
@@ -130,7 +134,7 @@ function gridStreets(g){
   const add=(tag,p0,p1)=>{const c=clipSeg(p0[0],p0[1],p1[0],p1[1],g.planes);if(!c)return;const ax=p0[0]+(p1[0]-p0[0])*c[0],az=p0[1]+(p1[1]-p0[1])*c[0],bx=p0[0]+(p1[0]-p0[0])*c[1],bz=p0[1]+(p1[1]-p0[1])*c[1];
     let pieces=[[0,1]];for(const R of(g.cut||[])){const next=[];for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1;for(const[c0,c1]of cutRect(sx,sz,ex,ez,R))next.push([a0+(a1-a0)*c0,a0+(a1-a0)*c1])}pieces=next}
     for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1;if(Math.hypot(ex-sx,ez-sz)<34)continue;
-      const r=buildRoad({id:g.id+tag+(a0>0||a1<1?'~':''),hw:g.hw,lanes:1,style:g.style,city:1,smooth:g.smooth||60,grade:g.grade||.26,lift:g.lift+(idx++)*.0004,pts:[[sx,sz],[ex,ez]]});g.roads.push(r);cityEnds.push([sx,sz],[ex,ez])}};
+      const r=buildRoad({id:g.id+tag+(a0>0||a1<1?'~':''),hw:g.hw,lanes:1,style:g.style,city:1,smooth:g.smooth||60,grade:g.grade||.26,lift:g.lift+(idx++)*.0004,cityField:1,pts:[[sx,sz],[ex,ez]]});g.roads.push(r);cityEnds.push([sx,sz,r.id],[ex,ez,r.id])}};
   g.us.forEach((u,i)=>add('u'+i,toW(u,-B),toW(u,B)));g.vs.forEach((v,j)=>add('v'+j,toW(-B,v),toW(B,v)));GRIDS.push(g);return g}
 const nearEnd=(x,z)=>{let b=null,bd=1e18;for(const e of cityEnds){const d=(e[0]-x)**2+(e[1]-z)**2;if(d<bd){bd=d;b=e}}return b};
 function applyBridge(r,x,z,len,h){const c=roadNear(r,x,z),half=len/2,ramp=150;for(let i=0;i<r.n;i++){const k=1-sstep(half,half+ramp,Math.abs(r.S[i]-r.S[c]));if(k>0){r.Y[i]+=h*k;if(k>.35)r.br[i]=1}}}
@@ -162,23 +166,23 @@ function defineRoads(){
   const us2=[],vs2=[];for(let u=0;u<=ml;u+=125)us2.push(u);for(let k=0;k<9;k++)vs2.push(42.5+85*k);
   const gS=gridStreets({id:'sfs',kind:'sfS',ox:M.x0,oz:M.z0,ang:Math.atan2(mdz,mdx),us:us2,vs:vs2,hw:7.5,style:3,lift:.03,planes:planesBox(CITY).concat([[-nx,-nz,-c0]]),cut:[cutPark]});
   gN.hillBlock=null;
-  const market=buildRoad({id:'market',hw:M.hw,lanes:2,style:4,city:1,smooth:30,grade:.2,lift:.015,pts:[[M.x0,M.z0],[M.x1,M.z1]]});cityEnds.push([M.x0,M.z0],[M.x1,M.z1]);
+  const market=buildRoad({id:'market',hw:M.hw,lanes:2,style:4,city:1,cityField:1,lift:.015,pts:[[M.x0,M.z0],[M.x1,M.z1]]});cityEnds.push([M.x0,M.z0,'market'],[M.x1,M.z1,'market']);
   /* Lombard Street: eight hairpins down one steep block of Russian Hill */
   {let bi=0,bj=0,bd=1e18;for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){const d=((us[i]+us[i+1])/2+1090)**2+((vs[j]+vs[j+1])/2+5)**2;if(d<bd){bd=d;bi=i;bj=j}}
     gN.skip=[bi+','+bj];const xc=(us[bi]+us[bi+1])/2,z0=vs[bj],z1=vs[bj+1],pts=[[xc,z0]];const nzz=7;for(let k=1;k<nzz;k++){pts.push([xc+(k%2?-30:30),z0+(z1-z0)*k/nzz])}pts.push([xc,z1]);
-    buildRoad({id:'lombard',hw:3.8,lanes:1,style:2,smooth:6,grade:.34,lift:.14,pts});gN.lombard={xc,z0,z1,bi,bj}}
+    buildRoad({id:'lombard',hw:3.8,lanes:1,style:2,lift:.05,yLine:[Hs(xc,z0)+.02,Hs(xc,z1)+.02],pts});gN.lombard={xc,z0,z1,bi,bj}}
   /* Golden Gate Park drive (through the park, from the ring road to the grid) */
-  {const e=nearEnd(PARK.x1+8,(PARK.z0+PARK.z1)/2+20);buildCurvy({id:'jfk',hw:5.5,lanes:1,style:0,from:'ring',lift:.12,smooth:25,minR:35,wig:{a1:14,l1:260,a2:5,l2:110,seed:21,fade:120},pts:[ptn(ring,-1560,440),[-1490,446],[-1430,452],[-1350,458],[-1270,452],[-1200,460],[-1120,454],[-1040,456],[e[0],e[1]]]})}
+  {const e=nearEnd(PARK.x1+8,(PARK.z0+PARK.z1)/2+20);buildCurvy({id:'jfk',hw:5.5,lanes:1,style:0,from:'ring',yTo:e[2],lift:.05,smooth:25,minR:35,wig:{a1:14,l1:260,a2:5,l2:110,seed:21,fade:120},pts:[ptn(ring,-1560,440),[-1490,446],[-1430,452],[-1350,458],[-1270,452],[-1200,460],[-1120,454],[-1040,456],[e[0],e[1]]]})}
   /* Twin Peaks Boulevard: a winding road up to the saddle between the two peaks */
-  {const e=nearEnd(-720,650);buildRoad({id:'tp',hw:5.5,lanes:1,style:0,smooth:18,grade:.22,lift:.13,pts:[[e[0],e[1]],[-705,668],[-668,662],[-648,684],[-686,704],[-728,722],[-706,748],[-656,742],[-628,766],[-596,788]]})}
+  {const e=nearEnd(-720,650);buildRoad({id:'tp',hw:5.5,lanes:1,style:0,smooth:18,grade:.22,lift:.05,yFrom:e[2],pts:[[e[0],e[1]],[-705,668],[-668,662],[-648,684],[-686,704],[-728,722],[-706,748],[-656,742],[-628,766],[-596,788]]})}
   /* connectors */
-  {const e=nearEnd(-1330,230);buildCurvy({id:'dc',hw:10,lanes:2,style:1,from:'ring',lift:.03,minR:45,wig:{a1:40,l1:240,a2:14,l2:110,seed:8,fade:90},pts:[pt(ring,.0),[-1560,160],[-1470,205],[-1400,225],[e[0],e[1]]]})}
-  const bv=buildCurvy({id:'bv',hw:10,lanes:2,style:1,to:'ring',lift:.04,smooth:70,minR:55,wig:{a1:230,l1:560,a2:70,l2:230,seed:5},pts:[[M.x1,M.z1],[-380,100],[-180,170],[60,150],[300,225],[620,200],[980,130],[1300,90],[1520,40],pt(ring,.5)]});
+  {const e=nearEnd(-1330,230);buildCurvy({id:'dc',hw:10,lanes:2,style:1,from:'ring',yTo:e[2],lift:.03,minR:45,wig:{a1:40,l1:240,a2:14,l2:110,seed:8,fade:90},pts:[pt(ring,.0),[-1560,160],[-1470,205],[-1400,225],[e[0],e[1]]]})}
+  const bv=buildCurvy({id:'bv',hw:10,lanes:2,style:1,to:'ring',yFrom:'market',lift:.04,smooth:70,minR:55,wig:{a1:230,l1:560,a2:70,l2:230,seed:5},pts:[[M.x1,M.z1],[-380,100],[-180,170],[60,150],[300,225],[620,200],[980,130],[1300,90],[1520,40],pt(ring,.5)]});
   /* the mountain pass: leaves the ring in the north-east, climbs in switchbacks, comes down the north coast and rejoins the ring */
   const sb=switchbacks(1950,-1950,[[2.04,2.5,1230],[2.5,1.42,1040],[1.42,2.5,860],[2.5,1.5,700],[1.5,2.35,600]]);
   buildCurvy({id:'mp',hw:8.5,lanes:1,style:0,from:'ring',to:'ring',lift:.05,smooth:50,grade:.145,minR:0,wig:{a1:100,l1:520,a2:30,l2:200,seed:13,fade:300},pts:[ptn(ring,1394,-853)].concat(sb.slice(1)).concat([[1420,-1700],[1250,-1950],[1000,-2180],[650,-2420],[200,-2540],[-300,-2480],[-760,-2300],[-1110,-1960],[-1260,-1480],ptn(ring,-1180,-980)])});
   /* coast road (Highway 1 style): out of Market's south-west end, over the ring, along the beach, a headland, then the plains */
-  buildCurvy({id:'cr',hw:9,lanes:1,style:0,lift:.06,smooth:70,minR:45,bridgeOver:['ring'],wig:{a1:190,l1:480,a2:60,l2:200,seed:17},pts:[[M.x0,M.z0],[-1380,780],[-1560,1000],[-1790,1250],[-1900,1600],[-1840,2000],[-1560,2300],[-1100,2480],[-560,2470],[-80,2380],[420,2330]]});
+  buildCurvy({id:'cr',hw:9,lanes:1,style:0,yFrom:'market',lift:.06,smooth:70,minR:45,bridgeOver:['ring'],wig:{a1:190,l1:480,a2:60,l2:200,seed:17},pts:[[M.x0,M.z0],[-1380,780],[-1560,1000],[-1790,1250],[-1900,1600],[-1840,2000],[-1560,2300],[-1100,2480],[-560,2470],[-80,2380],[420,2330]]});
   /* east link: ring east -> south along the east side, under the highway */
   buildCurvy({id:'el',hw:10,lanes:2,style:1,from:'ring',lift:.08,smooth:100,minR:65,wig:{a1:230,l1:620,a2:66,l2:250,seed:29,straight:[[.62,.80]]},pts:[pt(ring,.63),[2000,1060],[2300,1560],[2420,2000],[2380,2420],[2330,2620]]});
   /* southern highway: ring south -> a long straight on the plains -> beach lookout, over the east link */
@@ -187,9 +191,9 @@ function defineRoads(){
   buildCurvy({id:'mh',hw:7,lanes:1,style:0,from:'ring',to:'bv',trimTo:'bv',lift:.09,smooth:35,grade:.13,minR:34,wig:{a1:120,l1:380,a2:34,l2:150,seed:31,fade:260},pts:[ptn(ring,1600,-120),[1480,-190],[1330,-170],[1160,-195],[990,-150],[820,-135],[670,-100],[570,-70],[500,10],[470,110],[440,230],[420,360]]})
   /* ===== the Valley: LA style boulevards ===== */
   const vu=[275,575,875,1015],vv=[565,825,1085,1245];
-  gridStreets({id:'la',kind:'la',ox:0,oz:0,ang:0,us:vu,vs:vv,hw:12,style:4,lift:.05,smooth:40,grade:.08,planes:planesBox(VALLEY)});
-  {const e=nearEnd(575,560);const b2=ptn(bv,590,215);buildCurvy({id:'lan',hw:9,lanes:1,style:0,to:'bv',lift:.1,minR:50,wig:{a1:24,l1:300,a2:7,l2:120,seed:37,fade:120},pts:[[e[0],e[1]],[582,470],[570,380],[592,300],[b2[0],b2[1]]]})}
-  {const e=nearEnd(1015,825);buildCurvy({id:'lae',hw:10,lanes:2,style:1,to:'ring',lift:.11,minR:60,wig:{a1:40,l1:420,a2:10,l2:170,seed:41,fade:160},pts:[[e[0],e[1]],[1150,800],[1300,745],[1450,700],ptn(ring,1560,700)]})}
+  gridStreets({id:'la',kind:'la',ox:0,oz:0,ang:0,us:vu,vs:vv,hw:12,style:4,lift:.05,planes:planesBox(VALLEY)});
+  {const e=nearEnd(575,560);const b2=ptn(bv,590,215);buildCurvy({id:'lan',hw:9,lanes:1,style:0,to:'bv',yFrom:e[2],lift:.05,minR:50,wig:{a1:24,l1:300,a2:7,l2:120,seed:37,fade:120},pts:[[e[0],e[1]],[582,470],[570,380],[592,300],[b2[0],b2[1]]]})}
+  {const e=nearEnd(1015,825);buildCurvy({id:'lae',hw:10,lanes:2,style:1,to:'ring',yFrom:e[2],lift:.05,minR:60,wig:{a1:40,l1:420,a2:10,l2:170,seed:41,fade:160},pts:[[e[0],e[1]],[1150,800],[1300,745],[1450,700],ptn(ring,1560,700)]})}
   const fixed=fixCrossings();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;
   return GRIDS}
 let BRIDGES_ADDED=[];
