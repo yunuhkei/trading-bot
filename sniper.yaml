@@ -5,7 +5,7 @@ sniper:
   live: true                     # on, but only in live_hours and only when the owner's condition below is met
   per_trade: 25                  # dollars a trade
   max_open: 3                    # coins held at once
-  budget: 52                     # its money (about $56 left in the wallet on Nov 9): profit above it is set aside each midnight
+  budget: 80                     # its starting money: $80 - this morning's $27.90 loss = $52.10, about what's in the wallet
   floor: 15                      # if its money falls to this: sell everything, stop, ping the phone (the owner's pick)
   slippage_buy: 0.30             # don't buy if the price ran more than 30% past the lab's by the time the buy lands
   slippage_sell: 0.50            # first try: accept down to half the expected sale; then 25%; then anything
