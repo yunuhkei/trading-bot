@@ -8,9 +8,11 @@ const SHD={res:0,fbo:null,tex:null,dep:null,LP:new Float32Array(16),LV:new Float
   _mb:new Float32Array(16),_mw:new Float32Array(16),_mf:new Float32Array(16)};
 const SHPK='vec4 pk(float d){vec4 e=fract(d*vec4(1.,255.,65025.,16581375.));e-=e.yzww*vec4(1./255.,1./255.,1./255.,0.);return e;}\n';
 const SHD_F=PRE+SHPK+'void main(){gl_FragColor=pk(gl_FragCoord.z);}';
+/* props: foliage is cut out by the leaf atlas, so a tree's shadow has leaves in it and not rectangles */
+const SHD_FP=PRE+SHPK+'varying vec2 vU;varying float vF;uniform sampler2D uFol;void main(){if(vF>.5&&texture2D(uFol,vU).a<.5)discard;gl_FragColor=pk(gl_FragCoord.z);}';
 const SHD_V={
  car:'attribute vec4 aP;uniform mat4 uLP,uM;void main(){gl_Position=uLP*(uM*vec4(aP.xyz,1.));}',
- prop:'attribute vec3 aP;uniform mat4 uLP;void main(){gl_Position=uLP*vec4(aP,1.);}',
+ prop:'attribute vec3 aP;attribute vec4 aN;attribute vec2 aU;uniform mat4 uLP;varying vec2 vU;varying float vF;void main(){vU=aU;vF=step(.3,aN.w)*step(aN.w,.7);gl_Position=uLP*vec4(aP,1.);}',
  tr:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;uniform mat4 uLP;\n'+
   'vec3 rt(vec3 p,float cy,float sy,float cp,float sp,float cr,float sr){float x=p.x*cr-p.y*sr,y=p.x*sr+p.y*cr,z=p.z;float y2=y*cp+z*sp,z2=z*cp-y*sp;return vec3(cy*x+sy*z2,y2,sy*x-cy*z2);}\n'+
   'void main(){float cy=cos(aI0.w),sy=sin(aI0.w),cp=cos(aI1.x),sp=sin(aI1.x),cr=cos(aI1.y),sr=sin(aI1.y);vec3 w=rt(aP,cy,sy,cp,sp,cr,sr)+aI0.xyz;gl_Position=uLP*vec4(w,1.)+vec4(aN.x*0.,0.,0.,0.)+vec4(aI1.w*0.,0.,0.,0.);}'};
@@ -36,7 +38,7 @@ function shdMatrices(cx,cy,cz){
 function shdPass(){
   const T=GFX.cur,gl=G.gl;GFX.shadowOn=false;if(!T.shadow||!GFX.ok||!SHD.ok)return false;
   const res=T.shadow>1?1024:512;SHD.half=T.shadow>1?46:34;if(!shdTarget(res))return false;
-  if(!G.P.shc){G.P.shc=mkProg('shc',SHD_V.car,SHD_F,['aP']);G.P.shp=mkProg('shp',SHD_V.prop,SHD_F,['aP']);G.P.sht=mkProg('sht',SHD_V.tr,SHD_F,['aP','aN','aI0','aI1'])}
+  if(!G.P.shc){G.P.shc=mkProg('shc',SHD_V.car,SHD_F,['aP']);G.P.shp=mkProg('shp',SHD_V.prop,SHD_FP,['aP','aN','aU']);G.P.sht=mkProg('sht',SHD_V.tr,SHD_F,['aP','aN','aI0','aI1'])}
   const a=R.alpha,x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a);SHD.cx=x;SHD.cz=z;shdMatrices(x,y,z);
   gl.bindFramebuffer(gl.FRAMEBUFFER,SHD.fbo);gl.viewport(0,0,res,res);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);
@@ -49,9 +51,9 @@ function shdPass(){
   /* traffic */
   if(TRM.nv){P=G.P.sht;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);trIssue()}
   /* buildings, trees and lamp posts near the car (High only) */
-  if(T.shadow>1){P=G.P.shp;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);attrs(1);const r0=SHD.half*1.45;
+  if(T.shadow>1){P=G.P.shp;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);attrs(3);bindTex(0,R.tex.fol);gl.uniform1i(P.u.uFol,0);const r0=SHD.half*1.45;
     for(let i=0;i<R.props.length;i++){const p=R.props[i];if(Math.abs(p.cx-x)>r0+p.rad||Math.abs(p.cz-z)>r0+p.rad)continue;
-      gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}}
+      gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,28,12);gl.vertexAttribPointer(2,2,gl.FLOAT,false,28,20);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}}
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);GFX.shadowOn=true;return true}
 /* give a receiving program (terrain, road) the map */
 function shdSetU(P){if(!P.u.uSh)return;const gl=G.gl;bindTex(4,SHD.tex||R.tex.nz);gl.uniform1i(P.u.uSh,4);gl.uniformMatrix4fv(P.u.uLS,false,SHD.LP);gl.uniform4f(P.u.uShP,1/Math.max(1,SHD.res),GFX.shadowOn?SHD.strength:0,SHD.bias,0)}

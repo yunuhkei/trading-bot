@@ -11,10 +11,11 @@ const L=require('./rlib.js');
     return{stats:{b:st.buildings,h:st.houses,t:st.trees},sc:{...sc,at:undefined},tris,colliders:n,onRoad,lim,boot:RACER.BOOT.genMs}});
   const c=S.sc;
   ok(c.poles>150&&c.delin>400&&c.gantry>10&&c.bill>20&&c.sign>50,'1 roadside furniture: '+c.poles+' telegraph poles, '+c.delin+' reflector posts, '+c.gantry+' gantry signs, '+c.bill+' billboards, '+c.sign+' speed signs, '+c.chev+' curve boards, '+c.fence+' fences');
+  ok(c.tuft>3000,'2b roadside grass tufts: '+c.tuft);
   ok(c.groves>500&&c.trees>2000&&c.bush>1000,'2 vegetation: '+c.groves+' tree belts with '+c.trees+' trees, '+c.bush+' bushes, '+c.rock+' rocks, '+c.cactus+' cacti (plus '+S.stats.t+' forest trees)');
   ok(c.turb>20&&c.gas>=3&&c.hv>10,'3 landmarks: '+c.turb+' wind turbines, '+c.gas+' gas stations, '+c.farm+' farmsteads, '+c.hv+' high-voltage pylons');
   ok(S.onRoad<=21,'4 the new scenery puts nothing solid on the asphalt: '+S.onRoad+' of '+S.colliders+' colliders sit on a road (21 is the old count, lamp posts and palms at junctions, before any scenery was added)'+(S.onRoad>21?' e.g. '+JSON.stringify(S.lim):''));
-  ok(S.tris[2]<1100000&&S.tris[0]<200000&&S.tris[1]<120000,'5 prop triangles (all of the map, only what is near is drawn): furniture '+(S.tris[0]/1000).toFixed(0)+'k, buildings '+(S.tris[1]/1000).toFixed(0)+'k, trees '+(S.tris[2]/1000).toFixed(0)+'k');
+  ok(S.tris[2]<1450000&&S.tris[0]<200000&&S.tris[1]<120000,'5 prop triangles (all of the map, only what is near is drawn): furniture '+(S.tris[0]/1000).toFixed(0)+'k, buildings '+(S.tris[1]/1000).toFixed(0)+'k, trees '+(S.tris[2]/1000).toFixed(0)+'k');
   ok(S.boot<9000,'6 the world builds in '+(S.boot/1000).toFixed(1)+' s (software GL box; it was 4.5 s before the scenery)');
   /* determinism: a second page load builds the identical numbers */
   await T.close();

@@ -3,11 +3,13 @@
 const G={gl:null,cv:null,w:1,h:1,P:{},ext:{},maxAniso:1};
 const PRE='#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n';
 /* shared lighting / fog / tone chunk (fragment) */
-const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uFogP;\n'+
-/* grade: filmic curve, desaturated (the sky is overcast, the world is grey-green), cool shadows, a touch of contrast */
-'vec3 tone(vec3 c){float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,.72),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));'+
- 'float g=dot(c,vec3(.3333));c*=mix(vec3(.90,.99,1.10),vec3(1.04,1.0,.95),smoothstep(.05,.8,g));return c*c*(3.-2.*c)*.30+c*.70;}\n'+
-'vec3 skyc(vec3 r){float y=max(r.y,0.);vec3 c=mix(uHor,uZen,pow(y,.5));float sd=max(dot(r,uSun),0.);return c+uSunC*(pow(sd,6.)*.05);}\n'+
+const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uFogP,uGr;/* uGr: x saturation, y warm/cool split, z contrast, w exposure */\n'+
+/* grade (set by the weather preset): exposure, a filmic curve, saturation, cool shadows and warm highlights, an S-curve of contrast */
+'vec3 tone(vec3 c){c*=uGr.w;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,uGr.x),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));'+
+ 'float g=dot(c,vec3(.3333));c*=mix(mix(vec3(1.),vec3(.90,.99,1.10),uGr.y),mix(vec3(1.),vec3(1.04,1.0,.95),uGr.y),smoothstep(.05,.8,g));return c*c*(3.-2.*c)*uGr.z+c*(1.-uGr.z);}\n'+
+/* the sky as a mip-mapped cube map (rendered at start-up and when the weather changes, see skyCubeUpdate): reflections of the real sky, clouds and sun. Stored as sqrt(colour / 4). */
+'uniform samplerCube uEnv;vec3 envl(vec3 r,float rough){vec3 d=textureCube(uEnv,r,rough*5.5).rgb;return d*d*4.;}\n'+
+'vec3 skyc(vec3 r){vec3 d=textureCube(uEnv,r,2.).rgb;return d*d*4.;}\n'+
 /* thick haze: distance fog towards the horizon colour, thinning with height above the camera */
 'vec3 fogm(vec3 c,vec3 wp){vec3 d=wp-uCam;float L=length(d);vec3 v=d/max(L,1e-3);float k=uFogP.x;float f=1.-exp(-L*L*k*k);f*=exp(-max(wp.y-uCam.y,0.)*uFogP.y);'+
  'float sg=pow(max(dot(v,uSun),0.),4.);vec3 fc=mix(uHor,uHor*.8+uSunC*.12,sg*uFogP.z);return mix(c,fc,clamp(f,0.,1.));}\n';
@@ -24,22 +26,24 @@ const SHSRC='\n#ifdef SHADOW\nuniform sampler2D uSh;uniform mat4 uLS;uniform vec
  '#if SHADOW>1\nfor(int i=-1;i<=1;i++)for(int j=-1;j<=1;j++)v+=step(z,dcd(texture2D(uSh,p.xy+vec2(float(i),float(j))*k)));v/=9.;\n#else\n'+
  'v=(step(z,dcd(texture2D(uSh,p.xy+vec2(-.5,-.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(.5,-.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(-.5,.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(.5,.5)*k))))*.25;\n#endif\n'+
  'return mix(1.,v,uShP.y*(1.-smoothstep(.72,1.,e)));}\n#endif\n';
+/* cloud shadows: the same kind of cloud field as the sky, drifting over the ground; strong in sun, none under an overcast sky */
+const CSHSRC='uniform vec4 uSk;float csh(vec2 p){float t=uFogP.w;vec2 q=p*.00021+vec2(t*.0042,t*.0013);float n=texture2D(uNz,q).r*.55+texture2D(uNz,q*2.7+.37).g*.30+.075;return 1.-smoothstep(uSk.x,uSk.y,n)*clamp(uSunC.r*.1-.05,0.,.3);}\n';
 const SH={
  /* ---- sky: full-screen triangle ---- */
  skyV:'attribute vec2 aP;varying vec2 vU;void main(){vU=aP;gl_Position=vec4(aP,.99999,1.);}',
- skyF:PRE+'varying vec2 vU;uniform vec3 uFw,uRt,uUp;uniform vec2 uTan;uniform sampler2D uNz;\n'+ENVSRC+
+ skyF:PRE+'varying vec2 vU;uniform vec3 uFw,uRt,uUp,uClA,uClB;uniform vec2 uTan;uniform vec4 uSk,uSd;uniform sampler2D uNz;\n'+ENVSRC+
  'void main(){vec3 rd=normalize(uFw+uRt*vU.x*uTan.x+uUp*vU.y*uTan.y);float y=rd.y;float sd=max(dot(rd,uSun),0.);'+
  /* the dome: pale grey-blue overhead, lighter towards the haze at the horizon; below the horizon it is the haze itself */
- 'vec3 col=mix(uHor,uZen,pow(clamp(y,0.,1.),.5));col=mix(col,uHor,smoothstep(0.,-.1,y));'+
+ 'vec3 col=mix(uHor,uZen,pow(clamp(y,0.,1.),uSd.z));\n#ifdef CUBE\ncol=mix(col,mix(uHor*.7,uAmbB*.9+uSunC*.03,smoothstep(0.,-.3,y)),smoothstep(.0,-.02,y));\n#else\ncol=mix(col,uHor,smoothstep(0.,-.1,y));\n#endif\nfloat occ=0.;'+
  'if(y>.004){float yy=max(y,.03);float t=1500./yy;vec2 w=vec2(uFogP.w*.0042,uFogP.w*.0013);vec2 p=(uCam.xz+rd.xz*t)*.00026+w;'+
   /* high layer: thick, broken, darker where thicker; gaps let the lighter dome through */
   'float n=texture2D(uNz,p).r*.55+texture2D(uNz,p*2.7+.37).g*.30;\n#ifdef HI\nn+=texture2D(uNz,p*7.3+.11).b*.15;\n#else\nn+=.075;\n#endif\n'+
-  'float th=smoothstep(.34,.72,n);float lit=pow(sd,3.);vec3 hi=mix(vec3(.60,.63,.68),vec3(.27,.29,.34),th)*(.86+.5*lit);col=mix(col,hi,clamp(th*.92+.12,0.,1.)*smoothstep(.004,.16,y));'+
+  'float th=smoothstep(uSk.x,uSk.y,n);float lit=pow(sd,3.);vec3 hi=mix(uClA,uClB,th)*(.86+.5*lit+uSd.x*.5*pow(sd,10.)*(1.-th));col=mix(col,hi,clamp(th*.92+uSk.z,0.,1.)*smoothstep(.004,.16,y));occ=th*.92+uSk.z*.5;'+
   /* low layer: darker, faster, ragged strips */
-  'vec2 p2=(uCam.xz+rd.xz*(700./yy))*.00055+w*2.6+.5;float n2=texture2D(uNz,p2).g*.6+texture2D(uNz,p2*3.1).r*.4;float th2=smoothstep(.5,.82,n2)*.62*smoothstep(.02,.3,y);col=mix(col,vec3(.17,.19,.23)*(.9+.6*lit),th2);}'+
- 'col+=uSunC*(pow(sd,5.)*.055+pow(sd,60.)*.05)*smoothstep(-.05,.3,y);'+
- 'col=mix(col,uHor,exp(-max(y,0.)*7.)*.55);'+
- 'gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
+  'vec2 p2=(uCam.xz+rd.xz*(700./yy))*.00055+w*2.6+.5;float n2=texture2D(uNz,p2).g*.6+texture2D(uNz,p2*3.1).r*.4;float th2=smoothstep(.5,.82,n2)*uSk.w*smoothstep(.02,.3,y);col=mix(col,uClB*.62*(.9+.6*lit),th2);occ=max(occ,th2);}'+
+ 'col+=uSunC*(pow(sd,5.)*.055+pow(sd,60.)*.05)*uSd.x*smoothstep(-.05,.3,y);col+=uSunC*smoothstep(.99985,.99996,sd)*uSd.y*smoothstep(-.01,.03,y)*clamp(1.-occ*1.3,0.,1.);'+
+ 'col=mix(col,uHor,exp(-max(y,0.)*7.)*uSd.w);\n#ifdef CUBE\ngl_FragColor=vec4(sqrt(min(col,vec3(4.))*.25),1.);\n#else\n'+
+ 'gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);\n#endif\n}',
  /* ---- terrain clipmap: one static NxN grid drawn once per level, displaced by the height texture ---- */
  terV:'attribute vec2 aIJ;uniform mat4 uVP;uniform vec4 uLv;varying vec3 vW;varying vec3 vN;varying float vK;\n'+HSRC+
  'const float N=64.;void main(){vec2 ij=aIJ;float c=uLv.z;vec2 p=uLv.xy+(ij-N*.5)*c;vec2 q=abs(ij-N*.5)/(N*.5);float d=max(q.x,q.y);float k=clamp((d-.72)/.22,0.,1.);float h=Hn(p);'+
@@ -47,12 +51,16 @@ const SH={
    'if(par.x>.5&&par.y<.5)hc=.5*(Hn(p-vec2(c,0.))+Hn(p+vec2(c,0.)));else if(par.y>.5&&par.x<.5)hc=.5*(Hn(p-vec2(0.,c))+Hn(p+vec2(0.,c)));else if(par.x>.5&&par.y>.5)hc=.5*(Hn(p-vec2(c,c))+Hn(p+vec2(c,c)));'+
    'h=mix(h,hc,k);}'+
   'float cn=c*(1.+k);vec3 n=vec3(Hn(p-vec2(cn,0.))-Hn(p+vec2(cn,0.)),2.*cn,Hn(p-vec2(0.,cn))-Hn(p+vec2(0.,cn)));vN=n;vK=k;vW=vec3(p.x,h,p.y);gl_Position=uVP*vec4(vW,1.);}',
- terF:PRE+'varying vec3 vW;varying vec3 vN;varying float vK;uniform vec3 uHole;uniform sampler2D uCol,uNz;uniform float uHalf;\n'+ENVSRC+SHSRC+
+ terF:PRE+'varying vec3 vW;varying vec3 vN;varying float vK;uniform vec3 uHole;uniform sampler2D uCol,uNz;uniform float uHalf;\n'+ENVSRC+SHSRC+CSHSRC+
  'void main(){if(abs(vW.x-uHole.x)<uHole.z&&abs(vW.z-uHole.y)<uHole.z)discard;vec3 n=normalize(vN);vec2 uv=(vW.xz+uHalf)/(2.*uHalf);vec3 a=texture2D(uCol,uv).rgb;a=a*a;'+
   'float dist=length(vW-uCam);float dt=exp(-dist*.0035);float n1=texture2D(uNz,vW.xz*.11).r,n2=texture2D(uNz,vW.xz*.0123).g,n3=texture2D(uNz,vW.xz*.7).b;'+
   'a*=1.+(((n1-.5)*.55+(n2-.5)*.5)*dt+(n3-.5)*.3*exp(-dist*.02));'+
+  /* grass: patches of yellower and deeper green, blades and clumps close up, bumps that catch the sun */
+  '\n#ifdef DET\nfloat gr=smoothstep(.0,.07,a.g-a.r*1.05);float hp=texture2D(uNz,vW.xz*.0043).b,hq=texture2D(uNz,vW.xz*.019).r;a=mix(a,a*mix(vec3(1.18,1.02,.66),vec3(.80,1.0,1.12),hp),gr*.7*(.5+.5*dt));a*=1.+(hq-.5)*.35*gr;\n'+
+  'float bl=texture2D(uNz,vW.xz*2.3).g,bl2=texture2D(uNz,vW.xz*6.1).r;a*=1.+((bl-.5)*.55+(bl2-.5)*.4)*exp(-dist*.03)*(.35+.65*gr);\n'+
+  'vec2 bp=vW.xz*1.35;float b0=texture2D(uNz,bp).r;n=normalize(n+vec3((b0-texture2D(uNz,bp+vec2(.03,0.)).r)*4.,0.,(b0-texture2D(uNz,bp+vec2(0.,.03)).r)*4.)*exp(-dist*.04)*.6);\n#endif\n'+
   'float rk=smoothstep(.78,.52,n.y);a=mix(a,vec3(.2,.185,.17)*(.7+.7*n1),rk*.8);'+
-  'a=mix(vec3(dot(a,vec3(.33))),a,.78)*vec3(.80,.83,.82);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=a*irr;\n#ifdef SHADOW\ncol*=shadowAt(vW);\n#endif\ncol+=skyc(reflect(normalize(vW-uCam),n))*.035*(1.-n.y*.4);col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
+  'float ds=clamp((uGr.x-.72)/.4,0.,1.);a=mix(vec3(dot(a,vec3(.33))),a,mix(.78,1.,ds))*mix(vec3(.80,.83,.82),vec3(1.),ds);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=a*irr;\n#ifdef SHADOW\ncol*=shadowAt(vW);\n#endif\ncol*=csh(vW.xz);col+=skyc(reflect(normalize(vW-uCam),n))*.035*(1.-n.y*.4);col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- water: one big quad that follows the camera, depth from the height texture ---- */
  watV:'attribute vec2 aP;uniform mat4 uVP;uniform vec3 uCam;varying vec3 vW;void main(){vW=vec3(uCam.x+aP.x*16000.,0.,uCam.z+aP.y*16000.);gl_Position=uVP*vec4(vW,1.);}',
  watF:PRE+'varying vec3 vW;uniform sampler2D uNz;\n'+ENVSRC+HSRC+
@@ -65,10 +73,14 @@ const SH={
   'float al=clamp(.45+dp*.35,0.,1.)*smoothstep(0.,.25,dp+.05);col=fogm(col,vW);gl_FragColor=vec4(tone(col),al);}',
  /* ---- road ribbon: markings are analytic (no texture), a = (lateral m, along m, half width, lanes*16+style) ---- */
  rdV:'attribute vec3 aP;attribute vec4 aA;uniform mat4 uVP;varying vec3 vW;varying vec4 vA;void main(){vW=aP;vA=aA;gl_Position=uVP*vec4(aP,1.);}',
- rdF:PRE+'varying vec3 vW;varying vec4 vA;uniform sampler2D uNz;uniform float uWet;\n#ifndef NL\n#define NL 4\n#endif\nuniform vec4 uLt[NL];uniform vec3 uLc[NL];\n'+ENVSRC+SHSRC+
+ rdF:PRE+'varying vec3 vW;varying vec4 vA;uniform sampler2D uNz;uniform float uWet;\n#ifndef NL\n#define NL 4\n#endif\nuniform vec4 uLt[NL];uniform vec3 uLc[NL];\n'+ENVSRC+SHSRC+CSHSRC+
  'float ln(float x,float c,float w,float aa){return 1.-smoothstep(w,w+aa,abs(x-c));}\n'+
  'void main(){float x=vA.x,v=vA.y,hw=vA.z,fl=vA.w;float lanes=floor(fl/16.);float ax=abs(x);float dist=length(vW-uCam);float aa=.05+dist*.0009;'+
-  'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;'+
+  'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;\n#ifdef DET\n'+
+  /* aggregate grain, darker repair patches, hairline cracks, seams across the road */
+  'float g1=texture2D(uNz,vW.xz*1.9).b,g2=texture2D(uNz,vW.xz*5.3).g;asph*=1.+((g1-.5)*.6+(g2-.5)*.5)*exp(-dist*.03);asph*=1.-smoothstep(.62,.7,texture2D(uNz,vW.xz*.021+.3).r)*.26;\n'+
+  'float cr=abs(texture2D(uNz,vW.xz*.13).g-.5);asph*=1.-(1.-smoothstep(.0,.011,cr))*smoothstep(.46,.6,texture2D(uNz,vW.xz*.011).r)*exp(-dist*.05)*.55;\n'+
+  'float sq=fract(vA.y/23.);asph*=1.-(1.-smoothstep(.0,.0035,min(sq,1.-sq)))*.3*(1.-smoothstep(12.,70.,dist));\n#endif\n'+
   /* style (0 two-way, 1 divided, 2 patch, 3 city street, 4 boulevard) and the junction fade mk travel in one number: style + .1 + .8 mk */
   'float sf=fl-lanes*16.;float style=floor(sf);float mkf=clamp((sf-style-.1)/.8,0.,1.);'+
   'bool dv=(style>.5&&style<1.5)||style>3.5;bool tw=style<.5||(style>2.5&&style<3.5);'+
@@ -82,13 +94,14 @@ const SH={
   /* markings fade out towards junctions */
   'wh*=mkf;ye*=mkf;'+
   'float shd=smoothstep(hw-.1,hw+.35,ax);/* shoulder: gravel */asph=mix(asph,(style>2.5&&style<4.5?vec3(.46,.45,.43):vec3(.30,.27,.22))*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
+  '\n#ifdef DET\nfloat lcn=(ax-x0)/lw;float fl2=abs(fract(lcn)-.5)*lw;float trk=exp(-pow((fl2-.82)/.34,2.))*step(0.,lcn)*step(lcn,lanes)*(1.-smoothstep(hw-.6,hw,ax))*(tw||dv?1.:0.);asph*=1.-trk*.2;asph*=1.+(1.-trk)*.04;\n#endif\n'+
   'vec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;'+
   /* wet: darker, puddles that act like mirrors, ripples in the surface, a reflection of the sky and of every light near the car */
   'float pz=texture2D(uNz,vW.xz*.017).g*.55+texture2D(uNz,vW.xz*.071).b*.45;float pud=smoothstep(.5,.68,pz)*uWet*(1.-shd);'+
   'alb*=1.-uWet*.42*(1.-shd*.5);alb*=1.-pud*.3;'+
   'vec3 V=normalize(uCam-vW);vec2 rp=(texture2D(uNz,vW.xz*.83).rg-.5)*.09*uWet*(1.-pud*.85)*exp(-dist*.004);vec3 n=normalize(vec3(rp.x,1.,rp.y));'+
   'float ndv=max(dot(n,V),0.);float fr=(.03+.97*pow(1.-ndv,5.))*(.25+.75*uWet)*(1.-shd*.8)*(1.-wh*.55);'+
-  'float nl=max(n.y,0.)*0.;vec3 irr=mix(uAmbB,uAmbT,1.)+uSunC*max(uSun.y,0.)*.5;vec3 col=alb*irr;\n#ifdef SHADOW\ncol*=shadowAt(vW);\n#endif\n'+
+  'float nl=max(n.y,0.)*0.;vec3 irr=mix(uAmbB,uAmbT,1.)+uSunC*max(uSun.y,0.)*.5;vec3 col=alb*irr;\n#ifdef SHADOW\ncol*=shadowAt(vW);\n#endif\ncol*=csh(vW.xz);\n'+
   'vec3 R=reflect(-V,n);col+=skyc(vec3(R.x,abs(R.y)+.015,R.z))*fr*(.55+.45*pud);'+
   /* lights: a pool of light on the road and a long, view-aligned streak of their reflection */
   'vec2 az=normalize(vW.xz-uCam.xz+1e-4);vec3 pool=vec3(0.),spec=vec3(0.);'+
@@ -98,26 +111,29 @@ const SH={
   'col+=alb*pool*1.1*(1.-shd*.6)+spec*uWet*(1.-shd*.85)*(1.-wh*.5);'+
   'col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- generic lit props: vertex colour + optional window texture (buildings), baked ambient occlusion in colour ---- */
- prV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aC;attribute vec2 aU;uniform mat4 uVP;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;'+
-  'void main(){vW=aP;vN=aN.xyz;vC=aC.rgb*aC.rgb;vU=aU;vE=aN.w;gl_Position=uVP*vec4(aP,1.);}',
- prF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;uniform sampler2D uWin;uniform float uNight;\n'+ENVSRC+
- 'void main(){vec3 n=normalize(vN);vec4 w=texture2D(uWin,vU);float isw=step(.01,vE);float em=step(vE,-.5);vec3 alb=vC*mix(vec3(1.),w.rgb,isw);'+
-  'float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=alb*irr;'+
+ prV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aC;attribute vec2 aU;uniform mat4 uVP;uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;'+
+  /* wind: foliage (flag .5) sways by the weight kept in the colour alpha */
+  'void main(){vec3 p=aP;float sw=aC.a*step(.3,aN.w)*step(aN.w,.7);p.x+=(sin(uT*1.9+aP.x*.31+aP.z*.17)*.11+sin(uT*3.7+aP.z*.9)*.03)*sw;p.z+=cos(uT*1.6+aP.z*.27+aP.x*.1)*.09*sw;p.y+=sin(uT*2.3+aP.x*.5)*.025*sw;vW=p;vN=aN.xyz;vC=aC.rgb*aC.rgb;vU=aU;vE=aN.w;gl_Position=uVP*vec4(p,1.);}',
+ prF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;uniform sampler2D uWin,uFol;uniform float uNight;\n'+ENVSRC+
+ 'void main(){vec3 n=normalize(vN);float isw=step(.8,vE),em=step(vE,-.5),fol=step(.3,vE)*step(vE,.7);vec4 w=texture2D(uWin,vU);vec3 alb=vC*mix(vec3(1.),w.rgb,isw);\n'+
+  /* foliage: the leaf atlas, cut out; lit like a ball (wrapped), glowing a little when the sun is behind it */
+  'if(fol>.5){vec4 f=texture2D(uFol,vU);if(f.a<.5)discard;alb=vC*f.rgb*1.9;}\n'+
+  'float nl=max(dot(n,uSun),0.);nl=mix(nl,clamp(dot(n,uSun)*.8+.3,0.,1.),fol);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=alb*irr;col+=alb*uSunC*pow(max(dot(normalize(vW-uCam),uSun),0.),3.)*.3*fol;'+
   /* a window is lit if its hash says so (about uNight of them); warm or cool light */
   'vec2 wc=floor(vU)+floor(vW.xz*.5);float hs=fract(sin(dot(wc,vec2(12.9898,78.233))+floor(vW.y*.29)*7.31)*43758.5453);float lit=isw*w.a*step(hs,uNight);'+
   'col+=mix(vec3(1.,.70,.38),vec3(.60,.80,1.),step(.82,fract(hs*7.13)))*lit*(.42+.34*fract(hs*3.7));'+
   'col=mix(col,vC*3.2,em);'+
+  /* glass reflects the sky (and a darker ground below the horizon) */
+  'if(isw*w.a>.5){vec3 V=normalize(uCam-vW);float fr=pow(1.-max(dot(n,V),0.),3.);col+=envl(reflect(-V,n),.18)*(.1+.65*fr);}'+
   'col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- car: baked garage mesh, procedural environment reflections, per-vertex material classes ---- */
  carV:'attribute vec4 aP;attribute vec4 aN;attribute vec4 aC;uniform mat4 uVP;uniform mat4 uM;uniform vec4 uMat['+40+'];varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;varying vec3 vL;'+
   'void main(){vec4 w=uM*vec4(aP.xyz,1.);vL=aP.xyz*(1./8192.);vW=w.xyz;vN=mat3(uM[0].xyz,uM[1].xyz,uM[2].xyz)*aN.xyz;vC=pow(aC.rgb,vec3(2.2));vM=uMat[int(aN.w*127.+.5)];gl_Position=uVP*w;}',
  carF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;varying vec3 vL;uniform float uGl,uAlpha,uZc;uniform vec3 uBr,uPaint;uniform vec4 uDm,uCr;\n'+ENVSRC+
  /* a fake environment to reflect: dark wet ground, bright hazy horizon, overcast dome, a soft bright patch where the sun is behind the cloud, and a long overhead softbox for the clear-coat highlight line */
- 'vec3 cenv(vec3 r,float rg){float h=r.y;vec3 gr=uAmbB*.55+vec3(.015);vec3 sk=mix(uHor*1.2,uZen*1.15,smoothstep(.1,.9,h));vec3 c=mix(gr,sk,smoothstep(-mix(.012,.12,rg),mix(.014,.08,rg),h));c=mix(c,uHor*1.35,exp(-abs(h)*9.)*.55*(.3+.7*rg));'+
-  'float sd=max(dot(r,uSun),0.);c+=uSunC*pow(sd,mix(160.,8.,rg))*mix(2.6,.14,rg);'+
-  'c+=vec3(.95,.98,1.05)*smoothstep(.16,.02,abs(r.z*.6+r.x*.15))*smoothstep(.5,.85,h)*(1.-rg)*1.3;return c;}\n'+
+ 'vec3 cenv(vec3 r,float rg){vec3 c=envl(r,rg);float sd=max(dot(r,uSun),0.);c+=uSunC*pow(sd,mix(240.,12.,rg))*mix(2.4,.14,rg)*step(.0,uSun.y);c+=vec3(.95,.98,1.05)*smoothstep(.16,.02,abs(r.z*.6+r.x*.15))*smoothstep(.5,.85,r.y)*(1.-rg)*.35;return c;}\n'+
  'float h3(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}\n'+
- 'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float metal=vM.x,rg=vM.y,emis=vM.z,coat=vM.w;vec3 alb=vC;if(coat>.99){alb*=uPaint;alb=mix(vec3(dot(alb,vec3(.3,.59,.11))),alb,1.3)*.92;}'+
+ 'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float metal=vM.x,rg=vM.y,emis=vM.z,coat=vM.w;vec3 alb=vC;if(coat>.99){alb*=uPaint;alb=mix(vec3(dot(alb,vec3(.3,.59,.11))),alb,1.12)*.9;}'+
   /* damage: a dead head or tail light goes dark (the side from the model x, the kind from the colour) */
   'float isG=step(.8,vM.x)*step(vM.y,.12),sdx=step(0.,vL.x),tl0=step(.8,alb.r)*step(alb.g,.3);float dead=mix(mix(uDm.x,uDm.y,sdx),mix(uDm.z,uDm.w,sdx),tl0)*step(.5,emis);emis*=1.-dead;alb=mix(alb,vec3(.02),dead*.85);'+
   /* metallic flakes in the paint: a tiny, view-dependent sparkle from a hash of the position */
@@ -129,7 +145,7 @@ const SH={
   'vec3 F0=mix(vec3(.04),alb,metal);vec3 fr=F0+(1.-F0)*pow(1.-ndv,5.);vec3 col=alb*(1.-metal)*irr*ao;'+
   'col+=cenv(R,max(rg,.35))*fr*ao*mix(.35,1.,metal);'+
   /* clear coat: a second, sharper reflection over the paint */
-  'col+=cenv(R,.1)*(.06+.94*pow(1.-ndv,5.))*coat*1.15*(1.-dirt*.6);'+
+  'col+=cenv(R,.1)*(.075+.925*pow(1.-ndv,5.))*coat*1.2*(1.-dirt*.6);'+
   /* lights: the emissive material is the head and tail lights (red ones glow harder on the brakes) */
   'float tail=step(.8,alb.r)*step(alb.g,.3);col+=alb*emis*(2.2+uGl*2.)+tail*emis*uBr.x*2.4*vec3(1.,.12,.06);'+
   'col=fogm(col,vW);'+
@@ -185,7 +201,7 @@ function glInit(cv,aa){const at={antialias:!!aa,alpha:false,depth:true,stencil:f
  G.ext.inst=gl.getExtension('ANGLE_instanced_arrays');G.ext.u32=gl.getExtension('OES_element_index_uint');G.ext.vao=gl.getExtension('OES_vertex_array_object');
  const an=gl.getExtension('EXT_texture_filter_anisotropic');G.maxAniso=an?gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT):1;G.anExt=an;
  G.aa=!!gl.getContextAttributes().antialias;
- G.P.sky=mkProg('sky',SH.skyV,SH.skyF,['aP']);G.P.ter=mkProg('ter',SH.terV,SH.terF,['aIJ']);G.P.wat=mkProg('wat',SH.watV,SH.watF,['aP']);
+ G.P.sky=mkProg('sky',SH.skyV,SH.skyF,['aP']);G.P.skyc=mkProg('skyc',SH.skyV,SH.skyF,['aP'],{CUBE:1});G.P.ter=mkProg('ter',SH.terV,SH.terF,['aIJ']);G.P.wat=mkProg('wat',SH.watV,SH.watF,['aP']);
  G.P.rd=mkProg('rd',SH.rdV,SH.rdF,['aP','aA']);G.P.pr=mkProg('pr',SH.prV,SH.prF,['aP','aN','aC','aU']);
  G.P.car=mkProg('car',SH.carV,SH.carF,['aP','aN','aC']);G.P.tr=mkProg('tr',SH.trV,SH.trF,['aP','aN','aI0','aI1','aI2','aI3','aI4']);G.P.fx=mkProg('fx',SH.fxV,SH.fxF,['aP','aC','aU']);
  return gl}

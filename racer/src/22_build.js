@@ -4,8 +4,8 @@
 class MB{constructor(){this.cap=512;this.f=new Float32Array(this.cap*7);this.u=new Uint8Array(this.f.buffer);this.s=new Int8Array(this.f.buffer);this.n=0;this.ix=new Uint16Array(this.cap*4);this.ni=0;
   this.x0=1e9;this.x1=-1e9;this.y0=1e9;this.y1=-1e9;this.z0=1e9;this.z1=-1e9}
  grow(){const c=this.cap*2,f=new Float32Array(c*7);f.set(this.f);this.f=f;this.u=new Uint8Array(f.buffer);this.s=new Int8Array(f.buffer);this.cap=c;const ix=new Uint16Array(c*4);ix.set(this.ix);this.ix=ix}
- v(x,y,z,nx,ny,nz,r,g,b,u,v,w){if(this.n>=this.cap)this.grow();const o=this.n*7,B=this.n*28;this.f[o]=x;this.f[o+1]=y;this.f[o+2]=z;this.s[B+12]=Math.round(nx*127);this.s[B+13]=Math.round(ny*127);this.s[B+14]=Math.round(nz*127);this.s[B+15]=w===2?-127:(w?127:0);
-  this.u[B+16]=r;this.u[B+17]=g;this.u[B+18]=b;this.u[B+19]=255;this.f[o+5]=u;this.f[o+6]=v;
+ v(x,y,z,nx,ny,nz,r,g,b,u,v,w,al){if(this.n>=this.cap)this.grow();const o=this.n*7,B=this.n*28;this.f[o]=x;this.f[o+1]=y;this.f[o+2]=z;this.s[B+12]=Math.round(nx*127);this.s[B+13]=Math.round(ny*127);this.s[B+14]=Math.round(nz*127);this.s[B+15]=w===2?-127:(w===3?64:(w?127:0));
+  this.u[B+16]=r;this.u[B+17]=g;this.u[B+18]=b;this.u[B+19]=al==null?255:al;this.f[o+5]=u;this.f[o+6]=v;
   if(x<this.x0)this.x0=x;if(x>this.x1)this.x1=x;if(y<this.y0)this.y0=y;if(y>this.y1)this.y1=y;if(z<this.z0)this.z0=z;if(z>this.z1)this.z1=z;return this.n++}
  t(a,b,c){if(this.ni+3>this.ix.length){const ix=new Uint16Array(this.ix.length*2);ix.set(this.ix);this.ix=ix}this.ix[this.ni++]=a;this.ix[this.ni++]=b;this.ix[this.ni++]=c}
  q(a,b,c,d){this.t(a,b,c);this.t(a,c,d)}}
@@ -33,20 +33,50 @@ function ptrunk(cat,cx,y0,cz,rad,h,r,g,b){const m=pmb(cx,cz,cat,8),a=[];for(let 
 function pblob(cat,cx,y0,cz,rx,ry,r,g,b,rot){const m=pmb(cx,cz,cat,26),seg=7,rows=[[-.25,.78],[.35,1],[.95,.55]];const rings=[];
   rows.forEach(rw=>{const rr=[];for(let i=0;i<seg;i++){const a=rot+i/seg*TAU+rw[0],c=Math.cos(a),s=Math.sin(a),nl=1/Math.hypot(c,rw[0]*.7+.3,s);rr.push(m.v(cx+c*rx*rw[1],y0+ry*(.5+rw[0]*.55),cz+s*rx*rw[1],c*nl,(.3+rw[0]*.7)*nl,s*nl,r*(.75+rw[0]*.3),g*(.75+rw[0]*.3),b*(.75+rw[0]*.3),.03,.03,0))}rings.push(rr)});
   const top=m.v(cx,y0+ry*1.2,cz,0,1,0,r,g,b,.03,.03,0);for(let k=0;k<2;k++)for(let i=0;i<seg;i++){const j=(i+1)%seg;m.q(rings[k][i],rings[k][j],rings[k+1][j],rings[k+1][i])}for(let i=0;i<seg;i++)m.t(rings[2][i],rings[2][(i+1)%seg],top)}
+/* ---- foliage: leaf cards and needle cones that sample the leaf atlas (makeFoliageTex in 30_render.js; tile 0 broadleaf cluster, 1 fir needles, 2 bush, 3 grass tuft) ---- */
+const FTILE=(t,lu,lv)=>[((t&1)+.04+lu*.92)*.5,((t>>1)+.04+lv*.92)*.5];
+/* a card (a quad, drawn from both sides) in a crown: its normal is the direction away from the crown's middle, so a crown shades like a ball and not like a pile of flat cards. ctr/rad: the crown; sway: how much it moves in the wind */
+function pcard(cat,x,y,z,yaw,tilt,w,h,tile,r,g,b,ctr,rad,sway){
+  const m=pmb(x,z,cat,4),cy=Math.cos(yaw),sy=Math.sin(yaw),ct=Math.cos(tilt),st=Math.sin(tilt),ids=[];
+  for(const[sx,sv]of[[-1,0],[1,0],[1,1],[-1,1]]){const lx=sx*w/2,ly=(sv-.5)*h;const px=lx*cy,pz=lx*sy,py=ly*ct,qx=-st*ly*sy*0+0;
+    /* tilt about the card's own horizontal axis: moves the top towards or away from the middle */const dxz=-ly*st;const wx=x+px+dxz*sy,wy=y+py,wz=z+pz-dxz*cy;
+    let nx=wx-ctr[0],ny=(wy-ctr[1])*.8+rad*.25,nz=wz-ctr[2];const nl=Math.hypot(nx,ny,nz)||1;nx/=nl;ny/=nl;nz/=nl;
+    const k=.5+.5*Math.max(0,Math.min(1,((wy-ctr[1])/rad+.8)/1.6)),uv=FTILE(tile,sx<0?0:1,sv);
+    ids.push(m.v(wx,wy,wz,nx,ny,nz,Math.min(255,r*k),Math.min(255,g*k),Math.min(255,b*k),uv[0],uv[1],3,sway));void qx}
+  m.q(ids[0],ids[1],ids[2],ids[3]);m.q(ids[0],ids[3],ids[2],ids[1])}
+/* a crown of n cards in an ellipsoid (rx, ry, rz) centred at (cx, cy, cz); cw the card width; positions come from a small hash generator of the place, so the stream of the world generator is untouched */
+function pcrown(cat,cx,cy,cz,rx,ry,rz,n,cw,seed,r,g,b,tile,sway){
+  const rg=mulberry(((seed*977)|0)^0x5bd1e995),ctr=[cx,cy,cz],rad=Math.max(rx,ry,rz);
+  for(let i=0;i<n;i++){const u=rg(),v=rg()*2-1,a=rg()*TAU,rr=Math.pow(rg(),.45)*(.55+.45*u)+.25,sq=Math.sqrt(Math.max(0,1-v*v));
+    const px=cx+Math.cos(a)*sq*rx*rr,py=cy+v*ry*rr*.95,pz=cz+Math.sin(a)*sq*rz*rr,j=.88+rg()*.28,sz=cw*(.8+rg()*.5);
+    pcard(cat,px,py,pz,rg()*Math.PI,(rg()-.5)*1.1,sz,sz*(.85+rg()*.3),tile,r*j,g*j*(.94+rg()*.12),b*j,ctr,rad,sway==null?200:sway)}}
+/* a fir tier: a star-shaped cone (points alternate long and short, so the edge is ragged like drooping branches) with the needle texture; apex vertices per facet so the pattern stays whole */
+function pstar(cat,cx,y0,cz,rad,h,r,g,b,n,rot){
+  const m=pmb(cx,cz,cat,n*2+2),ring=[],ap=[];
+  for(let i=0;i<=n;i++){const a=rot+(i%n)/n*TAU,c=Math.cos(a),s=Math.sin(a),rr=((i%n)%2?.72:1)*rad,sl=rr/h,nl=1/Math.hypot(1,sl),uv=FTILE(1,i/n,0);
+    ring.push(m.v(cx+c*rr,y0,cz+s*rr,c*nl,sl*nl,s*nl,r*.6,g*.6,b*.6,uv[0],uv[1],3,60))}
+  for(let i=0;i<n;i++){const a=rot+(i+.5)/n*TAU,c=Math.cos(a),s=Math.sin(a),sl=rad/h,nl=1/Math.hypot(1,sl),uv=FTILE(1,(i+.5)/n,1);ap.push(m.v(cx,y0+h,cz,c*nl,sl*nl,s*nl,r,g,b,uv[0],uv[1],3,0))}
+  for(let i=0;i<n;i++){m.t(ring[i],ap[i],ring[i+1]);m.t(ring[i],ring[i+1],ap[i])}}
 /* the greens of the broadleaf trees: a few desaturated shades and the odd autumn one, so no two stands look the same */
 const TGREEN=[[52,100,46],[62,112,50],[44,88,52],[78,116,48],[66,98,42],[40,82,58],[86,112,56]],TFALL=[[176,128,44],[190,100,46],[156,90,52]];
-function ptree(x,z,rng,y,hero){const t=rng(),sc=.8+rng()*.7,rot=rng()*6,hh=Math.sin(x*12.9898+z*78.233)*43758.5453,cl=hh-Math.floor(hh),h2=Math.sin(x*39.346+z*11.135)*24634.6345,pk=h2-Math.floor(h2);
+function ptree(x,z,rng,y,hero){const t=rng(),sc=.8+rng()*.7,rot=rng()*6,hh=Math.sin(x*12.9898+z*78.233)*43758.5453,cl=hh-Math.floor(hh),h2=Math.sin(x*39.346+z*11.135)*24634.6345,pk=h2-Math.floor(h2),seed=(x*13.7+z*7.1)|0;
   if(y>110||t<.55){
-    if(hero){const h=11*sc,g=[22+cl*16,62+cl*24,34+cl*14];ptrunk(2,x,y-.2,z,.3,2.8*sc,70,52,36);                                          /* a fir: three tiers that overlap */
-      pcone(2,x,y+1.5*sc,z,3*sc,h*.5,g[0]*.85,g[1]*.85,g[2]*.85,7,rot);pcone(2,x,y+h*.32,z,2.35*sc,h*.46,g[0],g[1],g[2],7,rot+.5);pcone(2,x,y+h*.56,z,1.55*sc,h*.44,g[0]*1.14,g[1]*1.14,g[2]*1.1,7,rot+1)}
-    else{const h=9*sc,rd=2.6*sc;ptrunk(2,x,y-.2,z,.28,2.2*sc,70,52,36);pcone(2,x,y+1.4*sc,z,rd,h*.62,22,66,34,7,rot);pcone(2,x,y+h*.45,z,rd*.68,h*.55,28,78,40,7,rot+.4)}}
+    if(hero){const h=11*sc,g=[26+cl*16,66+cl*24,38+cl*14];ptrunk(2,x,y-.2,z,.3,2.8*sc,70,52,36);                                          /* a fir: three ragged tiers */
+      pstar(2,x,y+1.5*sc,z,3*sc,h*.5,g[0]*.9,g[1]*.9,g[2]*.9,12,rot);pstar(2,x,y+h*.32,z,2.35*sc,h*.46,g[0],g[1],g[2],12,rot+.3);pstar(2,x,y+h*.56,z,1.6*sc,h*.46,g[0]*1.12,g[1]*1.12,g[2]*1.1,10,rot+.6)}
+    else{const h=9*sc,rd=2.6*sc;ptrunk(2,x,y-.2,z,.28,2.2*sc,70,52,36);pstar(2,x,y+1.4*sc,z,rd,h*.62,26,70,38,8,rot);pstar(2,x,y+h*.45,z,rd*.68,h*.55,32,82,44,8,rot+.4)}}
   else{const q1=rng(),q2=rng(),c=pk<.07?TFALL[(cl*3)|0]:TGREEN[(cl*7)|0];
-    if(hero&&pk>.8){ptrunk(2,x,y-.2,z,.2,3*sc,72,60,46);pblob(2,x,y+1.2*sc,z,1.6*sc,7.6*sc,c[0]*.85,c[1]*.9,c[2]*.85,rot)}                       /* a poplar: a tall narrow column */
-    else if(hero){ptrunk(2,x,y-.2,z,.27,4.4*sc,72,54,38);pblob(2,x,y+2.1*sc,z,3.4*sc,5*sc,c[0],c[1],c[2],rot);                                /* an oak: a big crown with a second lobe off to one side */
-      const a=rot*1.7,ox=Math.cos(a)*2.3*sc,oz=Math.sin(a)*2.3*sc;pblob(2,x+ox,y+3.1*sc,z+oz,2.4*sc,3.4*sc,c[0]*1.1,c[1]*1.08,c[2]*1.05,rot+1)}
-    else{ptrunk(2,x,y-.2,z,.3,3*sc,72,54,38);pblob(2,x,y+2*sc,z,3.2*sc,5*sc,46+q2*30,100+q1*50,40,rot)}}}
-/* a bush, a boulder: a low squashed blob that sits on the ground */
-function pbush(x,z,y,rx,ry,r,g,b,rot){pblob(2,x,y-.4*ry,z,rx,ry,r,g,b,rot)}
+    if(hero&&pk>.8){ptrunk(2,x,y-.2,z,.2,3*sc,72,60,46);pcrown(2,x,y+1.4*sc+3.4*sc,z,1.5*sc,3.9*sc,1.5*sc,9,2.2*sc,seed,c[0]*.9,c[1]*.95,c[2]*.9,0)}       /* a poplar: a tall narrow column */
+    else if(hero){ptrunk(2,x,y-.2,z,.27,4.4*sc,72,54,38);const a=rot*1.7;                                                                            /* an oak: trunk, two boughs, a crown of leaf cards */
+      pbar(2,x,y+2.6*sc,z,x+Math.cos(a)*1.8*sc,y+4.6*sc,z+Math.sin(a)*1.8*sc,.16,66,50,36);pbar(2,x,y+3*sc,z,x-Math.cos(a)*1.4*sc,y+4.8*sc,z-Math.sin(a)*1.4*sc,.14,66,50,36);
+      pcrown(2,x,y+5.2*sc,z,3.6*sc,2.9*sc,3.6*sc,12,3.1*sc,seed,c[0],c[1],c[2],0)}
+    else{ptrunk(2,x,y-.2,z,.3,3*sc,72,54,38);pcrown(2,x,y+4.6*sc,z,3.3*sc,2.7*sc,3.3*sc,5,3.7*sc,seed,46+q2*30,100+q1*50,40,0)}}}
+/* a tuft of tall grass: two crossed cards of the blade tile, darker at the root, swaying in the wind */
+function ptuft(x,y,z,yaw,w,h,r,g,b){const m=pmb(x,z,2,8);for(let k=0;k<2;k++){const a=yaw+k*1.5708,ca=Math.cos(a),sa=Math.sin(a),ids=[];
+    for(const[sx,sv]of[[-1,0],[1,0],[1,1],[-1,1]]){const uv=FTILE(3,sx<0?0:1,sv),sh=sv?1:.5;ids.push(m.v(x+ca*sx*w/2,y+sv*h,z+sa*sx*w/2,-sa*.45,.89,ca*.45,Math.min(255,r*sh),Math.min(255,g*sh),Math.min(255,b*sh),uv[0],uv[1],3,sv?255:0))}
+    m.q(ids[0],ids[1],ids[2],ids[3]);m.q(ids[0],ids[3],ids[2],ids[1])}}
+/* a bush: five leaf cards in a heap; a rock or boulder: a low squashed blob that sits on the ground */
+function pbush(x,z,y,rx,ry,r,g,b,rot){pcrown(2,x,y+ry*.55,z,rx*1.05,ry*.7,rx*1.05,5,rx*1.5,((x*7.3+z*3.1)|0),r,g,b,2,150)}
+function prock(x,z,y,rx,ry,r,g,b,rot){pblob(2,x,y-.4*ry,z,rx,ry,r,g,b,rot)}
 /* a bar of square section between two points (wires, rails, cactus arms, turbine parts); drawn from both sides so it never disappears */
 function pbar(cat,x0,y0,z0,x1,y1,z1,w,r,g,b){const m=pmb((x0+x1)/2,(z0+z1)/2,cat,8);let dx=x1-x0,dy=y1-y0,dz=z1-z0;const l=Math.hypot(dx,dy,dz)||1;dx/=l;dy/=l;dz/=l;
   let ux=-dz,uz=dx;const ul=Math.hypot(ux,uz);if(ul<1e-4){ux=1;uz=0}else{ux/=ul;uz/=ul}
@@ -139,11 +169,13 @@ function ppyramid(cat,cx,cz,hb,y0,h,cs,sn){const m=pmb(cx,cz,cat,16),Wd=(lx,lz)=
 /* flat ground patch (parking lots, lawns) */
 function pflat(cat,cx,cz,hx,hz,cs,sn,y,r,g,b){const m=pmb(cx,cz,cat,4),Wd=(lx,lz)=>[cx+lx*cs-lz*sn,cz+lx*sn+lz*cs];
   const k=[[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]].map(c=>{const w=Wd(c[0],c[1]);return m.v(w[0],y,w[1],0,1,0,r,g,b,.03,.03,0)});m.q(k[0],k[3],k[2],k[1])}
-/* palm tree: tall thin trunk, drooping fronds (double sided) */
-function ppalm(x,z,rng,y){const h=8.5+rng()*5,top=y+h,m=pmb(x,z,2,40);ptrunk(2,x,y-.2,z,.24,h,128,100,72);
-  const n=7,rot=rng()*6;for(let k=0;k<n;k++){const a=rot+k/n*TAU,ca=Math.cos(a),sa=Math.sin(a),L=3.6+rng()*.8,mx=x+ca*L*.5,mz=z+sa*L*.5,tx=x+ca*L,tz=z+sa*L,pw=.9;
-    const B=[x,top,z],Lf=[mx-sa*pw,top+.7,mz+ca*pw],Rt=[mx+sa*pw,top+.7,mz-ca*pw],T=[tx,top-1.7,tz];
-    const v=(p,sh)=>m.v(p[0],p[1],p[2],0,1,0,40*sh,118*sh,42*sh,.03,.03,0),b0=v(B,.8),l0=v(Lf,1),r0=v(Rt,1),t0=v(T,.9);m.t(b0,l0,t0);m.t(b0,t0,r0);m.t(b0,t0,l0);m.t(b0,r0,t0)}}
+/* palm tree: a tall trunk and fronds that arch over and droop, each a cut-out strip of the grass-blade tile (the blades run along the frond like leaflets), drawn from both sides */
+function ppalm(x,z,rng,y){const h=8.5+rng()*5,top=y+h,m=pmb(x,z,2,60);ptrunk(2,x,y-.2,z,.24,h,128,100,72);
+  const n=7,rot=rng()*6;for(let k=0;k<n;k++){const a=rot+k/n*TAU,ca=Math.cos(a),sa=Math.sin(a),L=3.6+rng()*.8,pa=-sa,pb=ca;
+    const P=[[0,0,.12],[.55,.45,1.0],[.5*L,.75,1.55],[.82*L,-.2,1.1],[L,-1.7,.18]],ids=[];
+    for(let i=0;i<P.length;i++){const d=P[i][0],yy=top+P[i][1],hw=P[i][2]*.5*(k%2?1:1.1),nx=ca*.35,nz=sa*.35,nl=Math.hypot(nx,.9,nz),sh=.62+.38*i/(P.length-1),u0=FTILE(3,0,i/(P.length-1)),u1=FTILE(3,1,i/(P.length-1));
+      ids.push([m.v(x+ca*d+pa*hw,yy,z+sa*d+pb*hw,nx/nl,.9/nl,nz/nl,92*sh,150*sh,66*sh,u0[0],u0[1],3,230),m.v(x+ca*d-pa*hw,yy,z+sa*d-pb*hw,nx/nl,.9/nl,nz/nl,92*sh,150*sh,66*sh,u1[0],u1[1],3,230)])}
+    for(let i=0;i<P.length-1;i++){const A=ids[i],B=ids[i+1];m.q(A[0],A[1],B[1],B[0]);m.q(A[0],B[0],B[1],A[1])}}}
 const gmin=(cx,cz,hx,hz,cs,sn)=>{let m=terrainH(cx,cz);for(const c of[[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]])m=Math.min(m,terrainH(cx+c[0]*cs-c[1]*sn,cz+c[0]*sn+c[1]*cs));return m};
 const PASTEL=[[236,190,170],[170,200,222],[232,218,160],[204,170,204],[182,214,182],[226,150,142],[240,226,196],[160,190,204]];
 const BRICK=[[168,112,92],[190,150,120],[150,120,104],[120,126,140]];
@@ -169,7 +201,11 @@ function buildCity(){
       const along=(nrng()-.5)*(ax?hz:hx)*1.2;if(ax){lx=sg*(hx+.25);lz=along;hl=[.25,vert?.5:Math.min(3.2,hz*.35)]}else{lz=sg*(hz+.25);lx=along;hl=[vert?.5:Math.min(3.2,hx*.35),.25]}
       const wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs,yy0=vert?y0:y0+3,yy1=vert?y0+Math.min(7,h*.4):y0+3+1.1;pboxR(1,wx,wz,hl[0],hl[1],cs,sn,yy0,yy1,c[0],c[1],c[2],2,1);
       NEONS.push(wx,(yy0+yy1)/2,wz,c[0]/255,c[1]/255,c[2]/255,vert?3.4:4.2)}};
-  const bld=(cx,cz,hx,hz,cs,sn,h,c,win)=>{const gy=gmin(cx,cz,hx,hz,cs,sn);pboxR(1,cx,cz,hx,hz,cs,sn,gy-1.5,gy+h,c[0],c[1],c[2],win!==false,.62);reg(cx,cz,hx,hz,cs,sn,gy+h);nb++;if(h>=7&&win!==false&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0))&&nrng()<.7)neon(cx,cz,hx,hz,cs,sn,gy,h);return gy};
+  const roofRng=mulberry(31337);
+  const bld=(cx,cz,hx,hz,cs,sn,h,c,win)=>{const gy=gmin(cx,cz,hx,hz,cs,sn);pboxR(1,cx,cz,hx,hz,cs,sn,gy-1.5,gy+h,c[0],c[1],c[2],win!==false,.62);reg(cx,cz,hx,hz,cs,sn,gy+h);nb++;
+    /* air-conditioning boxes, a stair head and a tank on the roof of the taller buildings */
+    if(h>=9&&win!==false&&hx>2.5&&hz>2.5){const k=1+((roofRng()*3)|0);for(let q=0;q<k;q++){const lx=(roofRng()-.5)*hx*1.3,lz=(roofRng()-.5)*hz*1.3,wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs,s1=Math.min(hx*.4,.8+roofRng()*1.4),s2=Math.min(hz*.4,.7+roofRng()*1.2),hh=.8+roofRng()*1.8;pboxR(1,wx,wz,s1,s2,cs,sn,gy+h,gy+h+hh,150+roofRng()*20,152+roofRng()*16,156,false,.8)}}
+    if(h>=7&&win!==false&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0))&&nrng()<.7)neon(cx,cz,hx,hz,cs,sn,gy,h);return gy};
   const treesIn=(B,n)=>{for(let k=0;k<n;k++){const u=lerp(B.u0+4,B.u1-4,rng()),v=lerp(B.v0+4,B.v1-4,rng()),p=B.W(u,v);if(nearRoadXZ(p[0],p[1],6))continue;ptree(p[0],p[1],rng,terrainH(p[0],p[1]),true);COLC.push(p[0],p[1],.55,terrainH(p[0],p[1])-.5,terrainH(p[0],p[1])+12)}};
   for(const g of GRIDS){
     if(g.kind=='la'){
@@ -321,7 +357,7 @@ function buildCity(){
   return{buildings:nb,houses:ns,trees:nt,scenery:buildScenery()}}
 /* ---------- scenery along the open roads: poles + wires, gantry signs, billboards, speed + curve signs, fences, groves, bushes, rocks, cacti, wind turbines, gas stations ---------- */
 function buildScenery(){
-  const sr=mulberry(5150),St={poles:0,delin:0,gantry:0,bill:0,chev:0,sign:0,fence:0,groves:0,trees:0,bush:0,rock:0,cactus:0,turb:0,gas:0,farm:0,hv:0,at:{gas:[],farm:[],bill:[],gantry:[],turb:[],hv:[]}};
+  const sr=mulberry(5150),St={poles:0,delin:0,gantry:0,bill:0,chev:0,sign:0,fence:0,groves:0,trees:0,bush:0,rock:0,cactus:0,turb:0,gas:0,farm:0,hv:0,tuft:0,at:{gas:[],farm:[],bill:[],gantry:[],turb:[],hv:[]}};
   const dryAt=(x,z)=>Math.min(1,sstep(1300,2300,z)*.8+sstep(500,1800,x)*.15+sstep(2600,3800,x)*.9);
   const BB=[[214,64,52],[244,196,44],[44,108,214],[236,236,232],[34,148,92],[238,120,36],[130,60,170]];
   const sideAt=(r,i,tx,tz,sd,g)=>{const o=r.hw*r.wk[i]+RSH+g,px=r.X[i]-tz*sd*o,pz=r.Z[i]+tx*sd*o;return[px,pz,terrainH(px,pz)]};
@@ -375,12 +411,14 @@ function buildScenery(){
           if(!free(px,pz,Y,g,7))continue;
           if(dry0>.55){const q=sr();
             if(q<.28){const h=3.2+sr()*3.4;ptrunk(2,px,ty-.2,pz,.3,h,72,112,66);const arms=1+((sr()*2)|0);for(let k=0;k<arms;k++){const a=sr()*TAU,ax=Math.cos(a),az=Math.sin(a),y1=ty+h*(.35+sr()*.2);pbar(2,px,y1,pz,px+ax*.95,y1,pz+az*.95,.27,72,112,66);pbar(2,px+ax*.95,y1,pz+az*.95,px+ax*.95,y1+1.2+sr()*.9,pz+az*.95,.27,76,118,70)}COLC.push(px,pz,.4,ty-.5,ty+h);St.cactus++}
-            else if(q<.45){const k=1+((sr()*3)|0);for(let j=0;j<k;j++){const ox=px+(sr()-.5)*4,oz=pz+(sr()-.5)*4,sc=.7+sr()*1.4,c=104+sr()*40,ty2=terrainH(ox,oz);pbush(ox,oz,ty2,1.5*sc,1.05*sc,c,c*.93,c*.82,sr()*6);if(j==0)COLC.push(ox,oz,1.1*sc,ty2-.5,ty2+1.3*sc)}St.rock++}
+            else if(q<.45){const k=1+((sr()*3)|0);for(let j=0;j<k;j++){const ox=px+(sr()-.5)*4,oz=pz+(sr()-.5)*4,sc=.7+sr()*1.4,c=104+sr()*40,ty2=terrainH(ox,oz);prock(ox,oz,ty2,1.5*sc,1.05*sc,c,c*.93,c*.82,sr()*6);if(j==0)COLC.push(ox,oz,1.1*sc,ty2-.5,ty2+1.3*sc)}St.rock++}
             else if(q<.8){const sc=.7+sr()*.8,c=116+sr()*30;pbush(px,pz,ty,1.1*sc,.8*sc,c,c*.9,c*.5,sr()*6);St.bush++}}
           else if(nz2>.36&&sr()<.2+.65*sstep(.4,.62,nz2)){const k=2+((sr()*5)|0);St.groves++;
             for(let j=0;j<k;j++){const ox=px+(sr()-.5)*14,oz=pz+(sr()-.5)*14,ty2=terrainH(ox,oz);if(!free(ox,oz,Y,g,8))continue;ptree(ox,oz,sr,ty2,true);COLC.push(ox,oz,.55,ty2-.5,ty2+12);St.trees++}}
-          else if(sr()<.5){const sc=.8+sr()*.9,gr=sr()<.2?[132,128,66]:[48+sr()*26,92+sr()*30,44];pbush(px,pz,ty,1.3*sc,1.0*sc,gr[0],gr[1],gr[2],sr()*6);St.bush++}
-          if(g<12&&sr()<.5){const sc=.7+sr()*.8,gr=dry0>.55?[132,120,70]:[56+sr()*20,98+sr()*20,48],g2=3+sr()*3,[bx,bz,by]=sideAt(r,i,tx,tz,sd,g2);if(free(bx,bz,Y,g2,3)){pbush(bx,bz,by,1.0*sc,.75*sc,gr[0],gr[1],gr[2],sr()*6);St.bush++}}}}
+          else if(sr()<.5){const sc=.8+sr()*.9,gr=sr()<.2?[104,110,56]:[48+sr()*26,92+sr()*30,44];pbush(px,pz,ty,1.3*sc,1.0*sc,gr[0],gr[1],gr[2],sr()*6);St.bush++}
+          if(g<12&&sr()<.5){const sc=.7+sr()*.8,gr=dry0>.55?[132,120,70]:[56+sr()*20,98+sr()*20,48],g2=3+sr()*3,[bx,bz,by]=sideAt(r,i,tx,tz,sd,g2);if(free(bx,bz,Y,g2,3)){pbush(bx,bz,by,1.0*sc,.75*sc,gr[0],gr[1],gr[2],sr()*6);St.bush++}}
+          /* tufts of tall grass along the verge (golden in the dry country) */
+          {const nT=1+((sr()*3)|0),dc=dry0>.45;for(let q=0;q<nT;q++){const gt=1.4+sr()*9,[ux,uz]=sideAt(r,i,tx,tz,sd,gt),jx=ux+(sr()-.5)*5,jz=uz+(sr()-.5)*5,uy=terrainH(jx,jz),sc=.8+sr()*.9,cc=dc?[150+sr()*30,128+sr()*20,66]:[88+sr()*30,126+sr()*26,56];if(!free(jx,jz,Y,gt,3))continue;ptuft(jx,uy-.05,jz,sr()*3,1.5*sc,1.05*sc,cc[0],cc[1],cc[2]);St.tuft++}}}}
       /* wind turbines on the open country, in rows of three */
       if(d>=nx_.turb){nx_.turb=d+800+sr()*900;const sd=sr()<.5?-1:1,g=70+sr()*120,rot=sr()*6,fx=Math.cos(rot),fz=Math.sin(rot);
         for(let k=0;k<3;k++){const[bx,bz]=sideAt(r,i,tx,tz,sd,g),px=bx+tx*k*105+(sr()-.5)*14,pz=bz+tz*k*105+(sr()-.5)*14,ty=terrainH(px,pz);

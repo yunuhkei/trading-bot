@@ -12,7 +12,9 @@ async function launch(o){
   const page=await ctx.newPage();const errs=[],logs=[];
   page.on('console',m=>{const t=m.type();if(/GL Driver Message|GPU stall|swiftshader/i.test(m.text()))return;if(t=='error'||t=='warning')errs.push(t+': '+m.text());else logs.push(m.text())});
   page.on('pageerror',e=>errs.push('PAGEERROR: '+e.message));
-  await page.goto('file://'+o.file+(o.q?'?'+o.q:''));
+  /* the tests that were written for the gloomy look keep it unless they ask for a weather themselves (renv.js tests all of them) */
+  const q=o.q&&!/(^|&)env=/.test(o.q)?o.q+'&env=overcast':(o.q||'env=overcast');
+  await page.goto('file://'+o.file+'?'+q);
   return{browser,page,errs,logs,ev:(s,a)=>page.evaluate(s,a),close:()=>browser.close(),o};
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));

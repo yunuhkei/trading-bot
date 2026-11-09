@@ -49,6 +49,8 @@ function uiLayout(){
   add('cars','CARS',sxp-u*.15-u*1.5-u*.15-u*1.1,m,u*1.1,u*.55,v=>{if(v)menuOpen()},'#ffa43a');
   /* graphics setting: AUTO (picks the tier from measured frame cost), HIGH, LOW */
   add('qual','GFX '+GFX.mode.toUpperCase(),sxp-u*.15-u*1.5,m,u*1.5,u*.55,v=>{if(v){gfxSetMode(GFX.mode=='auto'?'high':GFX.mode=='high'?'low':'auto');UI.bn.qual.label='GFX '+GFX.mode.toUpperCase();safeToast('Graphics: '+GFX.mode.toUpperCase()+(GFX.mode=='auto'?'  (now '+GFX.cur.name+')':''),2)}},'#8a94a6');
+  /* weather / time of day: DAY, OVERCAST, SUNSET */
+  add('sky','SKY '+(ENVP[ENV.name]||ENVP.day).label,sxp-u*.15-u*1.5-u*.15-u*1.1-u*.15-u*1.7,m,u*1.7,u*.55,v=>{if(v){const n=envCycle();UI.bn.sky.label='SKY '+ENVP[n].label;safeToast('Sky: '+ENVP[n].label,2)}},'#8ab4ff');
   UI.bn={};b.forEach(x=>UI.bn[x.id]=x);
   UI.btnU=u}
 function uiResize(){
