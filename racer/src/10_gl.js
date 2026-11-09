@@ -91,10 +91,10 @@ const SH={
   'col+=alb*emis*(2.2+uGl*2.);col+=uBr.x*emis*vec3(1.,.1,.05)*step(0.,-n.z)*0.;'+
   'col=fogm(col,vW);gl_FragColor=vec4(tone(col),1.);}',
   /* ---- traffic cars: instanced low-poly bodies; per instance x,y,z,yaw | pitch,roll,colour,flags (1 brake lights, 2 siren) ---- */
- trV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;uniform mat4 uVP;uniform vec3 uPal[12];uniform vec4 uMat[10];varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;\n'+
+ trV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;uniform mat4 uVP;uniform vec3 uPal[14];uniform vec4 uMat[12];uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;\n'+
   'vec3 rt(vec3 p,float cy,float sy,float cp,float sp,float cr,float sr){float x=p.x*cr-p.y*sr,y=p.x*sr+p.y*cr,z=p.z;float y2=y*cp+z*sp,z2=z*cp-y*sp;return vec3(cy*x+sy*z2,y2,sy*x-cy*z2);}\n'+
   'void main(){float cy=cos(aI0.w),sy=sin(aI0.w),cp=cos(aI1.x),sp=sin(aI1.x),cr=cos(aI1.y),sr=sin(aI1.y);vec3 w=rt(aP,cy,sy,cp,sp,cr,sr)+aI0.xyz;vW=w;vN=rt(aN.xyz,cy,sy,cp,sp,cr,sr);'+
-  'int id=int(aN.w*127.+.5);vec4 mt=uMat[id];float br=mod(aI1.w,2.);vec3 alb=mt.rgb;float em=max(mt.a,0.);if(mt.a<-.5){alb=uPal[int(aI1.z+.5)];}if(id==4)em+=br*2.4;'+
+  'int id=int(aN.w*127.+.5);vec4 mt=uMat[id];float br=mod(aI1.w,2.);vec3 alb=mt.rgb;float em=max(mt.a,0.);if(mt.a<-.5){alb=uPal[int(aI1.z+.5)];}if(id==4)em+=br*2.4;if(id==7||id==8){float sir=step(1.5,aI1.w),ph=step(0.,sin(uT*12.));em+=sir*(id==7?ph*3.+.1:(1.-ph)*3.+.1);}'+
   'vC=alb;vE=vec2(em,id==1?1.:(id==0?.5:.12));gl_Position=uVP*vec4(w,1.);}',
  trF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;\n'+ENVSRC+
   'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float ndv=max(dot(n,V),0.);vec3 R=reflect(-V,n);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl*.9;'+
@@ -102,7 +102,7 @@ const SH={
  /* ---- effects: ground decals (blob shadow, skid marks) and camera-facing smoke, one dynamic buffer ---- */
  fxV:'attribute vec3 aP;attribute vec4 aC;attribute vec2 aU;uniform mat4 uVP;varying vec4 vC;varying vec2 vU;void main(){vC=aC;vU=aU;gl_Position=uVP*vec4(aP,1.);}',
  fxF:PRE+'varying vec4 vC;varying vec2 vU;uniform float uMode;\n'+
- 'void main(){float d=length(vU-.5)*2.;float a=uMode<.5?(1.-smoothstep(.3,1.,d)):(1.-smoothstep(.0,1.,d));a*=vC.a;if(uMode>1.5)a=vC.a*(1.-smoothstep(.6,1.,abs(vU.x-.5)*2.));gl_FragColor=vec4(vC.rgb,a);}'
+ 'void main(){float d=length(vU-.5)*2.;float a=uMode<.5?(1.-smoothstep(.3,1.,d)):(1.-smoothstep(.0,1.,d));a*=vC.a;if(uMode>1.5)a=vC.a*(1.-smoothstep(.6,1.,abs(vU.x-.5)*2.));if(uMode>2.5){vec2 q=abs(vU-.5)*2.;float e=max(q.x,q.y);a=vC.a*(.2+smoothstep(.62,.9,e)*.8)*(1.-smoothstep(.94,1.,e));}gl_FragColor=vec4(vC.rgb,a);}'
 };
 function glCompile(gl,type,src,name){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){const e=gl.getShaderInfoLog(s);throw new Error('shader '+name+(type==gl.VERTEX_SHADER?' VS':' FS')+': '+e)}return s}
 function mkProg(name,vs,fs,attrs){const gl=G.gl,p=gl.createProgram();gl.attachShader(p,glCompile(gl,gl.VERTEX_SHADER,vs,name));gl.attachShader(p,glCompile(gl,gl.FRAGMENT_SHADER,fs,name));attrs.forEach((a,i)=>gl.bindAttribLocation(p,i,a));gl.linkProgram(p);

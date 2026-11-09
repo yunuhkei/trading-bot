@@ -9,7 +9,7 @@ function makeTown(id,B,theme,o){o=o||{};
 /* a spot beside a road: x,z and the road's direction (cs,sn) there; side +1 is to the left of the direction of travel, -1 to the right */
 function besideRoad(id,f,side,off){const r=ROADS.find(q=>q.id==id);if(!r)return null;const i=Math.max(1,Math.min(r.n-2,Math.round(f*(r.closed?r.n:r.n-1)))),t=_tan(r,i),nx=-t[1],nz=t[0],d=r.hw+RSH+off;
   return{x:r.X[i]+nx*side*d,z:r.Z[i]+nz*side*d,cs:t[0],sn:t[1]}}
-function addSafe(id,name,road,f,side,off){const p=besideRoad(road,f,side,off||14);if(p)SAFEHOUSES.push({id,name,x:p.x,z:p.z,cs:p.cs,sn:p.sn})}
+function addSafe(id,name,road,f,side,off){const p=besideRoad(road,f,side,off||14);if(p)SAFEHOUSES.push({id,name,x:p.x,z:p.z,cs:p.cs,sn:p.sn,side})}
 function defineWorld(ring,sh,H){
   const {ramp,rampIn,tIn}=H;
   /* ---------- towns and industrial areas ---------- */

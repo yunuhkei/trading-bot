@@ -16,6 +16,9 @@ node racer/tests/<name>.js        # one test; RFILE=/path/to/other.html tests an
 | `lanecheck.js` | lane graph in Node: lane centres sit exactly where `laneInfo` puts them, no NaN, every lane has a way on, the road directions form one strongly connected piece, no road end sits at a different height from the road it joins |
 | `rtraffic.js` | traffic only, car pinned beside the road, 90 s at ten places (downtown, Valley, ring, mountain pass, coast, east highway, Big Pines, harbour, Palm Springs, Mulholland): cars alive vs target, wreck rate, far-off-lane, off-road, stuck for 25 s, deadlock breaker uses, CPU per tick. `SEED=n` `SECS=n` `ONLY=a,b` |
 | `rtrhit.js` | player against traffic: A collision physics on synthetic bodies (momentum, energy 1/2 mu (1-e^2) v^2, spin-out, tap), B real hits (energy and zone recorded), C a bot drives through busy traffic on three roads |
+| `rdamage.js` | damage: zones fill from energy, effects exactly neutral when undamaged, top speed / pull / nitro leak when damaged, dents move vertices (and never open cracks), repair restores the pristine mesh, upload cost, wrecked rule |
+| `rsafe.js` | safe houses: pads in front of every garage door, only Home owned, servicing repairs and clears heat, locked garage does nothing, wrecked / busted respawn at the nearest owned pad, save and load |
+| `rcops.js` | cops: heat thresholds, patrol presence, chase catches a 30 m/s player, boxed in = BUSTED, escape by line of sight, roadblock, Medium rams, garage clears heat, difficulty table |
 | `rtrperf.js` | draw calls, triangles and CPU per traffic tick with and without traffic at five camera spots |
 | `rtrshot.js` | screenshots of the traffic at places (`rtrshot.js '[["sfnu3",0.43]]' name`) |
 | `raudit.js` | which lane markings each road really renders (decodes the road shader's style number per sample) versus what it should |

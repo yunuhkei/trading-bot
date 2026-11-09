@@ -5,12 +5,12 @@
    (priority: road class and turn type, then who is nearer the crossing). It steers by pure pursuit and drives a kinematic bicycle. A car that is hit becomes a WRECK (a free body, mass, restitution, friction).
    Impact energy goes to IMP (40_car.js) for the damage system. Everything runs at a fixed 60 Hz from the same fixed-step loop as the player and uses one seeded generator, so a run is repeatable. */
 const TRN=72,HN=12,NSM=21,DTS=.2;                             /* the horizon has HN points; their spacing c.hs grows with speed (6 m in town, 10 m on the highway: 66 to 110 m) */
-const TTYPES=[{n:'sedan',hl:2.25,hw:.9,m:1300},{n:'hatch',hl:2.0,hw:.88,m:1100},{n:'suv',hl:2.4,hw:.95,m:1900},{n:'van',hl:2.7,hw:1.0,m:2300}];
-const TCOLS=[[.74,.74,.76],[.07,.07,.08],[.5,.51,.54],[.55,.07,.07],[.09,.17,.36],[.84,.84,.82],[.1,.22,.15],[.55,.46,.3],[.78,.58,.08],[.3,.1,.26],[.16,.27,.4],[.4,.4,.36]];
+const TTYPES=[{n:'sedan',hl:2.25,hw:.9,m:1300},{n:'hatch',hl:2.0,hw:.88,m:1100},{n:'suv',hl:2.4,hw:.95,m:1900},{n:'van',hl:2.7,hw:1.0,m:2300},{n:'cop',hl:2.25,hw:.9,m:1600}];
+const TCOLS=[[.74,.74,.76],[.07,.07,.08],[.5,.51,.54],[.55,.07,.07],[.09,.17,.36],[.84,.84,.82],[.1,.22,.15],[.55,.46,.3],[.78,.58,.08],[.3,.1,.26],[.16,.27,.4],[.4,.4,.36],[.82,.82,.84]];
 const TR={cars:[],on:true,prof:true,ms:0,max:56,t:0,sub:0,rng:null,boot:1,nAlive:0,target:0,head:new Int32Array(4096),stamp:0,P:null,seedBase:20240601,acc:0,visMin:140,visFar:380,rSpawn:430,rDespawn:540,
   stat:{spawn:0,despawn:0,hits:0,wrecks:0,aiCrash:0,msSum:0,ticks:0,msMax:0,stuck:0,turns:0,lc:0,ign:0,forced:0}};
 function trNewCar(i){return{i,alive:0,state:0,kind:0,type:0,col:0,m:1300,I:1,hl:2.25,hw:.9,e:null,u:0,L:null,lu:0,x:0,z:0,y:0,yaw:0,v:0,vx:0,vz:0,om:0,px:0,pz:0,py:0,pyaw:0,pitch:0,roll:0,seed:0,v0f:1,A:2.2,T:1.3,off:0,offT:0,offHold:0,brake:0,wait:0,ign:0,age:0,hitT:0,stamp:0,nxt:-1,
-  acc:0,think:0,crT:-9,hold:0,yHold:0,yGap:0,yWho:-9,yAt:0,stopT:0,yPrev:-1,pl:null,pjid:-1,lcCool:0,prio:0,hn:0,hend:0,hnTrue:0,hs:6,bg:99,yTo:-1,ns:0,vS:2.5,sx:new Float32Array(NSM),sz:new Float32Array(NSM),sdx:new Float32Array(NSM),sdz:new Float32Array(NSM),hx:new Float32Array(HN+2),hz:new Float32Array(HN+2),hv:new Float32Array(HN+2),vlim:0,flags:0,wt:0}}
+  acc:0,think:0,crT:-9,hold:0,yHold:0,yGap:0,yWho:-9,yAt:0,stopT:0,yPrev:-1,pl:null,pjid:-1,lcCool:0,prio:0,hn:0,hend:0,hnTrue:0,hs:6,bg:99,yTo:-1,ns:0,vS:2.5,sx:new Float32Array(NSM),sz:new Float32Array(NSM),sdx:new Float32Array(NSM),sdz:new Float32Array(NSM),hx:new Float32Array(HN+2),hz:new Float32Array(HN+2),hv:new Float32Array(HN+2),vlim:0,flags:0,wt:0,cm:0,siren:0,block:0,life:0,pickJ:-1,pickL:null,role:0,ramCd:0,los:null,stk:0}}
 for(let i=0;i<TRN;i++)TR.cars.push(trNewCar(i));
 /* the player as a pseudo car (for the AI's corridor and conflict tests) and as a body for collisions */
 TR.P={i:-1,state:2,x:0,z:0,vx:0,vz:0,v:0,yaw:0,om:0,hl:2.2,hw:.95,m:1400,I:1400*(2.2*2.2+.95*.95)/3,hn:HN,hs:8,hx:new Float32Array(HN),hz:new Float32Array(HN),prio:1000,e:null,ns:0,vS:0,sx:new Float32Array(NSM),sz:new Float32Array(NSM),sdx:new Float32Array(NSM),sdz:new Float32Array(NSM)};
@@ -37,7 +37,7 @@ function trPt(o,i){const n=o.n;let j=Math.floor(i),f=i-j;if(o.closed){j=((j%n)+n
   const dx=X[k]-X[j],dz=Z[k]-Z[j],l=Math.hypot(dx,dz)||1;_pt.tx=dx/l;_pt.tz=dz/l}
 /* link weights for the turn a car picks at a junction (the pick is a stateless hash of the car's seed and the junction, so it never changes while the car is deciding) */
 function trLW(l,g){const k=l.kind;if(k==3)return g.through?.07:2;return(k==1?1.5:k==2?1.2:1.2)*(l.to.cls>=l.from.cls?1.15:.8)}
-function trPick(c,g,e){const L=g.links;let own=false;
+function trPick(c,g,e){if(c.cm===1)return copPick(c,g,e);const L=g.links;let own=false;
   if(!g.through)for(let q=0;q<L.length;q++)if(L[q].from===e){own=true;break}       /* at the end of a road a car takes a turn from the lane it is in, if there is one */
   let wS=g.through?5:0,tot=wS;for(let q=0;q<L.length;q++)if(!own||L[q].from===e)tot+=trLW(L[q],g);
   let r=trHash(c.seed,g.id)*tot;if(r<wS)return null;r-=wS;let last=null;for(let q=0;q<L.length;q++){if(own&&L[q].from!==e)continue;const w=trLW(L[q],g);last=L[q];if(r<w)return L[q];r-=w}return last}
@@ -88,7 +88,7 @@ function trInteract(c,j,v,fx,fz){
   let cum=0,found=false;const CW=c.hw*.8+j.hw*.8+.1;
   for(let k=0;k<hn-1;k++){const sx=hx[k+1]-hx[k],sz=hz[k+1]-hz[k],sl=Math.hypot(sx,sz);if(sl<1e-3)continue;const rx=j.x-hx[k],rz=j.z-hz[k],t=(rx*sx+rz*sz)/(sl*sl);
     if(t>=(k==0?-.3:0)&&t<=1){const lat=Math.abs(rx*sz-rz*sx)/sl;if(lat<CW){const along=cum+t*sl,gap=along-(c.hl+j.hl),vl=(j.vx*sx+j.vz*sz)/sl;found=true;
-        if(along>-.5){trTerm(c,v,gap,vl>-60?vl:-60);if(!jw&&gap<34&&vl<c.hv[0]*.65){c.flags|=4;c.bg=gap}}break}}
+        if(along>-.5){trTerm(c,v,gap,vl>-60?vl:-60);if(!jw&&gap<34&&vl<c.hv[0]*(c.cm>0&&c.kind===1?c.v0f:1)*.65){c.flags|=4;c.bg=gap}}break}}
     cum+=sl}
   if(found)return;
   /* crossing conflicts: where will j be when I get to each point of my path? */
@@ -114,9 +114,9 @@ function trInteract(c,j,v,fx,fz){
 function trThink(c,dt){
   const hn=c.hn,v=c.v,sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),fx=sy,fz=-cy;
   /* priority: class of the road, then the kind of manoeuvre; a car already in a junction goes first */
-  {let cls=c.L?c.L.from.cls:c.e.cls,mv=3;if(c.L){mv=[3,2,1,0][c.L.kind]+15}else if(c.pl&&c.pl.from===c.e){const dd=(c.pl.fu-c.u)*c.e.ds;if(dd>-5&&dd<50)mv=[3,2,1,0][c.pl.kind]}c.prio=cls*4+mv}
+  {let cls=c.L?c.L.from.cls:c.e.cls,mv=3;if(c.L){mv=[3,2,1,0][c.L.kind]+15}else if(c.pl&&c.pl.from===c.e){const dd=(c.pl.fu-c.u)*c.e.ds;if(dd>-5&&dd<50)mv=[3,2,1,0][c.pl.kind]}c.prio=cls*4+mv+(c.kind===1&&c.cm>0?8:0)}
   let vd=1e9;for(let k=0;k<hn;k++){const d=k*c.hs,s=c.hv[k],vk=Math.sqrt(s*s+5*d);if(vk<vd)vd=vk}   /* braking to the speed limits ahead at about 2.5 m/s^2 */
-  vd=Math.max(2,vd*c.v0f);
+  vd=Math.max(2,vd*c.v0f);if(c.cm>0&&c.kind===1&&vd>COP.D.top)vd=COP.D.top;
   _term=0;_emerg=0;_swerve=0;_yGap=1e9;c.flags=0;c.yPrev=c.yTo;c.yTo=-1;
   if(c.hend){/* the path ends (the lane has to be changed first): stop at its end */const gap=(c.hnTrue-1)*c.hs-c.hl-.8;trTerm(c,v,gap,0)}
   /* neighbours */
@@ -182,16 +182,16 @@ function trLaneChange(c,dt){
   if(g){const pk=trPick(c,g,e);if(pk&&pk.from!==e){const dist=(e.closed?((pk.fu-iw+e.n)%e.n):(pk.fu-iw))*e.ds;if((dist>32&&dist<190)||c.hend)want=pk.from.k}}
   if(want<0){/* a dead-end lane (no turn from it, no straight) */ if(g&&!g.through){let has=false;for(const l of e.out)if(l.jg===g)has=true;if(!has){for(const l of g.links){want=l.from.k;break}}}}
   if(want<0){/* pass a slow car: only on multi-lane roads, only if we are blocked */
-    if(c.flags&4&&c.bg>=10&&c.v<c.vlim*.72&&c.offHold<=0){want=e.k>0?e.k-1:e.k+1;if(want>=o.length)want=-1}}
+    if(c.flags&4&&c.bg>=10&&c.v<c.vlim*(c.cm>0&&c.kind===1?c.v0f:1)*.72&&c.offHold<=0){want=e.k>0?e.k-1:e.k+1;if(want>=o.length)want=-1}}
   if(want<0||want===e.k)return;
   if(c.hend&&c.stopT>2.5){trSwitchLane(c,o[want]);c.lcCool=2;c.stopT=0;TR.stat.forced++;return}      /* stuck at the end of a lane: just take the lane */
   const k2=e.k+(want>e.k?1:-1),e2=o[k2],st=++TR.stamp,cars=TR.cars,cx=Math.floor(c.x/48),cz=Math.floor(c.z/48);let ok=true;
   for(let a=-1;a<=1&&ok;a++)for(let b=-1;b<=1&&ok;b++){const k=((Math.imul(cx+a+4096,73856093)^Math.imul(cz+b+4096,19349663))&4095);
     for(let q=TR.head[k];q>=0;q=cars[q].nxt){const j=cars[q];if(j===c||j.stamp===st)continue;j.stamp=st;
-      if(j.state==0&&(j.e===e2||(j.L&&j.L.to===e2))){const jd=(j.L?(j.L.tu-c.u):(j.u-c.u))*e.ds,beh=10+Math.max(0,j.v-c.v)*1.8;if(jd>-beh&&jd<12+Math.max(0,c.v-j.v)*1.2){ok=false;break}}
+      if(j.state==0&&(j.e===e2||(j.L&&j.L.to===e2))){const jd=(j.L?(j.L.tu-c.u):(j.u-c.u))*e.ds,bold=c.cm>0&&c.kind===1,beh=(bold?6:10)+Math.max(0,j.v-c.v)*(bold?1:1.8);if(jd>-beh&&jd<(bold?8:12)+Math.max(0,c.v-j.v)*(bold?.7:1.2)){ok=false;break}}
       else if(j.state==1&&Math.hypot(j.x-c.x,j.z-c.z)<14){ok=false;break}}}
   if(!ok){c.lcCool=.5;return}
-  trSwitchLane(c,e2);c.lcCool=want!==k2?.8:2.5}
+  trSwitchLane(c,e2);c.lcCool=want!==k2?.8:(c.cm>0&&c.kind===1?1:2.5)}
 /* ---------------- wrecks and collisions ---------------- */
 let _sx=0,_sz=0;
 /* push a circle out of the static colliders (buildings, poles, trees); returns the summed push in _sx,_sz */
@@ -217,7 +217,7 @@ function trWreck(c,dt){
   for(const o of[-1,1]){const cx=c.x+sy*o*c.hl*.55,cz=c.z-cy*o*c.hl*.55;if(trStatic(cx,cz,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz;const l=Math.hypot(_sx,_sz)||1,nx=_sx/l,nz=_sz/l,vn=c.vx*nx+c.vz*nz;if(vn<0){c.vx-=1.2*vn*nx;c.vz-=1.2*vn*nz;c.om*=.7}}}
   const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);if(c.y<g)c.y=g;
   c.pitch*=.9;c.roll*=.9;
-  if(c.wt>TR.wreckLife){trKill(c,1)}}
+  if(c.block){c.life-=dt;if(c.life<=0)trKill(c,1)}else if(c.wt>TR.wreckLife){trKill(c,1)}}
 TR.wreckLife=30;
 function trKill(c,why){if(!c.alive)return;c.alive=0;TR.nAlive--;TR.stat.despawn++;if(why==2)TR.stat.stuck++}
 /* two bodies hit (a: car, wreck or the player proxy; b: car or wreck). Returns the impact energy (J) or 0. a and b have x,z,yaw,vx,vz,om,m,I,hl,hw; normal points from b to a. */
@@ -257,6 +257,7 @@ function trResolve(a,b,e,mu){
 function trBody(B,c){B.x=c.x;B.z=c.z;B.yaw=c.yaw;if(c.state==0){B.vx=Math.sin(c.yaw)*c.v;B.vz=-Math.cos(c.yaw)*c.v;B.om=0}else{B.vx=c.vx;B.vz=c.vz;B.om=c.om}B.m=c.m;B.I=c.m*(c.hl*c.hl+c.hw*c.hw)/3;B.hl=c.hl;B.hw=c.hw}
 /* write a body back into a car: a hard hit (or any hit on a wreck) makes it a wreck, a light bump just changes its speed */
 function trBack(B,c,E){
+  if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>110000&&c.kind==1){c.state=1;c.siren=1;c.wt=0;c.block=0;TR.stat.wrecks++}return}
   if(c.state==0&&E<2500){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.v=Math.max(0,B.vx*hx+B.vz*hz);c.x=B.x;c.z=B.z;return}
   if(c.state==0){c.state=1;c.wt=0;c.brake=0;c.L=null;TR.stat.wrecks++;c.kind=c.kind}
   c.x=B.x;c.z=B.z;c.vx=B.vx;c.vz=B.vz;c.om=B.om>5?5:B.om<-5?-5:B.om;c.v=Math.hypot(c.vx,c.vz)}
@@ -274,7 +275,8 @@ function trPlayerCollide(){
         C.vx=BA.vx;C.vz=BA.vz;C.wyaw+=clamp((BA.om-C.wyaw),-1.6,1.6)*.55;C.x=BA.x;C.z=BA.z;
         const vn=HIT.vn;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.04);C.flash=Math.max(C.flash,Math.min(.25,vn*.01));
         impactAdd(3,vn,e,c.m,HIT.cx,HIT.cz,HIT.nx,HIT.nz);if(C.t-c.hitT>.5)TR.stat.hits++;
-        trBack(BB,c,e);c.hitT=C.t}
+        const was=c.state;if(c.kind==1)copRammed(c,e);else if(e>20000)heatAdd(Math.min(40,e/8000));
+        trBack(BB,c,e);c.hitT=C.t;if(c.kind==0&&was==0&&c.state==1)heatAdd(30)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){
@@ -306,7 +308,7 @@ function trPlace(e,u,type,col,v,seed){
   let c=null;for(const q of TR.cars)if(!q.alive){c=q;break}if(!c)return null;
   const T=TTYPES[type];c.alive=1;c.state=0;c.kind=0;c.type=type;c.col=col;c.m=T.m;c.hl=T.hl;c.hw=T.hw;c.I=T.m*(T.hl*T.hl+T.hw*T.hw)/3;c.e=e;c.u=u;c.L=null;c.lu=0;c.seed=seed|0;
   trPt(e,u);c.x=_pt.x;c.z=_pt.z;c.y=_pt.y;c.yaw=Math.atan2(_pt.tx,-_pt.tz);c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.v=v;c.vx=Math.sin(c.yaw)*v;c.vz=-Math.cos(c.yaw)*v;c.om=0;c.pitch=c.roll=0;
-  c.acc=0;c.v0f=.86+trHash(seed,7)*.22;c.A=1.9+trHash(seed,11)*.9;c.T=1.0+trHash(seed,13)*.7;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;
+  c.acc=0;c.v0f=.86+trHash(seed,7)*.22;c.A=1.9+trHash(seed,11)*.9;c.T=1.0+trHash(seed,13)*.7;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.pickL=null;c.role=0;c.ramCd=0;c.los=null;c.stk=0;
   TR.nAlive++;TR.stat.spawn++;return c}
 function trSpawn(){
   const rng=TR.rng,P=C;
@@ -339,22 +341,24 @@ function trTick(dt){
   TR.head.fill(-1);for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const k=trCell(c.x,c.z);c.nxt=TR.head[k];TR.head[k]=i}
   /* each car thinks every other tick (30 Hz, half of the cars on each tick); it steers and moves every tick */
   const par=(TR.tk=(TR.tk|0)+1)&1;
-  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;if(c.state==0){if((i&1)===par||c.hn===0){c.think=1;trHorizon(c);trSamples(c,false)}else c.think=0}else trSamples(c,true)}
+  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;if(c.state==0){if((i&1)===par||c.hn===0){c.think=1;trHorizon(c);trSamples(c,false)}else c.think=0}else if(c.state==3){copHorizon(c);trSamples(c,false)}else trSamples(c,true)}
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;
     if(c.state==0){if(c.think){trThink(c,dt*2);if((c.flags&2)==0&&c.e)trLaneChange(c,dt*2)}else c.v=Math.max(0,c.v+c.acc*dt);trMove(c,dt);c.vlim=c.hv[0]}
+    else if(c.state==3)copFree(c,dt);
     else trWreck(c,dt)}
   trCarCollide();
   /* spawn and despawn */
   TR.target=Math.min(TR.max,trTarget());
   const pyx=Math.sin(C.yaw),pyz=-Math.cos(C.yaw);
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const dx=c.x-C.x,dz=c.z-C.z,d=Math.hypot(dx,dz);
-    if(d>TR.rDespawn||(d>300&&(dx*pyx+dz*pyz)/d<.2)||(c.state==0&&(c.wait>40||c.stopT>45)))trKill(c,0);
+    if(d>(c.kind==1&&c.cm>0?760:TR.rDespawn)||(d>300&&c.cm<1&&(dx*pyx+dz*pyz)/d<.2)||(c.state==0&&(c.wait>40||c.stopT>45)))trKill(c,0);
     else if(c.state==0&&c.stopT>12&&d>30&&!trSeen(c.x,c.z))trKill(c,2);                  /* a jam out of sight dissolves */
     else if(c.state==0&&c.stopT>22&&d>60)trKill(c,2);                                     /* and a jam that stays for 22 s dissolves even in view, if it is not right next to the player */
-    else if(c.state==1&&c.wt>14&&d>35&&!trSeen(c.x,c.z))trKill(c,1)}
+    else if(c.state==1&&!c.block&&c.wt>14&&d>35&&!trSeen(c.x,c.z))trKill(c,1)}
   const nSp=TR.boot?10:1;
   for(let s=0;s<nSp&&TR.nAlive<TR.target;s++)trSpawn();
   if(TR.boot&&(TR.nAlive>=TR.target||TR.t>1.5))TR.boot=0;
+  copTick(dt);
   if(TR.prof){const ms=performance.now()-t0;TR.ms+=(ms-TR.ms)*.03;TR.stat.msSum+=ms;TR.stat.ticks++;if(ms>TR.stat.msMax)TR.stat.msMax=ms}}
 /* the fixed-step world: the player at 120 Hz (collisions with traffic included), traffic at 60 Hz */
-function worldStep(dt){carStep(dt);if(TR.on&&TR.nAlive)trPlayerCollide();if(!(++TR.sub&1))trTick(dt*2)}
+function worldStep(dt){if(GAME.lock)gameLockInputs();carStep(dt);if(TR.on&&TR.nAlive)trPlayerCollide();dmgConsume();dmgDents(dt);safeStep(dt);gameStep(dt);if(!(++TR.sub&1))trTick(dt*2)}

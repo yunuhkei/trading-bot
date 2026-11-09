@@ -6,10 +6,10 @@ function carGLInit(){
   const mk=d=>{const nv=d.nv,o=d.off;let p=o;const P=new Int16Array(u8.slice(p,p+nv*6).buffer);p+=nv*6;const N=new Int8Array(u8.slice(p,p+nv*3).buffer);p+=nv*3;const C=u8.subarray(p,p+nv*3);p+=nv*3;const M=u8.subarray(p,p+nv);p+=nv;
     const T=new Uint16Array(u8.slice(p,p+d.nt*6).buffer);const ab=new ArrayBuffer(nv*16),i16=new Int16Array(ab),i8=new Int8Array(ab),b8=new Uint8Array(ab);
     for(let v=0;v<nv;v++){i16[v*8]=P[v*3];i16[v*8+1]=P[v*3+1];i16[v*8+2]=P[v*3+2];i16[v*8+3]=0;i8[v*16+8]=N[v*3];i8[v*16+9]=N[v*3+1];i8[v*16+10]=N[v*3+2];i8[v*16+11]=M[v];b8[v*16+12]=C[v*3];b8[v*16+13]=C[v*3+1];b8[v*16+14]=C[v*3+2];b8[v*16+15]=255}
-    return{vb:mkBuf(gl.ARRAY_BUFFER,ab),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,T),n:d.nt*3}};
+    return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,T),n:d.nt*3,ab}};
   CARM.body=mk(CAR_NITRO.parts[0]);CARM.wheels=CAR_NITRO.wheels.map(w=>Object.assign(mk(w),{x:w.x,R:w.R,lat:w.lat}));
   const mat=new Float32Array(160);CAR_NITRO.mat.forEach((m,i)=>{for(let k=0;k<4;k++)mat[i*4+k]=m[k]/255});CARM.mat=mat;
-  R.carDraw=carDraw;R.fxDraw=fxDraw}
+  dmgInit();R.carDraw=carDraw;R.fxDraw=fxDraw}
 const _mb=new Float32Array(16),_mw=new Float32Array(16),_mf=new Float32Array(16);
 function drawCarMesh(m,M){const gl=G.gl,P=G.P.car;gl.uniformMatrix4fv(P.u.uM,false,M);gl.bindBuffer(gl.ARRAY_BUFFER,m.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib);
   gl.vertexAttribPointer(0,4,gl.SHORT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,8);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,16,12);gl.drawElements(gl.TRIANGLES,m.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=m.n/3}
@@ -89,10 +89,10 @@ function carStep(dt){
   /* nitro is a latch: one tap starts it, it runs until the tank is empty (or you brake / tap again), and it pushes even if you are not on the gas */
   if(IN.nitro&&(C.nos<=.015||brk>0))IN.nitro=0;
   const nitroOn=IN.nitro?1:0;C.boosting=nitroOn;if(nitroOn){C.nos=Math.max(0,C.nos-dt*.30);thr=1}
-  const vmax=(C.onRoad?80:62)*(nitroOn?1.26:1),surf=C.onRoad?1:HND.grass;
+  const vmax=(C.onRoad?80:62)*(nitroOn?1.26:1)*DMG.spd,surf=C.onRoad?1:HND.grass;
   /* ---- longitudinal: weighty launch, strong but not instant braking ---- */
   if(gr){
-    let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(f<14?1:0))*(nitroOn?1.9:1)}
+    let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(f<14?1:0))*(nitroOn?1.9:1)*DMG.acc}
     if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8}   /* brake, then reverse */
     a-=Math.sign(f)*(.35+af*af*.0004);                 /* rolling + air drag */
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */
@@ -136,6 +136,7 @@ function carStep(dt){
     if(IN.assist&&C.onRoad&&dr<.2&&af>12&&f>0&&roadAt(C.x,C.z,C.y)){const ang=Math.atan2(RQ.tx,-RQ.tz),dd=angd(ang,C.yaw);if(Math.abs(dd)<.9){/* follow the road's direction, and lean back towards the middle when you drift towards an edge */
       const edge=clamp((Math.abs(RQ.lat)-.55*RQ.hw)/(.45*RQ.hw),0,1),want=dd-Math.sign(RQ.lat)*edge*.2;
       wt+=want*1.6*Math.min(1,af/35)*(1-Math.min(1,Math.abs(steer)/.22))}}
+    wt+=DMG.pull*Math.min(1,af/12);                       /* a damaged side drags the car towards it (0 when undamaged) */
     {const lim=lerp(A/Math.max(af,4),HND.omDrift,dr);wt=wt>lim?lim:wt<-lim?-lim:wt}   /* nothing (assist included) may ask for more than the tyres have */
     C.wyaw+=(wt-C.wyaw)*(1-Math.exp(-dt*lerp(HND.respond,HND.respondDrift,dr)));
   }else{C.wyaw*=Math.max(0,1-dt*.6);const kd=Math.max(0,1-HND.airDrag*spd*dt);f*=kd;s*=kd;C.vy*=kd}   /* airborne: gravity and air drag only */
@@ -148,7 +149,7 @@ function carStep(dt){
   const sliding=gr&&spd>10&&slipA>(C.dActive?.09:.15);
   if(sliding){if(!C.dActive){C.dActive=1;C.dCombo=0;C.dTime=0;C.dStart=C.t;C.dLast=null}C.dGrace=.5;C.dTime+=dt;const pts=dt*spd*slipA*2;C.dCombo+=pts;C.driftScore+=pts;C.nos=Math.min(1,C.nos+dt*.2*Math.min(1,slipA*2.2+.3))}
   else if(C.dActive){C.dGrace-=dt;if(C.dGrace<=0){C.dActive=0;C.dEnd=C.t;C.dLast=C.dTime>.35&&C.dCombo>=1?{pts:Math.round(C.dCombo),t:C.t,start:C.dStart}:null}}
-  C.nos=Math.min(1,C.nos+dt*.012);
+  C.nos=Math.min(1,C.nos+dt*.012);if(DMG.leak>0)C.nos=Math.max(0,C.nos-dt*DMG.leak);
   /* ---- move ---- */
   C.x+=C.vx*dt;C.z+=C.vz*dt;
   /* ---- steep ground (cut banks, cliffs) is a wall ---- */
@@ -211,8 +212,8 @@ function fxUpdate(dt){
   const act=C.grounded&&C.speed>10&&C.slip>.1&&(C.drift>.35||C.dActive),sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
   for(let w=0;w<2;w++){const sd=w?1:-1,px=C.x-sy*1.3+cy*sd*.8,pz=C.z+cy*1.3+sy*sd*.8;
     if(act){const L=lastSk[w];if(L[3]){const q=SKID[skidHead%SKMAX]=SKID[skidHead%SKMAX]||new Float32Array(8);q[0]=L[0];q[1]=L[1];q[2]=px;q[3]=pz;q[4]=C.y;q[5]=C.t;q[6]=Math.min(1,Math.max(C.drift,C.slip*3));skidHead++}L[0]=px;L[1]=pz;L[3]=1}else lastSk[w][3]=0}
-  if(act||C.boosting){skCool-=dt;while(skCool<=0){skCool+=.035;const s=SMOKE[smokeHead++%64],sd=Math.random()<.5?-1:1;s.x=C.x-sy*1.4+cy*sd*.8;s.z=C.z+cy*1.4+sy*sd*.8;s.y=C.y+.25;s.vx=C.vx*.25+(Math.random()-.5)*1.5;s.vz=C.vz*.25+(Math.random()-.5)*1.5;s.vy=1+Math.random()*1.2;s.age=0;s.life=.9+Math.random()*.6;s.sz=.9;s.a=act?.5:.3;s.fire=!act}}
-  for(const s of SMOKE){if(s.age<s.life){s.age+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;s.vy*=Math.max(0,1-dt*1.2)}}}
+  if(act||C.boosting){skCool-=dt;while(skCool<=0){skCool+=.035;const s=SMOKE[smokeHead++%64],sd=Math.random()<.5?-1:1;s.x=C.x-sy*1.4+cy*sd*.8;s.z=C.z+cy*1.4+sy*sd*.8;s.y=C.y+.25;s.vx=C.vx*.25+(Math.random()-.5)*1.5;s.vz=C.vz*.25+(Math.random()-.5)*1.5;s.vy=1+Math.random()*1.2;s.age=0;s.life=.9+Math.random()*.6;s.sz=.9;s.a=act?.5:.3;s.fire=!act;s.dark=0}}
+  for(const s of SMOKE){if(s.age<s.life){s.age+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;s.vy*=Math.max(0,1-dt*1.2)}}dmgFx(dt)}
 function fxDraw(){
   const gl=G.gl,P=G.P.fx,F=R.fxF;let n=0;
   const quad=(x0,y0,z0,x1,y1,z1,x2,y2,z2,x3,y3,z3,r,g,b,a)=>{if(n>=R.fxMax)return;let o=n*36;
@@ -228,12 +229,13 @@ function fxDraw(){
   /* skid marks (mode 2 batch) */
   const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,a=.55*(1-age/40)*q[6];if(l>6)continue;
     quad(q[0]-nx,y,q[1]-nz,q[0]+nx,y,q[1]+nz,q[2]+nx,y,q[3]+nz,q[2]-nx,y,q[3]-nz,.02,.02,.02,a)}
-  const nSkid=n;
+  const nSkid=n;safePads(quad);const nPad=n;
   /* smoke + exhaust flame puffs (mode 1 batch): camera-facing quads */
   const rx=R.rt[0],rz=R.rt[2];for(const s of SMOKE){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sz=s.sz+t*2.6,a=s.a*(1-t)*(1-t);const ux=R.up[0]*sz,uy=R.up[1]*sz,uz=R.up[2]*sz,hx=rx*sz,hz=rz*sz;
-    const cr=s.fire?1:.86,cg=s.fire?.55-.4*t:.86,cb=s.fire?.2:.88;quad(s.x-hx-ux,s.y-uy,s.z-hz-uz,s.x+hx-ux,s.y-uy,s.z+hz-uz,s.x+hx+ux,s.y+uy,s.z+hz+uz,s.x-hx+ux,s.y+uy,s.z-hz+uz,cr,cg,cb,a)}
+    const dk=s.dark&&!s.fire?.25:1,cr=(s.fire?1:.86)*dk,cg=(s.fire?.55-.4*t:.86)*dk,cb=(s.fire?.2:.88)*dk;quad(s.x-hx-ux,s.y-uy,s.z-hz-uz,s.x+hx-ux,s.y-uy,s.z+hz-uz,s.x+hx+ux,s.y+uy,s.z+hz+uz,s.x-hx+ux,s.y+uy,s.z-hz+uz,cr,cg,cb,a)}
   if(!n)return;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.bindBuffer(gl.ARRAY_BUFFER,R.fx);gl.bufferSubData(gl.ARRAY_BUFFER,0,F.subarray(0,n*36));gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,R.fxIx);attrs(3);
   gl.vertexAttribPointer(0,3,gl.FLOAT,false,36,0);gl.vertexAttribPointer(1,4,gl.FLOAT,false,36,12);gl.vertexAttribPointer(2,2,gl.FLOAT,false,36,28);gl.disable(gl.CULL_FACE);
   gl.uniform1f(P.u.uMode,0);gl.drawElements(gl.TRIANGLES,nShadow*6,gl.UNSIGNED_SHORT,0);
   if(nSkid>nShadow){gl.uniform1f(P.u.uMode,2);gl.drawElements(gl.TRIANGLES,(nSkid-nShadow)*6,gl.UNSIGNED_SHORT,nShadow*12)}
-  if(n>nSkid){gl.uniform1f(P.u.uMode,1);gl.drawElements(gl.TRIANGLES,(n-nSkid)*6,gl.UNSIGNED_SHORT,nSkid*12)}R.draws+=3}
+  if(nPad>nSkid){gl.uniform1f(P.u.uMode,3);gl.drawElements(gl.TRIANGLES,(nPad-nSkid)*6,gl.UNSIGNED_SHORT,nSkid*12)}
+  if(n>nPad){gl.uniform1f(P.u.uMode,1);gl.drawElements(gl.TRIANGLES,(n-nPad)*6,gl.UNSIGNED_SHORT,nPad*12)}R.draws+=4}

@@ -266,7 +266,7 @@ function buildCity(){
     p=Wd(-8,-16);bld(p[0],p[1],4,3,cs,sn,3,[160,150,140],false)}
   /* safe houses: a small garage with a tall green sign you can see from far away */
   for(const s of SAFEHOUSES){const cs=s.cs,sn=s.sn,gy=bld(s.x,s.z,8,6,cs,sn,4.2,[196,198,204],false);pboxR(1,s.x,s.z,8.6,6.6,cs,sn,gy+4.2,gy+4.8,40,200,120,false,1);
-    pboxR(1,s.x-sn*6.1,s.z+cs*6.1,4.5,.2,cs,sn,gy,gy+3.4,60,66,76,false,1);          /* the roller door */
+    pboxR(1,s.x+(s.side||-1)*sn*6.1,s.z-(s.side||-1)*cs*6.1,4.5,.2,cs,sn,gy,gy+3.4,60,66,76,false,1);          /* the roller door, on the side that faces the road */
     const px=s.x+cs*11,pz=s.z+sn*11,y=terrainH(px,pz);pbox(1,px,y-.4,pz,.3,y+13,.3,200,200,206,false,.8);pbox(1,px,y+10,pz,2.4,y+14,.45,60,235,130,false,1);COLC.push(px,pz,.5,y-.5,y+13)}
   /* Golden Gate Park: dense trees round a lake, kept clear of the drive */
   {const pr=mulberry(909),lk=LAKES[0];let np=0;for(let x=PARK.x0+4;x<PARK.x1-4;x+=8)for(let z=PARK.z0+4;z<PARK.z1-4;z+=8){const px=x+(pr()-.5)*7,pz=z+(pr()-.5)*7;if(Math.hypot(px-lk[0],pz-lk[1])<lk[2]+5)continue;
