@@ -54,5 +54,17 @@ const L=require('./rlib.js');
   ok(W.wr===1&&W.st===1,'5 four 30 m/s wall hits wreck the car (wrecked '+W.wr+', end screen state '+W.st+')');
   ok(W.after===0&&W.hp===1,'5 four seconds later the game is running again with the car repaired (health '+W.hp+')');
   ok(W.dist<6,'5 and it is on the Home Garage pad ('+W.dist.toFixed(1)+' m from its centre, it was '+W.d0+' m away): "'+W.toast+'"');
+  /* 6. the health bar is ONE pool of crash energy: it follows the energy, and a crushed front alone does not wreck you */
+  const H=await T.ev(()=>{RACER.carPlace(4000,-3000,0,100);dmgReset();GAME.state=0;GAME.lock=0;const out={};
+    impactAdd(0,25,190e3,0,C.x,C.z,0,1);dmgConsume();dmgEffects();out.one=DMG.hp;
+    dmgReset();DMG.z[0]=1;DMG.z[1]=1;dmgEffects();out.zones={hp:DMG.hp,wr:DMG.wrecked};
+    dmgReset();impactAdd(0,60,1.16e6,0,C.x,C.z,0,1);dmgConsume();dmgEffects();out.big={hp:DMG.hp,wr:DMG.wrecked,front:DMG.z[0]};
+    impactAdd(0,60,1.16e6,0,C.x,C.z,0,1);dmgConsume();dmgEffects();out.two={hp:DMG.hp,wr:DMG.wrecked};
+    dmgReset();for(let k=0;k<9;k++){impactAdd(0,25,190e3,0,C.x,C.z,0,1);dmgConsume()}dmgEffects();out.nine={hp:DMG.hp,wr:DMG.wrecked};dmgReset();return out});
+  ok(H.one>.88&&H.one<.94,'6 one 25 m/s hit into a parked car (190 kJ) costs about 9 % of the health bar (left '+H.one.toFixed(2)+')');
+  ok(H.zones.hp===1&&H.zones.wr===0,'6 crushed front and rear zones alone do not wreck you (health '+H.zones.hp+', wrecked '+H.zones.wr+')');
+  ok(H.big.wr===0&&H.big.hp>.4&&H.big.front===1,'6 one 60 m/s hit into a car (1.16 MJ) crushes the front but leaves '+(H.big.hp*100).toFixed(0)+' % health, not wrecked');
+  ok(H.two.wr===1,'6 a second one wrecks you (health '+H.two.hp.toFixed(2)+')');
+  ok(H.nine.wr===0&&H.nine.hp>.2,'6 nine 25 m/s hits in a row are survived ('+(H.nine.hp*100).toFixed(0)+' % left)');
   console.log('errs',T.errs);ok(T.errs.length==0,'no page errors');await T.close();process.exit(bad?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});

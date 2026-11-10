@@ -6,15 +6,17 @@
    body buffer is uploaded (105 kB, only when something was hit). Repair puts the pristine buffer back. */
 const DZ_CAP=[650e3,520e3,420e3,420e3,320e3];
 const DZ_NAME=['front','rear','left','right','roof'];
+/* the HEALTH BAR is one pool of crash energy (2.2 MJ: ten 25 m/s hits into a parked car, four into a wall at 30 m/s, two at 60 m/s into a car); the five zones above only decide where the dents, the hanging parts and the smoke are. You are wrecked when the bar is empty, not when one zone is crushed. */
+const DMG_POOL=2.2e6;
 const DMG={z:[0,0,0,0,0],hp:1,wrecked:0,spd:1,acc:1,pull:0,leak:0,cur:0,scale:1,minE:8000,pend:[],pendT:0,dentN:0,pf16:null,pi8:null,pris:null,ready:0,fire:0,total:0,lastHit:-9,dirty:0};
 function dmgInit(){const B=CARM.body;if(!B||!B.ab)return;DMG.pris=new Uint8Array(B.ab.slice(0));DMG.pf16=new Int16Array(DMG.pris.buffer);DMG.pi8=new Int8Array(DMG.pris.buffer);
   B.f16=new Int16Array(B.ab);B.i8=new Int8Array(B.ab);B.u8=new Uint8Array(B.ab);B.nv=B.ab.byteLength/16;DMG.ready=1;DMG.cur=IMP.n}
-function dmgHp(){const z=DMG.z;return 1-(.32*z[0]+.22*z[1]+.17*z[2]+.17*z[3]+.12*z[4])}
+function dmgHp(){return Math.max(0,1-DMG.total/DMG_POOL)}
 /* damage is health and looks (dents, smoke) only: it NEVER changes how the car drives. The multipliers stay at 1 / 0 so the physics code does not have to know. */
 function dmgEffects(){const z=DMG.z,f=z[0],r=z[1];DMG.hp=dmgHp();
-  DMG.spd=1;DMG.acc=1;DMG.pull=0;DMG.leak=0;DMG.fire=f>.82?1:0;
-  DMG.wrecked=(f>=1||r>=1||DMG.hp<=.16)?1:0}
-function dmgReset(){DMG.z.fill(0);DMG.pend.length=0;DMG.cur=IMP.n;dmgEffects();DMG.wrecked=0;DMG.total=0;if(typeof partsReset==='function'&&CARM.parts)partsReset();
+  DMG.spd=1;DMG.acc=1;DMG.pull=0;DMG.leak=0;DMG.fire=DMG.hp<.3?1:0;
+  DMG.wrecked=DMG.hp<=.03?1:0}
+function dmgReset(){DMG.z.fill(0);DMG.pend.length=0;DMG.cur=IMP.n;DMG.total=0;dmgEffects();DMG.wrecked=0;if(typeof partsReset==='function'&&CARM.parts)partsReset();
   if(DMG.ready&&DMG.dirty){const B=CARM.body;new Uint8Array(B.ab).set(DMG.pris);dentUpload();DMG.dirty=0}}
 /* read the new impacts and turn them into damage */
 function dmgConsume(){
@@ -57,11 +59,11 @@ function dentUpload(){const B=CARM.body;if(!B||!B.vb)return;const gl=G.gl;gl.bin
 /* ---- smoke and fire from the engine ---- */
 let _dmgCool=0;
 function dmgFx(dt){
-  const f=DMG.z[0];if(f<.3&&!DMG.wrecked)return;_dmgCool-=dt;
-  const rate=DMG.fire||DMG.wrecked?.03:f>.6?.06:.12;
+  const f=Math.max(DMG.z[0]*.8,1-DMG.hp);if(f<.3&&!DMG.wrecked)return;_dmgCool-=dt;
+  const rate=DMG.fire||DMG.wrecked?.05:f>.6?.08:.14;
   while(_dmgCool<=0){_dmgCool+=rate;const s=SMOKE[smokeHead++%SMOKE.length],sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
     s.x=C.x+sy*1.5+cy*(Math.random()-.5)*.6;s.z=C.z-cy*1.5+sy*(Math.random()-.5)*.6;s.y=C.y+.8;s.vx=C.vx*.3+(Math.random()-.5)*.8;s.vz=C.vz*.3+(Math.random()-.5)*.8;s.vy=1.6+Math.random()*1.4;s.age=0;s.life=.9+Math.random()*.7;
-    s.k=0;s.sz=.5+f*.6;s.a=.35+f*.3;s.fire=(DMG.fire||DMG.wrecked)&&Math.random()<.45?1:0;s.dark=1}}
+    s.k=0;s.sz=.4+f*.35;s.a=.2+f*.18;s.fire=(DMG.fire||DMG.wrecked)&&Math.random()<.4?1:0;s.dark=1}}
 /* ---- the health bar (one bar for the whole car; the five zones only decide where the dents go) ---- */
 function dmgHud(c,x,y,w,u){
   const h=u*.17,hp=Math.max(0,Math.min(1,DMG.hp)),col=hp>.5?'#4be07a':hp>.25?'#ffc23d':'#ff4a3a';

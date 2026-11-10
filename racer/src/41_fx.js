@@ -29,7 +29,7 @@ function fxUpdate(dt){
   /* damaged cars: smoke from the bonnet (more the worse), fire when nearly finished */
   if(TR.on){const q2=T.fxq;for(const c of TR.cars){if(!c.alive)continue;const dm=c.state==1?Math.max(c.dmg||0,.5):(c.dmg||0);if(dm<.45)continue;const dx=c.x-C.x,dz=c.z-C.z;if(dx*dx+dz*dz>22500)continue;
       c.smk=(c.smk||0)-dt;if(c.smk>0)continue;c.smk=(dm>.85?.05:dm>.65?.1:.2)/Math.max(.5,q2);const s=SMOKE[smokeHead++%SMOKE.length],sy2=Math.sin(c.yaw),cy2=Math.cos(c.yaw);
-      s.x=c.x+sy2*c.hl*.7+(Math.random()-.5)*.5;s.z=c.z-cy2*c.hl*.7+(Math.random()-.5)*.5;s.y=c.y+.9;s.vx=(c.vx||0)*.3+(Math.random()-.5)*.7;s.vz=(c.vz||0)*.3+(Math.random()-.5)*.7;s.vy=1.4+Math.random()*1.3;s.age=0;s.life=1+Math.random()*.8;s.sz=.5+dm*.6;s.a=.3+dm*.3;s.fire=dm>.85&&Math.random()<.4;s.dark=1;s.k=0}}
+      s.x=c.x+sy2*c.hl*.7+(Math.random()-.5)*.5;s.z=c.z-cy2*c.hl*.7+(Math.random()-.5)*.5;s.y=c.y+.9;s.vx=(c.vx||0)*.3+(Math.random()-.5)*.7;s.vz=(c.vz||0)*.3+(Math.random()-.5)*.7;s.vy=1.4+Math.random()*1.3;s.age=0;s.life=1+Math.random()*.8;s.sz=.4+dm*.4;s.a=.22+dm*.2;s.fire=dm>.85&&Math.random()<.4;s.dark=1;s.k=0}}
   dmgFx(dt)}
 function fxDraw(){
   const dayK=1-.78*Math.min(1,ENV.sunC[0]/2.6);                        /* lamp, head light and neon glows are for gloomy light: in bright sun they nearly vanish */
@@ -56,7 +56,7 @@ function fxDraw(){
   navFx(quad,sprite,R.time);
   batch(3);safePads(quad);
   batch(1);
-  for(const s of SMOKE){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sz=s.sz+t*(s.k?1.3:2.6),al=s.a*(1-t)*(1-t);const ux=R.up[0]*sz,uy=R.up[1]*sz,uz=R.up[2]*sz,hx=rx*sz,hz=rz*sz;
+  for(const s of SMOKE){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sz=s.sz+t*(s.k?1.3:s.dark?1.5:2.6),dc=Math.hypot(s.x-R.cx,s.y-R.cy,s.z-R.cz),al=s.a*(1-t)*(1-t)*(s.dark?sstep(4,14,dc):sstep(1.2,4,dc));if(al<.004)continue;const ux=R.up[0]*sz,uy=R.up[1]*sz,uz=R.up[2]*sz,hx=rx*sz,hz=rz*sz;
     let cr,cg,cb;if(s.k){cr=.62;cg=.68;cb=.74}else{const dk=s.dark&&!s.fire?.25:1;cr=(s.fire?1:.80)*dk;cg=(s.fire?.55-.4*t:.82)*dk;cb=(s.fire?.2:.86)*dk}
     quad(s.x-hx-ux,s.y-uy,s.z-hz-uz,s.x+hx-ux,s.y-uy,s.z+hz-uz,s.x+hx+ux,s.y+uy,s.z+hz+uz,s.x-hx+ux,s.y+uy,s.z-hz+uz,cr,cg,cb,al,s.id*3)}
   /* ---- additive: light pools and beams on the ground ---- */
