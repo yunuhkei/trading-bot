@@ -25,7 +25,7 @@ const POSTF=PRE+'varying vec2 vU;uniform sampler2D uS,uB;uniform vec2 uPx;unifor
  'void main(){vec2 uv=vU;vec3 c=fxaa(uv);'+
   '\n#ifdef BLUR\nvec2 q=uv-vec2(.5,.46);float r=length(q*vec2(1.6,1.));float k=uP.x*smoothstep(.20,.62,r);if(k>.002){vec3 s=c;for(int i=1;i<=BLUR;i++){s+=T(uv-q*k*float(i)/float(BLUR)*.28);}c=s/float(BLUR+1);}\n#endif\n'+
   /* a little colour fringing towards the corners (a lens is never perfect) */
-  '\n#ifdef LENS\n{vec2 o=(uv-.5)*dot(uv-.5,uv-.5)*.012;c=vec3(T(uv+o).r*.6+c.r*.4,c.g,T(uv-o).b*.6+c.b*.4);}\n#endif\n'+
+  '\n#ifdef LENS\n{vec2 o=(uv-.5)*dot(uv-.5,uv-.5)*.006;c=vec3(T(uv+o).r*.6+c.r*.4,c.g,T(uv-o).b*.6+c.b*.4);}\n#endif\n'+
   '\n#ifdef BLOOM\nc+=texture2D(uB,uv).rgb*uP.y;\n#endif\n'+
   /* the sun: a bright core, a wide halo, a thin streak and a few ghosts along the line through the middle of the picture; it dims where the sun's pixel is not bright (hidden by a cloud or a building) */
   '\n#ifdef LENS\nif(uSn.z>.001){vec2 sp=uSn.xy;float vis=smoothstep(.55,.95,lum(T(clamp(sp,.02,.98))))*uSn.z;vec2 dq=(uv-sp)*vec2(uSn.w,1.);float d=length(dq);\n'+

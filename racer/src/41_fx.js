@@ -67,6 +67,7 @@ function fxDraw(){
   for(let i=0;i<nPool;i++){const j=_lampPick[i],lx=LAMPS[j],ly=LAMPS[j+1]-6.95,lz=LAMPS[j+2];flat(lx,ly+.03,lz,7.5,7.5,1,.78,.45,.34*dayK)}
   /* red and blue wash on the road round a police car with its siren on */
   if(TR.on)for(const c of TR.cars){if(!c.alive||!c.siren)continue;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz;if(dx*dx+dz*dz>40000)continue;const ph=Math.sin(R.time*12)>0;flat(px,lerp(c.py,c.y,a)+.05,pz,11,11,ph?1:.12,ph?.1:.32,ph?.08:1,.42)}
+  if(C.boostK>.04){const hx=sy,hz=-cy;flat(x-hx*3.4,C.gs+.04,z-hz*3.4,3+2*C.boostK,3+2*C.boostK,1,.62,.28,.5*C.boostK*(.4+.6*(1-dayK)))}
   batch(6);
   /* the car's headlights: a pool of light on the road ahead, wider the further it goes (uv runs across, then along: mode 6 is the beam shape) */
   {const hx=sy,hz=-cy,rxc=cy,rzc=sy,gy2=C.gs+.05,x0=x+hx*2.0,z0=z+hz*2.0,len=26;
@@ -88,7 +89,10 @@ function fxDraw(){
   /* the car's own lights */
   {const hx=sy,hz=-cy,rr=cy,rs=sy,yy=C.y+C.bob;
    for(const sd of[-1,1]){const si=sd<0?0:1;if(!PDM.head[si])sprite(x+hx*-CARL.hz+rr*sd*CARL.hx,yy+CARL.hy+.12,z+hz*-CARL.hz+rs*sd*CARL.hx,.36,1,.95,.75,.5*dayK);
-     if(!PDM.tail[si])sprite(x-hx*CARL.tz+rr*sd*CARL.tx,yy+CARL.ty+.12,z-hz*CARL.tz+rs*sd*CARL.tx,C.braking?.9:.45,1,.12,.07,C.braking?.9:.4)}}
+     if(!PDM.tail[si])sprite(x-hx*CARL.tz+rr*sd*CARL.tx,yy+CARL.ty+.12,z-hz*CARL.tz+rs*sd*CARL.tx,C.braking?.9:.45,1,.12,.07,C.braking?.9:.4)}
+   /* nitro: a jet of flame from each exhaust, a blue-white core fading through yellow to orange, flickering, longer the harder the boost */
+   if(C.boostK>.04){const bk=C.boostK;for(const sd of[-1,1]){for(let i=0;i<10;i++){const fl=.78+.22*Math.sin(R.time*83+i*1.9+sd*2.3)+.1*Math.sin(R.time*131+i*3.1),d=(.1+i*.32)*(.6+.4*bk)*fl,sz=(.52-i*.043)*bk*(.85+.15*fl),t=i/9;
+       sprite(x-hx*(CARL.tz+d)+rr*sd*.46,yy+.33,z-hz*(CARL.tz+d)+rs*sd*.46,Math.max(.05,sz),.42+.58*Math.min(1,t*1.8),.62-.3*t,1-1.05*t,(.8-.07*i)*Math.min(1,bk*1.4))}}}}
   /* traffic: tail lights, headlights, the siren on a police car */
   if(TR.on){const fx=R.fw;for(const c of TR.cars){if(!c.alive)continue;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz,d2=dx*dx+dz*dz;if(d2>62500||dx*fx[0]+dz*fx[2]<-6)continue;
       const d=Math.sqrt(d2),py=lerp(c.py,c.y,a),yaw=c.pyaw+angd(c.yaw,c.pyaw)*a,hx=Math.sin(yaw),hz=-Math.cos(yaw),rr=Math.cos(yaw),rs=Math.sin(yaw),k=1-d/250;if(k<=.02)continue;
