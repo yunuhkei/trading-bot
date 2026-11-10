@@ -38,7 +38,7 @@ const L=require('./rlib.js');
   ok(K.buy===false&&K.can===false&&K.price===null&&K.cost===0,'economy hooks are stubs: buy '+K.buy+', canBuy '+K.can+', price '+K.price+', repair cost '+K.cost);
   /* respawn: nearest owned */
   const N=await T.ev(()=>{const {C}=RACER;const out={};safeUnlock('pacifica');const p=SAFE.pads.find(q=>q.id=='pacifica'),h=SAFE.pads.find(q=>q.id=='home');
-    const near=(x,z)=>{RACER.carPlace(x,z,0,terrainH(x,z)+1);dmgReset();DMG.z[0]=1;dmgEffects();gameStep(.01);for(let s=0;s<120*4;s++)RACER.worldStep(1/120);return Math.hypot(C.x-p.pad.x,C.z-p.pad.z)<8?'pacifica':Math.hypot(C.x-h.pad.x,C.z-h.pad.z)<8?'home':'?'};
+    const near=(x,z)=>{RACER.carPlace(x,z,0,terrainH(x,z)+1);dmgReset();DMG.z[0]=1;DMG.total=DMG_POOL;dmgEffects();gameStep(.01);for(let s=0;s<120*4;s++)RACER.worldStep(1/120);return Math.hypot(C.x-p.pad.x,C.z-p.pad.z)<8?'pacifica':Math.hypot(C.x-h.pad.x,C.z-h.pad.z)<8?'home':'?'};
     out.nearP=near(p.x+200,p.z+100);out.nearH=near(h.x-300,h.z+200);out.saved=JSON.parse(localStorage.getItem('racer.save')||'null');return out});
   ok(N.nearP=='pacifica'&&N.nearH=='home','wrecked near Pacifica (owned) respawns there; wrecked near Home respawns at Home (got '+N.nearP+' / '+N.nearH+')');
   ok(N.saved&&N.saved.owned&&N.saved.owned.pacifica===true,'ownership is saved (localStorage): '+JSON.stringify(N.saved&&N.saved.owned&&Object.keys(N.saved.owned).filter(k=>N.saved.owned[k])));
