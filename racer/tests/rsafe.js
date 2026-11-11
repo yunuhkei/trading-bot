@@ -10,7 +10,7 @@ const L=require('./rlib.js');
       const t=_tan(br,bi),hs=terrainH(s.pad.x,s.pad.z);let lo=1e9,hi=-1e9;for(const[a,b]of[[1,1],[1,-1],[-1,1],[-1,-1],[0,0]]){const h=terrainH(s.pad.x+s.dd[0]*s.pad.hl*a+s.t[0]*s.pad.hw*b,s.pad.z+s.dd[1]*s.pad.hl*a+s.t[1]*s.pad.hw*b);lo=Math.min(lo,h);hi=Math.max(hi,h)}
       const toRoad=[br.X[bi]-s.pad.x,br.Z[bi]-s.pad.z],l=Math.hypot(...toRoad),face=(toRoad[0]*s.dd[0]+toRoad[1]*s.dd[1])/l;
       out.push({id:s.id,road:br.id,gap:+(bd-br.hw-RSH).toFixed(1),slope:+(hi-lo).toFixed(1),face:+face.toFixed(2),owned:SAFE.owned[s.id],price:SAFE.price[s.id]})}return out});
-  ok(G.length==17,'17 safe houses have pads');
+  ok(G.length==20,'20 safe houses have pads (17 + Las Vegas, Sacramento, San Jose)');
   for(const g of G)if(g.gap<1||g.gap>28||g.slope>4||g.face<.4)ok(false,'pad of '+g.id+' (road '+g.road+'): '+g.gap+' m off the shoulder, '+g.slope+' m height change over the pad, door faces the road '+g.face);
   ok(G.every(g=>g.gap>=1&&g.gap<=28&&g.slope<=4&&g.face>=.4),'every pad is 1-28 m from the road edge, within 4 m of level, and the door faces the road (worst: '+Math.max(...G.map(g=>g.gap))+' m away, '+Math.max(...G.map(g=>g.slope))+' m of height change, door '+Math.min(...G.map(g=>g.face))+')');
   ok(G.filter(g=>g.owned).length==1&&G.find(g=>g.id=='home').owned&&G.find(g=>g.id=='home').price===0,'only the Home Garage is owned (price 0); the other 16 are locked with price unset (null)');
@@ -29,7 +29,7 @@ const L=require('./rlib.js');
       out.push({id:s.id,done,t:+t.toFixed(1),repaired:DMG.z[0]===0,d:+Math.hypot(s.pad.x-C.x,s.pad.z-C.z).toFixed(1),speed:+C.speed.toFixed(1),stuck:stuck>3,start:Math.round(bd)});SAFE.owned[s.id]=s.id=='home'}
     return out});
   for(const r of R)if(!r.done||!r.repaired)ok(false,'could not service at '+r.id+': '+JSON.stringify(r));
-  ok(R.every(r=>r.done&&r.repaired),'driving from the road onto each of the 17 pads repairs and saves ('+R.filter(r=>r.done&&r.repaired).length+'/17, slowest '+Math.max(...R.map(r=>r.t))+' s)');
+  ok(R.every(r=>r.done&&r.repaired),'driving from the road onto each of the pads repairs and saves ('+R.filter(r=>r.done&&r.repaired).length+'/17, slowest '+Math.max(...R.map(r=>r.t))+' s)');
   /* locked garage and the economy hooks */
   const K=await T.ev(()=>{const {C,IN}=RACER;const s=SAFE.pads.find(q=>q.id=='pines');SAFE.owned.pines=false;carPlace(s.pad.x,s.pad.z,s.yaw,s.y+.4);C.vx=C.vz=0;dmgReset();DMG.z[0]=.5;dmgEffects();SAFE.visit=null;SAFE.svc=0;
     for(let k=0;k<120*3;k++){IN.thr=0;IN.brk=1;RACER.worldStep(1/120)}

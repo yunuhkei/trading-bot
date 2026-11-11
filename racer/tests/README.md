@@ -13,6 +13,7 @@ node racer/tests/<name>.js        # one test; RFILE=/path/to/other.html tests an
 | script | what it checks |
 |---|---|
 | `rnet.js` | **the road network audit** (Node, 2 s): every road end sits on another road (no gap to the asphalt, no height step over 0.16 m, joins at 60 degrees or more, the mouth corners lie on the parent road even where it climbs), the only dead ends are the planned ones, no same-level crossing away from a junction, nothing lying on top of something else outside the junction boxes, the lane graph (every lane has a way on, no dead-end u-turns, one strongly connected piece), and an A* route between every pair of the places in `PLACES`, both ways, continuous and without silly detours |
+| `rbudget.js` | **frame budgets**: draw calls and triangles of the world (no traffic, deterministic) at 13 places on the three tiers, against what the build that held 60 fps on an iPhone SE drew (commit c02a69c: Low 143 draws / 112k triangles, Medium 206 / 158k, High 238 / 165k; limits 146 / 113k, 210 / 160k, 240 / 167k); traffic is reported too. `RFILE=old.html` measures another build |
 | `rtops.js` | several bird's-eye pictures in one load: `node racer/tests/rtops.js '[[x,z,height,"name"],...]'` |
 | `netcheck.js` | road network in Node: roads lying on top of each other, dead ends, disconnected pieces (older and looser than `rnet.js`; its 'overlaps' now list the junction boxes, which is expected) |
 | `lanecheck.js` | lane graph in Node: lane centres sit exactly where `laneInfo` puts them, no NaN, every lane has a way on, the road directions form one strongly connected piece, no road end sits at a different height from the road it joins |
@@ -118,3 +119,11 @@ Small differences from rounding are fine; a change of more than about 10 percent
 * `rnet`: all pass. 246 road ends, 244 on a road, 2 planned dead ends (the pier head); worst height step at an end 0.11 m (that is the lift between overlapping roads), worst mouth corner 0.16 m; 486 lane edges, 2,461 turns (1,184 left, 1,186 right), 0 dead-end u-turns, 266 of 266 road directions strongly connected; 90 routes between the 10 places (1.5 ms each), worst detour The Valley to Palm Springs 2.9 km for 1.0 km.
 * Before the fix the same audit gave: 30 road ends 1 m short of the asphalt, 3 height steps of 0.32-0.56 m, joins at 1-12 degrees, 25 lane directions with no left turn at their end, 4 dead-end u-turns.
 * `rbot` at 24 m/s on the 25 roads that changed: all completed, no off-road, no falls, no hits. `rtraffic` (60 s) on the ring, the coast road and the east highway: 0-1.2 % wrecked, nothing stuck.
+
+## World 1b / 1c baseline (curbs, landings, three cities)
+
+* `rbudget` (world only, worst place per tier): Low 136 draws / 95k triangles, Medium 188 / 135k, High 212 / 145k. The old build: 143 / 112k, 206 / 158k, 238 / 165k. Downtown went from 143 draws / 112k triangles to 128 / 93k on Low although it gained curbs and sidewalks (the road LOD and the 256 m building cells pay for them); the new cities: Las Vegas 69 / 84k, Sacramento 108 / 89k, San Jose 136 / 89k on Low.
+* `rphys` J: curb 15 cm; all four wheels up at 20 degrees costs 3.6 % at 9 m/s, 11 % at 15 m/s, 7.6 % at 30 m/s; shake 0.04 / 0.10 / 0.17.
+* `rpen` (old build -> now): steep street sfsu4 51 -> 32 cm, Twin Peaks road 79 -> 46 cm, off-road up Twin Peaks 136 -> 85 cm, sfnv1 36 -> 33 cm, Nob Hill crest 12 -> 15 cm, Mulholland 25 -> 27 cm, mountain pass 11 cm.
+* `rtraffic` (60 s): downtown 1.0 % wrecked (was 2-4 %), worst lane deviation 8.8 m (was 11 m; 44 m before the grid edges were cleaned up), no jam dissolved; Las Vegas 0 %, Sacramento 1.3 %, San Jose 0 %; Valley, Big Pines, Palm Springs 0-0.8 %.
+* `rnet`: 13 places, 156 routes, all pass; `lanecheck`: 332 of 332 road directions strongly connected. `rbot` at 24 m/s on the 22 new or changed roads: all clean. `rsafe`: 20 garages.

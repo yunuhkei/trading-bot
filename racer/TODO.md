@@ -7,8 +7,11 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 
 - World logic 1a: road audit, joins rebuilt (`tJoin`, `JUNC`, cross slope `r.cf`, junction boxes, crossroads, `las`), test `rnet.js`.
 
+- World logic 1b: curbs and sidewalks (`r.sw`, `swOn`, `RQ.cb`), city crossings as landings (`cityLand`), one street family per grid edge, road LOD, `rbudget.js`.
+- World logic 1c: Las Vegas, Sacramento, San Jose (`makeTown` kinds vegas / cap / tech in `22_build.js`), their roads and garages.
+
 ## Next (in this order, one commit each)
-1. World logic: b curbs and sidewalks, c more cities (add each to `PLACES`), d traffic lights (use `JUNC` + the city crossings), e guard rails (metal: slide, sparks; gaps at `JUNC`).
+1. World logic: d traffic lights (use `JUNC` + the city crossings), e guard rails (metal: slide, sparks; gaps at `JUNC`).
 2. Traffic variety (bus, garbage truck, van, taxi, pickup), better civilian cars, the Close Call car models.
 3. Police overhaul (models, AI, rarer, heat 0 at the start, star table, spike strips, helicopters, minimap shows police only).
 4. Supercars and looks (creases, distinct nose / tail, paint types, plates, seams).
