@@ -186,6 +186,7 @@ class BetBlocks:
         self.snipes: list = []
         self.raw: dict = {}
         self.sat = 0                              # signals the brain sat out (logged every 5 minutes by the lab)
+        self.first: dict = {}                     # each bot's first logged trade (for the go-live gate's 4 weeks)
         self.n = 0
 
     def add(self, r: dict):
@@ -195,6 +196,7 @@ class BetBlocks:
             return
         if r.get("r") is not None and not r.get("e"):
             ret = r["r"] - self.cfg["extra_cost"]
+            self.first.setdefault(k, r["t"])
             for key in ((k, "every signal") if k not in SUPER_KEYS else (k,)):
                 s = self.raw.setdefault(key, [0, 0.0, 0, 0.0])
                 s[0] += 1
@@ -627,6 +629,24 @@ def side_by_side_lines(raw: dict, sat: int) -> list[str]:
     return lines
 
 
+GATE = {"trades": 300, "weeks": 4}               # the go-live gate (documented in HOW_TO_USE.md; it stays OFF)
+
+
+def gate_line(raw: dict, first: dict, cfg: dict, now: float | None = None) -> str:
+    """How far the brain's practice record is from the go-live gate. Informational only: nothing here turns real
+    money on; that needs the owner's say-so and a change by hand."""
+    import time
+
+    r = record(raw.get("brain"))
+    weeks = ((now or time.time()) - first["brain"]) / (7 * 86400) if "brain" in first else 0.0
+    if not r:
+        return f"Go-live gate (stays OFF): 0 of {GATE['trades']} practice trades, 0 of {GATE['weeks']} weeks."
+    ok = r["n"] >= GATE["trades"] and weeks >= GATE["weeks"] and r["per_trade"] > cfg["target"]
+    return (f"Go-live gate (stays OFF): {r['n']} of {GATE['trades']} practice trades, {weeks:.1f} of {GATE['weeks']} "
+            f"weeks, {pct(r['per_trade'])} a trade after fees (needs above {pct(cfg['target'], 0)})"
+            + (": the numbers are met; real money still only if you say so." if ok else "."))
+
+
 def weekly(data_dir: Path = cl.DATA_DIR, cfg: dict | None = None, since_days: float = 7.0) -> str:
     """The weekly summary for the phone: what the brain did, what qualified, and how it compares. Short."""
     import time
@@ -652,6 +672,7 @@ def weekly(data_dir: Path = cl.DATA_DIR, cfg: dict | None = None, since_days: fl
             lines.append("Predicted vs real win chance: " + ", ".join(f"{c[1]:.0%}->{c[2]:.0%}" for c in m["calibration"]))
     else:
         lines.append(f"Coin model: {m.get('why')}.")
+    lines.append(gate_line(bb.raw, bb.first, cfg))
     return "\n".join(lines)
 
 

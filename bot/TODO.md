@@ -70,5 +70,10 @@ category, list pointless workflows for the owner. Never delete Actions caches or
   rate vs the break-even win rate for that payoff, avg win/loss, per trade, sat-out count; the lab logs sit-outs
   every 5 min); `python -m bot brain --weekly` + brain_weekly.yml (Sundays ~5:17 pm, one ping, reads only).
 
+- 10. Go-live gate documented in HOW_TO_USE.md, OFF; the weekly summary says how far the brain is from it.
+- PART 1 DONE (practice only). The owner merges claude/super-bot-brain into main to start the data.
+
 ## Next
-- 10. Go-live gate documented, OFF. Then the final report for Part 1; then Part 2 (repo cleanup).
+- PART 2: repo cleanup on claude/repo-cleanup (from main): inventory, archive merged branches as tags, remove
+  unused files by category, list pointless scheduled workflows for the owner (don't disable).
+- Day ~14 after the merge: first honest read (`launch-lab-status` artifact: brain_report.json). Day ~30: decision.

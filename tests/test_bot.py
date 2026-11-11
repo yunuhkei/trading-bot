@@ -4313,3 +4313,14 @@ def test_lab_logs_what_the_brain_sat_out(tmp_path):
     lab.tick(1001.0 + ll.SIGN_EVERY)                                    # the 5-minute signs row
     sat = [r for r in lab.clog.buf["b"] if r["k"] == "_sat"]
     assert sat and sat[0]["n"] >= 1 and lab._sat_n == 0
+
+
+def test_brain_go_live_gate_only_reports_and_needs_all_its_numbers():
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    assert "0 of 300 practice trades" in brain.gate_line({}, {}, cfg)
+    short = brain.gate_line({"brain": [320, 320 * 0.031, 90, 64.0]}, {"brain": 0}, cfg, now=20 * 86400)
+    assert "2.9 of 4 weeks" in short and "numbers are met" not in short          # not 4 weeks yet
+    met = brain.gate_line({"brain": [320, 320 * 0.031, 90, 64.0]}, {"brain": 0}, cfg, now=30 * 86400)
+    assert "numbers are met; real money still only if you say so" in met

@@ -614,3 +614,13 @@ The brain adds, without changing any strategy:
    only on days they never saw.
 3. A new practice super bot, `brain` ($1,000, $250 trades): it trades only what's approved, otherwise sits out and
    says why. It's reported next to "took every signal" and "random coins". Real money is not part of this.
+
+**The go-live gate (OFF; real money only when the owner says so):** the brain stays practice-only until all of
+these hold, and even then it needs the owner's word and a change by hand (nothing switches it on by itself):
+1. 300+ practice trades by the brain over 4+ weeks, with profit per trade after real fees above +2%, and the
+   approved windows / coin model still passing the strict test on days they never saw.
+2. A kill switch: if live results fall below the practice expectation (the same drop rule: its recent trades
+   clearly below what it showed), it stops and pings the owner.
+3. A profit lock: once the account doubles, the original money is moved out and only winnings stay in play.
+4. Small first: the sniper's limits (`sniper.yaml`), tighter slippage (see bot/TODO.md), the 2 am-style condition.
+The weekly summary says how far it is from point 1.
