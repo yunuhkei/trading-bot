@@ -46,7 +46,7 @@ function lgTurn(X,dx,fx,Y,dy,fy){
   const nx=X.n,ny=Y.n,ix=dx>0?fx:nx-1-fx,iy=dy>0?fy:ny-1-fy,tx=_tan(X,fx),ty=_tan(Y,fy),ux=tx[0]*dx,uz=tx[1]*dx,vx=ty[0]*dy,vz=ty[1]*dy;
   const ang=Math.atan2(ux*vz-uz*vx,ux*vx+uz*vz);if(Math.abs(ang)>2.6)return;            /* ang>0: the exit is to the right of the way we are heading */
   const dt=ux*vx+uz*vz,par=dt>0?dt*dt:0;                                                  /* 1 when the two roads run side by side (ramps): long gentle curves */
-  let ai=Math.round(Math.max(6,lerp(Y.hw+3,46,par))/X.ds),bi=Math.round(Math.max(6,lerp(X.hw+3,58,par))/Y.ds);
+  let ai=Math.round(Math.max(6,lerp(Y.hw+3,18,par))/X.ds),bi=Math.round(Math.max(6,lerp(X.hw+3,18,par))/Y.ds);   /* (there are no ramps any more: straight on across a junction is a short link, it used to be 100 m long and counted as a turn) */
   const nlx=ax.length,nly=ay.length,end=!X.closed&&ix>=nx-3;
   let fu,tu;
   /* the two ends of the curve must not nearly coincide (an acute T onto a diagonal road): move them further away from the junction until the curve is at least 8 m long */
@@ -120,6 +120,10 @@ function lgBuild(){
       if(p<0)continue;
       for(let di=0;di<2;di++){const dir=di?-1:1,e=o[di][0],op=o[1-di][0],ix=dir>0?p:n-1-p,ox=dir>0?n-1-p:p;
         if(lgLink(e,ix-4,ix,op,ox+4,3))nX++}}});
+  /* ---- a road end with only ONE way on (an L-shaped corner): the turn was given to the inner or the outer lane only, so the other lanes ended in nothing. Every lane gets it. ---- */
+  ROADS.forEach((r,ri)=>{const o=LG.ofRoad[ri];if(!o||r.closed)return;
+    for(let di=0;di<2;di++){const ends=[];for(const e of o[di])for(const l of e.out)if(l.foot>=e.n-4)ends.push(l);if(!ends.length)continue;
+      for(const e of o[di]){if(e.out.some(l=>l.foot>=e.n-4))continue;for(const l of ends)lgLink(e,l.fu,l.foot,l.to,l.tu,l.kind)}}});
   /* ---- dead ends: where NO lane of a road direction has a way on, every lane turns round into the opposite lane ---- */
   let nU=0;
   ROADS.forEach((r,ri)=>{const o=LG.ofRoad[ri];if(!o||r.closed||r.n<12)return;

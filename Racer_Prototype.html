@@ -478,20 +478,27 @@ function buildCurvy(def){
 /* ---------- district street grids (rotated grids, clipped to a convex region and with rectangles cut out) ---------- */
 const GRIDS=[],cityEnds=[];
 const planesBox=B=>[[-1,0,-B.x0],[1,0,B.x1],[0,-1,-B.z0],[0,1,B.z1]];
-function clipSeg(ax,az,bx,bz,planes){let t0=0,t1=1;for(const[nx,nz,c]of planes){const da=nx*ax+nz*az-c,db=nx*bx+nz*bz-c;if(da>0&&db>0)return null;if(da>0)t0=Math.max(t0,da/(da-db));else if(db>0)t1=Math.min(t1,da/(da-db))}return t0<t1?[t0,t1]:null}
+function clipSeg(ax,az,bx,bz,planes){let t0=0,t1=1,p0=-1,p1=-1;for(let q=0;q<planes.length;q++){const[nx,nz,c]=planes[q],da=nx*ax+nz*az-c,db=nx*bx+nz*bz-c;if(da>0&&db>0)return null;if(da>0){const t=da/(da-db);if(t>t0){t0=t;p0=q}}else if(db>0){const t=da/(da-db);if(t<t1){t1=t;p1=q}}}return t0<t1?[t0,t1,p0,p1]:null}   /* [t0,t1, the plane that cut the start, the plane that cut the end] */
 function cutRect(ax,az,bx,bz,R){/* remove the part of a segment inside the rectangle: returns pieces as [t0,t1] */
   let t0=0,t1=1;const dx=bx-ax,dz=bz-az;for(const[p,d,lo,hi]of[[ax,dx,R.x0,R.x1],[az,dz,R.z0,R.z1]]){if(Math.abs(d)<1e-9){if(p<lo||p>hi)return[[0,1]];continue}let u0=(lo-p)/d,u1=(hi-p)/d;if(u0>u1){const q=u0;u0=u1;u1=q}t0=Math.max(t0,u0);t1=Math.min(t1,u1)}
   if(t0>=t1)return[[0,1]];const out=[];if(t0>0)out.push([0,t0]);if(t1<1)out.push([t1,1]);return out}
 function gridStreets(g){
   const cs=g.cs=Math.cos(g.ang),sn=g.sn=Math.sin(g.ang),toW=(u,v)=>[g.ox+u*cs-v*sn,g.oz+u*sn+v*cs],B=9000;g.roads=[];let idx=0;
   const cand=[];
-  const add=(tag,p0,p1)=>{const c=clipSeg(p0[0],p0[1],p1[0],p1[1],g.planes);if(!c)return;const ax=p0[0]+(p1[0]-p0[0])*c[0],az=p0[1]+(p1[1]-p0[1])*c[0],bx=p0[0]+(p1[0]-p0[0])*c[1],bz=p0[1]+(p1[1]-p0[1])*c[1];
+  const add=(tag,p0,p1,fam)=>{const c=clipSeg(p0[0],p0[1],p1[0],p1[1],g.planes);if(!c)return;const ax=p0[0]+(p1[0]-p0[0])*c[0],az=p0[1]+(p1[1]-p0[1])*c[0],bx=p0[0]+(p1[0]-p0[0])*c[1],bz=p0[1]+(p1[1]-p0[1])*c[1];
     let pieces=[[0,1]];for(const R of(g.cut||[])){const next=[];for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1;for(const[c0,c1]of cutRect(sx,sz,ex,ez,R))next.push([a0+(a1-a0)*c0,a0+(a1-a0)*c1])}pieces=next}
-    for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1,len=Math.hypot(ex-sx,ez-sz);if(len<34)continue;cand.push({id:g.id+tag+(a0>0||a1<1?'~':''),sx,sz,ex,ez,len,ok:1})}};
-  g.us.forEach((u,i)=>add('u'+i,toW(u,-B),toW(u,B)));g.vs.forEach((v,j)=>add('v'+j,toW(-B,v),toW(B,v)));
-  /* two streets of a rotated grid can end on the boulevard a few metres apart (their mouths on top of each other, and on a hill no landing can serve both): a short stub (under 150 m) that does this is left out */
-  g.dropped=[];for(const P of cand)for(const Q of cand){if(P===Q||!P.ok||!Q.ok||P.len>Q.len||(P.len==Q.len&&P.id>Q.id))continue;
-    for(const[px,pz]of[[P.sx,P.sz],[P.ex,P.ez]])for(const[qx,qz]of[[Q.sx,Q.sz],[Q.ex,Q.ez]]){const d=Math.hypot(px-qx,pz-qz);if(d>3&&d<g.hw*2+16&&P.ok&&P.len<150){P.ok=0;g.dropped.push(P.id)}}}
+    for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1,len=Math.hypot(ex-sx,ez-sz);if(len<34)continue;cand.push({id:g.id+tag+(a0>0||a1<1?'~':''),fam,sx,sz,ex,ez,len,ok:1,ps:a0>0?-1:c[2],pe:a1<1?-1:c[3]})}};
+  g.us.forEach((u,i)=>add('u'+i,toW(u,-B),toW(u,B),0));g.vs.forEach((v,j)=>add('v'+j,toW(-B,v),toW(B,v),1));
+  /* ONE FAMILY OF STREETS PER EDGE. Where the grid is not square to the edge that cuts it (the rotated grid against the box, the straight grid against Market Street) the streets along u and
+     along v both reached the edge, at irregular spacings: mouths 13-23 m apart on the boulevard with a crossing just behind them, three junctions on top of each other (and on a hill no landing
+     could serve them all). Now only the family that meets an edge more squarely opens onto it; a street of the other family stops as a T on the last street it crosses that is at least 40 m
+     from that street's own ends (or is left out if that leaves less than 34 m of it). */
+  {const fd=[[-sn,cs],[cs,sn]],keep=q=>{const[nx,nz]=g.planes[q];return Math.abs(fd[0][0]*nx+fd[0][1]*nz)>=Math.abs(fd[1][0]*nx+fd[1][1]*nz)-1e-6?0:1};g.trimmed=[];
+   for(const P of cand)for(const end of[0,1]){const q=end?P.pe:P.ps;if(q<0)continue;const[nx,nz]=g.planes[q];if(Math.abs(fd[P.fam][0]*nx+fd[P.fam][1]*nz)<.05||Math.abs(fd[1-P.fam][0]*nx+fd[1-P.fam][1]*nz)<.05||keep(q)==P.fam)continue;
+     const ex=end?P.ex:P.sx,ez=end?P.ez:P.sz;let best=null,bd=1e9;
+     for(const Q of cand){if(Q.fam==P.fam||!Q.ok)continue;const k=1.5/(Q.len||1),X=segX(P.sx,P.sz,P.ex,P.ez,Q.sx-(Q.ex-Q.sx)*k,Q.sz-(Q.ez-Q.sz)*k,Q.ex+(Q.ex-Q.sx)*k,Q.ez+(Q.ez-Q.sz)*k);   /* (a street that stops AT this one, cut by the park, counts) */if(!X)continue;if((Q.ps>=0&&Math.hypot(X[0]-Q.sx,X[1]-Q.sz)<40)||(Q.pe>=0&&Math.hypot(X[0]-Q.ex,X[1]-Q.ez)<40))continue;const d=Math.hypot(X[0]-ex,X[1]-ez);if(d<bd){bd=d;best=X}}
+     g.trimmed.push(P.id+(end?' end':' start')+(best?' -'+Math.round(bd)+' m':' gone'));
+     if(!best){P.ok=0;continue}if(end){P.ex=best[0];P.ez=best[1];P.pe=-1}else{P.sx=best[0];P.sz=best[1];P.ps=-1}P.len=Math.hypot(P.ex-P.sx,P.ez-P.sz);if(P.len<34)P.ok=0}}
   for(const P of cand){if(!P.ok)continue;const r=buildRoad({id:P.id,hw:g.hw,lanes:1,style:g.style,city:1,smooth:g.smooth||60,grade:g.grade||.26,lift:g.lift+(idx++)*.0004,cityField:1,pts:[[P.sx,P.sz],[P.ex,P.ez]]});g.roads.push(r);cityEnds.push([P.sx,P.sz,r.id],[P.ex,P.ez,r.id])}
   GRIDS.push(g);return g}
 const nearEnd=(x,z)=>{let b=null,bd=1e18;for(const e of cityEnds){const d=(e[0]-x)**2+(e[1]-z)**2;if(d<bd){bd=d;b=e}}return b};
@@ -1407,7 +1414,7 @@ function lgTurn(X,dx,fx,Y,dy,fy){
   const nx=X.n,ny=Y.n,ix=dx>0?fx:nx-1-fx,iy=dy>0?fy:ny-1-fy,tx=_tan(X,fx),ty=_tan(Y,fy),ux=tx[0]*dx,uz=tx[1]*dx,vx=ty[0]*dy,vz=ty[1]*dy;
   const ang=Math.atan2(ux*vz-uz*vx,ux*vx+uz*vz);if(Math.abs(ang)>2.6)return;            /* ang>0: the exit is to the right of the way we are heading */
   const dt=ux*vx+uz*vz,par=dt>0?dt*dt:0;                                                  /* 1 when the two roads run side by side (ramps): long gentle curves */
-  let ai=Math.round(Math.max(6,lerp(Y.hw+3,46,par))/X.ds),bi=Math.round(Math.max(6,lerp(X.hw+3,58,par))/Y.ds);
+  let ai=Math.round(Math.max(6,lerp(Y.hw+3,18,par))/X.ds),bi=Math.round(Math.max(6,lerp(X.hw+3,18,par))/Y.ds);   /* (there are no ramps any more: straight on across a junction is a short link, it used to be 100 m long and counted as a turn) */
   const nlx=ax.length,nly=ay.length,end=!X.closed&&ix>=nx-3;
   let fu,tu;
   /* the two ends of the curve must not nearly coincide (an acute T onto a diagonal road): move them further away from the junction until the curve is at least 8 m long */
@@ -1481,6 +1488,10 @@ function lgBuild(){
       if(p<0)continue;
       for(let di=0;di<2;di++){const dir=di?-1:1,e=o[di][0],op=o[1-di][0],ix=dir>0?p:n-1-p,ox=dir>0?n-1-p:p;
         if(lgLink(e,ix-4,ix,op,ox+4,3))nX++}}});
+  /* ---- a road end with only ONE way on (an L-shaped corner): the turn was given to the inner or the outer lane only, so the other lanes ended in nothing. Every lane gets it. ---- */
+  ROADS.forEach((r,ri)=>{const o=LG.ofRoad[ri];if(!o||r.closed)return;
+    for(let di=0;di<2;di++){const ends=[];for(const e of o[di])for(const l of e.out)if(l.foot>=e.n-4)ends.push(l);if(!ends.length)continue;
+      for(const e of o[di]){if(e.out.some(l=>l.foot>=e.n-4))continue;for(const l of ends)lgLink(e,l.fu,l.foot,l.to,l.tu,l.kind)}}});
   /* ---- dead ends: where NO lane of a road direction has a way on, every lane turns round into the opposite lane ---- */
   let nU=0;
   ROADS.forEach((r,ri)=>{const o=LG.ofRoad[ri];if(!o||r.closed||r.n<12)return;
