@@ -1,6 +1,7 @@
 """Read-only: Replays Super bot 1's trades against the real on-chain trades: the coin's real curve at the second it bought and
 the second it sold, the same $250 and fee math as the lab, our own buy counted in the curve when selling."""
 import json, os, sys, time, urllib.request
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from solders.pubkey import Pubkey
 from bot import launch_lab as ll
 from bot import pump_direct as pd
