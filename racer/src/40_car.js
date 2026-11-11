@@ -11,7 +11,7 @@ function carDraw(){
   /* the model is stored in 1/8192 m units */const S=1/8192;
   const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a);
   gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);
-  gl.uniform1f(P.u.uAlpha,1);gl.uniform3f(P.u.uWh,0,1,0);if(CARM.wheels.length>1)gl.uniform4f(P.u.uArch,CARM.wheels[0].x,CARM.wheels[0].R,CARM.wheels[1].x,CARM.wheels[1].R);gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
+  gl.uniform1f(P.u.uAlpha,1);gl.uniform3f(P.u.uWh,0,1,0);if(CARM.wheels.length>1){const na=CARM.def&&CARM.def.cc?0:1;gl.uniform4f(P.u.uArch,CARM.wheels[0].x,CARM.wheels[0].R*na,CARM.wheels[1].x,CARM.wheels[1].R*na)}   /* the shader's black arch circle is for the generated supercars; the Close Call bodies cut their own arches (the circle blackened their raised fenders) */gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
   M4.trs(_mf,x,y+C.bob,z,-yaw,pit,rol,1,1,1);if(CARM.body.pr)partsDrawCar(_mf,S,false);else{M4.trs(_mb,x,y+C.bob,z,-yaw,pit,rol,S,S,S);drawCarMesh(CARM.body,_mb,CARM.body.gf)}
   /* wheels: stored in metres-as-int16 too, positions given in metres */
   const wblur=Math.min(.8,Math.max(0,(C.speed-22)/40));

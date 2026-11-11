@@ -2011,7 +2011,7 @@ function carDraw(){
   /* the model is stored in 1/8192 m units */const S=1/8192;
   const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a);
   gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);
-  gl.uniform1f(P.u.uAlpha,1);gl.uniform3f(P.u.uWh,0,1,0);if(CARM.wheels.length>1)gl.uniform4f(P.u.uArch,CARM.wheels[0].x,CARM.wheels[0].R,CARM.wheels[1].x,CARM.wheels[1].R);gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
+  gl.uniform1f(P.u.uAlpha,1);gl.uniform3f(P.u.uWh,0,1,0);if(CARM.wheels.length>1){const na=CARM.def&&CARM.def.cc?0:1;gl.uniform4f(P.u.uArch,CARM.wheels[0].x,CARM.wheels[0].R*na,CARM.wheels[1].x,CARM.wheels[1].R*na)}   /* the shader's black arch circle is for the generated supercars; the Close Call bodies cut their own arches (the circle blackened their raised fenders) */gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
   M4.trs(_mf,x,y+C.bob,z,-yaw,pit,rol,1,1,1);if(CARM.body.pr)partsDrawCar(_mf,S,false);else{M4.trs(_mb,x,y+C.bob,z,-yaw,pit,rol,S,S,S);drawCarMesh(CARM.body,_mb,CARM.body.gf)}
   /* wheels: stored in metres-as-int16 too, positions given in metres */
   const wblur=Math.min(.8,Math.max(0,(C.speed-22)/40));
@@ -4282,33 +4282,35 @@ const CC_DES={
 function ccCR(P,k){const n=P.length,Q=[],G=i=>i<0?[-P[1][0],P[1][1]]:i>=n?[2*P[n-1][0]-P[n-2][0],2*P[n-1][1]-P[n-2][1]]:P[i];
   for(let i=0;i<n-1;i++){const p0=G(i-1),p1=P[i],p2=P[i+1],p3=G(i+2);for(let s=0;s<k;s++){const t=s/k,t2=t*t,t3=t2*t,f=a=>.5*(2*p1[a]+(-p0[a]+p2[a])*t+(2*p0[a]-5*p1[a]+4*p2[a]-p3[a])*t2+(-p0[a]+3*p1[a]-3*p2[a]+p3[a])*t3);Q.push([f(0),f(1)])}}
   Q.push(P[n-1].slice());return Q}
-function ccSec(w,hc,bp,yb,k){const top=hc+bp,r2=Math.min(2.6,Math.max(.2,(top-yb)*.4));return ccCR([[0,hc],[w*.45,hc+bp*.04],[w*.74,hc+bp*.5-.1],[w*.93,top-r2*.6],[w,top-r2*1.2],[w*.99,(yb+top)/2+.2],[w*.965,yb+Math.min(1.4,(top-yb)*.22)],[w*.9,yb+.04]],k)}
+/* (this game's version: the whole crown rises with the fenders over each wheel, so the bonnet never sinks between two raised fenders or shows the wheel through it; the shoulder and the sill are rounder) */
+function ccSec(w,hc,bp,yb,k){const top=hc+bp,r2=Math.min(3.4,Math.max(.25,(top-yb)*.48));return ccCR([[0,hc+bp*.92],[w*.42,hc+bp*.95],[w*.7,hc+bp-.05],[w*.88,top-r2*.45],[w*.985,top-r2*1.15],[w,(yb+top)/2+.1],[w*.975,yb+Math.min(1.4,(top-yb)*.24)],[w*.9,yb+.03]],k)}
 /* build a car from a design: returns {S (the spec the game reads: sizes, axles, lights), body, wheelF, wheelR} in the generator's frame (metres, x right, y up, front at -z) */
 function ccBuild(key,opt){
   opt=opt||{};const d=CC_DES[key],K=.1,st=d.st,y0=d.y0||2.6,lo=!!opt.lo,body=new CGB();
-  const fw=cgCurve(st.map(s=>[s[0],s[1]])),fh=cgCurve(st.map(s=>[s[0],s[2]])),xe0=st[0][0],xe1=st[st.length-1][0],xc=(xe0+xe1)/2,rl=Math.min(d.bus?2:3.2,(xe1-xe0)*.065);
+  const fw=cgCurve(st.map(s=>[s[0],s[1]])),fh=cgCurve(st.map(s=>[s[0],s[2]])),xe0=st[0][0],xe1=st[st.length-1][0],xc=(xe0+xe1)/2,rl=Math.min(d.bus?2.4:4.6,(xe1-xe0)*.09);
   const Z=x=>-(x-xc)*K,ar=(v,i)=>Array.isArray(v)?v[i]:v,W=d.wh,WL=[0,1].map(i=>{const x=i?W.rx:W.fx,r0=ar(W.r,i),top=fh(x),R=Math.max(2.6,Math.min(r0,(top+3.2-1.05)/2));return{x,R,w:ar(W.w,i),hr:ar(W.hr||.6,i),ra:R+.5,bump:Math.max(0,2*R+1.05-top)}});
   /* the fenders rise over the wheels where a tyre would stand above the bodywork (Close Call's hqWI) */
   const bump=x=>{let b=0;for(const q of WL){const t=Math.abs(x-q.x)/(q.ra+2.1);if(t<1)b=Math.max(b,q.bump*Math.pow((1+Math.cos(Math.PI*t))/2,1.25))}return b};
   /* rows along the car: an even spacing, more round the wheel arches and at the rounded ends */
   const X=[],step=lo?3.2:2.2;for(let x=xe0;x<xe1;x+=step)X.push(x);X.push(xe1);
-  for(let k=0;k<=(lo?3:5);k++){const t=Math.sin(k/(lo?3:5)*1.5708);X.push(xe1-rl+rl*t,xe0+rl-rl*t)}
+  for(let k=0;k<=(lo?4:8);k++){const t=Math.sin(k/(lo?4:8)*1.5708);X.push(xe1-rl+rl*t,xe0+rl-rl*t)}
   for(const q of WL){const n=lo?6:10;for(let k=0;k<=n;k++)X.push(q.x+q.ra*Math.cos(k/n*Math.PI));X.push(q.x-q.ra-.05,q.x+q.ra+.05)}
   X.sort((a,b)=>a-b);const XS=[];for(let x of X){x=Math.max(xe0,Math.min(xe1,x));if(!XS.length||x-XS[XS.length-1]>.04)XS.push(x)}
-  const rows=[],kk=lo?1:2;
+  const rows=[],kk=lo?2:3;
   for(const x of XS){let sp=1;if(x>xe1-rl){const t=(x-(xe1-rl))/rl;sp=Math.pow(Math.max(0,1-t*t*t),1/3)}else if(x<xe0+rl){const t=(xe0+rl-x)/rl;sp=Math.pow(Math.max(0,1-t*t*t),1/3)}
-    const w=Math.max(.05,fw(x)*sp),hc0=fh(x),hc=hc0-(hc0-y0)*.3*Math.pow(1-sp,1.2),bp=bump(x)*sp;let yb=y0;
-    for(const q of WL){const dx=x-q.x;if(Math.abs(dx)<=q.ra+1e-6)yb=Math.max(yb,Math.min(q.R+Math.sqrt(Math.max(0,q.ra*q.ra-dx*dx)),hc+bp-.55))}yb=Math.min(yb,hc+bp-.6);
+    const w=Math.max(.05,fw(x)*sp),hc0=fh(x),hc=hc0-(hc0-y0)*.42*Math.pow(1-sp,1.6),bp=bump(x)*Math.min(1,sp*1.6);let yb=y0;   /* (the fender keeps its height into the rounded nose and tail, so a wheel near the end never pokes through) */
+    for(const q of WL){const dx=x-q.x;if(Math.abs(dx)<=q.ra+1e-6)yb=Math.max(yb,Math.min(q.R+Math.sqrt(Math.max(0,q.ra*q.ra-dx*dx)),hc+bp-.55))}yb=Math.min(yb,hc+bp*.92-.8);   /* the arch never cuts above the middle of the bonnet (it used to, over a low nose, and the dark underbody showed through the bonnet) */
     const sec=ccSec(w,hc,bp,yb,kk),L=sec.slice(1).reverse().map(p=>[-p[0],p[1]]);rows.push({x,hc:hc+bp,yb,w,ring:L.concat(sec)})}
   /* the body skin: paint, darker towards the sill (the shade S: under .4 is read as the dark lower body by the traffic) */
   const ni=rows.length,nj=rows[0].ring.length,P=new Float32Array(ni*nj*3),ctr=new Float32Array(ni*3);
-  rows.forEach((r,i)=>{ctr[i*3+1]=(r.yb+r.hc)/2*K;ctr[i*3+2]=Z(r.x);r.ring.forEach((p,j)=>{const o=(i*nj+j)*3;P[o]=p[0]*K;P[o+1]=p[1]*K;P[o+2]=Z(r.x)})});
+  rows.forEach((r,i)=>{ctr[i*3+1]=Math.min(r.yb,(y0+r.hc)/2)*K;   /* the point the normals face away from: low in the section (over a wheel the section's bottom is high up, and normals on the bonnet used to point down) */ctr[i*3+2]=Z(r.x);r.ring.forEach((p,j)=>{const o=(i*nj+j)*3;P[o]=p[0]*K;P[o+1]=p[1]*K;P[o+2]=Z(r.x)})});
   const Nn=cgGridNormals(P,ni,nj,false,ctr),ids=[];
-  for(let i=0;i<ni;i++){const row=[],r=rows[i];for(let j=0;j<nj;j++){const o=(i*nj+j)*3,y=P[o+1]/K,sill=r.yb+Math.min(1.4,(r.hc-r.yb)*.22),t=Math.max(0,Math.min(1,(sill-y)/(sill-r.yb+.35))),sh=t>.55?.32:1-.3*t;row.push(body.v(P[o],P[o+1],P[o+2],Nn[o],Nn[o+1],Nn[o+2],CGM.paint,sh))}ids.push(row)}
+  const half=(nj-1)/2;for(let i=0;i<ni;i++){const row=[],r=rows[i];for(let j=0;j<nj;j++){const o=(i*nj+j)*3,kk2=Math.abs(j-half),low=P[o+1]/K<y0+1.6,sh=low&&kk2>=half-.5?.32:low&&kk2>=half-1.5?.7:1;   /* only the sill low on the car is dark (over a wheel the section's bottom is high up: it stays paint) */row.push(body.v(P[o],P[o+1],P[o+2],Nn[o],Nn[o+1],Nn[o+2],CGM.paint,sh))}ids.push(row)}
   for(let i=0;i<ni-1;i++)for(let j=0;j<nj-1;j++)body.q(ids[i][j],ids[i+1][j],ids[i+1][j+1],ids[i][j+1]);
   /* nose and tail caps, the underbody (it follows the sill, so it rises into each wheel arch) */
   for(const[i,sg]of[[0,1],[ni-1,-1]]){const r=rows[i],c=body.v(0,(r.yb+r.hc)/2*K,Z(r.x),0,0,sg,CGM.paint,.9);for(let j=0;j<nj-1;j++){const a=(i*nj+j)*3,b=(i*nj+j+1)*3,va=body.v(P[a],P[a+1],P[a+2],0,0,sg,CGM.paint,.9),vb=body.v(P[b],P[b+1],P[b+2],0,0,sg,CGM.paint,.9);body.t(c,va,vb)}}
-  for(let i=0;i<ni-1;i++){const p=(ii,j)=>{const o=(ii*nj+j)*3;return body.v(P[o],P[o+1],P[o+2],0,-1,0,CGM.under)};body.q(p(i,0),p(i,nj-1),p(i+1,nj-1),p(i+1,0))}
+  /* the underbody: flat at the ground clearance (it used to follow the arches up and could show through a low bonnet) */
+  for(let i=0;i<ni-1;i++){const p=(ii,j)=>{const o=(ii*nj+j)*3;return body.v(P[o]*.97,y0*K,P[o+2],0,-1,0,CGM.under)};body.q(p(i,0),p(i,nj-1),p(i+1,nj-1),p(i+1,0))}
   /* the cabin */
   const cb=d.cb;let roofH=Math.max(...st.map(s=>s[2])),cowlX=xe1,roofRX=xe0;
   if(cb&&d.op){/* open car: a framed windscreen and a dark cockpit sunk into the deck */const[x0,x1,t0,t1,H,wb,wt]=cb,g1=fh(x1)-.1;
@@ -4320,7 +4322,7 @@ function ccBuild(key,opt){
     const prof=[],A=[x0,fh(x0)-.15,0],B=[t0,Hr,1],C=[t1,Hr,2],D=[x1,fh(x1)-.15,2];const n=lo?2:4;seg(A,B,n,prof);seg(B,C,lo?3:5,prof);seg(C,D,n,prof);prof.push(D);
     const roofM=d.gl===0?CGM.paint:d.rc=='G'?CGM.glass:d.rc=='k'?CGM.gloss:CGM.paint,glassM=d.gl===0?CGM.paint:CGM.glass,cr=[],cc=new Float32Array(prof.length*3);
     prof.forEach(([xs,Hs,seg_],i)=>{const u=Math.max(0,Math.min(1,(xs-x0)/(x1-x0))),sp=Math.pow(Math.max(0,1-Math.pow(Math.abs(2*u-1),6)),.25),gb=fh(xs)-.15,wbR=wb*sp,wtR=wbR+(wt-wb)*sp*Math.max(0,Hs-gb)/Math.max(.01,Hr-gb),Hc=Math.max(gb,Hs);
-      const half=[[0,Hc+.35],[wtR*.55,Hc+.3],[wtR*.9,Hc+.08],[wtR,Hc-.25],[(wtR+wbR)/2,(Hc-.25+gb)/2],[wbR,gb]],ring=half.slice(1).reverse().map(p=>[-p[0],p[1]]).concat(half);cr.push({ring,seg:seg_,gb});cc[i*3+1]=(gb+Hc)/2*K;cc[i*3+2]=Z(xs);
+      const half=[[0,Hc+.35],[wtR*.5,Hc+.3],[wtR*.82,Hc+.16],[wtR*.98,Hc-.18],[(wtR+wbR)/2,(Hc-.3+gb)/2],[wbR,gb]],ring=half.slice(1).reverse().map(p=>[-p[0],p[1]]).concat(half);cr.push({ring,seg:seg_,gb});cc[i*3+1]=(gb+Hc)/2*K;cc[i*3+2]=Z(xs);
       cr[i].P=ring.map(p=>[p[0]*K,p[1]*K,Z(xs)])});
     const mi=cr.length,mj=cr[0].ring.length,PP=new Float32Array(mi*mj*3);cr.forEach((r,i)=>r.P.forEach((p,j)=>{PP.set(p,(i*mj+j)*3)}));const NN=cgGridNormals(PP,mi,mj,false,cc),cid=[];
     for(let i=0;i<mi;i++){const row=[];for(let j=0;j<mj;j++){const o=(i*mj+j)*3,c=Math.abs(j-(mj-1)/2),top=cr[i].seg==1&&!(i>0&&cr[i-1].seg==0&&false);let m=glassM;
