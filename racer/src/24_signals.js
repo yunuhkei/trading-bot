@@ -36,7 +36,7 @@ function sigState(s,t){const I=s.I,k=((((t==null?SIG.t:t)+I.off)%I.T)+I.T)%I.T,a
    second head at 5.6 m. heads: [x,y,z, facing x,z, intersection, phase] (two per approach) for the lit lamps */
 function sigProps(){SIG.heads.length=0;
   for(const I of SIG.I)for(const p of I.ap){const r=p.r,ix=p.di==0?p.su:r.n-1-p.su;if(ix<0||ix>=r.n)continue;const nx=-p.tz,nz=p.tx,hw=r.hw*r.wk[ix],off=hw+(r.sw?.9:RSH*.75),y=r.Y[ix]+(r.sw?CURB_H:-.1);
-    const px=r.X[ix]+nx*off,pz=r.Z[ix]+nz*off;if(otherAsphalt(px,pz,r,r.Y[ix],.2))continue;
+    const px=r.X[ix]+nx*off,pz=r.Z[ix]+nz*off;if(otherAsphalt(px,pz,r,r.Y[ix],.2))continue;if(SAFEHOUSES.some(h=>Math.hypot(h.x-px,h.z-pz)<24))continue;   /* never a pole in a garage's driveway (the light still works, it just has no head there) */
     const fx=-p.tx,fz=-p.tz,arm=clamp(off-hw*.45,2,8),ax=px-nx*arm,az=pz-nz*arm;
     ptrunk(0,px,y-.3,pz,.11,6.1,96,100,104);pbar(0,px,y+5.95,pz,ax,y+5.95,az,.12,96,100,104);COLC.push(px,pz,.25,y-.5,y+6);
     for(const[hx,hy,hz]of[[ax,y+5.35,az],[px-nx*.25,y+2.8,pz-nz*.25]]){

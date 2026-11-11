@@ -134,3 +134,8 @@ Small differences from rounding are fine; a change of more than about 10 percent
 * `rsig`: 429 intersections, 1,503 approaches, cycles 30.4-32.4 s, all-red 1.2 s; 90-120 s at downtown, the Valley, Las Vegas, Sacramento: 41-132 stop-line crossings, 0 on red, both phases flow, queues of 2-3 cars, longest wait 15-25 s, 0 wrecks, 0 jams.
 * `rtraffic` (60 s) with the lights: 0 % wrecked at downtown, the Valley, the ring, Big Pines, Palm Springs (downtown was 1 %), worst lane deviation 5.6 m downtown (was 8.8), deadlock breaker downtown 6 (was 10). Speed against the limit drops in town (0.52-0.64, was 0.86-0.90) because cars now wait at reds.
 * `rbudget` (world): Low 138 draws / 100k triangles, Medium 190 / 149k, High 214 / 160k: the poles and heads are about +5k triangles on Low and +15k on High where the lights are densest, and no draw calls (they are merged into the furniture cells).
+
+## Guard rails baseline (world 1e)
+
+* `rphys` I (on the Geary highway, assist off, gas held): speed kept 1 s after touching the rail at 6 / 12 / 25 / 45 / 75 degrees: 35 m/s 1.31 / 1.14 / 0.99 / 0.64 / 0 (over 1 = the gas keeps pulling), 60 m/s 1.00 / 0.97 / 0.87 / 0.55 / 0; the car ends up along the rail (0-4 degrees) up to 45 degrees; damage 53 / 221 / 924 kJ at 6 / 25 / 75 degrees and 35 m/s, 63 / 538 / 2576 kJ at 60 m/s.
+* `rbot` at 34 m/s on the 15 railed roads: all completed, no hits, no stuck (flights only on the jump hills). `rjump`, `rcops`, `rnav`, `rdamage`, `rsafe` (20 garages), `rgfx`, `renergy` pass; `rbudget` world Low 138 / 100k, High 214 / 160k (the rails and posts add no draw calls).

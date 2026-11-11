@@ -22,6 +22,8 @@ function fxUpdate(dt){
     while(spCool<=0){spCool+=.045/Math.max(.4,q*(.5+sp));for(let w=0;w<2;w++){const sd=w?1:-1,s=SMOKE[smokeHead++%SMOKE.length];s.x=C.x-sy*1.3+cy*sd*.85;s.z=C.z+cy*1.3+sy*sd*.85;s.y=C.y+.12;s.vx=C.vx*.55+cy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vz=C.vz*.55+sy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vy=.5+Math.random()*1.4*(.5+sp);
         s.age=0;s.life=.5+Math.random()*.5;s.sz=.35+sp*.35;s.a=.12+.14*sp;s.fire=0;s.dark=0;s.k=1}}}
   for(const s of SMOKE){if(s.age<s.life){s.age+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;s.vy*=Math.max(0,1-dt*(s.k?2.4:1.2));if(s.k){s.vx*=Math.max(0,1-dt*1.6);s.vz*=Math.max(0,1-dt*1.6)}}}
+  /* a stream of sparks while the car scrapes a guard rail */
+  if(C.railT>0&&C.railP&&C.speed>3){const k=Math.min(3,1+C.speed/25)*q;for(let i=0;i<Math.round(k+Math.random()*.7);i++){const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw);sparkAt(C.railP[0]+fx*(Math.random()-.3)*2,C.y+.35,C.railP[1]+fz*(Math.random()-.3)*2,C.railP[2]-C.vx*.03,C.railP[3]-C.vz*.03,1,3+C.speed*.12)}}
   /* sparks from every new impact (walls, poles, other cars) */
   if(IMP.n!==_spCur){const k=Math.min(IMP.n-_spCur,IMP.q.length);for(let i=IMP.q.length-k;i<IMP.q.length;i++){const r=IMP.q[i];if(r.src==2||r.E<1500)continue;
       const n=Math.min(26,4+Math.round(Math.sqrt(r.E)/40));sparkAt(r.src==3?(r.x+C.x)/2:C.x-r.nx*1.2,C.y+.45,r.src==3?(r.z+C.z)/2:C.z-r.nz*1.2,r.nx||0,r.nz||0,Math.round(n*q),Math.min(14,2+r.vn*.7))}_spCur=IMP.n}

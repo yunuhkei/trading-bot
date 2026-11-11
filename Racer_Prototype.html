@@ -760,7 +760,8 @@ function defineWorld(ring,sh,H){
 'use strict';
 /* ===== heightmap generation, road carving, ground colours, height queries ===== */
 const CUT_SLOPE=.36;
-const RAILS=false;   /* guardrails are switched off for now (set true to bring back the highway rails, cliff rails and bridge rails) */
+const RAILS=true;    /* metal guard rails: along the divided highways (open at every junction and garage), wherever the ground falls away beside a road, and on bridges */
+const RAIL_IN=RSH-.47;   /* the rail's inner face, metres beyond the edge of the asphalt (the shoulder stays drivable) */
 function hmIdx(x,z){return[(x+W.half)/W.T,(z+W.half)/W.T]}
 /* bilinear terrain height at a world position */
 function terrainH(x,z){const N=W.N;let gx=(x+W.half)/W.T,gz=(z+W.half)/W.T;gx=clamp(gx,0,N-1.001);gz=clamp(gz,0,N-1.001);const i=gx|0,j=gz|0,fx=gx-i,fz=gz-j,h=W.hm,o=j*N+i;
@@ -795,13 +796,13 @@ async function carveRoads(prog){
 function railPass(){
   if(!RAILS){for(const r of ROADS)r.rail.fill(0);return}
   /* junctions: where a road starts or ends on another road */
-  const jz=[];
-  for(const r of ROADS){if(r.closed||r.city)continue;for(const e of[0,r.n-1]){const x=r.X[e],z=r.Z[e];for(const o of ROADS){if(o===r)continue;const k=roadNear(o,x,z);if(Math.hypot(o.X[k]-x,o.Z[k]-z)<o.hw+8){jz.push(x,z);break}}}}
-  const nearJ=(x,z,rad)=>{for(let q=0;q<jz.length;q+=2){if((jz[q]-x)**2+(jz[q+1]-z)**2<rad*rad)return true}return false};
+  /* rails open at every junction (JUNC: where a road end sits on another road, both roads) and in front of every garage */
+  const jz=[];for(const J of JUNC)jz.push(J.x,J.z,J.rad+62);for(const s of SAFEHOUSES)jz.push(s.x,s.z,46);
+  const nearJ=(x,z)=>{for(let q=0;q<jz.length;q+=3){if((jz[q]-x)**2+(jz[q+1]-z)**2<jz[q+2]*jz[q+2])return true}return false};
   for(const r of ROADS){const n=r.n,raw=new Uint8Array(n);
     for(let i=0;i<n;i++){const a=(i+1<n?i+1:i),b=(i>0?i-1:i);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;const nx=-tz,nz=tx,off=r.hw+RSH+7;let m=0;
-      if(r.br[i])m=3;else if(!r.city){if(r.Y[i]-terrainH(r.X[i]-nx*off,r.Z[i]-nz*off)>5.5)m|=1;if(r.Y[i]-terrainH(r.X[i]+nx*off,r.Z[i]+nz*off)>5.5)m|=2;
-        if(r.style==1&&!r.city&&r.wk[i]>.99&&!nearJ(r.X[i],r.Z[i],170))m=3}
+      if(r.br[i])m=3;else if(!r.city&&!nearJ(r.X[i],r.Z[i])){if(r.Y[i]-terrainH(r.X[i]-nx*off,r.Z[i]-nz*off)>5.5)m|=1;if(r.Y[i]-terrainH(r.X[i]+nx*off,r.Z[i]+nz*off)>5.5)m|=2;
+        if(r.style==1&&r.wk[i]>.99)m=3}
       raw[i]=m}
     for(let i=0;i<n;i++){let m=0;for(let k=-4;k<=4;k++){const j=r.closed?((i+k)%n+n)%n:Math.min(n-1,Math.max(0,i+k));m|=raw[j]}r.rail[i]=m}}}
 /* ground colour map (sqrt-linear bytes) */
@@ -998,13 +999,13 @@ function buildFurniture(){
     for(let i=0;i<cnt;i++){const j=(i+1)%n;const a=r.rail[i]&r.rail[j];if(!a&&!(r.br[i]&&r.br[j]))continue;
       const dx=r.X[j]-r.X[i],dz=r.Z[j]-r.Z[i],l=Math.hypot(dx,dz)||1,tx=dx/l,tz=dz/l,nx=-tz,nz=tx,hwi=r.hw*r.wk[i],hwj=r.hw*r.wk[j],mx=(r.X[i]+r.X[j])/2,mz=(r.Z[i]+r.Z[j])/2;
       for(const sd of[-1,1]){if(!((a>>(sd<0?0:1))&1))continue;
-        const m=pmb(mx,mz,0,12),oi=hwi+.9,oj=hwj+.9,w=.3,H=.95,yi=r.Y[i],yj=r.Y[j];
+        const m=pmb(mx,mz,0,20),oi=hwi+RAIL_IN+.1,oj=hwj+RAIL_IN+.1,w=.1,H=.78,yi=r.Y[i]+.42,yj=r.Y[j]+.42,cc=[196,200,206];   /* the beam: 0.36 m tall, its top 0.78 m above the road, on posts every sample (4 m) */
         const P=(o,y,t)=>[(t?r.X[j]:r.X[i])+nx*sd*o,y+(t?yj:yi),(t?r.Z[j]:r.Z[i])+nz*sd*o];
         const face=(p0,p1,p2,p3,n3,sh)=>{const k0=m.v(p0[0],p0[1],p0[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k1=m.v(p1[0],p1[1],p1[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k2=m.v(p2[0],p2[1],p2[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k3=m.v(p3[0],p3[1],p3[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0);m.q(k0,k1,k2,k3)};
         /* inner face (towards the road), top, outer face */
-        face(P(oi-w,0,0),P(oj-w,0,1),P(oj-w,H,1),P(oi-w,H,0),[-nx*sd,0,-nz*sd],.7);
-        face(P(oi-w,H,0),P(oj-w,H,1),P(oj+w,H,1),P(oi+w,H,0),[0,1,0],1);
-        face(P(oi+w,H,0),P(oj+w,H,1),P(oj+w,0,1),P(oi+w,0,0),[nx*sd,0,nz*sd],.6)}}
+        const hb=H-.42;face(P(oi-w,0,0),P(oj-w,0,1),P(oj-w,hb*.5,1),P(oi-w,hb*.5,0),[-nx*sd,-.3,-nz*sd],.95);face(P(oi-w,hb*.5,0),P(oj-w,hb*.5,1),P(oj-w,hb,1),P(oi-w,hb,0),[-nx*sd,.35,-nz*sd],1.12);   /* the W profile: two faces that catch the light differently */
+        face(P(oi-w,hb,0),P(oj-w,hb,1),P(oj+w,hb,1),P(oi+w,hb,0),[0,1,0],.9);face(P(oi+w,hb,0),P(oj+w,hb,1),P(oj+w,0,1),P(oi+w,0,0),[nx*sd,0,nz*sd],.6);
+        {const px=r.X[i]+nx*sd*(oi+w+.08),pz=r.Z[i]+nz*sd*(oi+w+.08);pbox(0,px,r.Y[i]-.4,pz,.07,r.Y[i]+.72,.07,120,122,126,false,.8)}}}
     /* bridge deck underside and piers */
     let lastPier=-99;
     for(let i=0;i<cnt;i++){const j=(i+1)%n;if(!(r.br[i]&&r.br[j]))continue;
@@ -1640,7 +1641,7 @@ function sigState(s,t){const I=s.I,k=((((t==null?SIG.t:t)+I.off)%I.T)+I.T)%I.T,a
    second head at 5.6 m. heads: [x,y,z, facing x,z, intersection, phase] (two per approach) for the lit lamps */
 function sigProps(){SIG.heads.length=0;
   for(const I of SIG.I)for(const p of I.ap){const r=p.r,ix=p.di==0?p.su:r.n-1-p.su;if(ix<0||ix>=r.n)continue;const nx=-p.tz,nz=p.tx,hw=r.hw*r.wk[ix],off=hw+(r.sw?.9:RSH*.75),y=r.Y[ix]+(r.sw?CURB_H:-.1);
-    const px=r.X[ix]+nx*off,pz=r.Z[ix]+nz*off;if(otherAsphalt(px,pz,r,r.Y[ix],.2))continue;
+    const px=r.X[ix]+nx*off,pz=r.Z[ix]+nz*off;if(otherAsphalt(px,pz,r,r.Y[ix],.2))continue;if(SAFEHOUSES.some(h=>Math.hypot(h.x-px,h.z-pz)<24))continue;   /* never a pole in a garage's driveway (the light still works, it just has no head there) */
     const fx=-p.tx,fz=-p.tz,arm=clamp(off-hw*.45,2,8),ax=px-nx*arm,az=pz-nz*arm;
     ptrunk(0,px,y-.3,pz,.11,6.1,96,100,104);pbar(0,px,y+5.95,pz,ax,y+5.95,az,.12,96,100,104);COLC.push(px,pz,.25,y-.5,y+6);
     for(const[hx,hy,hz]of[[ax,y+5.35,az],[px-nx*.25,y+2.8,pz-nz*.25]]){
@@ -2189,7 +2190,17 @@ function carStep(dt){
     if(!RQ.on&&hp-C.y>1.05){let gx=terrainH(px+2,pz)-terrainH(px-2,pz),gz=terrainH(px,pz+2)-terrainH(px,pz-2);const gl=Math.hypot(gx,gz);if(gl<.05){gx=C.vx;gz=C.vz;const l=Math.hypot(gx,gz)||1;gx/=l;gz/=l}else{gx/=gl;gz/=gl}
       C.x=C.px;C.z=C.pz;const vin=C.vx*gx+C.vz*gz;if(vin>0){if(PHYS.classic){C.vx-=1.3*vin*gx;C.vz-=1.3*vin*gz;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,vin*.25)/vt;C.vx*=sc;C.vz*=sc}else{deflect(-gx,-gz,vin,.3,.22);C.x+=C.vx*dt;C.z+=C.vz*dt}C.hit=Math.max(C.hit,vin);C.shake=Math.min(1,C.shake+vin*.03);if(vin>1.2)impactAdd(1,vin,0,0,C.x,C.z,-gx,-gz)}}}
   /* ---- guard rails ---- */
-  if(roadAt(C.x,C.z,C.y)&&RQ.rail){const lim=RQ.hw+.55,a=RQ.lat;if((a>lim&&(RQ.rail&2))||(a<-lim&&(RQ.rail&1))){const out=Math.abs(a)-lim,sg=a>0?1:-1;C.x-=RQ.nx*sg*out;C.z-=RQ.nz*sg*out;const vn=C.vx*RQ.nx*sg+C.vz*RQ.nz*sg;if(vn>0){C.vx-=RQ.nx*sg*vn*1.25;C.vz-=RQ.nz*sg*vn*1.25;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,vn*.22)/vt;C.vx*=sc;C.vz*=sc;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.03)}}}
+  /* GUARD RAILS: metal on metal. The car's corner nearest the rail is kept off its face (the car's own angle counts, so a nose-first hit stops at the nose); a hit bounces a little (e .12),
+     scrapes (friction .06 of the hit) and, when it is glancing, turns the car along the rail so it slides on with most of its speed; rubbing along it costs 2 m/s2. The energy of the hit (the speed into the rail) is the damage,
+     reported every quarter second (src 4: a scrape, so even a gentle one counts; the rubbing counts a fifth), with sparks and the scrape sound (C.railT, C.railP). */
+  if(C.railT>0)C.railT-=dt;
+  if(roadAt(C.x,C.z,C.y)&&RQ.rail){const sg=RQ.lat>0?1:-1;if(RQ.rail&(sg>0?2:1)){const rel=angd(C.yaw,Math.atan2(RQ.tx,-RQ.tz)),ext=Math.abs(Math.sin(rel))*TR.P.hl+Math.abs(Math.cos(rel))*TR.P.hw,out=Math.abs(RQ.lat)+ext-(RQ.hw+RAIL_IN);
+    if(out>0){const nx=-RQ.nx*sg,nz=-RQ.nz*sg,v0=Math.hypot(C.vx,C.vz);C.x+=nx*out;C.z+=nz*out;const vn=-(C.vx*nx+C.vz*nz);
+      if(vn>0){deflect(nx,nz,vn,PHYS.railE,PHYS.railMu);C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.035);C.railVn=Math.max(C.railVn||0,vn)}
+      const vh=Math.hypot(C.vx,C.vz);{if(vh>.3){const k=Math.max(0,1-2*dt/vh);C.vx*=k;C.vz*=k}}
+      const v1=Math.hypot(C.vx,C.vz),ms=.5*(HND.mass||1400);C.railE=(C.railE||0)+(vn>0?ms*vn*vn*(1-PHYS.railE*PHYS.railE):0)+.2*ms*Math.max(0,vh*vh-v1*v1);   /* the energy of the hit (its part into the rail) in full, the rubbing a fifth (most of it is heat in the beam) */C.railT=.12;C.railP=[C.x-nx*(ext+.05),C.z-nz*(ext+.05),nx,nz];
+      if((C.railCd||0)<=0&&C.railE>0){impactAdd(4,Math.max(C.railVn,.5),C.railE,0,C.x,C.z,nx,nz);C.railE=0;C.railVn=0;C.railCd=.25}}}}
+  if(C.railCd>0)C.railCd-=dt;
   /* ---- solid things: buildings, poles, trees ---- */
   collide(fx,fz);
   C.ax+=(((f-f0)/dt)-C.ax)*Math.min(1,dt*6);
@@ -2267,6 +2278,8 @@ function fxUpdate(dt){
     while(spCool<=0){spCool+=.045/Math.max(.4,q*(.5+sp));for(let w=0;w<2;w++){const sd=w?1:-1,s=SMOKE[smokeHead++%SMOKE.length];s.x=C.x-sy*1.3+cy*sd*.85;s.z=C.z+cy*1.3+sy*sd*.85;s.y=C.y+.12;s.vx=C.vx*.55+cy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vz=C.vz*.55+sy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vy=.5+Math.random()*1.4*(.5+sp);
         s.age=0;s.life=.5+Math.random()*.5;s.sz=.35+sp*.35;s.a=.12+.14*sp;s.fire=0;s.dark=0;s.k=1}}}
   for(const s of SMOKE){if(s.age<s.life){s.age+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;s.vy*=Math.max(0,1-dt*(s.k?2.4:1.2));if(s.k){s.vx*=Math.max(0,1-dt*1.6);s.vz*=Math.max(0,1-dt*1.6)}}}
+  /* a stream of sparks while the car scrapes a guard rail */
+  if(C.railT>0&&C.railP&&C.speed>3){const k=Math.min(3,1+C.speed/25)*q;for(let i=0;i<Math.round(k+Math.random()*.7);i++){const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw);sparkAt(C.railP[0]+fx*(Math.random()-.3)*2,C.y+.35,C.railP[1]+fz*(Math.random()-.3)*2,C.railP[2]-C.vx*.03,C.railP[3]-C.vz*.03,1,3+C.speed*.12)}}
   /* sparks from every new impact (walls, poles, other cars) */
   if(IMP.n!==_spCur){const k=Math.min(IMP.n-_spCur,IMP.q.length);for(let i=IMP.q.length-k;i<IMP.q.length;i++){const r=IMP.q[i];if(r.src==2||r.E<1500)continue;
       const n=Math.min(26,4+Math.round(Math.sqrt(r.E)/40));sparkAt(r.src==3?(r.x+C.x)/2:C.x-r.nx*1.2,C.y+.45,r.src==3?(r.z+C.z)/2:C.z-r.nz*1.2,r.nx||0,r.nz||0,Math.round(n*q),Math.min(14,2+r.vn*.7))}_spCur=IMP.n}
@@ -2530,11 +2543,14 @@ function audioStart(){if(AU.ctx||window.__noAudio)return;try{const A=window.Audi
   AU.gain=x.createGain();AU.gain.gain.value=0;AU.eng.connect(lp);AU.eng2.connect(lp);lp.connect(AU.gain);AU.gain.connect(master);AU.eng.start();AU.eng2.start();
   const wn=mkNoise(),wf=x.createBiquadFilter();wf.type='lowpass';wf.frequency.value=700;AU.windG=x.createGain();AU.windG.gain.value=0;wn.connect(wf);wf.connect(AU.windG);AU.windG.connect(master);wn.start();
   const tn=mkNoise(),tf=x.createBiquadFilter();tf.type='bandpass';tf.frequency.value=1500;tf.Q.value=2.2;AU.tireG=x.createGain();AU.tireG.gain.value=0;tn.connect(tf);tf.connect(AU.tireG);AU.tireG.connect(master);tn.start();
+  /* the scrape of metal on a guard rail: high, harsh noise */
+  {const sn=mkNoise(),sf=x.createBiquadFilter();sf.type='bandpass';sf.frequency.value=3200;sf.Q.value=1.4;AU.scrF=sf;AU.scrG=x.createGain();AU.scrG.gain.value=0;sn.connect(sf);sf.connect(AU.scrG);AU.scrG.connect(master);sn.start()}
   AU.sir=x.createOscillator();AU.sir.type='triangle';AU.sir.frequency.value=800;AU.sirG=x.createGain();AU.sirG.gain.value=0;AU.sir.connect(AU.sirG);AU.sirG.connect(master);AU.sir.start();AU.ready=true}catch(e){}}
 function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.state=='suspended')x.resume();
   const sp=Math.min(1,C.speed/80),gear=Math.min(5,Math.floor(C.speed/16)),gp=(C.speed-gear*16)/16,rpm=.22+(Math.min(1,gp*.9+.1)*.55)+(IN.thr||IN.auto?.12:0)+(C.boosting?.1:0)+(C.grounded?0:.16);
   const f=38+rpm*150;AU.eng.frequency.setTargetAtTime(f,t,.04);AU.eng2.frequency.setTargetAtTime(f*.503,t,.04);AU.lp.frequency.setTargetAtTime(500+rpm*1400,t,.05);
   AU.gain.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:.07+.07*rpm+(C.boosting?.05:0),t,.05);AU.windG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:sp*sp*.22,t,.1);AU.tireG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:(C.grounded&&(C.drift>.3||C.dActive)?.12*Math.max(C.drift,Math.min(1,C.slip*3)):0)+(C.hit>3?.05:0),t,.05);
+  if(AU.scrG){const on=C.railT>0&&!UI.paused&&!UI.mapOpen;AU.scrG.gain.setTargetAtTime(on?.1+.14*Math.min(1,C.speed/45):0,t,on?.015:.06);AU.scrF.frequency.setTargetAtTime(2400+C.speed*30+Math.random()*600,t,.03)}
   /* the siren: a two-tone wail, louder the nearer the nearest chasing cop */
   if(AU.sir){const ph=Math.sin(t*5.2)>0;AU.sir.frequency.setTargetAtTime(ph?960:720,t,.04);AU.sirG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:COP.sirenVol*.07,t,.1)}}
 
@@ -3147,7 +3163,7 @@ function dmgConsume(){
   if(IMP.n===DMG.cur)return;const q=IMP.q,k=Math.min(IMP.n-DMG.cur,q.length);
   for(let i=q.length-k;i<q.length;i++)dmgApply(q[i]);DMG.cur=IMP.n;dmgEffects()}
 function dmgApply(r){
-  let E=r.E*DMG.scale;if(r.src==2){if(r.vn<11)return;E=r.E*.55}else if(r.vn<3.5||E<DMG.minE)return;     /* scrapes do nothing; a landing only hurts above 11 m/s */
+  let E=r.E*DMG.scale;if(r.src==2){if(r.vn<11)return;E=r.E*.55}else if((r.vn<3.5&&r.src!=4)||E<DMG.minE)return;   /* (src 4, a rail scrape, counts by its energy alone) */     /* scrapes do nothing; a landing only hurts above 11 m/s */
   const z=DMG.z;let zone=r.zone;
   if(r.src==2){/* the suspension bottoms out: the axles and the roof take it */z[0]+=E*.3/DZ_CAP[0];z[1]+=E*.3/DZ_CAP[1];z[4]+=E*.4/DZ_CAP[4];zone=4}
   else if(zone>=0){z[zone]+=E/DZ_CAP[zone];

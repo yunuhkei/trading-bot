@@ -190,7 +190,17 @@ function carStep(dt){
     if(!RQ.on&&hp-C.y>1.05){let gx=terrainH(px+2,pz)-terrainH(px-2,pz),gz=terrainH(px,pz+2)-terrainH(px,pz-2);const gl=Math.hypot(gx,gz);if(gl<.05){gx=C.vx;gz=C.vz;const l=Math.hypot(gx,gz)||1;gx/=l;gz/=l}else{gx/=gl;gz/=gl}
       C.x=C.px;C.z=C.pz;const vin=C.vx*gx+C.vz*gz;if(vin>0){if(PHYS.classic){C.vx-=1.3*vin*gx;C.vz-=1.3*vin*gz;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,vin*.25)/vt;C.vx*=sc;C.vz*=sc}else{deflect(-gx,-gz,vin,.3,.22);C.x+=C.vx*dt;C.z+=C.vz*dt}C.hit=Math.max(C.hit,vin);C.shake=Math.min(1,C.shake+vin*.03);if(vin>1.2)impactAdd(1,vin,0,0,C.x,C.z,-gx,-gz)}}}
   /* ---- guard rails ---- */
-  if(roadAt(C.x,C.z,C.y)&&RQ.rail){const lim=RQ.hw+.55,a=RQ.lat;if((a>lim&&(RQ.rail&2))||(a<-lim&&(RQ.rail&1))){const out=Math.abs(a)-lim,sg=a>0?1:-1;C.x-=RQ.nx*sg*out;C.z-=RQ.nz*sg*out;const vn=C.vx*RQ.nx*sg+C.vz*RQ.nz*sg;if(vn>0){C.vx-=RQ.nx*sg*vn*1.25;C.vz-=RQ.nz*sg*vn*1.25;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,vn*.22)/vt;C.vx*=sc;C.vz*=sc;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.03)}}}
+  /* GUARD RAILS: metal on metal. The car's corner nearest the rail is kept off its face (the car's own angle counts, so a nose-first hit stops at the nose); a hit bounces a little (e .12),
+     scrapes (friction .06 of the hit) and, when it is glancing, turns the car along the rail so it slides on with most of its speed; rubbing along it costs 2 m/s2. The energy of the hit (the speed into the rail) is the damage,
+     reported every quarter second (src 4: a scrape, so even a gentle one counts; the rubbing counts a fifth), with sparks and the scrape sound (C.railT, C.railP). */
+  if(C.railT>0)C.railT-=dt;
+  if(roadAt(C.x,C.z,C.y)&&RQ.rail){const sg=RQ.lat>0?1:-1;if(RQ.rail&(sg>0?2:1)){const rel=angd(C.yaw,Math.atan2(RQ.tx,-RQ.tz)),ext=Math.abs(Math.sin(rel))*TR.P.hl+Math.abs(Math.cos(rel))*TR.P.hw,out=Math.abs(RQ.lat)+ext-(RQ.hw+RAIL_IN);
+    if(out>0){const nx=-RQ.nx*sg,nz=-RQ.nz*sg,v0=Math.hypot(C.vx,C.vz);C.x+=nx*out;C.z+=nz*out;const vn=-(C.vx*nx+C.vz*nz);
+      if(vn>0){deflect(nx,nz,vn,PHYS.railE,PHYS.railMu);C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.035);C.railVn=Math.max(C.railVn||0,vn)}
+      const vh=Math.hypot(C.vx,C.vz);{if(vh>.3){const k=Math.max(0,1-2*dt/vh);C.vx*=k;C.vz*=k}}
+      const v1=Math.hypot(C.vx,C.vz),ms=.5*(HND.mass||1400);C.railE=(C.railE||0)+(vn>0?ms*vn*vn*(1-PHYS.railE*PHYS.railE):0)+.2*ms*Math.max(0,vh*vh-v1*v1);   /* the energy of the hit (its part into the rail) in full, the rubbing a fifth (most of it is heat in the beam) */C.railT=.12;C.railP=[C.x-nx*(ext+.05),C.z-nz*(ext+.05),nx,nz];
+      if((C.railCd||0)<=0&&C.railE>0){impactAdd(4,Math.max(C.railVn,.5),C.railE,0,C.x,C.z,nx,nz);C.railE=0;C.railVn=0;C.railCd=.25}}}}
+  if(C.railCd>0)C.railCd-=dt;
   /* ---- solid things: buildings, poles, trees ---- */
   collide(fx,fz);
   C.ax+=(((f-f0)/dt)-C.ax)*Math.min(1,dt*6);

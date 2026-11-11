@@ -1,7 +1,8 @@
 'use strict';
 /* ===== heightmap generation, road carving, ground colours, height queries ===== */
 const CUT_SLOPE=.36;
-const RAILS=false;   /* guardrails are switched off for now (set true to bring back the highway rails, cliff rails and bridge rails) */
+const RAILS=true;    /* metal guard rails: along the divided highways (open at every junction and garage), wherever the ground falls away beside a road, and on bridges */
+const RAIL_IN=RSH-.47;   /* the rail's inner face, metres beyond the edge of the asphalt (the shoulder stays drivable) */
 function hmIdx(x,z){return[(x+W.half)/W.T,(z+W.half)/W.T]}
 /* bilinear terrain height at a world position */
 function terrainH(x,z){const N=W.N;let gx=(x+W.half)/W.T,gz=(z+W.half)/W.T;gx=clamp(gx,0,N-1.001);gz=clamp(gz,0,N-1.001);const i=gx|0,j=gz|0,fx=gx-i,fz=gz-j,h=W.hm,o=j*N+i;
@@ -36,13 +37,13 @@ async function carveRoads(prog){
 function railPass(){
   if(!RAILS){for(const r of ROADS)r.rail.fill(0);return}
   /* junctions: where a road starts or ends on another road */
-  const jz=[];
-  for(const r of ROADS){if(r.closed||r.city)continue;for(const e of[0,r.n-1]){const x=r.X[e],z=r.Z[e];for(const o of ROADS){if(o===r)continue;const k=roadNear(o,x,z);if(Math.hypot(o.X[k]-x,o.Z[k]-z)<o.hw+8){jz.push(x,z);break}}}}
-  const nearJ=(x,z,rad)=>{for(let q=0;q<jz.length;q+=2){if((jz[q]-x)**2+(jz[q+1]-z)**2<rad*rad)return true}return false};
+  /* rails open at every junction (JUNC: where a road end sits on another road, both roads) and in front of every garage */
+  const jz=[];for(const J of JUNC)jz.push(J.x,J.z,J.rad+62);for(const s of SAFEHOUSES)jz.push(s.x,s.z,46);
+  const nearJ=(x,z)=>{for(let q=0;q<jz.length;q+=3){if((jz[q]-x)**2+(jz[q+1]-z)**2<jz[q+2]*jz[q+2])return true}return false};
   for(const r of ROADS){const n=r.n,raw=new Uint8Array(n);
     for(let i=0;i<n;i++){const a=(i+1<n?i+1:i),b=(i>0?i-1:i);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;const nx=-tz,nz=tx,off=r.hw+RSH+7;let m=0;
-      if(r.br[i])m=3;else if(!r.city){if(r.Y[i]-terrainH(r.X[i]-nx*off,r.Z[i]-nz*off)>5.5)m|=1;if(r.Y[i]-terrainH(r.X[i]+nx*off,r.Z[i]+nz*off)>5.5)m|=2;
-        if(r.style==1&&!r.city&&r.wk[i]>.99&&!nearJ(r.X[i],r.Z[i],170))m=3}
+      if(r.br[i])m=3;else if(!r.city&&!nearJ(r.X[i],r.Z[i])){if(r.Y[i]-terrainH(r.X[i]-nx*off,r.Z[i]-nz*off)>5.5)m|=1;if(r.Y[i]-terrainH(r.X[i]+nx*off,r.Z[i]+nz*off)>5.5)m|=2;
+        if(r.style==1&&r.wk[i]>.99)m=3}
       raw[i]=m}
     for(let i=0;i<n;i++){let m=0;for(let k=-4;k<=4;k++){const j=r.closed?((i+k)%n+n)%n:Math.min(n-1,Math.max(0,i+k));m|=raw[j]}r.rail[i]=m}}}
 /* ground colour map (sqrt-linear bytes) */

@@ -81,9 +81,9 @@ const MODE=process.env.HNDMODE||'';
     /* ---------- I. guard rails (only where the map has them) ---------- */
     M.I=null;{let rr=null,ri=0,side=0;for(const r of ROADS){if(r.city||r.closed)continue;for(let i=40;i<r.n-40;i+=4){let ok=r.rail[i]&2;for(let k=-25;k<=25&&ok;k++)if(!(r.rail[i+k]&2)||r.br[i+k])ok=0;if(ok){const t0=Math.atan2(r.X[i+20]-r.X[i],r.Z[i+20]-r.Z[i]),t1=Math.atan2(r.X[i]-r.X[i-20],r.Z[i]-r.Z[i-20]);if(Math.abs(angd(t0,t1))<.03){rr=r;ri=i;break}}}if(rr)break}
       if(rr){M.I={road:rr.id};const r=rr,a=Math.atan2(r.X[ri+1]-r.X[ri],-(r.Z[ri+1]-r.Z[ri]));QH.cst.fill(0);
-        for(const deg of[6,12,25,45,75])for(const v of[35,60]){const lat=r.hw-3.2-(deg>30?1.5:0);carPlace(r.X[ri]+Math.cos(a)*lat,r.Z[ri]+Math.sin(a)*lat,a+deg/57.2958,r.Y[ri]+.5);C.vx=Math.sin(C.yaw)*v;C.vz=-Math.cos(C.yaw)*v;C.steer=0;C.wyaw=0;IN.assist=true;IN.brk=0;IN.hand=0;
+        for(const deg of[6,12,25,45,75])for(const v of[35,60]){const lat=r.hw-3.2-(deg>30?1.5:0);carPlace(r.X[ri]+Math.cos(a)*lat,r.Z[ri]+Math.sin(a)*lat,a+deg/57.2958,r.Y[ri]+.5);C.vx=Math.sin(C.yaw)*v;C.vz=-Math.cos(C.yaw)*v;C.steer=0;C.wyaw=0;IN.assist=false;IN.brk=0;IN.hand=0;C.railE=0;C.railCd=0;
           const n1=IMP.n,E1=IMP.total;let t1=-1,sp=0,hd=0,vmin=1e9,sparks=(typeof SPARK!=='undefined'&&SPARK.made)||0;
-          for(let i=0;i<120*4;i++){IN.thr=1;C.steer=0;carStep(1/120);const cont=(C.railT||0)>0||IMP.n>n1;if(t1<0&&cont)t1=i;if(t1>=0){vmin=Math.min(vmin,C.speed);if(i-t1==120){sp=C.speed;hd=Math.abs(angd(C.yaw,a))*57.3;break}}}
+          for(let i=0;i<120*6;i++){IN.thr=1;C.steer=0;carStep(1/120);const cont=(C.railT||0)>0||IMP.n>n1;if(t1<0&&cont)t1=i;if(t1>=0){vmin=Math.min(vmin,C.speed);if(i-t1==120){sp=C.speed;hd=Math.abs(angd(C.yaw,a))*57.3;break}}}
           M.I[deg+'deg@'+v]={kept1s:t1<0?null:+(sp/v).toFixed(2),lowest:+(vmin/v).toFixed(2),noseToRailDeg:+hd.toFixed(0),kJ:+((IMP.total-E1)/1000).toFixed(0),insideRoad:Math.abs((C.x-r.X[roadNear(r,C.x,C.z)])*Math.cos(a)+(C.z-r.Z[roadNear(r,C.x,C.z)])*Math.sin(a))<r.hw+1.2?1:0}}
         restore()}}
     /* ---------- J. curbs (only where the map has them) ---------- */

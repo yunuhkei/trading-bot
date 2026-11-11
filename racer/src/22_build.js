@@ -161,13 +161,13 @@ function buildFurniture(){
     for(let i=0;i<cnt;i++){const j=(i+1)%n;const a=r.rail[i]&r.rail[j];if(!a&&!(r.br[i]&&r.br[j]))continue;
       const dx=r.X[j]-r.X[i],dz=r.Z[j]-r.Z[i],l=Math.hypot(dx,dz)||1,tx=dx/l,tz=dz/l,nx=-tz,nz=tx,hwi=r.hw*r.wk[i],hwj=r.hw*r.wk[j],mx=(r.X[i]+r.X[j])/2,mz=(r.Z[i]+r.Z[j])/2;
       for(const sd of[-1,1]){if(!((a>>(sd<0?0:1))&1))continue;
-        const m=pmb(mx,mz,0,12),oi=hwi+.9,oj=hwj+.9,w=.3,H=.95,yi=r.Y[i],yj=r.Y[j];
+        const m=pmb(mx,mz,0,20),oi=hwi+RAIL_IN+.1,oj=hwj+RAIL_IN+.1,w=.1,H=.78,yi=r.Y[i]+.42,yj=r.Y[j]+.42,cc=[196,200,206];   /* the beam: 0.36 m tall, its top 0.78 m above the road, on posts every sample (4 m) */
         const P=(o,y,t)=>[(t?r.X[j]:r.X[i])+nx*sd*o,y+(t?yj:yi),(t?r.Z[j]:r.Z[i])+nz*sd*o];
         const face=(p0,p1,p2,p3,n3,sh)=>{const k0=m.v(p0[0],p0[1],p0[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k1=m.v(p1[0],p1[1],p1[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k2=m.v(p2[0],p2[1],p2[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k3=m.v(p3[0],p3[1],p3[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0);m.q(k0,k1,k2,k3)};
         /* inner face (towards the road), top, outer face */
-        face(P(oi-w,0,0),P(oj-w,0,1),P(oj-w,H,1),P(oi-w,H,0),[-nx*sd,0,-nz*sd],.7);
-        face(P(oi-w,H,0),P(oj-w,H,1),P(oj+w,H,1),P(oi+w,H,0),[0,1,0],1);
-        face(P(oi+w,H,0),P(oj+w,H,1),P(oj+w,0,1),P(oi+w,0,0),[nx*sd,0,nz*sd],.6)}}
+        const hb=H-.42;face(P(oi-w,0,0),P(oj-w,0,1),P(oj-w,hb*.5,1),P(oi-w,hb*.5,0),[-nx*sd,-.3,-nz*sd],.95);face(P(oi-w,hb*.5,0),P(oj-w,hb*.5,1),P(oj-w,hb,1),P(oi-w,hb,0),[-nx*sd,.35,-nz*sd],1.12);   /* the W profile: two faces that catch the light differently */
+        face(P(oi-w,hb,0),P(oj-w,hb,1),P(oj+w,hb,1),P(oi+w,hb,0),[0,1,0],.9);face(P(oi+w,hb,0),P(oj+w,hb,1),P(oj+w,0,1),P(oi+w,0,0),[nx*sd,0,nz*sd],.6);
+        {const px=r.X[i]+nx*sd*(oi+w+.08),pz=r.Z[i]+nz*sd*(oi+w+.08);pbox(0,px,r.Y[i]-.4,pz,.07,r.Y[i]+.72,.07,120,122,126,false,.8)}}}
     /* bridge deck underside and piers */
     let lastPier=-99;
     for(let i=0;i<cnt;i++){const j=(i+1)%n;if(!(r.br[i]&&r.br[j]))continue;
