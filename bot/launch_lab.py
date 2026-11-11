@@ -156,6 +156,7 @@ def b58(b: bytes) -> str:
 _QUOTE_RECENT: deque = deque(maxlen=2000)
 _QUOTE_FLAGGED = [0]
 QUOTE_ALARM = [False]
+_NON_SOL: dict = {}                              # coins seen priced in something other than SOL (oldest dropped first)
 
 
 def _note_quote(flagged: bool):
@@ -200,7 +201,12 @@ def sane(e: dict) -> bool:
     real trades on mayhem-mode coins, which pump.fun's own agent trades for their first day on a different curve with
     no fee rate, and dropping them left the lab blind to those coins crashing.)"""
     if e.get("quote_sol") is False:              # priced in USDC or another pump coin (about 1 in 8 new coins): its
-        return False                             # amounts aren't SOL, and a SOL buy of it can't go through
+        _NON_SOL[e.get("mint")] = True           # amounts aren't SOL, and a SOL buy of it can't go through; it's
+        if len(_NON_SOL) > 20000:                # remembered, so a later event that can't be read the same way
+            _NON_SOL.pop(next(iter(_NON_SOL)))   # doesn't slip through
+        return False
+    if e.get("mint") in _NON_SOL:
+        return False
     if e["kind"] != "trade":
         return True
     return 0 <= e["sol"] <= 500 and e["vsol"] > 0.1 and 0 < e["vtok"] <= 2e9 and e["real_sol"] >= -1
@@ -1149,14 +1155,19 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
             log.warning("feed dropped (%s); reconnecting", e)
             await asyncio.sleep(3)
     shadows = [t for t in (fast_task, direct_task) if t]
-    if shadows:                                             # they finish the sales already under way (30 s at most)
-        await asyncio.wait(shadows, timeout=35)
-    for t in shadows:
-        t.cancel()
-    if sniper_task:
-        await asyncio.wait([sniper_task], timeout=30)
-        await lab.sniper.sell_all(sniper_session, "the run ended")
-        await sniper_session.close()
+
+    async def sniper_end():                                 # real money first: never kept waiting for practice
+        if sniper_task:
+            await asyncio.wait([sniper_task], timeout=30)
+            await lab.sniper.sell_all(sniper_session, "the run ended")
+            await sniper_session.close()
+
+    async def shadows_end():                                # they finish the sales already under way (30 s at most)
+        if shadows:
+            await asyncio.wait(shadows, timeout=35)
+        for t in shadows:
+            t.cancel()
+    await asyncio.gather(sniper_end(), shadows_end())
     if fast_session:
         await fast_session.close()
 

@@ -3777,8 +3777,18 @@ def test_sniper_counts_an_old_buy_it_cant_settle_as_spent():
     s.unconfirmed["M"] = {"sig": "SIGX", "lamports": 250_000_000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
                           "t": 0.0, "sent": _t.time() - 3600}
     before = s.money()
+    asyncio.run(s.check_unconfirmed(Down()))              # a network outage is not an answer: it keeps checking
+    assert "M" in s.unconfirmed and s.money() == before and told == ["🎯 Sniper: can't check a buy"]
+    s.unconfirmed["M"]["checked"] = 0
+    asyncio.run(s.check_unconfirmed(Down()))              # and says so only once
+    assert told == ["🎯 Sniper: can't check a buy"]
+
+    async def unclear(session, mint, u, age):             # the network answered, and it's still unclear
+        return False
+    s._settle_buy = unclear
+    s.unconfirmed["M"]["checked"] = 0
     asyncio.run(s.check_unconfirmed(Down()))
-    assert "M" not in s.unconfirmed and told == ["🎯 Sniper: a buy it couldn't settle"]
+    assert "M" not in s.unconfirmed and told[-1] == "🎯 Sniper: a buy it couldn't settle"
     assert round(before - s.money(), 2) == 25.4 and s.trades[-1]["ret"] == -1.0     # $25 + the account rent, to be safe
     s._checking = True                                    # a pass already running: a second one does nothing
     s.unconfirmed["N"] = {**s.trades[-1], "lamports": 1, "sent": 0.0, "prog": "x"}
@@ -3816,7 +3826,7 @@ def test_sniper_never_sends_a_sale_without_a_price_to_protect_it():
     assert s.stats["sell: couldn't read the curve"] == 3
 
 
-def test_sniper_books_a_sale_it_cant_read_at_what_it_was_expected_to_bring():
+def test_sniper_books_a_sale_it_cant_read_at_its_guaranteed_minimum():
     import asyncio
 
     from solders.keypair import Keypair
@@ -3914,3 +3924,35 @@ def test_launch_lab_never_snipes_a_new_coin_priced_in_something_other_than_sol()
     assert sol["quote_sol"] is True and usdc["quote_sol"] is False
     assert sol["token_program"] == "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and sol["mayhem"] is False
     assert ll.sane(sol) and not ll.sane(usdc)            # a SOL buy of it can't go through: it's never seen
+
+
+def test_sniper_last_sale_try_keeps_a_floor_and_practice_skips_network_failures():
+    import asyncio
+    import inspect
+
+    from bot import launch_lab as ll
+    from bot import pump_direct as pd
+    from bot import sniper as sn
+
+    assert "0.25, 0.10]" in inspect.getsource(sn.Sniper.sell)     # never a sale with no minimum at all
+    d = pd.DirectBuyer(sol_usd=100.0)
+    mint = "So11111111111111111111111111111111111111112"
+    d.open[mint] = {"mint": mint, "in": 500_000_000, "tok": 1000, "prog": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}
+
+    async def down(session, method, params):
+        return None, "TimeoutError"
+    d._rpc = down
+    real, quick = _quick_sleep()
+    asyncio.sleep = quick
+    try:
+        asyncio.run(d._handle_one(None, ("sell", mint, 0.0, "time's up")))
+    finally:
+        asyncio.sleep = real
+    assert mint not in d.open and d.trades == []          # a network failure says nothing about the coin: left out
+    d.lab_buy("X", 0.0)
+    d.lab_buy("X", 1.0)                                   # one bet per coin
+    assert len(d.queue) == 1
+    usdc = {"kind": "create", "mint": "Q1", "quote_sol": False}
+    assert not ll.sane(usdc)
+    later = {"kind": "trade", "mint": "Q1", "sol": 0.1, "vsol": 30.0, "vtok": 1e9, "real_sol": 0.1}
+    assert not ll.sane(later)                             # a later trade of it that can't be read the same way

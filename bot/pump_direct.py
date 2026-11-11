@@ -161,6 +161,8 @@ class DirectBuyer:
                 "attempts": list(self.attempts)[-2000:]}
 
     def lab_buy(self, mint: str, now: float, lab_tokens: float | None = None):
+        if mint in self.open or mint in self.buying:  # already has a bet on it (its sale may still be being priced)
+            return
         self.buying.add(mint)
         self.queue.append(("buy", mint, now, None))
 
@@ -186,7 +188,10 @@ class DirectBuyer:
             async with session.post(self.rpc, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
                                     timeout=8) as r:
                 d = await r.json(content_type=None)
-            return d.get("result"), (d.get("error") or {}).get("message")
+            e = d.get("error") if isinstance(d, dict) else "not an answer"
+            if e:
+                return None, str(e.get("message") or e) if isinstance(e, dict) else str(e)
+            return d.get("result"), (None if d.get("result") is not None else "no result")
         except Exception as ex:
             return None, type(ex).__name__
 
@@ -249,8 +254,19 @@ class DirectBuyer:
             b = self.open[mint]                     # stays open until it's priced (cut off = not recorded at all)
             m, tp = Pubkey.from_string(mint), Pubkey.from_string(b["prog"])
             curve = pda(b"bonding-curve", bytes(m))
-            # what the sale brings: the coin's live curve, read from the chain, with our own buy still in it
-            res, err = await self._rpc(session, "getAccountInfo", [str(curve), {"encoding": "base64", "commitment": "processed"}])
+            # what the sale brings: the coin's live curve, read from the chain, with our own buy still in it. A read
+            # the network didn't answer says nothing about the coin: asked 3 times, then the bet is left out
+            for attempt in range(3):
+                if attempt:
+                    await asyncio.sleep(0.5)
+                res, err = await self._rpc(session, "getAccountInfo",
+                                           [str(curve), {"encoding": "base64", "commitment": "processed"}])
+                if not err:
+                    break
+            if err:
+                self.stats["sell: the network didn't answer (left out)"] += 1
+                self.open.pop(mint, None)
+                return
             st = curve_state((res or {}).get("value"))
             fee = (self.fee(mint) if self.fee else None) or 0.0125
             out, check = 0, 0
@@ -264,12 +280,27 @@ class DirectBuyer:
             # and does a sale really go through right now? (buy then sell in one test-run)
             ok = False
             if out > 0 and check > 0:
-                r2, e2 = await self._rpc(session, "simulateTransaction",
-                                         simulate_params(round_trip_tx(mint, b["prog"], b["in"], check), []))
-                ok = e2 is None and ((r2 or {}).get("value") or {}).get("err") is None
+                for attempt in range(2):
+                    r2, e2 = await self._rpc(session, "simulateTransaction",
+                                             simulate_params(round_trip_tx(mint, b["prog"], b["in"], check), []))
+                    if not e2:
+                        break
+                    await asyncio.sleep(0.5)
+                if e2:                                  # the test-run itself wasn't answered: left out
+                    self.stats["sell: the network didn't answer (left out)"] += 1
+                    self.open.pop(mint, None)
+                    return
+                ok = ((r2 or {}).get("value") or {}).get("err") is None
             graduated = bool(st and st[2] and b["tok"] > 0)
             if graduated:                                   # graduated: the real sniper sells these through Jupiter,
-                got = await self._jupiter_quote(session, mint, b["tok"])    # so ask Jupiter what they really fetch
+                try:                                        # so ask Jupiter what they really fetch
+                    got = await self._jupiter_quote(session, mint, b["tok"])
+                except asyncio.CancelledError:              # cut off at a run's end while asking: strict, a loss
+                    b.update(sold=round(time.time()), why=why + " (cut off while pricing)", sell_ok=False, out=0,
+                             done_curve=True)
+                    self.open.pop(mint, None)
+                    self.trades.append(b)
+                    raise
                 if got:
                     out, ok = got, True
                     self.stats["sell ok (graduated, Jupiter quote)"] += 1
@@ -293,7 +324,7 @@ class DirectBuyer:
             if attempt:
                 await asyncio.sleep(1.5)
             try:
-                async with session.get(f"{url}/swap/v1/quote", headers=headers, timeout=8,
+                async with session.get(f"{url}/swap/v1/quote", headers=headers, timeout=5,
                                        params={"inputMint": mint, "outputMint": SOL_MINT, "amount": str(tokens),
                                                "slippageBps": "1500", "restrictIntermediateTokens": "true"}) as r:
                     d = await r.json(content_type=None)

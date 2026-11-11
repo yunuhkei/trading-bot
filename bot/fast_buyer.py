@@ -70,6 +70,8 @@ class FastBuyer:
 
     # the lab calls these (no waiting): they only queue the decision
     def lab_buy(self, mint: str, now: float, lab_tokens: float | None = None):
+        if mint in self.open or mint in self.buying:  # already has a bet on it (its sale may still be being priced)
+            return
         self.buying.add(mint)
         self.queue.append(("buy", mint, now, lab_tokens))
 

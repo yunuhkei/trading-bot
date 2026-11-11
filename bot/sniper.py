@@ -380,8 +380,13 @@ class Sniper:
         if u.get("waiting") or age < 20 or now - u.get("checked", 0) < 10:
             return
         u["checked"] = now
-        if not await self._settle_buy(session, mint, u, age) and age > 1800 and mint in self.unconfirmed:
-            # the chain and the wallet were checked first; still unclear after 30 minutes: hand it to the owner,
+        settled = await self._settle_buy(session, mint, u, age)
+        if settled is None and age > 1800 and not u.get("told"):   # the network keeps failing: say so, keep trying
+            u["told"] = True
+            self.tell("🎯 Sniper: can't check a buy", f"{mint}: a buy was sent (signature {u['sig']}) and for 30 "
+                      "minutes the network hasn't answered whether it landed. It keeps checking; its $ stays reserved.")
+        if settled is False and age > 1800 and mint in self.unconfirmed:
+            # the chain and the wallet answered, and it's still unclear after 30 minutes: hand it to the owner,
             # and count the money as spent (the safe way for the floor and the losing days)
             self.unconfirmed.pop(mint, None)
             self.sell_later.pop(mint, None)
@@ -396,8 +401,10 @@ class Sniper:
                       f"after 30 minutes it still can't tell whether it landed, so ${cost:,.2f} is counted as spent "
                       "to be safe. Check the wallet in Solflare: if the coin is there, sell it there.")
 
-    async def _settle_buy(self, session, mint: str, u: dict, age: float) -> bool:
-        """Did this buy land? True once it's settled (tracked, failed, or shown not to have landed)."""
+    async def _settle_buy(self, session, mint: str, u: dict, age: float) -> bool | None:
+        """Did this buy land? True once it's settled (tracked, failed, or shown not to have landed); False if the
+        network answered but it's still unclear; None if the network didn't answer (an error or a reading it
+        couldn't take)."""
         try:
             st = await self._status(session, u["sig"])
             if st and st.get("confirmationStatus") in ("confirmed", "finalized"):
@@ -418,6 +425,8 @@ class Sniper:
                         self.sell_later.pop(mint, None)
                     return True
                 held = await self._held(session, mint, u["prog"])
+                if held is None:
+                    return None
                 if held:
                     self.unconfirmed.pop(mint, None)
                     self._adopt(mint, None, u["lamports"] + int(0.004e9), held, u["prog"], u["t"], u["sig"],
@@ -430,6 +439,8 @@ class Sniper:
                     return True
             elif age > 120:                                 # no confirmation found: only the wallet can tell
                 held = await self._held(session, mint, u["prog"])
+                if held is None:
+                    return None
                 if held:
                     self.unconfirmed.pop(mint, None)
                     self.count("buy: landed late")
@@ -443,6 +454,7 @@ class Sniper:
                     return True
         except Exception as ex:
             log.warning("checking a buy %s: %s", mint, ex)
+            return None
         return False
 
     async def _gone(self, session, mint: str, prog: str, first: int | None = -1) -> bool:
@@ -457,8 +469,8 @@ class Sniper:
 
     async def _find_sale(self, session, mint: str, o: dict, why: str, decided: float):
         """The coin is gone from the wallet: find the sale that landed and book what it really brought back. If a sale
-        landed but can't be read after ~20 s, it's booked at what it was expected to bring (the best guess) and the
-        owner is told. If no sale is found at all, it's booked
+        landed but can't be read after ~20 s, it's booked at the least it could pay (the safe way) and the owner is
+        told. If no sale is found at all, it's booked
         as a total loss (the safe way to count it for the floor and the losing days) and the owner is told."""
         import asyncio
 
@@ -474,11 +486,11 @@ class Sniper:
                             return
                         await asyncio.sleep(2.5)
                     got = int((o.get("sell_expect") or {}).get(sig) or 0)
-                    self._closed(mint, got, why + " (the sale landed but couldn't be read: booked at what it was "
-                                 "expected to bring)", sig, decided)
+                    self._closed(mint, got, why + " (the sale landed but couldn't be read: booked at its guaranteed "
+                                 "minimum)", sig, decided)
                     self.tell("🎯 Sniper: a sale it couldn't read", f"{mint}: the sale landed (signature {sig}) but "
-                              f"its result couldn't be read, so it's booked at the {got / 1e9:.4f} SOL it was expected "
-                              "to bring. The wallet's balance in Solflare is the real number.")
+                              f"its result couldn't be read, so it's booked at the least it could pay, {got / 1e9:.4f} "
+                              "SOL, to be safe. The wallet's balance in Solflare is the real number.")
                     return
             except Exception as ex:
                 log.warning("finding a sale %s: %s", mint, ex)
@@ -510,7 +522,7 @@ class Sniper:
                 return None, None
             q, signed_tx, sig = ready
             o.setdefault("sell_sigs", []).append(sig)                # recorded before it's sent
-            o.setdefault("sell_expect", {})[sig] = int(q.get("outAmount") or q.get("otherAmountThreshold") or 0)
+            o.setdefault("sell_expect", {})[sig] = int(q.get("otherAmountThreshold") or 0)    # Jupiter's guaranteed least
             return await asyncio.to_thread(execute, q, signed_tx), sig
         except Exception as ex:
             log.warning("selling graduated %s: %s", mint, ex)
@@ -526,7 +538,9 @@ class Sniper:
         c, owner = self.cfg, self.owner
         try:
             m, tp = Pubkey.from_string(mint), Pubkey.from_string(o["prog"])
-            floor_frac = [1 - c["slippage_sell"], 0.25, 0.0]       # each retry accepts less, the last anything
+            # each retry accepts less (of the price just read), the last down to 10%: never "anything at all", which
+            # a sandwich bot could take nearly all of
+            floor_frac = [1 - c["slippage_sell"], 0.25, 0.10]
             for attempt, frac in enumerate(floor_frac):
                 # first, every time: does the wallet still hold it? (a sale may have landed late; selling a coin
                 # that's gone fails and still pays its fee)
@@ -537,9 +551,18 @@ class Sniper:
                 if held:
                     o["tokens"] = held
                 try:
-                    res = await self._rpc(session, "getAccountInfo", [str(pd.pda(b"bonding-curve", bytes(m))),
-                                                                      {"encoding": "base64", "commitment": "processed"}])
-                    st = pd.curve_state((res or {}).get("value"))
+                    st = None
+                    for read in range(3):                           # one failed read is the network, not the coin
+                        if read:
+                            await asyncio.sleep(0.4)
+                        try:
+                            res = await self._rpc(session, "getAccountInfo", [str(pd.pda(b"bonding-curve", bytes(m))),
+                                                                              {"encoding": "base64", "commitment": "processed"}])
+                            st = pd.curve_state((res or {}).get("value"))
+                        except Exception as ex:
+                            log.warning("reading the curve %s: %s", mint, ex)
+                        if st:
+                            break
                     if st and st[2]:                                # the curve finished: sell on pump.fun's exchange
                         got, jsig = await self._sell_graduated(mint, o["tokens"], o)
                         if got:
@@ -557,8 +580,9 @@ class Sniper:
                                               close_ix(pd.ata(owner, m, tp), owner, tp)],
                                     await self._blockhash(session), 120_000, c["priority_microlamports"])
                         o.setdefault("sell_sigs", []).append(str(tx.signatures[0]))     # recorded before it's sent
-                        # what this sale should bring: what it's booked at if it lands but can't be read
-                        o.setdefault("sell_expect", {})[str(tx.signatures[0])] = int(expect * 1e9)
+                        # the least this sale can pay (its own minimum): what it's booked at if it lands but can't
+                        # be read (the safe way for the floor; the owner is told to check the wallet)
+                        o.setdefault("sell_expect", {})[str(tx.signatures[0])] = int(expect * 1e9 * frac)
                         sig, how, info = await self._send(session, tx)
                         if how == "ok" and info:
                             sol, _ = wallet_change(info, str(owner), mint)
