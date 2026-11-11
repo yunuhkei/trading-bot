@@ -3956,3 +3956,20 @@ def test_sniper_last_sale_try_keeps_a_floor_and_practice_skips_network_failures(
     assert not ll.sane(usdc)
     later = {"kind": "trade", "mint": "Q1", "sol": 0.1, "vsol": 30.0, "vtok": 1e9, "real_sol": 0.1}
     assert not ll.sane(later)                             # a later trade of it that can't be read the same way
+
+
+def test_sniper_skips_a_buy_with_no_price_to_protect_it():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    s = sn.Sniper(kp, sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True})
+    s.program_of = lambda m: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    s.curve = lambda m, lam: None                         # the lab has no price for this coin
+    session, calls = _fake_chain(str(kp.pubkey()), "M", [0], [0])
+    asyncio.run(s.buy(session, "M", 0.0))
+    assert "sendTransaction" not in calls and s.stats == {"buy skipped: no price to protect it": 1}
+    assert "M" not in s.unconfirmed and not s.busy

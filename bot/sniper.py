@@ -302,7 +302,10 @@ class Sniper:
                 self.count("buy: coin not found")
                 return
             expect = self.curve(mint, lamports) if self.curve else None
-            min_tok = int(expect * 1e6 * (1 - c["slippage_buy"])) if expect else 1
+            if not expect:                                  # no price: no buy (a buy with no minimum could fill at
+                self.count("buy skipped: no price to protect it")      # any price, like the sale side)
+                return
+            min_tok = int(expect * 1e6 * (1 - c["slippage_buy"]))
             m, tp = Pubkey.from_string(mint), Pubkey.from_string(prog)
             tx = signed(self.kp, [pd.create_token_account(owner, owner, m, tp), pd.buy_ix(m, owner, tp, lamports, min_tok)],
                         await self._blockhash(session), 150_000, c["priority_microlamports"])
