@@ -48,7 +48,7 @@ function ccBuild(key,opt){
   /* the fenders rise over the wheels where a tyre would stand above the bodywork (Close Call's hqWI) */
   const bump=x=>{let b=0;for(const q of WL){const t=Math.abs(x-q.x)/(q.ra+2.1);if(t<1)b=Math.max(b,q.bump*Math.pow((1+Math.cos(Math.PI*t))/2,1.25))}return b};
   /* rows along the car: an even spacing, more round the wheel arches and at the rounded ends */
-  const X=[],step=lo?3.2:2.2;for(let x=xe0;x<xe1;x+=step)X.push(x);X.push(xe1);
+  const X=[],step=d.bus?6:lo?3.2:2.2;for(let x=xe0;x<xe1;x+=step)X.push(x);X.push(xe1);
   for(let k=0;k<=(lo?4:8);k++){const t=Math.sin(k/(lo?4:8)*1.5708);X.push(xe1-rl+rl*t,xe0+rl-rl*t)}
   for(const q of WL){const n=lo?6:10;for(let k=0;k<=n;k++)X.push(q.x+q.ra*Math.cos(k/n*Math.PI));X.push(q.x-q.ra-.05,q.x+q.ra+.05)}
   X.sort((a,b)=>a-b);const XS=[];for(let x of X){x=Math.max(xe0,Math.min(xe1,x));if(!XS.length||x-XS[XS.length-1]>.04)XS.push(x)}
