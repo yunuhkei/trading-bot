@@ -4055,3 +4055,19 @@ def test_lab_logs_every_ghost_bet_with_the_market_at_its_signal(tmp_path):
     rows = [r for r in lab.clog.buf["b"] if r["k"] == "snipe"]
     assert rows and rows[0]["m"] == "M" and rows[0]["x"] == "test exit" and "hr" in rows[0] and "mi" in rows[0]
     assert rows[0]["ag"] == 0.0 and rows[0]["nb"] == 1 and isinstance(rows[0]["r"], float)
+
+
+def test_research_log_errors_never_stop_the_lab(tmp_path):
+    from bot import coin_log as cl
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=100.0)
+    lab.clog = cl.CoinLog(data_dir=tmp_path)
+    lab.clog.tracks = None                                # broken on purpose: every log call now fails
+    t = {"kind": "trade", "mint": "M", "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5, "buy": True,
+         "user": "u0", "fee": 0.0125, "tok": 1e7}
+    lab.event(1000.0, {**_coin_events("M")})
+    lab.event(1000.2, t)
+    lab.tick(1001.0)
+    assert "M" in lab.ghosts["snipe"].pending             # the lab still trades
+    assert lab.clog.stats["error in on_event"] == 2

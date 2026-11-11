@@ -37,6 +37,22 @@ MAX_WALLETS = 300
 SOL_URL = "https://api.coinbase.com/v2/prices/SOL-USD/spot"
 
 
+def safe(fn):
+    """The log never gets in the lab's way: an error is counted and logged, and the lab carries on."""
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper(self, *a, **k):
+        try:
+            return fn(self, *a, **k)
+        except Exception as ex:
+            self.stats[f"error in {fn.__name__}"] += 1
+            if self.stats[f"error in {fn.__name__}"] <= 3:
+                log.warning("research log: %s: %r", fn.__name__, ex)
+            return None
+    return wrapper
+
+
 def tag(addr: str | None) -> str | None:
     """A short stand-in for a wallet address (enough to recognise the same creator again)."""
     return hashlib.sha1(addr.encode()).hexdigest()[:10] if addr else None
@@ -202,6 +218,7 @@ class CoinLog:
         vol = math.sqrt(sum((r - mean) ** 2 for r in rets) / len(rets))
         return round(trend, 4), round(vol, 5)
 
+    @safe
     def bet_ctx(self, now: float, coin) -> dict:
         hr, mi = local_hm(now)
         st, sv = self.sol_ctx(now)
@@ -211,6 +228,7 @@ class CoinLog:
         return {k: v for k, v in d.items() if v is not None}
 
     # ---- the feed ----
+    @safe
     def on_event(self, now: float, e: dict):
         k = e.get("kind")
         if k == "create":
@@ -235,6 +253,7 @@ class CoinLog:
             if tr is not None and tr.grad is None:
                 tr.grad = now - tr.t0
 
+    @safe
     def tick(self, now: float):
         if now < self._next_tick:
             return
@@ -262,6 +281,7 @@ class CoinLog:
                 for k in list(self.creators)[:10000]:
                     self.creators.pop(k, None)
 
+    @safe
     def bet(self, row: dict):
         self.buf["b"].append(row)
         self.stats["bets logged"] += 1
@@ -286,6 +306,7 @@ class CoinLog:
         except Exception as ex:                   # the log never stops the lab
             log.warning("research log: couldn't write: %s", ex)
 
+    @safe
     def close(self, now: float | None = None):
         """The run ends: coins still being followed are written as they stand (marked cut), then everything's saved."""
         now = now or time.time()
