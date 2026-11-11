@@ -155,7 +155,7 @@ const COLC=[],COLR=[],COLO=[];
 /* lights that glow: street lamp heads (x,y,z) and neon signs (x,y,z,r,g,b,size); the renderer draws a glow for the ones near the car and lights the wet road with them */
 const LAMPS=[],NEONS=[];/* colliders: circles [x,z,r], rects [x0,z0,x1,z1,top], rotated rects [cx,z,hx,hz,cos,sin,top] */
 function buildFurniture(){
-  if(typeof sigProps==='function')BOOT.sigHeads=sigProps();
+  if(typeof sigProps==='function')BOOT.sigHeads=sigProps();if(typeof trStopProps==='function')BOOT.busStops=trStopProps();
   const cc=[170,166,158];
   for(const r of ROADS){const n=r.n,cnt=r.closed?n:n-1;
     for(let i=0;i<cnt;i++){const j=(i+1)%n;const a=r.rail[i]&r.rail[j];if(!a&&!(r.br[i]&&r.br[j]))continue;

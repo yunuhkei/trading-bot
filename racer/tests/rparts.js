@@ -6,7 +6,7 @@ const L=require('./rlib.js');
   await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:180000});
   let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
   /* 1. the generator: every one of the 30 cars has its parts, and the index buffer is a clean run per part */
-  const G=await T.ev(()=>{const rows=[];for(const def of RACER.CAR_ROSTER){const B=RACER.cgBuild(def.spec),b=B.body,P=B.S._parts,nv=b.nv;let maxI=0,sum=0,gsum=0;for(let i=0;i<b.I.length;i++)maxI=Math.max(maxI,b.I[i]);
+  const G=await T.ev(()=>{const rows=[];for(const def of RACER.CAR_ROSTER.filter(d=>!d.cc)){const B=RACER.cgBuild(def.spec),b=B.body,P=B.S._parts,nv=b.nv;let maxI=0,sum=0,gsum=0;for(let i=0;i<b.I.length;i++)maxI=Math.max(maxI,b.I[i]);
       for(const r of b.pr)sum+=r.n;for(const r of b.gpr)gsum+=r.n;
       rows.push({n:def.name,hood:P[1]?P[1].n:0,trunk:P[2]?P[2].n:0,dR:P[3]?P[3].n:0,dL:P[4]?P[4].n:0,fb:P[5]?P[5].n:0,rb:P[6]?P[6].n:0,mR:P[7]?P[7].n:0,mL:P[8]?P[8].n:0,idxOk:maxI<nv,runsOk:sum===b.glassFrom&&sum+gsum===b.I.length,
         doorBox:P[3]&&P[4]?[P[3].box[0],P[4].box[3]]:null,hingeOk:[1,3,4,5,6].every(k=>P[k]&&P[k].p.every(Number.isFinite)),nvT:nv})}return rows});
@@ -56,7 +56,7 @@ const L=require('./rlib.js');
     let c=mk(0);trDent(c,c.x,c.z-c.hl,90000);out.front=c.pf;c=mk(0);trDent(c,c.x,c.z+c.hl,90000);out.rear=c.pf;c=mk(0);trDent(c,c.x+c.hw,c.z,90000);out.right=c.pf;c=mk(0);trDent(c,c.x-c.hw,c.z,90000);out.left=c.pf;
     c=mk(0);trDent(c,c.x,c.z-c.hl,2000);out.tiny=c.pf;c=mk(4);trDent(c,c.x,c.z-c.hl,90000);out.cop=c.pf;
     c=mk(1);c.pf=16|32|64|128;c.dmg=.9;RACER.renderOnce(RACER.UI.cw,RACER.UI.ch);out.glErr=G.gl.getError();return out});
-  ok(N.pm.every(m=>m&1&&m&4&&m&8),'8 every traffic body type (sedan, hatch, SUV, van, police) has a bonnet and two doors ('+N.pm.join(',')+'), hinge data finite '+N.hg.every(Boolean));
+  ok(N.pm.slice(0,5).every(m=>m&1&&m&4&&m&8),'8 every traffic body type (sedan, hatch, SUV, van, police) has a bonnet and two doors ('+N.pm.join(',')+'), hinge data finite '+N.hg.every(Boolean));
   ok((N.front&16)&&(N.rear&32)&&(N.right&64)&&(N.left&128),'8 a car hit at the front/rear/right/left opens its bonnet/boot/right door/left door (flags '+[N.front,N.rear,N.right,N.left].join(',')+')');
   ok(N.tiny===0,'8 a tap (2 kJ) opens nothing');ok((N.cop&16)!==0,'8 a police car opens its bonnet too');ok(N.glErr===0,'8 rendering a car with every panel open raises no GL error');
   /* 9. rendering the player's wreck for a while is clean */

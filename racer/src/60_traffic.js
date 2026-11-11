@@ -5,9 +5,15 @@
    (priority: road class and turn type, then who is nearer the crossing). It steers by pure pursuit and drives a kinematic bicycle. A car that is hit becomes a WRECK (a free body, mass, restitution, friction).
    Impact energy goes to IMP (40_car.js) for the damage system. Everything runs at a fixed 60 Hz from the same fixed-step loop as the player and uses one seeded generator, so a run is repeatable. */
 const TRN=72,HN=12,NSM=21,DTS=.2;                             /* the horizon has HN points; their spacing c.hs grows with speed (6 m in town, 10 m on the highway: 66 to 110 m) */
-const TTYPES=[{n:'sedan',hl:2.25,hw:.9,m:1300},{n:'hatch',hl:2.0,hw:.88,m:1100},{n:'suv',hl:2.4,hw:.95,m:1900},{n:'van',hl:2.7,hw:1.0,m:2300},{n:'cop',hl:2.25,hw:.9,m:1600}];
+const TTYPES=[{n:'sedan',hl:2.25,hw:.9,m:1300},{n:'hatch',hl:2.0,hw:.88,m:1100},{n:'suv',hl:2.4,hw:.95,m:1900},{n:'van',hl:2.7,hw:1.0,m:2300},{n:'cop',hl:2.25,hw:.9,m:1600},
+ /* batch 2: working vehicles with their own behaviour (beh), a taxi and a pickup; col forces a livery colour; far: whose far body they share (saves draw calls) */
+ {n:'bus',cc:'t_bus',hl:5.3,hw:1.16,m:12000,beh:'bus',col:15,v0:.8,far:-1},{n:'garbage',box:'garbage',hl:4.0,hw:1.25,m:14000,beh:'garbage',col:14,v0:.6,far:-1},
+ {n:'delivery',box:'boxvan',hl:3.1,hw:1.08,m:3500,beh:'delivery',col:16,v0:.97,far:3},{n:'taxi',cc:'n_cruiser',hl:2.33,hw:.96,m:1600,beh:'taxi',col:13,v0:1.1,far:0,sign:1},{n:'pickup',box:'pickup',hl:2.7,hw:1.0,m:2200,v0:.95,far:2}];
+/* (the civilian cars ported from Close Call are added to TTYPES by 73_ccars.js, which loads after the car generator) */
 /* paint albedos like real paint: white about .6, silver .42, black .04, a deep red, dark blue; nothing near 1 so the sun does not clip it */
-const TCOLS=[[.60,.60,.62],[.045,.045,.05],[.42,.43,.46],[.40,.045,.05],[.04,.08,.2],[.64,.64,.62],[.05,.13,.08],[.40,.34,.24],[.52,.38,.05],[.2,.07,.18],[.12,.2,.3],[.28,.28,.26],[.58,.58,.6]];
+const TCOLS=[[.60,.60,.62],[.045,.045,.05],[.42,.43,.46],[.40,.045,.05],[.04,.08,.2],[.64,.64,.62],[.05,.13,.08],[.40,.34,.24],[.52,.38,.05],[.2,.07,.18],[.12,.2,.3],[.28,.28,.26],[.58,.58,.6],
+  [.6,.42,.03],[.07,.2,.08],[.6,.6,.62],[.62,.62,.6]];   /* 13 taxi yellow, 14 refuse-truck green, 15 bus white, 16 delivery white */
+const TCOL_FREE=13;   /* the colours a private car picks from */
 const TR={cars:[],on:true,prof:true,ms:0,max:56,base:56,t:0,sub:0,rng:null,boot:1,nAlive:0,target:0,head:new Int32Array(4096),stamp:0,P:null,seedBase:20240601,acc:0,visMin:140,visFar:380,rSpawn:430,rDespawn:540,
   stat:{spawn:0,despawn:0,hits:0,wrecks:0,aiCrash:0,msSum:0,ticks:0,msMax:0,stuck:0,turns:0,lc:0,ign:0,forced:0}};
 function trNewCar(i){return{i,alive:0,state:0,kind:0,type:0,col:0,m:1300,I:1,hl:2.25,hw:.9,e:null,u:0,L:null,lu:0,x:0,z:0,y:0,yaw:0,v:0,vx:0,vz:0,om:0,px:0,pz:0,py:0,pyaw:0,pitch:0,roll:0,seed:0,v0f:1,A:2.2,T:1.3,off:0,offT:0,offHold:0,brake:0,wait:0,ign:0,age:0,hitT:0,stamp:0,nxt:-1,
@@ -136,6 +142,11 @@ function trThink(c,dt){
   /* giving way has a memory: for a second after the conflict was last seen the car keeps braking for the same stop point (no brake/gas flicker at a junction) */
   if(c.flags&2){c.yHold=1;c.yGap=_yGap}
   else if(c.yHold>0){c.yHold-=dt;c.yGap-=v*dt;trTerm(c,v,c.yGap,0);c.flags|=2;if(c.yPrev>=0)c.yTo=c.yPrev}
+  /* BUSES stop at the bus stops of their lane (7-11 s); REFUSE TRUCKS on city streets stop every 30-70 m for 4 s to empty the bins. Both count as waiting (flag 8) while they stand. */
+  if(c.beh&&c.state==0&&!c.L&&c.e){const e=c.e;
+    if(c.dwell>0){c.dwell-=dt;trTerm(c,v,.15,0);c.flags|=8;if(c.dwell<=0)c.dwell=-1}
+    else if(c.beh=='bus'){const B=trBusStops(e);for(const us of B){if(us<=c.u-.5||us==c.lastStop)continue;const d=e.S[us]-trSu(e,c.u);if(d>90)break;trTerm(c,v,Math.max(.15,d-.4),0);if(d<2.5&&v<.6){c.dwell=7+trHash(c.seed,us)*4;c.lastStop=us}break}}
+    else if(c.beh=='garbage'&&e.road.city){c.odo+=v*dt;if(c.odo>c.halt){const g=lgNextJ(e,c.u),dj=g?e.S[Math.min(e.n-1,g.minFu)]-trSu(e,c.u):1e9;if(dj>25&&!c.hend){trTerm(c,v,.15,0);if(v<.4){c.dwell=4;c.nh++;c.odo=0;c.halt=30+trHash(c.seed,c.nh*7+3)*40}}else c.odo=c.halt-12}}}
   if(c.v<.3&&!(c.flags&8))c.stopT+=dt;else c.stopT=0;
   if(c.offHold>0){c.offHold-=dt}else c.offT=0;
   const rate=c.offHold>0?3:1.1;c.off+=(c.offT-c.off)*Math.min(1,dt*rate);
@@ -328,12 +339,29 @@ function trDens(x,z,cls){
   return cls>=3?.4:cls==2?.3:.22}
 function trSeen(x,z){const dx=x-C.x,dz=z-C.z,d=Math.hypot(dx,dz);if(d<TR.visMin)return true;if(d>TR.visFar)return false;
   const hx=Math.sin(C.yaw),hz=-Math.cos(C.yaw);return(dx*hx+dz*hz)/d>.4}
+/* which vehicle: on highways mostly the family cars and the Close Call cars, some vans and pickups; in town also taxis (more downtown and in Las Vegas), buses on the
+   lanes that have bus stops, refuse trucks on the streets, delivery vans; pickups in the small towns. r1, r2: two draws of the traffic generator */
+function trPickType(r1,r2,e,x,z){const civ=TTYPES.map((T,i)=>T.civ?i:-1).filter(i=>i>=0),cc=()=>civ[Math.floor(r2*civ.length)%civ.length],city=e.road.city,cls=e.cls;
+  const old=r=>r<.4?0:r<.7?1:r<.9?2:3;
+  if(!city){if(cls>=3)return r1<.06?7:r1<.12?9:r1<.42?cc():(r1<.6?3:r1<.75?2:r1<.9?0:1);return r1<.12?9:r1<.18?7:r1<.48?cc():old(r2)}
+  const big=inBox(x,z,CITY,40)||inBox(x,z,CITY_VEG,40),town=ZONES.some(zn=>zn.b!==CITY_VEG&&zn.b!==CITY_SAC&&zn.b!==CITY_SJ&&inBox(x,z,zn.b,40));
+  if(r1<.05&&trBusStops(e).length)return 5;if(r1<.08)return 6;if(r1<.14)return 7;if(r1<(big?.32:.2))return 8;if(r1<(town?.38:.25))return 9;if(r1<.6)return cc();return old(r2)}
+/* bus stops: on the kerb lane of city streets and boulevards, about every 220 m, never within 35 m of a junction (u indices on the edge, made once) */
+function trBusStops(e){if(e.bstops)return e.bstops;const o=[];e.bstops=o;if(!e.road.city||e.closed&&false||e.k!=e.nl-1)return o;const G=LG.jg[e.ri*2+lgDirI(e.dir)]||[];
+  for(let s=70;s<e.len-60;s+=220){let u=0;while(u<e.n-1&&e.S[u]<s)u++;let ok=true;for(const g of G){if(Math.abs(e.S[Math.min(e.n-1,g.foot)]-e.S[u])<35){ok=false;break}}if(ok)o.push(u)}return o}
+/* the bus stops you can see: a shelter (roof, glass back, bench) and a pole with a blue sign on the sidewalk next to each stop (props, built once) */
+function trStopProps(){let n=0;for(const e of LG.edges){const B=trBusStops(e);if(!B.length)continue;const r=e.road;
+  for(const u of B){const i=e.dir>0?u:r.n-1-u,t=lgTan(e,u),nx=-t[1],nz=t[0],o=r.hw+(r.sw||RSH)*.62,px=r.X[i]+nx*o,pz=r.Z[i]+nz*o,y=r.Y[i]+(r.sw?CURB_H:0);if(otherAsphalt(px,pz,r,r.Y[i],.5))continue;
+    const cs=t[0],sn=t[1];pboxR(0,px,pz,1.9,.75,cs,sn,y+2.35,y+2.5,60,90,140,false,1);pboxR(0,px+nx*.68,pz+nz*.68,1.85,.04,cs,sn,y+.15,y+2.35,150,190,210,false,1);
+    for(const q of[-1.8,1.8])pboxR(0,px+cs*q,pz+sn*q,.05,.05,cs,sn,y,y+2.35,150,152,158,false,1);pboxR(0,px+nx*.35,pz+nz*.35,1.4,.22,cs,sn,y+.45,y+.55,110,80,60,false,1);
+    const sx=px-cs*3.2-nx*.4,sz=pz-sn*3.2-nz*.4;pboxR(0,sx,sz,.05,.05,cs,sn,y,y+2.9,150,152,158,false,1);pboxR(0,sx,sz,.35,.03,-sn,cs,y+2.3,y+2.9,40,90,200,false,1);
+    COLO.push(px,pz,1.9,.75,cs,sn,y+2.5);COLC.push(sx,sz,.2,y-.5,y+2.9);n++}}return n}
 /* put a car on lane edge e at index u */
 function trPlace(e,u,type,col,v,seed){
   let c=null;for(const q of TR.cars)if(!q.alive){c=q;break}if(!c)return null;
   const T=TTYPES[type];c.alive=1;c.state=0;c.kind=0;if(c.dn)c.dn.fill(0);c.dmg=0;c.pf=0;c.rec=0;c.type=type;c.col=col;c.m=T.m;c.hl=T.hl;c.hw=T.hw;c.I=T.m*(T.hl*T.hl+T.hw*T.hw)/3;c.e=e;c.u=u;c.L=null;c.lu=0;c.seed=seed|0;
   trPt(e,u);c.x=_pt.x;c.z=_pt.z;c.y=_pt.y;c.yaw=Math.atan2(_pt.tx,-_pt.tz);c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.v=v;c.vx=Math.sin(c.yaw)*v;c.vz=-Math.cos(c.yaw)*v;c.om=0;c.pitch=c.roll=0;
-  c.acc=0;c.v0f=.86+trHash(seed,7)*.22;c.A=1.9+trHash(seed,11)*.9;c.T=1.0+trHash(seed,13)*.7;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.pickL=null;c.role=0;c.ramCd=0;c.los=null;c.stk=0;
+  c.acc=0;c.v0f=(.86+trHash(seed,7)*.22)*(T.v0||1);c.A=(1.9+trHash(seed,11)*.9)*(T.m>5000?.6:1);c.T=(1.0+trHash(seed,13)*.7)*(T.beh=='taxi'?.75:1);c.beh=T.beh||'';c.dwell=0;c.odo=0;c.halt=40+trHash(seed,19)*30;c.lastStop=-1e9;c.nh=0;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.pickL=null;c.role=0;c.ramCd=0;c.los=null;c.stk=0;
   TR.nAlive++;TR.stat.spawn++;return c}
 function trSpawn(){
   const rng=TR.rng,P=C;
@@ -348,7 +376,7 @@ function trSpawn(){
     if(!TR.boot&&trSeen(sx,sz))continue;
     /* room: nobody within 18 m (and not under the player) */
     let ok=true;for(const c of TR.cars)if(c.alive&&Math.abs(c.x-sx)<18&&Math.abs(c.z-sz)<18&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
-    const tr=rng(),type=e.cls>=3?(tr<.3?3:tr<.55?2:tr<.8?0:1):(tr<.4?0:tr<.7?1:tr<.9?2:3),col=Math.floor(rng()*TCOLS.length),seed=Math.floor(rng()*1e9);
+    const type=trPickType(rng(),rng(),e,x,z),T=TTYPES[type],col=T.col!=null?T.col:Math.floor(rng()*TCOL_FREE),seed=Math.floor(rng()*1e9);
     /* start no faster than the car in front */
     let v=Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*.85;
     for(const c of TR.cars)if(c.alive&&c.e===e&&!c.L){const dd=(c.u-u)*e.ds;if(dd>0&&dd<45&&c.v<v)v=c.v}

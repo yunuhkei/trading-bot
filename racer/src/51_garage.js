@@ -29,7 +29,7 @@ function menuLayout(W_,H_,u){
   const b=[],m=u*.3,pw=Math.min(W_*.47,u*8.4),px=W_-pw-m,py=m,ph=H_-m*2,add=(id,x,y,w,h,act)=>b.push({id,x,y,w,h,act});
   add('prev',m,H_*.5-u*.45,u*.9,u*.9,()=>menuPreview(MENU.i-1));add('next',W_-pw-m*2-u*.9,H_*.5-u*.45,u*.9,u*.9,()=>menuPreview(MENU.i+1));
   const x0=px+m,iw=pw-m*2;let y=py+u*1.2;const L={px,py,pw,ph,m,x0,iw};
-  L.stats=y;y+=u*.3*5+u*.34;L.dotsLabel=y;y+=u*.1;const gs=u*.3,gap=(iw-15*gs)/14;L.gy=y;for(let k=0;k<CAR_ROSTER.length;k++)add('dot'+k,x0+(k%15)*(gs+gap),y+((k/15)|0)*(gs+u*.06),gs,gs,()=>menuPreview(k));L.gs=gs;y+=2*(gs+u*.06)+u*.26;
+  L.stats=y;y+=u*.3*5+u*.34;L.dotsLabel=y;y+=u*.1;const gs=u*.3,gap=(iw-15*gs)/14;L.gy=y;for(let k=0;k<CAR_ROSTER.length;k++)add('dot'+k,x0+(k%15)*(gs+gap),y+((k/15)|0)*(gs+u*.06),gs,gs,()=>menuPreview(k));L.gs=gs;y+=Math.ceil(CAR_ROSTER.length/15)*(gs+u*.06)+u*.2;
   L.paintLabel=y;y+=u*.08;L.sy=y;for(let k=0;k<CAR_PAINTS.length;k++)add('paint'+k,x0+k*(u*.46),y,u*.4,u*.4,()=>menuPaint(k));y+=u*.5;
   {const hw2=(iw-m)/2;add('all',x0,y,hw2,u*.34,()=>menuUnlockAll());add('hnd',x0+hw2+m,y,hw2,u*.34,()=>{physSetClassic(!PHYS.classic);safeToast('Handling: '+(PHYS.classic?'CLASSIC (the old one)':'NEW'),2.5)})}y+=u*.42;L.by=y;const bw=(iw-m)/2;add('select',x0,y,bw,u*.5,()=>menuChoose());add('close',x0+bw+m,y,bw,u*.5,()=>menuClose());
   L.b=b;return L}
@@ -37,7 +37,7 @@ function menuDraw(c,W_,H_,u){
   const L=menuLayout(W_,H_,u),d=CAR_ROSTER[MENU.i],own=carOwned(MENU.i),cur=MENU.i==CARSEL.cur;MENU.btns=L.b;
   c.save();c.fillStyle='rgba(8,10,16,.86)';rr(c,L.px,L.py,L.pw,L.ph,u*.2);c.fill();c.textAlign='left';
   const x0=L.x0,fs=(f,w)=>(w||700)+' '+Math.round(u*f)+'px -apple-system,Roboto,sans-serif';
-  c.fillStyle='#fff';c.font=fs(.5,800);c.fillText(d.name,x0,L.py+u*.62);c.fillStyle='rgba(255,255,255,.65)';c.font=fs(.24);c.fillText(d.cls,x0,L.py+u*.92);c.fillText((MENU.i+1)+' / '+CAR_ROSTER.length+'   ·   '+Math.round(d.real.hp)+' hp  ·  '+DRV[d.real.drive],x0,L.py+u*1.16);
+  c.fillStyle='#fff';c.font=fs(.5,800);{const wmax=L.iw-u*1.5,wn=c.measureText(d.name).width;if(wn>wmax)c.font=fs(.5*wmax/wn,800)}c.fillText(d.name,x0,L.py+u*.62);   /* a long name shrinks so it never runs into the OWNED label */c.fillStyle='rgba(255,255,255,.65)';c.font=fs(.24);c.fillText(d.cls,x0,L.py+u*.92);c.fillText((MENU.i+1)+' / '+CAR_ROSTER.length+'   ·   '+Math.round(d.real.hp)+' hp  ·  '+DRV[d.real.drive],x0,L.py+u*1.16);
   c.textAlign='right';c.fillStyle=own?(cur?'#7dffb0':'#9cc8ff'):'#ff9a4a';c.font=fs(.26,800);c.fillText(own?(cur?'YOUR CAR':'OWNED'):'LOCKED',L.px+L.pw-L.m,L.py+u*.62);c.textAlign='left';
   /* the figures */
   const st=carStats(d),bx=x0+L.iw*.3,bw=L.iw*.3,tx=x0+L.iw*.64;let y=L.stats+u*.14;

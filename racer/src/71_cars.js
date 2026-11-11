@@ -10,7 +10,7 @@ function _mkMesh(gl,B,colFor,keepAb){
   return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,idx),n:idx.length,gf:(B.glassFrom!=null?B.glassFrom:idx.length),pr:B.pr,gpr:B.gpr,ab}}
 /* build the mesh of a car definition and make it THE car: body, wheels, materials, paint, light positions, dimensions, wheel contact points */
 function carInstall(def,paint){
-  const gl=G.gl,B=cgBuild(def.spec),S=B.S;
+  const gl=G.gl,B=def.cc?ccBuild(def.cc):cgBuild(def.spec),S=B.S;   /* a Close Call car (73_ccars.js) or a generated supercar */
   for(const m of[CARM.body,...(CARM.wheels||[])])if(m&&m.vb){gl.deleteBuffer(m.vb);gl.deleteBuffer(m.ib)}
   const rim=def.rim||[190,194,200],cal=def.caliper||[205,28,28];
   const inter=def.interior||CGCOL[CGM.inter],col=m=>m==CGM.paint?[255,255,255]:m==CGM.rim?rim:m==CGM.caliper?cal:m==CGM.inter?inter:CGCOL[m];
@@ -20,5 +20,5 @@ function carInstall(def,paint){
   const pc=paint||def.paint||[200,30,30];CARM.paint=new Float32Array([Math.pow(pc[0]/255,2.2),Math.pow(pc[1]/255,2.2),Math.pow(pc[2]/255,2.2)]);
   CARM.def=def;CARM.hw=S.W/2;CARM.hl=S.L/2;CARM.R=[S.rf,S.rr];
   const L=S._lights;CARL.hx=L.hx;CARL.hy=L.hy;CARL.hz=L.hz;CARL.tx=L.tx;CARL.ty=L.ty;CARL.tz=L.tz;
-  const wk=def.spec.wb/2.45;CD.fo=1.38*wk;CD.ro=1.33*wk;CD.hw=.68*(S.tf/.775);
+  const wk=(def.cc?S.wb:def.spec.wb)/2.45;CD.fo=1.38*wk;CD.ro=1.33*wk;CD.hw=.68*(S.tf/.775);
   CARM.parts=S._parts;CARM.zc=S.zs((S.cowl+S.roofR)/2);partsInit();dmgInit();dmgReset();return B}

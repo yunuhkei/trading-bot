@@ -5,7 +5,7 @@ const L=require('./rlib.js');
   const T=await L.launch({q:'go=1&scale=.3&fixed=1&tier=2&env=day',w:320,h:200,mobile:false,traffic:true});
   await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:180000});
   let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
-  const G=await T.ev(()=>{const rows=[];for(const def of RACER.CAR_ROSTER){const B=RACER.cgBuild(def.spec),b=B.body;let c={};for(let v=0;v<b.nv;v++)c[b.M[v]]=(c[b.M[v]]||0)+1;
+  const G=await T.ev(()=>{const rows=[];for(const def of RACER.CAR_ROSTER.filter(d=>!d.cc)){const B=RACER.cgBuild(def.spec),b=B.body;let c={};for(let v=0;v<b.nv;v++)c[b.M[v]]=(c[b.M[v]]||0)+1;
       rows.push({n:def.name,tris:b.I.length/3,grille:c[CGM.grille]||0,amber:c[CGM.amber]||0,plate:c[CGM.plate]||0,carbon:c[CGM.carbon]||0,head:c[CGM.head]||0,tail:c[CGM.tail]||0,chrome:c[CGM.chrome]||0})}return rows});
   ok(G.every(r=>r.grille>0&&r.amber>0&&r.plate>0&&r.head>0&&r.tail>0),'1 all '+G.length+' player cars have a mesh grille, amber indicators, a number plate, head lights and tail lights');
   ok(G.every(r=>r.carbon>150),'1 and characters on the plates (dark quads: fewest '+Math.min(...G.map(r=>r.carbon))+' vertices)');
@@ -24,7 +24,7 @@ const L=require('./rlib.js');
   const D=await T.ev(()=>{envApply('day');const a=1-.78*Math.min(1,ENV.sunC[0]/2.6);envApply('overcast');const b=1-.78*Math.min(1,ENV.sunC[0]/2.6);return{day:a,over:b}});
   ok(D.day<.35&&D.over>.6,'5 lamp and head light glows are dimmed in daylight (x'+D.day.toFixed(2)+' in the day, x'+D.over.toFixed(2)+' overcast)');
   /* batch K: gloss black and carbon on every car, the showroom environment in the menu and back */
-  const K=await T.ev(()=>{const rows=[];for(const def of RACER.CAR_ROSTER){const b=RACER.cgBuild(def.spec).body;let g=0,w=0;for(let v=0;v<b.nv;v++){if(b.M[v]==CGM.gloss)g++;if(b.M[v]==CGM.rim||b.M[v]==CGM.chrome)w++}rows.push({g,w})}return rows});
+  const K=await T.ev(()=>{const rows=[];for(const def of RACER.CAR_ROSTER.filter(d=>!d.cc)){const b=RACER.cgBuild(def.spec).body;let g=0,w=0;for(let v=0;v<b.nv;v++){if(b.M[v]==CGM.gloss)g++;if(b.M[v]==CGM.rim||b.M[v]==CGM.chrome)w++}rows.push({g,w})}return rows});
   ok(K.every(r=>r.g>40),'6 every car has gloss black pillars / panels (fewest '+Math.min(...K.map(r=>r.g))+' vertices)');
   const Mn=await T.ev(()=>{const {UI,MENU}=RACER;UI.paused=false;envApply('day');const before=ENV.name;RACER.menuOpen();const inMenu={name:ENV.name,stu:ENV.stu,fog:ENV.fog};let err=0;try{renderOnce();const gl=G.gl;err=gl.getError()}catch(e){err=-1}
     RACER.menuClose();return{before,inMenu,after:ENV.name,stuAfter:ENV.stu||0,err}});

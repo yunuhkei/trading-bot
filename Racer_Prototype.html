@@ -243,7 +243,7 @@ const SH={
   '  crk=(1.-smoothstep(0.,.07+.1*(1.-amt),sqrt(d2)-sqrt(d1)))*mk;}}\n'+
   'col=mix(col,vec3(.86,.9,.95),crk*.8);float al=max(mix(uAlpha,1.,pow(1.-ndv,4.)*.7*step(uAlpha,.99)),crk*.93);gl_FragColor=vec4(tone(col),al);}',
   /* ---- traffic cars: instanced low-poly bodies; per instance x,y,z,yaw | pitch,roll,colour,flags (1 brake lights, 2 siren) ---- */
- trV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;attribute vec4 aI2;attribute vec4 aI3;attribute vec4 aI4;uniform mat4 uVP;uniform vec3 uPal[14];uniform vec4 uMat[14];uniform vec4 uHg[4];uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;\n'+
+ trV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;attribute vec4 aI2;attribute vec4 aI3;attribute vec4 aI4;uniform mat4 uVP;uniform vec3 uPal[20];uniform vec4 uMat[16];uniform vec4 uHg[4];uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;\n'+
   'vec3 rt(vec3 p,float cy,float sy,float cp,float sp,float cr,float sr){float x=p.x*cr-p.y*sr,y=p.x*sr+p.y*cr,z=p.z;float y2=y*cp+z*sp,z2=z*cp-y*sp;return vec3(cy*x+sy*z2,y2,sy*x-cy*z2);}\n'+
   /* dents: up to two per car (centre x,z on the body, depth, radius), the metal near them is pushed in towards the middle of the car and crumpled */
   'float dent(inout vec3 p,vec4 d){if(d.z<=0.)return 0.;vec3 dv=p-vec3(d.x,.62,d.y);float w=exp(-dot(dv,dv)/(d.w*d.w));vec2 dir=-normalize(d.xy+vec2(1e-4));float n=.7+.6*fract(sin(dot(floor(p*9.),vec3(12.9898,78.233,37.719)))*43758.5453);p.xz+=dir*d.z*w*n;p.y-=d.z*w*.22;return w*min(1.,d.z*4.);}\n'+
@@ -254,10 +254,10 @@ const SH={
   '  if(pt<2.5){float dy=q.y-h.y,dz=q.z-h.z;q.y=h.y+dy*c0+dz*s0;q.z=h.z-dy*s0+dz*c0;}else{float dx=q.x-h.x,dz=q.z-h.z;q.x=h.x+dx*c0+dz*s0;q.z=h.z-dx*s0+dz*c0;}p=q;}}\n'+
   'float cy=cos(aI0.w),sy=sin(aI0.w),cp=cos(aI1.x),sp=sin(aI1.x),cr=cos(aI1.y),sr=sin(aI1.y);vec3 w=rt(p,cy,sy,cp,sp,cr,sr)+aI0.xyz;vW=w;vN=rt(aN.xyz,cy,sy,cp,sp,cr,sr);'+
   'int id=idr-int(pt+.01)*16;vec4 mt=uMat[id];float fw=aI1.w,br=mod(fw,2.),sir=mod(floor(fw/2.+.01),2.),stb=mod(floor(fw/4.+.01),2.),brk=mod(floor(fw/8.+.01),2.);vec3 alb=mt.rgb;float em=max(mt.a,0.);if(mt.a<-.5){alb=uPal[int(aI1.z+.5)];}if(id==4)em+=br*2.4;if((id==3||id==4)&&brk>.5){em=0.;alb=vec3(.03,.03,.035);}if(id==7||id==8){float ph=step(0.,sin(uT*12.)),ps=step(0.,sin(uT*2.6));em+=sir*(id==7?ph*5.+.1:(1.-ph)*5.+.1)+stb*(id==7?ps*1.8:(1.-ps)*1.8);}'+
-  'vC=alb*(1.-.55*dm);vD=dm;vE=vec2(em,(id==1?1.:(id==0?.5:.12))*(1.-.7*dm));gl_Position=uVP*vec4(w,1.);}',
+  'vC=alb*(1.-.55*dm);vD=dm;vE=vec2(em,(id==1?1.:(id==0?.62:(id==5||id==14?.75:.12)))*(1.-.7*dm));gl_Position=uVP*vec4(w,1.);}',
  trF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;\n'+ENVSRC+
   'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float ndv=max(dot(n,V),0.);vec3 R=reflect(-V,n);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl*.9;'+
-  'vec3 col=vC*irr*.9;float fr=.04+.96*pow(1.-ndv,5.);col+=skyc(R)*fr*vE.y*1.1;col+=vC*vE.x*1.3;col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
+  'vec3 col=vC*irr*.9;float fr=.04+.96*pow(1.-ndv,5.);col+=skyc(R)*fr*vE.y*1.1;col+=uSunC*pow(max(dot(R,uSun),0.),70.)*vE.y*.9*(1.-vD);col+=vC*vE.x*1.3;col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- effects: ground decals (blob shadow, skid marks) and camera-facing smoke, one dynamic buffer ---- */
  fxV:'attribute vec3 aP;attribute vec4 aC;attribute vec2 aU;uniform mat4 uVP;varying vec4 vC;varying vec2 vU;void main(){vC=aC;vU=aU;gl_Position=uVP*vec4(aP,1.);}',
  fxF:PRE+'varying vec4 vC;varying vec2 vU;uniform float uMode,uQ;\n'+
@@ -993,7 +993,7 @@ const COLC=[],COLR=[],COLO=[];
 /* lights that glow: street lamp heads (x,y,z) and neon signs (x,y,z,r,g,b,size); the renderer draws a glow for the ones near the car and lights the wet road with them */
 const LAMPS=[],NEONS=[];/* colliders: circles [x,z,r], rects [x0,z0,x1,z1,top], rotated rects [cx,z,hx,hz,cos,sin,top] */
 function buildFurniture(){
-  if(typeof sigProps==='function')BOOT.sigHeads=sigProps();
+  if(typeof sigProps==='function')BOOT.sigHeads=sigProps();if(typeof trStopProps==='function')BOOT.busStops=trStopProps();
   const cc=[170,166,158];
   for(const r of ROADS){const n=r.n,cnt=r.closed?n:n-1;
     for(let i=0;i<cnt;i++){const j=(i+1)%n;const a=r.rail[i]&r.rail[j];if(!a&&!(r.br[i]&&r.br[j]))continue;
@@ -2585,7 +2585,7 @@ function menuLayout(W_,H_,u){
   const b=[],m=u*.3,pw=Math.min(W_*.47,u*8.4),px=W_-pw-m,py=m,ph=H_-m*2,add=(id,x,y,w,h,act)=>b.push({id,x,y,w,h,act});
   add('prev',m,H_*.5-u*.45,u*.9,u*.9,()=>menuPreview(MENU.i-1));add('next',W_-pw-m*2-u*.9,H_*.5-u*.45,u*.9,u*.9,()=>menuPreview(MENU.i+1));
   const x0=px+m,iw=pw-m*2;let y=py+u*1.2;const L={px,py,pw,ph,m,x0,iw};
-  L.stats=y;y+=u*.3*5+u*.34;L.dotsLabel=y;y+=u*.1;const gs=u*.3,gap=(iw-15*gs)/14;L.gy=y;for(let k=0;k<CAR_ROSTER.length;k++)add('dot'+k,x0+(k%15)*(gs+gap),y+((k/15)|0)*(gs+u*.06),gs,gs,()=>menuPreview(k));L.gs=gs;y+=2*(gs+u*.06)+u*.26;
+  L.stats=y;y+=u*.3*5+u*.34;L.dotsLabel=y;y+=u*.1;const gs=u*.3,gap=(iw-15*gs)/14;L.gy=y;for(let k=0;k<CAR_ROSTER.length;k++)add('dot'+k,x0+(k%15)*(gs+gap),y+((k/15)|0)*(gs+u*.06),gs,gs,()=>menuPreview(k));L.gs=gs;y+=Math.ceil(CAR_ROSTER.length/15)*(gs+u*.06)+u*.2;
   L.paintLabel=y;y+=u*.08;L.sy=y;for(let k=0;k<CAR_PAINTS.length;k++)add('paint'+k,x0+k*(u*.46),y,u*.4,u*.4,()=>menuPaint(k));y+=u*.5;
   {const hw2=(iw-m)/2;add('all',x0,y,hw2,u*.34,()=>menuUnlockAll());add('hnd',x0+hw2+m,y,hw2,u*.34,()=>{physSetClassic(!PHYS.classic);safeToast('Handling: '+(PHYS.classic?'CLASSIC (the old one)':'NEW'),2.5)})}y+=u*.42;L.by=y;const bw=(iw-m)/2;add('select',x0,y,bw,u*.5,()=>menuChoose());add('close',x0+bw+m,y,bw,u*.5,()=>menuClose());
   L.b=b;return L}
@@ -2593,7 +2593,7 @@ function menuDraw(c,W_,H_,u){
   const L=menuLayout(W_,H_,u),d=CAR_ROSTER[MENU.i],own=carOwned(MENU.i),cur=MENU.i==CARSEL.cur;MENU.btns=L.b;
   c.save();c.fillStyle='rgba(8,10,16,.86)';rr(c,L.px,L.py,L.pw,L.ph,u*.2);c.fill();c.textAlign='left';
   const x0=L.x0,fs=(f,w)=>(w||700)+' '+Math.round(u*f)+'px -apple-system,Roboto,sans-serif';
-  c.fillStyle='#fff';c.font=fs(.5,800);c.fillText(d.name,x0,L.py+u*.62);c.fillStyle='rgba(255,255,255,.65)';c.font=fs(.24);c.fillText(d.cls,x0,L.py+u*.92);c.fillText((MENU.i+1)+' / '+CAR_ROSTER.length+'   ·   '+Math.round(d.real.hp)+' hp  ·  '+DRV[d.real.drive],x0,L.py+u*1.16);
+  c.fillStyle='#fff';c.font=fs(.5,800);{const wmax=L.iw-u*1.5,wn=c.measureText(d.name).width;if(wn>wmax)c.font=fs(.5*wmax/wn,800)}c.fillText(d.name,x0,L.py+u*.62);   /* a long name shrinks so it never runs into the OWNED label */c.fillStyle='rgba(255,255,255,.65)';c.font=fs(.24);c.fillText(d.cls,x0,L.py+u*.92);c.fillText((MENU.i+1)+' / '+CAR_ROSTER.length+'   ·   '+Math.round(d.real.hp)+' hp  ·  '+DRV[d.real.drive],x0,L.py+u*1.16);
   c.textAlign='right';c.fillStyle=own?(cur?'#7dffb0':'#9cc8ff'):'#ff9a4a';c.font=fs(.26,800);c.fillText(own?(cur?'YOUR CAR':'OWNED'):'LOCKED',L.px+L.pw-L.m,L.py+u*.62);c.textAlign='left';
   /* the figures */
   const st=carStats(d),bx=x0+L.iw*.3,bw=L.iw*.3,tx=x0+L.iw*.64;let y=L.stats+u*.14;
@@ -2619,9 +2619,15 @@ function menuKey(code){if(code=='Escape'||code=='KeyC')menuClose();else if(code=
    (priority: road class and turn type, then who is nearer the crossing). It steers by pure pursuit and drives a kinematic bicycle. A car that is hit becomes a WRECK (a free body, mass, restitution, friction).
    Impact energy goes to IMP (40_car.js) for the damage system. Everything runs at a fixed 60 Hz from the same fixed-step loop as the player and uses one seeded generator, so a run is repeatable. */
 const TRN=72,HN=12,NSM=21,DTS=.2;                             /* the horizon has HN points; their spacing c.hs grows with speed (6 m in town, 10 m on the highway: 66 to 110 m) */
-const TTYPES=[{n:'sedan',hl:2.25,hw:.9,m:1300},{n:'hatch',hl:2.0,hw:.88,m:1100},{n:'suv',hl:2.4,hw:.95,m:1900},{n:'van',hl:2.7,hw:1.0,m:2300},{n:'cop',hl:2.25,hw:.9,m:1600}];
+const TTYPES=[{n:'sedan',hl:2.25,hw:.9,m:1300},{n:'hatch',hl:2.0,hw:.88,m:1100},{n:'suv',hl:2.4,hw:.95,m:1900},{n:'van',hl:2.7,hw:1.0,m:2300},{n:'cop',hl:2.25,hw:.9,m:1600},
+ /* batch 2: working vehicles with their own behaviour (beh), a taxi and a pickup; col forces a livery colour; far: whose far body they share (saves draw calls) */
+ {n:'bus',cc:'t_bus',hl:5.3,hw:1.16,m:12000,beh:'bus',col:15,v0:.8,far:-1},{n:'garbage',box:'garbage',hl:4.0,hw:1.25,m:14000,beh:'garbage',col:14,v0:.6,far:-1},
+ {n:'delivery',box:'boxvan',hl:3.1,hw:1.08,m:3500,beh:'delivery',col:16,v0:.97,far:3},{n:'taxi',cc:'n_cruiser',hl:2.33,hw:.96,m:1600,beh:'taxi',col:13,v0:1.1,far:0,sign:1},{n:'pickup',box:'pickup',hl:2.7,hw:1.0,m:2200,v0:.95,far:2}];
+/* (the civilian cars ported from Close Call are added to TTYPES by 73_ccars.js, which loads after the car generator) */
 /* paint albedos like real paint: white about .6, silver .42, black .04, a deep red, dark blue; nothing near 1 so the sun does not clip it */
-const TCOLS=[[.60,.60,.62],[.045,.045,.05],[.42,.43,.46],[.40,.045,.05],[.04,.08,.2],[.64,.64,.62],[.05,.13,.08],[.40,.34,.24],[.52,.38,.05],[.2,.07,.18],[.12,.2,.3],[.28,.28,.26],[.58,.58,.6]];
+const TCOLS=[[.60,.60,.62],[.045,.045,.05],[.42,.43,.46],[.40,.045,.05],[.04,.08,.2],[.64,.64,.62],[.05,.13,.08],[.40,.34,.24],[.52,.38,.05],[.2,.07,.18],[.12,.2,.3],[.28,.28,.26],[.58,.58,.6],
+  [.6,.42,.03],[.07,.2,.08],[.6,.6,.62],[.62,.62,.6]];   /* 13 taxi yellow, 14 refuse-truck green, 15 bus white, 16 delivery white */
+const TCOL_FREE=13;   /* the colours a private car picks from */
 const TR={cars:[],on:true,prof:true,ms:0,max:56,base:56,t:0,sub:0,rng:null,boot:1,nAlive:0,target:0,head:new Int32Array(4096),stamp:0,P:null,seedBase:20240601,acc:0,visMin:140,visFar:380,rSpawn:430,rDespawn:540,
   stat:{spawn:0,despawn:0,hits:0,wrecks:0,aiCrash:0,msSum:0,ticks:0,msMax:0,stuck:0,turns:0,lc:0,ign:0,forced:0}};
 function trNewCar(i){return{i,alive:0,state:0,kind:0,type:0,col:0,m:1300,I:1,hl:2.25,hw:.9,e:null,u:0,L:null,lu:0,x:0,z:0,y:0,yaw:0,v:0,vx:0,vz:0,om:0,px:0,pz:0,py:0,pyaw:0,pitch:0,roll:0,seed:0,v0f:1,A:2.2,T:1.3,off:0,offT:0,offHold:0,brake:0,wait:0,ign:0,age:0,hitT:0,stamp:0,nxt:-1,
@@ -2750,6 +2756,11 @@ function trThink(c,dt){
   /* giving way has a memory: for a second after the conflict was last seen the car keeps braking for the same stop point (no brake/gas flicker at a junction) */
   if(c.flags&2){c.yHold=1;c.yGap=_yGap}
   else if(c.yHold>0){c.yHold-=dt;c.yGap-=v*dt;trTerm(c,v,c.yGap,0);c.flags|=2;if(c.yPrev>=0)c.yTo=c.yPrev}
+  /* BUSES stop at the bus stops of their lane (7-11 s); REFUSE TRUCKS on city streets stop every 30-70 m for 4 s to empty the bins. Both count as waiting (flag 8) while they stand. */
+  if(c.beh&&c.state==0&&!c.L&&c.e){const e=c.e;
+    if(c.dwell>0){c.dwell-=dt;trTerm(c,v,.15,0);c.flags|=8;if(c.dwell<=0)c.dwell=-1}
+    else if(c.beh=='bus'){const B=trBusStops(e);for(const us of B){if(us<=c.u-.5||us==c.lastStop)continue;const d=e.S[us]-trSu(e,c.u);if(d>90)break;trTerm(c,v,Math.max(.15,d-.4),0);if(d<2.5&&v<.6){c.dwell=7+trHash(c.seed,us)*4;c.lastStop=us}break}}
+    else if(c.beh=='garbage'&&e.road.city){c.odo+=v*dt;if(c.odo>c.halt){const g=lgNextJ(e,c.u),dj=g?e.S[Math.min(e.n-1,g.minFu)]-trSu(e,c.u):1e9;if(dj>25&&!c.hend){trTerm(c,v,.15,0);if(v<.4){c.dwell=4;c.nh++;c.odo=0;c.halt=30+trHash(c.seed,c.nh*7+3)*40}}else c.odo=c.halt-12}}}
   if(c.v<.3&&!(c.flags&8))c.stopT+=dt;else c.stopT=0;
   if(c.offHold>0){c.offHold-=dt}else c.offT=0;
   const rate=c.offHold>0?3:1.1;c.off+=(c.offT-c.off)*Math.min(1,dt*rate);
@@ -2942,12 +2953,29 @@ function trDens(x,z,cls){
   return cls>=3?.4:cls==2?.3:.22}
 function trSeen(x,z){const dx=x-C.x,dz=z-C.z,d=Math.hypot(dx,dz);if(d<TR.visMin)return true;if(d>TR.visFar)return false;
   const hx=Math.sin(C.yaw),hz=-Math.cos(C.yaw);return(dx*hx+dz*hz)/d>.4}
+/* which vehicle: on highways mostly the family cars and the Close Call cars, some vans and pickups; in town also taxis (more downtown and in Las Vegas), buses on the
+   lanes that have bus stops, refuse trucks on the streets, delivery vans; pickups in the small towns. r1, r2: two draws of the traffic generator */
+function trPickType(r1,r2,e,x,z){const civ=TTYPES.map((T,i)=>T.civ?i:-1).filter(i=>i>=0),cc=()=>civ[Math.floor(r2*civ.length)%civ.length],city=e.road.city,cls=e.cls;
+  const old=r=>r<.4?0:r<.7?1:r<.9?2:3;
+  if(!city){if(cls>=3)return r1<.06?7:r1<.12?9:r1<.42?cc():(r1<.6?3:r1<.75?2:r1<.9?0:1);return r1<.12?9:r1<.18?7:r1<.48?cc():old(r2)}
+  const big=inBox(x,z,CITY,40)||inBox(x,z,CITY_VEG,40),town=ZONES.some(zn=>zn.b!==CITY_VEG&&zn.b!==CITY_SAC&&zn.b!==CITY_SJ&&inBox(x,z,zn.b,40));
+  if(r1<.05&&trBusStops(e).length)return 5;if(r1<.08)return 6;if(r1<.14)return 7;if(r1<(big?.32:.2))return 8;if(r1<(town?.38:.25))return 9;if(r1<.6)return cc();return old(r2)}
+/* bus stops: on the kerb lane of city streets and boulevards, about every 220 m, never within 35 m of a junction (u indices on the edge, made once) */
+function trBusStops(e){if(e.bstops)return e.bstops;const o=[];e.bstops=o;if(!e.road.city||e.closed&&false||e.k!=e.nl-1)return o;const G=LG.jg[e.ri*2+lgDirI(e.dir)]||[];
+  for(let s=70;s<e.len-60;s+=220){let u=0;while(u<e.n-1&&e.S[u]<s)u++;let ok=true;for(const g of G){if(Math.abs(e.S[Math.min(e.n-1,g.foot)]-e.S[u])<35){ok=false;break}}if(ok)o.push(u)}return o}
+/* the bus stops you can see: a shelter (roof, glass back, bench) and a pole with a blue sign on the sidewalk next to each stop (props, built once) */
+function trStopProps(){let n=0;for(const e of LG.edges){const B=trBusStops(e);if(!B.length)continue;const r=e.road;
+  for(const u of B){const i=e.dir>0?u:r.n-1-u,t=lgTan(e,u),nx=-t[1],nz=t[0],o=r.hw+(r.sw||RSH)*.62,px=r.X[i]+nx*o,pz=r.Z[i]+nz*o,y=r.Y[i]+(r.sw?CURB_H:0);if(otherAsphalt(px,pz,r,r.Y[i],.5))continue;
+    const cs=t[0],sn=t[1];pboxR(0,px,pz,1.9,.75,cs,sn,y+2.35,y+2.5,60,90,140,false,1);pboxR(0,px+nx*.68,pz+nz*.68,1.85,.04,cs,sn,y+.15,y+2.35,150,190,210,false,1);
+    for(const q of[-1.8,1.8])pboxR(0,px+cs*q,pz+sn*q,.05,.05,cs,sn,y,y+2.35,150,152,158,false,1);pboxR(0,px+nx*.35,pz+nz*.35,1.4,.22,cs,sn,y+.45,y+.55,110,80,60,false,1);
+    const sx=px-cs*3.2-nx*.4,sz=pz-sn*3.2-nz*.4;pboxR(0,sx,sz,.05,.05,cs,sn,y,y+2.9,150,152,158,false,1);pboxR(0,sx,sz,.35,.03,-sn,cs,y+2.3,y+2.9,40,90,200,false,1);
+    COLO.push(px,pz,1.9,.75,cs,sn,y+2.5);COLC.push(sx,sz,.2,y-.5,y+2.9);n++}}return n}
 /* put a car on lane edge e at index u */
 function trPlace(e,u,type,col,v,seed){
   let c=null;for(const q of TR.cars)if(!q.alive){c=q;break}if(!c)return null;
   const T=TTYPES[type];c.alive=1;c.state=0;c.kind=0;if(c.dn)c.dn.fill(0);c.dmg=0;c.pf=0;c.rec=0;c.type=type;c.col=col;c.m=T.m;c.hl=T.hl;c.hw=T.hw;c.I=T.m*(T.hl*T.hl+T.hw*T.hw)/3;c.e=e;c.u=u;c.L=null;c.lu=0;c.seed=seed|0;
   trPt(e,u);c.x=_pt.x;c.z=_pt.z;c.y=_pt.y;c.yaw=Math.atan2(_pt.tx,-_pt.tz);c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.v=v;c.vx=Math.sin(c.yaw)*v;c.vz=-Math.cos(c.yaw)*v;c.om=0;c.pitch=c.roll=0;
-  c.acc=0;c.v0f=.86+trHash(seed,7)*.22;c.A=1.9+trHash(seed,11)*.9;c.T=1.0+trHash(seed,13)*.7;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.pickL=null;c.role=0;c.ramCd=0;c.los=null;c.stk=0;
+  c.acc=0;c.v0f=(.86+trHash(seed,7)*.22)*(T.v0||1);c.A=(1.9+trHash(seed,11)*.9)*(T.m>5000?.6:1);c.T=(1.0+trHash(seed,13)*.7)*(T.beh=='taxi'?.75:1);c.beh=T.beh||'';c.dwell=0;c.odo=0;c.halt=40+trHash(seed,19)*30;c.lastStop=-1e9;c.nh=0;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.pickL=null;c.role=0;c.ramCd=0;c.los=null;c.stk=0;
   TR.nAlive++;TR.stat.spawn++;return c}
 function trSpawn(){
   const rng=TR.rng,P=C;
@@ -2962,7 +2990,7 @@ function trSpawn(){
     if(!TR.boot&&trSeen(sx,sz))continue;
     /* room: nobody within 18 m (and not under the player) */
     let ok=true;for(const c of TR.cars)if(c.alive&&Math.abs(c.x-sx)<18&&Math.abs(c.z-sz)<18&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
-    const tr=rng(),type=e.cls>=3?(tr<.3?3:tr<.55?2:tr<.8?0:1):(tr<.4?0:tr<.7?1:tr<.9?2:3),col=Math.floor(rng()*TCOLS.length),seed=Math.floor(rng()*1e9);
+    const type=trPickType(rng(),rng(),e,x,z),T=TTYPES[type],col=T.col!=null?T.col:Math.floor(rng()*TCOL_FREE),seed=Math.floor(rng()*1e9);
     /* start no faster than the car in front */
     let v=Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*.85;
     for(const c of TR.cars)if(c.alive&&c.e===e&&!c.L){const dd=(c.u-u)*e.ds;if(dd>0&&dd<45&&c.v<v)v=c.v}
@@ -3066,9 +3094,33 @@ const TRGEN=[
  {L:5.2,W:1.98,H:2.06,wb:3.2,fo:.88,nose:1.0,hood:1.08,cowl:1.05,roofF:1.45,roofR:4.2,rearS:5.0,deck:1.5,tail:1.5,hw0:.88,hwMax:.96,hwMaxS:2.5,hwTail:.94,crown:.05,tum:.05,rf:.36,rr:.36,wf:.23,wr:.23,rimF:.22,rimR:.22,tf:.82,tr:.82,sill:.28,gw:.9,gt:.88,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.25,grille:'wide',cladding:.22},       /* van */
  null];                                                                                                                                                                                                                                                                               /* police: the sedan with a dark lower body */
 const TRMATMAP=[0,1,2,2,5,3,4,6,5,2,2,12,0,6,2,6,5,13,6,2];      /* generator material -> traffic material (11 plate -> white, 17 amber, 18 grille -> dark) */
+/* the working vehicles (generator frame: metres, front at -z): a refuse truck, a box van, a pickup. A cab, a body, lamps, plates, the game's wheels. */
+function trBoxVehicle(kind){
+  const b=new CGB(),M=CGM,box=(x,y,z,hx,hy,hz,m)=>cgBox(b,x,y,z,hx,hy,hz,m,0);let S;
+  if(kind=='garbage'){S={L:8.1,W:2.5,H:3.4,fz:-2.75,rz:2.45,rf:.52,rr:.52,wf:.32,wr:.36,tf:1.02,tr:1.0};
+    box(0,.62,-.2,1.1,.16,3.8,M.under);box(0,1.75,-3.15,1.2,1.05,.9,M.plate);box(0,2.35,-4.04,1.1,.42,.02,M.glass);for(const sd of[-1,1])box(sd*1.21,2.3,-3.3,.02,.38,.55,M.glass);box(0,.95,-4.08,1.18,.3,.06,M.trim);box(0,1.15,-4.1,.6,.18,.03,M.grille);
+    box(0,2.05,.95,1.25,1.25,3.0,M.paint);box(0,2.0,3.95,1.2,1.15,.08,M.trim);box(0,3.32,.95,1.27,.06,3.02,M.paint);for(let k=0;k<3;k++)box(0,2.05,-1.2+k*1.35,1.27,1.15,.04,M.trim);
+    for(const sd of[-1,1]){box(sd*.8,1.05,-4.1,.18,.08,.03,M.head);box(sd*1.0,1.0,4.04,.12,.18,.03,M.tail);box(sd*1.15,3.25,-3.0,.05,.06,.05,M.amber)}box(0,.85,-4.11,.26,.07,.02,M.plate);box(0,.75,4.05,.26,.07,.02,M.plate)}
+  else if(kind=='boxvan'){S={L:6.2,W:2.16,H:3.0,fz:-1.95,rz:1.85,rf:.38,rr:.4,wf:.22,wr:.24,tf:.9,tr:.88};
+    box(0,.52,0,.95,.12,2.9,M.under);box(0,1.2,-2.35,1.0,.62,.75,M.paint);box(0,2.02,-2.15,.98,.4,.55,M.paint);box(0,1.98,-2.71,.92,.33,.02,M.glass);for(const sd of[-1,1])box(sd*1.0,1.95,-2.25,.02,.3,.4,M.glass);
+    box(0,1.85,.75,1.08,1.15,2.35,M.plate);box(0,1.0,.75,1.09,.12,2.36,M.paint);box(0,1.85,3.11,1.05,1.1,.02,M.trim);
+    for(const sd of[-1,1]){box(sd*.72,1.08,-3.1,.16,.08,.03,M.head);box(sd*.95,1.0,3.12,.08,.2,.03,M.tail);box(sd*.85,.92,-3.1,.08,.05,.03,M.amber);box(sd*1.06,1.85,-1.75,.05,.08,.12,M.gloss)}box(0,.85,-3.11,.25,.07,.02,M.plate);box(0,.82,3.13,.25,.07,.02,M.plate)}
+  else{/* pickup: the SUV body with a short cab and an open bed */const base=Object.assign({},TRGEN[2],{L:5.4,roofF:1.95,roofR:2.75,rearS:2.85,deck:1.05,tail:1.05,roofRails:0,noSkirt:1}),R=cgBuild(base,{lo:1,mid:1});
+    const bb=R.body;for(const sd of[-1,1])cgBox(bb,sd*.86,1.13,1.62,.06,.12,1.05,M.paint,0);cgBox(bb,0,1.13,2.66,.92,.12,.05,M.paint,0);cgBox(bb,0,.98,1.62,.82,.02,1.0,M.under,0);return R}
+  S.zs=s=>-S.L/2+s;S._parts={};const lw=2;return{S,body:b,wheelF:cgWheel(S.rf,S.wf,S.rf*.6,6,'disc',null,lw,1),wheelR:cgWheel(S.rr,S.wr,S.rr*.6,6,'disc',null,lw,1)}}
+/* the near body of traffic type i: the generator's family cars, a Close Call body, or a working vehicle */
+function trBodyOf(i){const T=TTYPES[i];
+  if(T.cc){const R=ccBuild(T.cc,{lo:1});if(T.sign){const S=R.S;cgBox(R.body,0,S.H+.12,S.zs(S.roofR-.35),.36,.11,.12,CGM.amber,0);cgBox(R.body,0,S.H+.02,S.zs(S.roofR-.35),.4,.02,.14,CGM.trim,0)}return R}
+  if(T.box)return trBoxVehicle(T.box);
+  const base=TRGEN[i==4?0:i],spec=Object.assign({noSkirt:1},base);if(i==4)spec.lowerDark=.66;return cgBuild(spec,{lo:1,mid:1})}
+/* the far body: TRSHAPE for the first five, a Close Call body's own low-poly loft, or boxes for the trucks */
+function trFarOf(i){const T=TTYPES[i];if(i<5)return trBuildType(TRSHAPE[i],T.hw);
+  if(T.cc)return trBuildType(ccFar(T.cc),T.hw);
+  if(T.box=='garbage')return trBuildType({gz:[2.6,3.9],wheel:.52,sec:[[4.05,.5,2.5,2.9,1.2,1.1],[2.2,.5,2.5,2.9,1.2,1.1],[2.1,.5,3.3,3.3,1.25,1.25],[-3.95,.5,3.3,3.3,1.25,1.25]]},T.hw);
+  return trBuildType(TRSHAPE[3],T.hw)}
 function trGenType(i){
-  const base=TRGEN[i==4?0:i],spec=Object.assign({noSkirt:1},base);if(i==4)spec.lowerDark=.66;
-  const R=cgBuild(spec,{lo:1,mid:1}),S=R.S,P=[],N=[],M=[],I=[];let o=0;
+  const spec=Object.assign({noSkirt:1},TRGEN[i==4?0:i]||{});if(i==4)spec.lowerDark=.66;
+  const R=trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
   /* the police livery: white doors, roof and pillars, black bonnet, wings and boot (x, y, z in generator coordinates, front negative) */
   const copLivery=(x,y,z,S)=>{const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
   const add=(mb,dx,dy,dz,mirX,mapM)=>{const n=mb.nv;for(let v=0;v<n;v++){const x=mb.P[v*3]*(mirX?-1:1)+dx,y=mb.P[v*3+1]+dy,z=-(mb.P[v*3+2]+dz);P.push(x,y,z);N.push(mb.N[v*3]*(mirX?-1:1),mb.N[v*3+1],-mb.N[v*3+2]);const m=TRMATMAP[mb.M[v]];
@@ -3097,13 +3149,13 @@ function trGenType(i){
 function trGLInit(){
   const gl=G.gl;TRM.pal=new Float32Array(TCOLS.length*3);TCOLS.forEach((c,i)=>{TRM.pal[i*3]=c[0];TRM.pal[i*3+1]=c[1];TRM.pal[i*3+2]=c[2]});
   /* materials: rgb albedo, alpha = glow (-1: the body colour of the car) */
-  TRM.mat=new Float32Array([0,0,0,-1, .03,.045,.06,0, .015,.015,.017,0, .85,.8,.62,1.5, .5,.02,.02,.5, .5,.5,.52,0, .015,.015,.015,0, .8,.1,.05,0, .1,.2,.9,0, .035,.035,.04,0, .04,.09,.45,0, .62,.5,.12,0, .72,.72,.74,0, .95,.52,.08,1.1]);
+  TRM.mat=new Float32Array([0,0,0,-1, .03,.045,.06,0, .015,.015,.017,0, .85,.8,.62,1.9, .5,.02,.02,.6, .55,.56,.6,0, .015,.015,.015,0, .8,.1,.05,0, .1,.2,.9,0, .035,.035,.04,0, .04,.09,.45,0, .62,.5,.12,0, .72,.72,.74,0, .95,.52,.08,1.3, .7,.72,.76,0, 0,0,0,0]);   /* 3 head lamps and 4 tail lamps glow brighter, 5 rims, 14 chrome */
   const upload=(B)=>{const nv=B.P.length/3,ab=new ArrayBuffer(nv*16),f=new Float32Array(ab),b=new Int8Array(ab);
     for(let v=0;v<nv;v++){f[v*4]=B.P[v*3];f[v*4+1]=B.P[v*3+1];f[v*4+2]=B.P[v*3+2];b[v*16+12]=Math.round(B.N[v*3]*127);b[v*16+13]=Math.round(B.N[v*3+1]*127);b[v*16+14]=Math.round(B.N[v*3+2]*127);b[v*16+15]=B.M[v]}
     return{vb:mkBuf(gl.ARRAY_BUFFER,ab),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(B.I)),n:B.I.length,nv}};
   /* groups: type * 2 + lod (0 smooth body for the cars near the camera, 1 the 200-triangle body for the rest) */
-  TRM.types=[];TRM.hg=[];TRM.pm=[];for(let i=0;i<5;i++){const g=trGenType(i);TRM.hg.push(g.H);TRM.pm.push(g.pm);TRM.types.push(upload(g));TRM.types.push(upload(trBuildType(TRSHAPE[i],TTYPES[i].hw)))}
-  TRM.inst=new Float32Array(TRN*20);TRM.ibuf=mkBuf(gl.ARRAY_BUFFER,TRM.inst.byteLength,gl.DYNAMIC_DRAW);TRM.cnt=new Int16Array(10);TRM.off=new Int16Array(10);
+  const NT=TTYPES.length;TRM.types=[];TRM.hg=[];TRM.pm=[];TRM.far=[];for(let i=0;i<NT;i++){const g=trGenType(i),f=TTYPES[i].far;TRM.hg.push(g.H);TRM.pm.push(g.pm);TRM.types.push(upload(g));TRM.far.push(f==null||f<0?i:f);TRM.types.push(f==null||f<0?upload(trFarOf(i)):{n:0})}
+  TRM.inst=new Float32Array(TRN*20);TRM.ibuf=mkBuf(gl.ARRAY_BUFFER,TRM.inst.byteLength,gl.DYNAMIC_DRAW);TRM.cnt=new Int16Array(NT*2);TRM.off=new Int16Array(NT*2);
   R.trDraw=trDraw;TRM.ready=true}
 /* soft blob shadows under the cars (added to the effects batch by fxDraw) */
 function trShadows(quad){
@@ -3115,9 +3167,9 @@ function trShadows(quad){
 function trPrep(){
   TRM.nv=0;if(!TR.on||!TRM.ready||!TR.nAlive)return 0;
   const gl=G.gl,a=R.alpha,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,vis=TRM.vis,cars=TR.cars,lod2=Math.pow(GFX.cur.name=='Low'?30:46,2);cnt.fill(0);let nv=0;
-  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const x=lerp(c.px,c.x,a),y=lerp(c.py,c.y,a),z=lerp(c.pz,c.z,a),dx=x-R.cx,dz=z-R.cz,d2=dx*dx+dz*dz;if(d2>490000||!M4.sphereIn(R.PL,x,y+1,z,3.6))continue;c.gi=c.type*2+(d2<lod2?0:1);vis[nv++]=i;cnt[c.gi]++}
+  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const x=lerp(c.px,c.x,a),y=lerp(c.py,c.y,a),z=lerp(c.pz,c.z,a),dx=x-R.cx,dz=z-R.cz,d2=dx*dx+dz*dz;if(d2>490000||!M4.sphereIn(R.PL,x,y+1,z,3.6))continue;c.gi=d2<lod2?c.type*2:TRM.far[c.type]*2+1;vis[nv++]=i;cnt[c.gi]++}   /* far bodies are shared between similar types (fewer draw calls) */
   if(!nv)return 0;
-  let s0=0;const fill=new Int16Array(10);for(let g=0;g<10;g++){off[g]=s0;fill[g]=s0;s0+=cnt[g]}
+  const NG=cnt.length;let s0=0;const fill=new Int16Array(NG);for(let g=0;g<NG;g++){off[g]=s0;fill[g]=s0;s0+=cnt[g]}
   for(let q=0;q<nv;q++){const c=cars[vis[q]],o=fill[c.gi]++*20;
     I[o]=lerp(c.px,c.x,a);I[o+1]=lerp(c.py,c.y,a);I[o+2]=lerp(c.pz,c.z,a);I[o+3]=c.pyaw+angd(c.yaw,c.pyaw)*a;I[o+4]=c.pitch;I[o+5]=c.roll;I[o+6]=c.col;I[o+7]=(c.brake?1:0)+(c.siren?2:0)+(c.kind===1&&c.cm===0&&c.type===4&&!c.siren?4:0)+((c.dmg||0)>.45?8:0)+(c.pf||0);
     const d=c.dn;if(d){for(let k=0;k<12;k++)I[o+8+k]=d[k]}else for(let k=8;k<20;k++)I[o+k]=0}
@@ -3126,7 +3178,7 @@ function trPrep(){
 function trIssue(hinge){
   const gl=G.gl,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,ext=G.ext.inst;
   if(ext){attrs(7);for(let k=2;k<7;k++)ext.vertexAttribDivisorANGLE(k,1)}else attrs(2);
-  for(let g=0;g<10;g++){if(!cnt[g])continue;const M=TRM.types[g];
+  for(let g=0;g<cnt.length;g++){if(!cnt[g])continue;const M=TRM.types[g];
     if(hinge)gl.uniform4fv(G.P.tr.u.uHg,TRM.hg[g>>1]);
     gl.bindBuffer(gl.ARRAY_BUFFER,M.vb);gl.vertexAttribPointer(0,3,gl.FLOAT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,12);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,M.ib);
     if(ext){gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);const b=off[g]*80;for(let k=0;k<5;k++)gl.vertexAttribPointer(2+k,4,gl.FLOAT,false,80,b+k*16);ext.drawElementsInstancedANGLE(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0,cnt[g]);R.draws++}
@@ -4077,7 +4129,7 @@ function _mkMesh(gl,B,colFor,keepAb){
   return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,idx),n:idx.length,gf:(B.glassFrom!=null?B.glassFrom:idx.length),pr:B.pr,gpr:B.gpr,ab}}
 /* build the mesh of a car definition and make it THE car: body, wheels, materials, paint, light positions, dimensions, wheel contact points */
 function carInstall(def,paint){
-  const gl=G.gl,B=cgBuild(def.spec),S=B.S;
+  const gl=G.gl,B=def.cc?ccBuild(def.cc):cgBuild(def.spec),S=B.S;   /* a Close Call car (73_ccars.js) or a generated supercar */
   for(const m of[CARM.body,...(CARM.wheels||[])])if(m&&m.vb){gl.deleteBuffer(m.vb);gl.deleteBuffer(m.ib)}
   const rim=def.rim||[190,194,200],cal=def.caliper||[205,28,28];
   const inter=def.interior||CGCOL[CGM.inter],col=m=>m==CGM.paint?[255,255,255]:m==CGM.rim?rim:m==CGM.caliper?cal:m==CGM.inter?inter:CGCOL[m];
@@ -4087,7 +4139,7 @@ function carInstall(def,paint){
   const pc=paint||def.paint||[200,30,30];CARM.paint=new Float32Array([Math.pow(pc[0]/255,2.2),Math.pow(pc[1]/255,2.2),Math.pow(pc[2]/255,2.2)]);
   CARM.def=def;CARM.hw=S.W/2;CARM.hl=S.L/2;CARM.R=[S.rf,S.rr];
   const L=S._lights;CARL.hx=L.hx;CARL.hy=L.hy;CARL.hz=L.hz;CARL.tx=L.tx;CARL.ty=L.ty;CARL.tz=L.tz;
-  const wk=def.spec.wb/2.45;CD.fo=1.38*wk;CD.ro=1.33*wk;CD.hw=.68*(S.tf/.775);
+  const wk=(def.cc?S.wb:def.spec.wb)/2.45;CD.fo=1.38*wk;CD.ro=1.33*wk;CD.hw=.68*(S.tf/.775);
   CARM.parts=S._parts;CARM.zc=S.zs((S.cowl+S.roofR)/2);partsInit();dmgInit();dmgReset();return B}
 
 'use strict';
@@ -4189,6 +4241,132 @@ function carHandling(def){
 /* make car number i the car: body and handling */
 function carSelect(i){i=_cl(i|0,0,CAR_ROSTER.length-1);CARSEL.cur=i;const def=CAR_ROSTER[i];carHandling(def);if(G.gl){carInstall(def,carPaintOf(i));CARM.idx=i}
   TR.P.hl=def.spec.L/2-.05;TR.P.hw=def.spec.W/2;TR.P.m=def.real.kg;TR.P.I=def.real.kg*(TR.P.hl*TR.P.hl+TR.P.hw*TR.P.hw)/3;return def}
+
+'use strict';
+/* ===== the Close Call cars, ported (batch 2) =====
+   Close_Call.html describes each of its cars as a short table (its DZN designs): stations along the car [x, half width, height] in decimetres (front is +x), the ground clearance y0, the cabin
+   [rear base x, front base x, rear roof x, front roof x, roof height, half width at the base, half width at the top], the wheels {fx, rx, r, w, hr (rim / tyre)}, the roof (rc: G glass, k black),
+   open cars (op) and armoured ones (gl 0). ccBuild() turns a table into this game's car mesh: the same loft as Close Call (a monotone spline through the stations, a section with a flat top,
+   a shoulder and a tucked sill, rounded nose and tail, the sill lifted over each wheel into an arch), a glass cabin with a body-colour, glass or black roof and dark pillars, lamps, a grille,
+   plates and mirrors, and the game's own wheels; materials are this game's (CGM), so the cars take the same paint, glass and lights as the rest. About 1.5-2.5k triangles a body.
+   They are used for traffic (60_traffic / 61_trafficgl) and as cars you can drive (added to the roster below, names marked CC: working names to be decided). */
+const CC_DES={
+ coupe:{n:'Pebble Coupe',ty:'coupe',col:[194,69,45],st:[[-24.3,5.6,6],[-22,7.8,7.2],[-18.4,9,8],[-15.5,9.6,8.2],[7.5,9.6,8.2],[13.5,9.3,7.6],[20,8.2,6.7],[24.3,5.8,5.9]],cb:[-15.5,7.5,-10.5,1.2,14.6,8.9,7.7],wh:{fx:14.2,rx:-14.2,r:3.9,w:1.8,hr:.62},hd:'r',tl:'r'},
+ hyper:{n:'Lumen Hyper',ty:'hyper',col:[242,242,242],st:[[-28.3,5.5,4.4],[-26,8.8,5.6],[-21,10.8,6.5],[-12,11.1,7.2],[8,11.1,7.2],[16,10,5.8],[24,8.2,4.8],[28.3,5.5,4.2]],y0:2,cb:[-11,8,-6,2,11.2,8.6,5.6],rc:'G',wh:{fx:17.5,rx:-16.5,r:4.8,w:2.3,hr:.62},hd:'s',tl:'b'},
+ gt:{n:'Longroad GT',ty:'gt',col:[31,63,143],st:[[-27.3,6.6,6.2],[-25,9,7.2],[-20.5,10.1,7.5],[2.5,10.1,7.5],[11,10,7],[21,9.1,6],[27.3,6.8,5.2]],y0:2.5,cb:[-19,2.5,-9,-1,13,9.3,7.4],wh:{fx:17,rx:-16,r:4.4,w:2,hr:.74},hd:'r',tl:'r'},
+ super:{n:'Stiletto Super',ty:'super',col:[217,191,43],st:[[-27.3,8.4,6.8],[-23,10.6,8],[-16,10.6,8.2],[-8,10.6,6.4],[10,10.4,6.4],[16,9,4.6],[22,7,3.2],[27.3,3.6,2.6]],y0:1.7,cb:[-6,11,1,6,10.8,8.6,5.4],rc:'k',wh:{fx:18,rx:-17.5,r:[4.4,5],w:[2,2.7],hr:.6},hd:'s',tl:'s'},
+ sport:{n:'Jackal Sport',ty:'sport',col:[214,54,43],st:[[-26.3,7.6,5.4],[-23.5,9.6,6.4],[-18,10.1,7],[-14,10.1,7.2],[-1,10.1,7.2],[8,10,6.6],[19,9.2,5.6],[26.3,6.4,4.6]],cb:[-14,-1,-11,-4.5,12.8,9.2,7.6],wh:{fx:16,rx:-15.5,r:4.3,w:2.1,hr:.66},hd:'s',tl:'b'},
+ roadster:{n:'Halcyon Roadster',ty:'roadster',col:[47,159,214],st:[[-24.3,6.7,5.4],[-21.5,8.8,6.4],[-12.5,9.6,6.8],[10,9.6,6.8],[18,9,6.4],[24.3,6.9,5.6]],cb:[3.5,7.5,1,5,10.6,9.2,8.6],op:1,wh:{fx:14.5,rx:-14,r:4,w:1.7,hr:.82},hd:'r',tl:'r'},
+ rally:{n:'Mudlark Rally',ty:'rally',col:[240,192,32],st:[[-20.3,7.2,6.4],[-18,9,7.8],[-9.5,9.1,8],[3,9.1,8],[10,9.1,7.4],[17,8.4,6.6],[20.3,6.9,6]],y0:3.4,cb:[-9.5,3,-7.5,.5,14.2,8.8,7.8],wh:{fx:12.5,rx:-12.5,r:4.5,w:2.1,hr:.55},hd:'r',tl:'r'},
+ phantom:{n:'Umbra Turbo',ty:'hyper',col:[20,22,28],st:[[-28.3,7.5,4.8],[-24,11.1,5.4],[-14,11.1,5.6],[8,7.4,5.6],[14,5.6,4.8],[22,3.4,3.8],[28.3,1.6,3.2]],y0:1.8,cb:[-12,8,-6,3,9.8,5.6,3.2],rc:'k',wh:{fx:17.5,rx:-17,r:4.6,w:2.2,hr:.72},hd:'s',tl:'b'},
+ n_cruiser:{n:'Parkway Cruiser',ty:'sedan',col:[174,182,189],st:[[-23.3,8.4,7.4],[-22,9.6,8.2],[-16,9.6,8.4],[-13,9.6,8.4],[5,9.6,8.4],[12,9.6,8.4],[19,9.4,8.2],[23.3,8.4,7.6]],cb:[-13,5,-10.5,1.5,15.2,9,8.1],wh:{fx:15,rx:-14.5,r:4.2,w:1.9,hr:.85},hd:'w',tl:'w'},
+ n_magnet:{n:'Magnet Muscle',ty:'muscle',col:[47,159,214],st:[[-24.3,8.5,6.8],[-22.5,9.9,7.8],[-17,10.1,8.2],[0,10.1,8.2],[7,10.1,8.2],[16,9.8,8],[21.5,9.2,7.7],[24.3,8.2,6.8]],cb:[-15,0,-6,-1,12.8,9.5,7.5],wh:{fx:14.5,rx:-14.5,r:[4.2,4.8],w:[2,2.8],hr:.55},hd:'r',tl:'b'},
+ n_courier:{n:'Fennec Hatch',ty:'hatch',col:[139,212,90],st:[[-19.3,7.8,7],[-18.2,9.1,8],[-17.5,9.1,8.4],[6,9.1,8.4],[8,9.1,8.4],[14,8.5,7.8],[19.3,6.6,6.2]],cb:[-17.5,6,-15.5,2,14.8,8.7,7.8],wh:{fx:12,rx:-11.5,r:3.9,w:1.9,hr:.6},hd:'w',tl:'r'},
+ n_bruiser:{n:'Bruiser SUV',ty:'suv',col:[107,116,128],st:[[-24.3,11.2,9.4],[-18,11.6,9.8],[-14.5,11.6,9.8],[-14,11.6,11.8],[8,11.6,11.8],[10,11.6,11.4],[19,11.4,10.6],[24.3,10.4,10.2]],y0:4.4,cb:[-14,8.5,-13.6,8,19.4,11.2,10.8],wh:{fx:15.5,rx:-15.5,r:5.4,w:2.8,hr:.42},hd:'w',tl:'w'},
+ n_drifter:{n:'Drifter Roadster',ty:'roadster',col:[240,138,36],st:[[-24.3,7.6,6.2],[-21.5,9.4,7],[-12,9.6,7.2],[10,9.6,7.2],[18.5,8.9,6.2],[24.3,6.7,5.2]],cb:[2.5,6.5,-1,2,11,9.2,8.6],op:1,wh:{fx:15,rx:-14.5,r:[4.2,4.6],w:[2.6,3],hr:.72},hd:'s',tl:'r'},
+ n_nitro:{n:'Surge Sport',ty:'sport',col:[47,111,214],st:[[-26.3,8.2,6.6],[-22,10.1,7.6],[-14,10.1,7.8],[-6,10.1,7.4],[10,10.1,7.2],[16,9.5,5.4],[22,8,4.2],[26.3,6,3.6]],cb:[-6,10,-1.5,5.5,12.4,9.4,7.2],rc:'k',wh:{fx:17,rx:-16,r:[4.3,4.8],w:[2.2,3],hr:.62},hd:'s',tl:'b'},
+ n_banker:{n:'Banker GT',ty:'gt',col:[31,63,143],st:[[-27.3,7.8,7],[-25,9.6,7.6],[-22,10.1,7.8],[-13,10.1,7.8],[3,10.1,7.8],[9,10.1,7.6],[20,9.4,6.8],[27.3,7.5,6]],cb:[-13,3,-11,-.5,15.8,9.4,8.4],rc:'G',wh:{fx:17,rx:-16.5,r:4.8,w:2,hr:.78},hd:'w',tl:'b'},
+ n_mercury:{n:'Argent Super',ty:'super',col:[185,199,214],st:[[-27.3,6,5.4],[-24,9.4,6.8],[-17,10.6,7.8],[-8,10.6,7.6],[7,10.4,7.4],[15,9.8,5.6],[22,8,4.2],[27.3,5.5,3.4]],y0:2,cb:[-6,7,-1,3.5,10.8,8.8,5.8],rc:'G',wh:{fx:17.5,rx:-17,r:[4.4,5],w:[2,2.6],hr:.7},hd:'s',tl:'s'},
+ h_outlaw:{n:'Outlaw',ty:'muscle',col:[90,60,40],st:[[-24.3,9,8],[-23,10.1,9],[-14,10.1,9.2],[6,10.1,9.2],[15,10,9],[21,9.7,8.2],[24.3,8.8,7.6]],y0:3,cb:[-13,2,-11.5,-.5,16.6,8.8,7.8],wh:{fx:15,rx:-14.5,r:[3.4,5.8],w:[1.3,3.4],hr:[.6,.35]},hd:'r',tl:'r'},
+ h_jammer:{n:'Jammer Rally',ty:'rally',col:[106,77,214],st:[[-20.3,8,7],[-18.5,9.1,8.6],[-14,9.1,9],[5,9.1,9],[8,9.1,8.6],[14,8.8,8],[20.3,7.4,6.8]],y0:3.2,cb:[-14,5,-10,.5,14.2,8.4,7.2],wh:{fx:12.5,rx:-12.5,r:4.7,w:2.6,hr:.5},hd:'r',tl:'r'},
+ h_warden:{n:'Warden SUV',ty:'suv',col:[58,74,58],st:[[-24.3,11.4,11],[-23,11.6,11.6],[6,11.6,11.6],[9,11.6,11.2],[20,11.4,10.6],[24.3,11,10.2]],y0:4,cb:[-21,5.5,-20.5,5,18.4,11.4,11],wh:{fx:15.5,rx:-15.5,r:5,w:2.7,hr:.5},hd:'w',tl:'w'},
+ h_widow:{n:'Nightshade Super',ty:'super',col:[27,27,34],st:[[-27.3,8.2,4.6],[-26,10.4,4.8],[-22,10.6,5],[22,10.6,5],[25.5,10,4.2],[27.3,7.6,3.6]],y0:1.8,cb:[-6,6,-2.5,2,8.8,7.4,5.4],rc:'k',wh:{fx:18,rx:-17.5,r:[4.4,5],w:[2,2.7],hr:.55},hd:'s',tl:'b'},
+ h_scorch:{n:'Scorch Roadster',ty:'roadster',col:[232,84,30],st:[[-24.3,6.8,6.2],[-21,8.8,7.2],[-12,9.6,7.4],[1,9.6,7.4],[5,8.6,7.2],[11,7,6.8],[19,6,6.2],[24.3,5,5.8]],cb:[-2,1.5,-4,0,11,9,8.4],op:1,wh:{fx:16.5,rx:-14.5,r:[3.4,5.4],w:[1.2,3.4],hr:.6},hd:'r',tl:'r'},
+ h_reaper:{n:'Reaper Hyper',ty:'hyper',col:[122,16,34],st:[[-28.3,6,5],[-26,9.8,6.2],[-21,11.1,6.8],[-14,10,6.6],[-9,9,6.4],[5,9,6.4],[17,9.9,4.8],[25,8.4,3.8],[28.3,5,3.4]],y0:2,cb:[-9,5,-5,0,11,7,4.4],rc:'k',wh:{fx:17.8,rx:-17.5,r:[4.6,5.2],w:[2.2,2.8],hr:.5},hd:'s',tl:'b'},
+ h_wraith:{n:'Nightjar GT',ty:'gt',col:[75,79,92],st:[[-27.3,8.6,7.6],[-25.5,10.1,8],[2.5,10.1,8],[9,9.9,7.2],[19,8.8,6.2],[27.3,6.2,5.2]],cb:[-26,2.5,-25,-1.5,12.6,9.7,8.9],wh:{fx:17,rx:-16.5,r:4.4,w:2,hr:.75},hd:'r',tl:'w'},
+ h_hellfire:{n:'Cinder Hyper',ty:'hyper',col:[42,13,13],st:[[-28.3,8.4,5.6],[-25,10.4,6.8],[-17,11.1,7.4],[-9,11.1,7.2],[6.5,11.1,7.2],[17,10.8,5.4],[25,9.6,4.6],[28.3,7.6,4.1]],y0:2.2,cb:[-9,6.5,-4,1.5,11.4,8.6,6],rc:'k',wh:{fx:17.8,rx:-17,r:[4.8,5.2],w:[2.6,3.2],hr:.58},hd:'s',tl:'b'},
+ /* road-only designs */
+ t_bus:{n:'City bus',ty:'bus',col:[232,232,232],st:[[-53.3,10.4,8.6],[-52,11.6,9.4],[-47,11.6,9.6],[47,11.6,9.6],[52,11.6,9.4],[53.3,10.2,8.8]],y0:3,cb:[-51.5,49.5,-50,45.5,30,11.4,11.2],wh:{fx:36,rx:-33,r:5.2,w:2.4,hr:.55},hd:'w',tl:'w',bus:1},
+ t_cop:{n:'Police cruiser',ty:'sedan',col:[35,39,47],st:[[-23.3,8.4,7],[-22,9.6,7.8],[-16,9.6,8],[-12,9.6,8],[6,9.6,8],[13,9.6,8],[19,9.4,7.8],[23.3,8.4,7.2]],cb:[-12,6,-9.5,2,14.4,9,7.8],rc:'k',wh:{fx:15,rx:-14.5,r:4.1,w:1.9,hr:.7},hd:'w',tl:'w'}};
+/* the section of the body (right half) from the top centre to the sill, as in Close Call (hqSec): flat-ish top, shoulder, widest point, tucked sill. Catmull-Rom, k samples a span. */
+function ccCR(P,k){const n=P.length,Q=[],G=i=>i<0?[-P[1][0],P[1][1]]:i>=n?[2*P[n-1][0]-P[n-2][0],2*P[n-1][1]-P[n-2][1]]:P[i];
+  for(let i=0;i<n-1;i++){const p0=G(i-1),p1=P[i],p2=P[i+1],p3=G(i+2);for(let s=0;s<k;s++){const t=s/k,t2=t*t,t3=t2*t,f=a=>.5*(2*p1[a]+(-p0[a]+p2[a])*t+(2*p0[a]-5*p1[a]+4*p2[a]-p3[a])*t2+(-p0[a]+3*p1[a]-3*p2[a]+p3[a])*t3);Q.push([f(0),f(1)])}}
+  Q.push(P[n-1].slice());return Q}
+function ccSec(w,hc,bp,yb,k){const top=hc+bp,r2=Math.min(2.6,Math.max(.2,(top-yb)*.4));return ccCR([[0,hc],[w*.45,hc+bp*.04],[w*.74,hc+bp*.5-.1],[w*.93,top-r2*.6],[w,top-r2*1.2],[w*.99,(yb+top)/2+.2],[w*.965,yb+Math.min(1.4,(top-yb)*.22)],[w*.9,yb+.04]],k)}
+/* build a car from a design: returns {S (the spec the game reads: sizes, axles, lights), body, wheelF, wheelR} in the generator's frame (metres, x right, y up, front at -z) */
+function ccBuild(key,opt){
+  opt=opt||{};const d=CC_DES[key],K=.1,st=d.st,y0=d.y0||2.6,lo=!!opt.lo,body=new CGB();
+  const fw=cgCurve(st.map(s=>[s[0],s[1]])),fh=cgCurve(st.map(s=>[s[0],s[2]])),xe0=st[0][0],xe1=st[st.length-1][0],xc=(xe0+xe1)/2,rl=Math.min(d.bus?2:3.2,(xe1-xe0)*.065);
+  const Z=x=>-(x-xc)*K,ar=(v,i)=>Array.isArray(v)?v[i]:v,W=d.wh,WL=[0,1].map(i=>{const x=i?W.rx:W.fx,r0=ar(W.r,i),top=fh(x),R=Math.max(2.6,Math.min(r0,(top+3.2-1.05)/2));return{x,R,w:ar(W.w,i),hr:ar(W.hr||.6,i),ra:R+.5,bump:Math.max(0,2*R+1.05-top)}});
+  /* the fenders rise over the wheels where a tyre would stand above the bodywork (Close Call's hqWI) */
+  const bump=x=>{let b=0;for(const q of WL){const t=Math.abs(x-q.x)/(q.ra+2.1);if(t<1)b=Math.max(b,q.bump*Math.pow((1+Math.cos(Math.PI*t))/2,1.25))}return b};
+  /* rows along the car: an even spacing, more round the wheel arches and at the rounded ends */
+  const X=[],step=lo?3.2:2.2;for(let x=xe0;x<xe1;x+=step)X.push(x);X.push(xe1);
+  for(let k=0;k<=(lo?3:5);k++){const t=Math.sin(k/(lo?3:5)*1.5708);X.push(xe1-rl+rl*t,xe0+rl-rl*t)}
+  for(const q of WL){const n=lo?6:10;for(let k=0;k<=n;k++)X.push(q.x+q.ra*Math.cos(k/n*Math.PI));X.push(q.x-q.ra-.05,q.x+q.ra+.05)}
+  X.sort((a,b)=>a-b);const XS=[];for(let x of X){x=Math.max(xe0,Math.min(xe1,x));if(!XS.length||x-XS[XS.length-1]>.04)XS.push(x)}
+  const rows=[],kk=lo?1:2;
+  for(const x of XS){let sp=1;if(x>xe1-rl){const t=(x-(xe1-rl))/rl;sp=Math.pow(Math.max(0,1-t*t*t),1/3)}else if(x<xe0+rl){const t=(xe0+rl-x)/rl;sp=Math.pow(Math.max(0,1-t*t*t),1/3)}
+    const w=Math.max(.05,fw(x)*sp),hc0=fh(x),hc=hc0-(hc0-y0)*.3*Math.pow(1-sp,1.2),bp=bump(x)*sp;let yb=y0;
+    for(const q of WL){const dx=x-q.x;if(Math.abs(dx)<=q.ra+1e-6)yb=Math.max(yb,Math.min(q.R+Math.sqrt(Math.max(0,q.ra*q.ra-dx*dx)),hc+bp-.55))}yb=Math.min(yb,hc+bp-.6);
+    const sec=ccSec(w,hc,bp,yb,kk),L=sec.slice(1).reverse().map(p=>[-p[0],p[1]]);rows.push({x,hc:hc+bp,yb,w,ring:L.concat(sec)})}
+  /* the body skin: paint, darker towards the sill (the shade S: under .4 is read as the dark lower body by the traffic) */
+  const ni=rows.length,nj=rows[0].ring.length,P=new Float32Array(ni*nj*3),ctr=new Float32Array(ni*3);
+  rows.forEach((r,i)=>{ctr[i*3+1]=(r.yb+r.hc)/2*K;ctr[i*3+2]=Z(r.x);r.ring.forEach((p,j)=>{const o=(i*nj+j)*3;P[o]=p[0]*K;P[o+1]=p[1]*K;P[o+2]=Z(r.x)})});
+  const Nn=cgGridNormals(P,ni,nj,false,ctr),ids=[];
+  for(let i=0;i<ni;i++){const row=[],r=rows[i];for(let j=0;j<nj;j++){const o=(i*nj+j)*3,y=P[o+1]/K,sill=r.yb+Math.min(1.4,(r.hc-r.yb)*.22),t=Math.max(0,Math.min(1,(sill-y)/(sill-r.yb+.35))),sh=t>.55?.32:1-.3*t;row.push(body.v(P[o],P[o+1],P[o+2],Nn[o],Nn[o+1],Nn[o+2],CGM.paint,sh))}ids.push(row)}
+  for(let i=0;i<ni-1;i++)for(let j=0;j<nj-1;j++)body.q(ids[i][j],ids[i+1][j],ids[i+1][j+1],ids[i][j+1]);
+  /* nose and tail caps, the underbody (it follows the sill, so it rises into each wheel arch) */
+  for(const[i,sg]of[[0,1],[ni-1,-1]]){const r=rows[i],c=body.v(0,(r.yb+r.hc)/2*K,Z(r.x),0,0,sg,CGM.paint,.9);for(let j=0;j<nj-1;j++){const a=(i*nj+j)*3,b=(i*nj+j+1)*3,va=body.v(P[a],P[a+1],P[a+2],0,0,sg,CGM.paint,.9),vb=body.v(P[b],P[b+1],P[b+2],0,0,sg,CGM.paint,.9);body.t(c,va,vb)}}
+  for(let i=0;i<ni-1;i++){const p=(ii,j)=>{const o=(ii*nj+j)*3;return body.v(P[o],P[o+1],P[o+2],0,-1,0,CGM.under)};body.q(p(i,0),p(i,nj-1),p(i+1,nj-1),p(i+1,0))}
+  /* the cabin */
+  const cb=d.cb;let roofH=Math.max(...st.map(s=>s[2])),cowlX=xe1,roofRX=xe0;
+  if(cb&&d.op){/* open car: a framed windscreen and a dark cockpit sunk into the deck */const[x0,x1,t0,t1,H,wb,wt]=cb,g1=fh(x1)-.1;
+    const q=[[-wb,g1,x1],[wb,g1,x1],[wt,H,t1],[-wt,H,t1]].map(p=>body.v(p[0]*K,p[1]*K,Z(p[2]),0,.6,-.8,CGM.glass));body.q(q[0],q[1],q[2],q[3]);
+    for(const sd of[-1,1])cgBox(body,sd*(wb+wt)/2*K,(g1+H)/2*K,(Z(x1)+Z(t1))/2,.025,(H-g1)/2*K,.03,CGM.gloss,0);
+    const c0=x0-13,c1=x0+.3,cm=(c0+c1)/2;cgBox(body,0,(fh(cm)+.05)*K,Z(cm),fw(cm)*.68*K,.035,(c1-c0)/2*K,CGM.inter,0);
+    for(const sd of[-1,1])cgBox(body,sd*fw(cm)*.33*K,(fh(cm)+2.2)*K,Z(c0+3),.2,.24,.05,CGM.inter,0);roofH=H;cowlX=x1;roofRX=c0}
+  else if(cb){const[x0,x1,t0,t1,H,wb,wt]=cb,Hr=H-.4,seg=(a,b,n,out)=>{for(let i=0;i<n;i++)out.push([a[0]+(b[0]-a[0])*i/n,a[1]+(b[1]-a[1])*i/n,a[2]])};
+    const prof=[],A=[x0,fh(x0)-.15,0],B=[t0,Hr,1],C=[t1,Hr,2],D=[x1,fh(x1)-.15,2];const n=lo?2:4;seg(A,B,n,prof);seg(B,C,lo?3:5,prof);seg(C,D,n,prof);prof.push(D);
+    const roofM=d.gl===0?CGM.paint:d.rc=='G'?CGM.glass:d.rc=='k'?CGM.gloss:CGM.paint,glassM=d.gl===0?CGM.paint:CGM.glass,cr=[],cc=new Float32Array(prof.length*3);
+    prof.forEach(([xs,Hs,seg_],i)=>{const u=Math.max(0,Math.min(1,(xs-x0)/(x1-x0))),sp=Math.pow(Math.max(0,1-Math.pow(Math.abs(2*u-1),6)),.25),gb=fh(xs)-.15,wbR=wb*sp,wtR=wbR+(wt-wb)*sp*Math.max(0,Hs-gb)/Math.max(.01,Hr-gb),Hc=Math.max(gb,Hs);
+      const half=[[0,Hc+.35],[wtR*.55,Hc+.3],[wtR*.9,Hc+.08],[wtR,Hc-.25],[(wtR+wbR)/2,(Hc-.25+gb)/2],[wbR,gb]],ring=half.slice(1).reverse().map(p=>[-p[0],p[1]]).concat(half);cr.push({ring,seg:seg_,gb});cc[i*3+1]=(gb+Hc)/2*K;cc[i*3+2]=Z(xs);
+      cr[i].P=ring.map(p=>[p[0]*K,p[1]*K,Z(xs)])});
+    const mi=cr.length,mj=cr[0].ring.length,PP=new Float32Array(mi*mj*3);cr.forEach((r,i)=>r.P.forEach((p,j)=>{PP.set(p,(i*mj+j)*3)}));const NN=cgGridNormals(PP,mi,mj,false,cc),cid=[];
+    for(let i=0;i<mi;i++){const row=[];for(let j=0;j<mj;j++){const o=(i*mj+j)*3,c=Math.abs(j-(mj-1)/2),top=cr[i].seg==1&&!(i>0&&cr[i-1].seg==0&&false);let m=glassM;
+        if(c>=4)m=glassM;else if(c==3||c==2&&(cr[i].seg!=1))m=c==3?CGM.gloss:glassM;if(cr[i].seg==1&&c<=2)m=roofM;if(c==3)m=CGM.gloss;
+        row.push(body.v(PP[o],PP[o+1],PP[o+2],NN[o],NN[o+1],NN[o+2],m))}cid.push(row)}
+    for(let i=0;i<mi-1;i++)for(let j=0;j<mj-1;j++)body.q(cid[i][j],cid[i+1][j],cid[i+1][j+1],cid[i][j+1]);
+    /* pillars: dark bars up the edges of the windscreen and the rear glass, mirrors at the base of the windscreen */
+    for(const sd of[-1,1]){if(!d.bus)cgBox(body,sd*(wb+.6)*K,(fh(x1)+1.3)*K,Z(x1-1),.05,.035,.08,CGM.gloss,0)}
+    roofH=H;cowlX=x1;roofRX=t0}
+  /* lamps, indicators, grille, plates: they sit on the rounded nose and tail */
+  const surf=(sg,lat)=>{const xe=sg>0?xe1:xe0,we=Math.max(.1,fw(sg>0?xe1-rl:xe0+rl)),u=Math.min(1,Math.abs(lat)/we),t=Math.pow(Math.max(0,1-u*u*u),1/3);return sg>0?xe-rl+rl*t:xe+rl-rl*t};
+  const front=xe1-rl*.5,rear=xe0+rl*.5,wf=fw(front),wr=fw(rear),hf=fh(xe1-rl),hr=fh(xe0+rl),ly=y0+(hf-y0)*.66,ty=y0+(hr-y0)*.7;
+  const lamp=(sg,lat,y,hx,hy,m)=>{const x=surf(sg,lat)+(sg>0?-.06:.06);cgBox(body,lat*K,y*K,Z(x),hx*K,hy*K,.05,m,0)};
+  for(const s of[-1,1]){const hd=d.hd||'r',tl=d.tl||'r';
+    if(hd=='s')lamp(1,s*wf*.62,ly+.4,wf*.22,.22,CGM.head);else if(hd=='w')lamp(1,s*wf*.64,ly,wf*.2,.55,CGM.head);else{lamp(1,s*wf*.72,ly,.55,.55,CGM.head);lamp(1,s*wf*.5,ly,.45,.45,CGM.head)}
+    lamp(1,s*wf*.86,ly-.75,.4,.2,CGM.amber);
+    if(tl!='b'){if(tl=='s')lamp(-1,s*wr*.66,ty,wr*.2,.22,CGM.tail);else if(tl=='w')lamp(-1,s*wr*.64,ty,wr*.18,.6,CGM.tail);else{lamp(-1,s*wr*.74,ty,.55,.55,CGM.tail);lamp(-1,s*wr*.52,ty,.5,.5,CGM.tail)}}}
+  if((d.tl||'r')=='b')lamp(-1,0,ty,wr*.82,.24,CGM.tail);
+  lamp(1,0,y0+(hf-y0)*.28,wf*.36,Math.max(.35,(hf-y0)*.12),CGM.grille);lamp(1,0,y0+1.5,1.6,.4,CGM.plate);lamp(-1,0,y0+1.7,1.6,.4,CGM.plate);
+  if(d.bus){/* a bus: a dark band of side windows is in the cabin; add a destination board and doors on the right side */lamp(1,0,roofH-1.6,wf*.6,.7,CGM.amber);
+    for(const xd of[xe1-6,xc-2])cgBox(body,(fw(xd)+.02)*K,(y0+12.5)*K,Z(xd),.01,.95,.55,CGM.gloss,0)}
+  /* wheels: the game's own (tyre, rim, spokes, disc, caliper), one per axle; the track puts the tyre's outer face at the body side */
+  const wl=WL.map(q=>{const R=q.R*K,w=Math.min(.34,q.w*K*1.1);return{R,w,rim:Math.max(.12,R*Math.min(.8,q.hr+.08)),tf:Math.max(.5,fw(q.x)*K-w*.75),z:Z(q.x)}});
+  const lw=2,wF=cgWheel(wl[0].R,wl[0].w,wl[0].rim,5,'spoke',null,lw,1),wR=cgWheel(wl[1].R,wl[1].w,wl[1].rim,5,'spoke',null,lw,1);
+  const L=(xe1-xe0)*K,Wd=2*Math.max(...st.map(s=>s[1]))*K,S={L,W:Wd,H:roofH*K,wb:(W.fx-W.rx)*K,fo:(xe1-W.fx)*K,fz:wl[0].z,rz:wl[1].z,rf:wl[0].R,rr:wl[1].R,wf:wl[0].w,wr:wl[1].w,tf:wl[0].tf,tr:wl[1].tf,
+    cowl:(xe1-cowlX)*K,roofR:(xe1-roofRX)*K,roofF:(xe1-cowlX)*K+.3,zs:s=>-L/2+s,_parts:{},cc:key,
+    _lights:{hx:wf*.62*K,hy:ly*K-.12,hz:Z(surf(1,wf*.62))-.02,tx:wr*.66*K,ty:ty*K-.12,tz:Z(surf(-1,wr*.66))+.02}};
+  S.curves={half:s=>fw(xe1-s/K)*K};
+  return{S,body,wheelF:wF,wheelR:wR}}
+/* the low-poly far body of a design for the traffic (5 sections, TRSHAPE format: z front +, bottom, shoulder, roof, half widths) */
+function ccFar(key){const d=CC_DES[key],K=.1,st=d.st,y0=(d.y0||2.6)*K,fw=cgCurve(st.map(s=>[s[0],s[1]])),fh=cgCurve(st.map(s=>[s[0],s[2]])),xe0=st[0][0],xe1=st[st.length-1][0],xc=(xe0+xe1)/2,cb=d.cb||[0,0,0,0,0,0,0],op=d.op;
+  const xs=op?[xe1,xe1-(xe1-xe0)*.2,xe0+(xe1-xe0)*.5,xe0+(xe1-xe0)*.2,xe0]:[xe1,cb[1],cb[3],cb[2],cb[0],xe0].filter((v,i,a)=>i==0||Math.abs(v-a[i-1])>.5).sort((a,b)=>b-a);
+  const sec=xs.map(x=>{const inR=!op&&x<=cb[3]+.01&&x>=cb[2]-.01,top=inR?cb[4]*K:fh(x)*K;return[(x-xc)*K,y0,fh(x)*K,top,fw(x)*K*.96,inR?cb[6]*K:fw(x)*K*.86]});
+  return{gz:[(cb[0]-xc)*K,(cb[1]-xc)*K],wheel:(Array.isArray(d.wh.r)?d.wh.r[0]:d.wh.r)*K,sec}}
+/* the Close Call cars you can drive: their working names end in "CC" (the final names are to be picked). The driving figures come from the kind of car each one is. */
+const CC_REAL={coupe:{hp:260,kg:1300,drive:'FR',top:240,t100:5.8,lat:.92,brk:37},hyper:{hp:900,kg:1300,drive:'MR',top:350,t100:2.4,lat:1.25,brk:31},gt:{hp:600,kg:1700,drive:'FR',top:315,t100:3.5,lat:1.02,brk:35},
+  super:{hp:640,kg:1450,drive:'MR',top:325,t100:2.9,lat:1.15,brk:32},sport:{hp:450,kg:1450,drive:'FR',top:300,t100:3.9,lat:1.05,brk:34},roadster:{hp:330,kg:1150,drive:'FR',top:260,t100:4.4,lat:1.0,brk:35},
+  rally:{hp:380,kg:1350,drive:'AWD',top:250,t100:3.6,lat:1.0,brk:35},sedan:{hp:300,kg:1600,drive:'RWD',top:250,t100:5.5,lat:.9,brk:38},muscle:{hp:480,kg:1700,drive:'FR',top:280,t100:4.3,lat:.95,brk:37},
+  hatch:{hp:230,kg:1250,drive:'AWD',top:240,t100:5.6,lat:.95,brk:36},suv:{hp:400,kg:2200,drive:'AWD',top:240,t100:5.3,lat:.85,brk:39}};
+const CC_CLS={coupe:'Compact coupe',hyper:'Hypercar',gt:'Grand tourer',super:'Supercar',sport:'Sports coupe',roadster:'Roadster',rally:'Rally hatch',sedan:'Saloon',muscle:'Muscle car',hatch:'Hot hatch',suv:'Off-roader'};
+for(const key of Object.keys(CC_DES)){const d=CC_DES[key];if(d.ty=='bus'||key=='t_cop')continue;const S=ccBuild(key,{lo:1}).S;
+  CAR_ROSTER.push({id:'cc_'+key,name:d.n+' CC',cls:CC_CLS[d.ty]+'  (from Close Call, working name)',cc:key,paint:d.col.slice(),rim:[190,194,200],caliper:[205,28,28],
+    spec:{L:S.L,W:S.W,H:S.H,wb:S.wb,cowl:S.cowl,roofR:S.roofR},real:Object.assign({},CC_REAL[d.ty])})}
+/* the civilian traffic bodies ported from Close Call (TTYPES 10 and up): sizes from their bodies */
+for(const k of['coupe','n_cruiser','n_magnet','n_courier','n_bruiser','n_banker','rally','h_warden','gt','h_outlaw']){const S=ccBuild(k,{lo:1}).S,ty=CC_DES[k].ty;
+  TTYPES.push({n:'cc_'+k,cc:k,hl:S.L/2-.05,hw:S.W/2-.04,m:ty=='suv'?2100:ty=='hatch'?1150:1450,far:ty=='suv'?2:ty=='hatch'||ty=='rally'?1:0,v0:ty=='muscle'||ty=='gt'?1.05:1,civ:1})}
 
 'use strict';
 /* ===== boot: generate the county, upload it, then run the loop ===== */
