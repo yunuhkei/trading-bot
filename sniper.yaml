@@ -2,7 +2,7 @@
 # buys, straight on pump.fun, and sells when the lab sells. The lab re-reads this file every 5 minutes, so setting
 # `live: false` stops new buys within about 5 minutes (whatever it holds is still sold as usual).
 sniper:
-  live: true                     # on, but only in live_hours and only when the owner's condition below is met
+  live: false                     # OFF: practice only (the super-bot-brain work); the owner turns it back on
   per_trade: 25                  # dollars a trade
   max_open: 3                    # coins held at once
   budget: 80                     # its starting money: $80 - this morning's $27.90 loss = $52.10, about what's in the wallet

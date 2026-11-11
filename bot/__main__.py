@@ -424,6 +424,9 @@ def main(argv=None):
     ka = sub.add_parser("kalshi", help="Kalshi bot: weather markets + arbitrage (settings: kalshi.yaml)")
     ka.add_argument("--settings", default="kalshi.yaml")
     ka.add_argument("--status", action="store_true", help="print every strategy's saved record (reads only)")
+    br = sub.add_parser("brain", help="practice: the super bot's brain report from the research log (reads only)")
+    br.add_argument("--live", default=None, help="write the running lab's approvals to this file instead")
+    br.add_argument("--weekly", action="store_true", help="send the short weekly summary to the phone")
     ll = sub.add_parser("launch-lab", help="practice: every pump.fun coin live, 1-second charts, many strategies")
     ll.add_argument("--minutes", type=float, default=340)
     ll.add_argument("--status", action="store_true", help="print each strategy's record")
@@ -510,6 +513,21 @@ def main(argv=None):
                f"spotting it), sold it {args.hold:g} s later: {res['result_usd']:+.4f} dollars after all fees."
                if res.get("outcome") == "ok" else res.get("outcome"))
         tell("🎯 Sniper check (real money)", msg)
+    elif args.cmd == "brain":
+        from pathlib import Path as _P
+
+        from .brain import main as brain_main
+        if args.weekly:
+            from .brain import weekly
+            from .signals import alert_target, notify
+
+            text = weekly()
+            print(text, flush=True)
+            target = alert_target()
+            if target:
+                notify(target, "🧠 Super bot brain: the week (practice)", text, buy=True, tag="bar_chart")
+        else:
+            brain_main(live_path=_P(args.live) if args.live else None)
     elif args.cmd == "launch-lab":
         cmd_launch_lab(args, cfg)
     elif args.cmd == "callouts":

@@ -1,0 +1,15 @@
+# The super bot's brain (bot/brain.py): the strict test a strategy must pass before the practice super bot "brain"
+# trades it. Conservative on purpose: "nothing qualifies" is an acceptable answer. Practice only.
+brain:
+  cost: 0.035          # a real round trip's cost as a share of a trade (pump.fun fees, network, slippage)
+  extra_cost: 0.005    # taken off the lab's results (they include the lab's fees; real prices were ~0.5 point worse)
+  target: 0.02         # profit per trade after fees: its lower confidence bound must beat +2%
+  min_trades: 100      # at least this many trades in the window
+  min_days: 3          # over at least this many different days
+  day_share: 0.70      # the same direction (profit) on at least 70% of days with 5+ trades
+  alpha: 0.05          # 95% confidence, before the correction for how many windows were tested
+  min_oos_trades: 30   # and positive on 30+ trades from later days it never saw (walk-forward, day by day)
+  drop_recent: 50      # dropped if its last 50 trades fall clearly below what it showed
+  bootstrap: 300       # resamples (by hour blocks) for the confidence bounds
+  slots: 6             # six 10-minute slots per hour
+  hour_groups: [[0, 6], [6, 12], [12, 18], [18, 24]]   # Milwaukee time: night, morning, afternoon, evening

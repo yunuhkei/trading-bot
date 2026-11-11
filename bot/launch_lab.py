@@ -57,7 +57,7 @@ WINDOW, WINDOW_LABEL = (11 * 60, 15 * 60 + 40), "11a-3:40p"
 # the super bot turns a strategy on for an hour when, in that same hour on EARLIER days (never today), it has
 # 2+ days of trades, 20+ trades in all, a profit overall, and a profit on more than half of those days
 SUPER_DAYS, SUPER_TRADES, KEEP_DAYS = 2, 20, 35
-SUPER = ("timing", "streak")  # $1,000 and $250 trades like the rest; real money later at $100 is about a tenth
+SUPER = ("timing", "streak", "brain")  # $1,000 and $250 trades like the rest; real money later at $100 is about a tenth
 STREAK_S, STREAK_TRADES = 1800, 5     # super bot 2: a strategy is hot when it made money in its last 30 min (5+ trades)
 COOLED = 3                            # ...and it's dropped the moment its last 3 trades all lost (good stretches end fast)
 SIGN_EVERY = 300                      # the market-signs log: one row every 5 minutes, kept for KEEP_DAYS
@@ -102,7 +102,13 @@ STRATEGIES = {
     "timing": {"label": "Super bot (each strategy only at its best hours)", "max_s": 900},
     # copies the strategies that are winning right now: made money in the last 30 minutes (see streak_on)
     "streak": {"label": "Super bot 2 (copies what's winning right now)", "max_s": 900},
+    # PRACTICE: trades only what passed the strict test in bot/brain.py (an approved strategy-and-time window, or a
+    # coin the approved coin model picked); otherwise it sits out and says why
+    "brain": {"label": "Super bot 3, the brain (only what passed the strict test)", "max_s": 900},
 }
+# how the brain sells a coin its coin model picked (the fixed trade the model was tested on: +50%, -35%, 30 minutes)
+BRAIN_MODEL_RULES = {"label": "the coin model's pick", "tp": 0.5, "sl": 0.35, "max_s": 1740}
+BRAIN_LIVE = Path("brain_live.pkl")
 
 # more versions for the super bot to choose from: the same buy signals with other ways out. They're ghost-only (no
 # pretend account of their own, just a record), so the report stays short.
@@ -251,6 +257,8 @@ def decode(line: str) -> dict | None:
                 out.append(raw[o + 4:o + 4 + n].decode("utf-8", "replace"))
                 o += 4 + n
             ev = {"kind": "create", "name": out[0], "symbol": out[1], "mint": b58(raw[o:o + 32])}
+            if len(raw) >= o + 128:                    # then bonding curve, user, creator
+                ev["user"], ev["creator"] = b58(raw[o + 64:o + 96]), b58(raw[o + 96:o + 128])
             if len(raw) >= o + 200:                    # then bonding curve, user, creator, 5 numbers, token program
                 ev["token_program"] = b58(raw[o + 168:o + 200])
             if len(raw) > o + 200:                     # then is_mayhem_mode
@@ -443,6 +451,14 @@ class Lab:
         self._direct_state = state.get("direct")
         self.sniper = None                                # the sniper (REAL money, bot/sniper.py), set by run()
         self._sniper_state = state.get("sniper")
+        self.clog = None                                  # the super bot's research log (bot/coin_log.py), set by run()
+        self._clog_state = state.get("clog")
+        # the brain's current approvals (bot/brain.py, refreshed every few hours from the research log) and what it
+        # sat out: until something passes the strict test, nothing is approved and it trades nothing
+        self.brain = {"approved": set(), "model": None, "cut": None, "model_ok": False, "at": None,
+                      "note": "not checked yet"}
+        self.brain_sat: deque = deque(maxlen=200_000)
+        self._sat_n = 0                                   # sit-outs since the last 5-minute signs row
         self._streak: tuple = (-1e18, [])
         # market signs every 5 minutes, to find out later what shows up before a good stretch
         self.signs: list = state.get("signs") or []
@@ -519,9 +535,52 @@ class Lab:
                     if sk != "timing" or self.plan["mode"] == "plan":    # in practice mode its money sits still
                         self._buy(self.accts[sk], mint, now, why2, via=key)
                     self._buy(self.ghosts[sk], mint, now, why2, via=key)
+            if self.brain_ok(key, now):
+                why3 = f"{STRATEGIES[key]['label']}: {why} (passed the strict test)"
+                self._buy(self.accts["brain"], mint, now, why3, via=key)
+                self._buy(self.ghosts["brain"], mint, now, why3, via=key)
+            else:
+                self.brain_sat.append(now)
+                self._sat_n += 1
             self._buy(self.ghosts[key], mint, now, why)
         if key in self.accts:
             self._buy(self.accts[key], mint, now, why)
+
+    def brain_ok(self, key: str, now: float) -> bool:
+        """Is this strategy approved right now (overall, in this 10-minute slot of the hour, or this group of hours)?"""
+        ap = self.brain["approved"]
+        if not ap:
+            return False
+        from .brain import DEFAULTS, hour_group
+        cfg = self.brain.get("cfg") or DEFAULTS
+        lt = local_time(now)
+        return any(f"{key}|{w}" in ap for w in ("all", f"slot{lt.minute * cfg['slots'] // 60}",
+                                                 f"hours{hour_group(lt.hour, cfg)}"))
+
+    def brain_coin(self, tr, now: float):
+        """A coin's first minute is in: if the coin model passed the strict test and picks it, the brain buys."""
+        b = self.brain
+        if not b.get("model_ok") or b.get("model") is None or tr.mayhem or tr.mint in self.mayhem:
+            return
+        from .brain import F60, features
+        row = {"s60": tr.snaps.get(60), "s10": tr.snaps.get(10), **tr.ctx, "f0": tr.f0}
+        p = float(b["model"].predict_proba([features(row, F60)])[0, 1])
+        if p >= b["cut"]:
+            why = f"the coin model's pick ({p:.0%} chance)"
+            self._buy(self.accts["brain"], tr.mint, now, why, via="model")
+            self._buy(self.ghosts["brain"], tr.mint, now, why, via="model")
+
+    def brain_line(self, now: float) -> str:
+        a, g = self.accts["brain"], self.ghosts["brain"]
+        took = [t for t in g.trades if now - (t["t"] + t["s"]) <= 3600]
+        sat = sum(1 for t in self.brain_sat if now - t <= 3600)
+        ap, b = self.brain["approved"], self.brain
+        state = (f"{len(ap)} approved window(s)" if ap else "nothing has passed the strict test yet") + (
+            "; the coin model passed" if b.get("model_ok") else "")
+        if took:
+            return (f"• Super bot 3, the brain (practice): {len(took)} trades this hour, "
+                    f"{sum(t['profit'] for t in took):+,.0f}; account ${self.value(a):,.0f} ({state}).")
+        return f"• Super bot 3, the brain (practice): sat out ({sat:,} signals): {state}. Account ${self.value(a):,.0f}."
 
     def signal(self, family: str, mint: str, now: float, why: str, keep=lambda rules: True):
         """A buy signal goes to every strategy of that family (whose settings `keep` accepts)."""
@@ -534,7 +593,9 @@ class Lab:
             a.cash += CASH                                              # a ghost never runs out: it only keeps score
         if not a.can_buy(mint):
             return
-        a.pending[mint] = {"side": "buy", "at": now + self.lb, "why": why, "signal": now, "via": via}
+        a.pending[mint] = {"side": "buy", "at": now + self.lb, "why": why, "signal": now, "via": via,
+                           "ctx": self.clog.bet_ctx(now, self.coins.get(mint)) if self.clog is not None and a.ghost
+                           else None}
         a.cash -= a.per_trade                                           # reserved
         for sh in (self.fast, self.direct, self.sniper):
             if sh and a.ghost and a.key == FAST_WATCH:
@@ -561,7 +622,7 @@ class Lab:
                 a.positions[coin.mint] = {"tokens": tok, "net": sol_in * (1 - coin.fee), "cost": a.per_trade, "t": now,
                                           "entry": coin.price,
                                           "peak": coin.price, "why": o["why"], "lag": round(now - o["signal"], 2),
-                                          "via": o.get("via"),
+                                          "via": o.get("via"), "ctx": o.get("ctx"),
                                           "name": self.names.get(coin.mint, coin.mint[:6])}
             p = a.positions.get(coin.mint)
             if p and p.get("selling") and (now >= p["selling"]["at"] or stale):
@@ -591,6 +652,12 @@ class Lab:
             del a.trades[:-1000]
         a.trades.append({"t": round(p["t"]), "s": round(now - p["t"], 1), "name": p["name"], "mint": coin.mint,
                          "profit": round(profit, 2), "why_in": p["why"], "why_out": why, "lag": p["lag"]})
+        if self.clog is not None and a.ghost:            # every ghost bet, with the market when it was signalled
+            row = {"k": a.key, "t": round(p["t"]), "f": p["lag"], "s": round(now - p["t"], 1),
+                   "r": round(profit / p["cost"], 4), "m": coin.mint[:12], "x": why[:16], **(p.get("ctx") or {})}
+            if why == "the run ended":
+                row["e"] = 1
+            self.clog.bet(row)
 
     # strategies, checked on every trade of a coin
     def on_trade(self, now: float, coin: Coin, t: dict):
@@ -645,7 +712,8 @@ class Lab:
             p = a.positions.get(coin.mint)
             if not p or p.get("selling"):
                 continue
-            rules, ch = STRATEGIES[p.get("via") or a.key], px / p["entry"] - 1 if p["entry"] else 0.0
+            rules = BRAIN_MODEL_RULES if p.get("via") == "model" else STRATEGIES[p.get("via") or a.key]
+            ch = px / p["entry"] - 1 if p["entry"] else 0.0
             p["peak"] = max(p["peak"], px)
             why = None
             if "tp" in rules and ch >= rules["tp"]:
@@ -789,6 +857,8 @@ class Lab:
 
     def event(self, now: float, e: dict):
         self.events += 1
+        if self.clog is not None:
+            self.clog.on_event(now, e)
         self.watch(now, e)
         if e.get("mayhem"):
             self.mayhem.add(e["mint"])
@@ -843,6 +913,9 @@ class Lab:
                            "coins": len(self.coins), "sol_usd": round(self.sol_usd, 2),
                            "up_share": self.up_share(w),
                            "fam": {k: [v[0], round(v[1], 1)] for k, v in w["fam"].items()}})
+        if self.clog is not None and self._sat_n:         # what the brain sat out, for the reports
+            self.clog.bet({"k": "_sat", "t": round(w["start"]), "n": self._sat_n})
+            self._sat_n = 0
         cut = now - KEEP_DAYS * 86400
         while self.signs and self.signs[0]["t"] < cut:
             self.signs.pop(0)
@@ -852,6 +925,8 @@ class Lab:
     def tick(self, now: float):
         """Every second: time-based exits and orders on coins that went quiet; forget old coins; the signs log."""
         self.log_signs(now)
+        if self.clog is not None:
+            self.clog.tick(now)
         for c in list(self.coins.values()):
             busy = any(c.mint in a.positions or c.mint in a.pending for a in self.books())    # ghosts too
             if busy:
@@ -967,6 +1042,7 @@ class Lab:
                          f"{sum(t['profit'] for t in last_hour(g2)):+,.0f} this hour.")
         elif g2:
             lines.append(f"• Super bot 2 (copies what's hot): ${self.value(s2):,.0f}, {s2.pnl:+,.0f} so far.")
+        lines.append(self.brain_line(now))
 
         # the strategies, and the ones that keep winning the same hour
         pnl = {}
@@ -1055,7 +1131,8 @@ class Lab:
                 "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs, "clean_since": self.clean_since,
                 "marks_reset": True, "fast": self.fast.to_state() if self.fast else self._fast_state,
                 "direct": self.direct.to_state() if self.direct else self._direct_state,
-                "sniper": self.sniper.to_state() if self.sniper else self._sniper_state}
+                "sniper": self.sniper.to_state() if self.sniper else self._sniper_state,
+                "clog": self.clog.to_state() if self.clog is not None else self._clog_state}
 
     def ghost_state(self) -> dict:
         out = {}
@@ -1083,7 +1160,8 @@ class Lab:
                 "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs, "clean_since": self.clean_since,
                 "marks_reset": True, "fast": self.fast.to_state() if self.fast else self._fast_state,
                 "direct": self.direct.to_state() if self.direct else self._direct_state,
-                "sniper": self.sniper.to_state() if self.sniper else self._sniper_state}
+                "sniper": self.sniper.to_state() if self.sniper else self._sniper_state,
+                "clog": self.clog.to_state() if self.clog is not None else self._clog_state}
 
 
 async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180,
@@ -1102,6 +1180,9 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
         for mint in list(lab.sniper.open):                  # anything left from a run that was killed: sell it now
             lab.sniper.queue.append(("sell", mint, time.time(), "left from the last run"))
     sniper_task = asyncio.create_task(lab.sniper.run(sniper_session, end)) if lab.sniper else None
+    sol_task = (asyncio.create_task(lab.clog.poll_sol(fast_session, end))
+                if lab.clog is not None and fast_session else None)
+    brain_task = asyncio.create_task(brain_loop(lab, end)) if lab.clog is not None else None
     while time.time() < end:
         try:
             async with aiohttp.ClientSession() as s:
@@ -1140,6 +1221,8 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
                                 from .sniper import config as sniper_config
                                 lab.sniper.cfg = sniper_config()
                             peek(lab, now)
+                            if lab.clog is not None:
+                                lab.clog.flush(now)
                             try:
                                 STATE.write_text(json.dumps(lab.snapshot()))
                             except Exception as ex:
@@ -1154,6 +1237,9 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
         except Exception as e:
             log.warning("feed dropped (%s); reconnecting", e)
             await asyncio.sleep(3)
+    for t in (sol_task, brain_task):
+        if t:
+            t.cancel()
     shadows = [t for t in (fast_task, direct_task) if t]
 
     async def sniper_end():                                 # real money first: never kept waiting for practice
@@ -1170,6 +1256,39 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
     await asyncio.gather(sniper_end(), shadows_end())
     if fast_session:
         await fast_session.close()
+
+
+def load_brain(lab: "Lab", path: Path = BRAIN_LIVE) -> bool:
+    """Puts the brain's latest approvals (written by `python -m bot brain --live`) into the lab."""
+    import pickle
+
+    try:
+        with open(path, "rb") as f:
+            d = pickle.load(f)                         # written by this repo's own code, never downloaded
+    except Exception as ex:
+        lab.brain["note"] = f"couldn't load its approvals: {type(ex).__name__}"
+        return False
+    lab.brain.update(approved=set(d.get("approved") or []), model=d.get("model"), cut=d.get("cut"),
+                     model_ok=bool(d.get("model_ok")), at=d.get("at"), note=d.get("note", ""), cfg=d.get("cfg"))
+    return True
+
+
+async def brain_loop(lab: "Lab", end: float, every: float = 3 * 3600):
+    """Every 3 hours: work out the brain's approvals from the research log, in a separate process (it reads every
+    file, and the lab mustn't slow down meanwhile)."""
+    import sys
+
+    while time.time() < end:
+        try:
+            proc = await asyncio.create_subprocess_exec(sys.executable, "-m", "bot", "brain", "--live", str(BRAIN_LIVE),
+                                                        stdout=asyncio.subprocess.DEVNULL,
+                                                        stderr=asyncio.subprocess.DEVNULL)
+            await asyncio.wait_for(proc.wait(), timeout=1800)
+            if proc.returncode == 0:
+                load_brain(lab)
+        except Exception as ex:                          # the brain never stops the lab
+            log.warning("brain: refreshing its approvals failed: %s", ex)
+        await asyncio.sleep(every)
 
 
 PEEK_TOPIC = "tbot-launch-lab-" + hashlib.sha256(b"yunuhkei/trading-bot launch lab").hexdigest()[:12]
@@ -1242,6 +1361,9 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
             "sniper": lab.sniper.to_state()}))
         print(lab.fast.line(), lab.direct.line(), lab.sniper.line(), sep="\n", flush=True)
         return
+    from .coin_log import CoinLog
+    lab.clog = CoinLog(state.get("clog"))
+    lab.clog.on_snap = lab.brain_coin                   # a coin's first minute is in: the brain's coin model looks
     import signal
 
     def stop(*_):                                       # a cancelled job still saves the accounts
@@ -1254,6 +1376,7 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
         pass
     finally:
         STATE.write_text(json.dumps(lab.to_state()))
+        lab.clog.close()                                # coins still being followed are written as they stand
         if lab.sniper and lab.sniper.open and lab.sniper.kp:    # stopped mid-run: try to sell what the sniper holds
             try:
                 asyncio.run(asyncio.wait_for(_sell_now(lab.sniper), 9))

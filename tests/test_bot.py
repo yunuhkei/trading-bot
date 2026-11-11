@@ -3956,3 +3956,371 @@ def test_sniper_last_sale_try_keeps_a_floor_and_practice_skips_network_failures(
     assert not ll.sane(usdc)
     later = {"kind": "trade", "mint": "Q1", "sol": 0.1, "vsol": 30.0, "vtok": 1e9, "real_sol": 0.1}
     assert not ll.sane(later)                             # a later trade of it that can't be read the same way
+
+
+def test_sniper_skips_a_buy_with_no_price_to_protect_it():
+    import asyncio
+
+    from solders.keypair import Keypair
+
+    from bot import sniper as sn
+
+    kp = Keypair()
+    s = sn.Sniper(kp, sol_usd=100.0, cfg={**sn.DEFAULTS, "live": True})
+    s.program_of = lambda m: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+    s.curve = lambda m, lam: None                         # the lab has no price for this coin
+    session, calls = _fake_chain(str(kp.pubkey()), "M", [0], [0])
+    asyncio.run(s.buy(session, "M", 0.0))
+    assert "sendTransaction" not in calls and s.stats == {"buy skipped: no price to protect it": 1}
+    assert "M" not in s.unconfirmed and not s.busy
+
+
+def _coin_events(mint="MINT", creator="CREATOR"):
+    """A launch at t=1000, then trades: (time, vsol, vtok in tokens, sol, buy, user)."""
+    return {"kind": "create", "mint": mint, "creator": creator, "user": creator, "symbol": "X", "name": "X"}
+
+
+def test_research_log_snapshots_know_only_the_past_and_outcomes_are_measured_right(tmp_path):
+    from bot import coin_log as cl
+
+    lg = cl.CoinLog(data_dir=tmp_path)
+    lg.on_event(1000.0, _coin_events())
+
+    def tr(t, vsol, sol, buy, user):
+        lg.on_event(t, {"kind": "trade", "mint": "MINT", "vsol": vsol, "vtok": 1e9, "sol": sol, "buy": buy, "user": user})
+    tr(1000.5, 30.0, 0.5, True, "CREATOR")                # the dev buy: price 30/1e9 is e0
+    for i, t in enumerate((1002, 1003, 1004, 1005, 1006)):
+        tr(t, 30.0 + i + 1, 1.0, True, f"W{i}")            # 5 other buyers in 6 s
+    tr(1011, 45.0, 2.0, True, "W9")                        # after the 10-s snapshot: not in it
+    tr(1030, 30.0 * 1.3, 1.0, False, "CREATOR")            # the creator sells
+    lg.tick(1061)                                          # the 60-s snapshot, taken with no trade after 60 s
+    tr(1100, 30.0 * 1.3 * 1.6, 3.0, True, "W10")           # +60% from the 60-s price: crosses +25 and +50 (not +100)
+    tr(1400, 30.0 * 0.5, 2.0, False, "W10")
+    tr(2000, 30.0 * 0.7, 0.1, True, "W11")
+    lg.tick(3000)                                          # quiet 1000 s after its last trade: finished early
+    assert "MINT" not in lg.tracks
+    r = lg.buf["c"][0]
+    assert r["s10"]["n"] == 6 and r["s10"]["u"] == 5 and r["s10"]["t5"] == 6.0 and r["s10"]["dv"] == 0.5
+    assert "cs" not in r["s10"] and r["s60"]["cs"] == 1 and r["s60"]["u"] == 6     # the 11-s buyer shows up at 60 s
+    assert r["e60"] == 1.3 and r["x60"] == {"+25": [40.0, 1.6], "+50": [40.0, 1.6], "-20": [340.0, 0.3846],
+                                            "-35": [340.0, 0.3846]}           # the drop gapped to -62%
+    assert r["f0"] == 0.5
+    assert r["mk"]["5"] == [2.08, 2.08, 2.08]                        # at 5 min: high, low, last (vs e0); the
+    assert r["mk"]["30"] == [2.08, 0.5, 0.7]                         # drop at 6m40s isn't in the 5-min mark
+    assert r["mk"]["60"] == [2.08, 0.5, 0.7]                         # nothing after it went quiet
+    assert r["cs"] == 30.0 and r["N"] == 11 and "cut" not in r
+    assert lg.creators[cl.tag("CREATOR")] == [1, 0, 0]               # its record: 1 finished coin (ended at 0.7x)
+    lg.on_event(4000.0, _coin_events("MINT2"))
+    assert lg.tracks["MINT2"].ctx["cp"] == 1                          # the creator's next launch knows its past
+
+
+def test_research_log_files_round_trip_and_old_ones_are_pruned(tmp_path):
+    import time as _t
+
+    from bot import coin_log as cl
+
+    lg = cl.CoinLog(data_dir=tmp_path)
+    old = tmp_path / "b-2000-01-01.jsonl.gz"
+    tmp_path.mkdir(exist_ok=True)
+    import gzip
+    with gzip.open(old, "wt") as f:
+        f.write('{"t": 1}\n')
+    lg.bet({"k": "snipe", "t": 1_800_000_000, "r": -0.03})
+    lg.flush(1_800_000_000)
+    lg.bet({"k": "snipe", "t": 1_800_000_100, "r": 0.10})
+    lg.flush(1_800_000_100)                               # appended to the same day's file
+    assert not old.exists()
+    rows = cl.read("b", tmp_path)
+    assert [r["r"] for r in rows] == [-0.03, 0.10] and lg.buf["b"] == []
+    lg.on_event(_t.time(), _coin_events("M3"))
+    lg.close()                                            # a run ends: a coin still followed is written, marked cut
+    c = cl.read("c", tmp_path)
+    assert c[0]["m"] == "M3" and "cut" in c[0]
+
+
+def test_lab_logs_every_ghost_bet_with_the_market_at_its_signal(tmp_path):
+    from bot import coin_log as cl
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=100.0)
+    lab.clog = cl.CoinLog(data_dir=tmp_path)
+    t = {"kind": "trade", "mint": "M", "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5, "buy": True,
+         "user": "u0", "fee": 0.0125, "tok": 1e7}
+    lab.event(1000.0, {**_coin_events("M")})
+    lab.event(1000.2, t)
+    g = lab.ghosts["snipe"]
+    assert "M" in g.pending and g.pending["M"]["ctx"]["lr"] == 0.1     # the snipe signal, with its context
+    lab.event(1002.0, {**t, "vsol": 31.0, "user": "u1"})                # filled
+    assert "M" in g.positions
+    c = lab.coins["M"]
+    lab.close(g, c, 1010.0, "test exit")
+    rows = [r for r in lab.clog.buf["b"] if r["k"] == "snipe"]
+    assert rows and rows[0]["m"] == "M" and rows[0]["x"] == "test exit" and "hr" in rows[0] and "mi" in rows[0]
+    assert rows[0]["ag"] == 0.0 and rows[0]["nb"] == 1 and isinstance(rows[0]["r"], float)
+
+
+def test_research_log_errors_never_stop_the_lab(tmp_path):
+    from bot import coin_log as cl
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=100.0)
+    lab.clog = cl.CoinLog(data_dir=tmp_path)
+    lab.clog.tracks = None                                # broken on purpose: every log call now fails
+    t = {"kind": "trade", "mint": "M", "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5, "buy": True,
+         "user": "u0", "fee": 0.0125, "tok": 1e7}
+    lab.event(1000.0, {**_coin_events("M")})
+    lab.event(1000.2, t)
+    lab.tick(1001.0)
+    assert "M" in lab.ghosts["snipe"].pending             # the lab still trades
+    assert lab.clog.stats["error in on_event"] == 2
+
+
+def test_brain_base_rates_count_gains_after_real_costs():
+    from bot import brain
+
+    rows = [{"N": 1, "t": 1},                                                        # never traded after launch
+            {"N": 9, "h1": [1.3, 1.0], "mk": {"5": [1.1, 0.9, 1.0]}, "e60": 1.0},   # +30% high: +25% after 3.5%
+            {"N": 9, "h1": [1.2, 1.0], "mk": {"5": [2.2, 1.0, 2.1]}, "e60": 1.1},   # +120% at 5 min; +100% from 1 min
+            {"N": 9, "h1": [1.0, 0.5], "mk": {"5": [0.6, 0.4, 0.5]}, "e60": 0.5, "my": 1}]
+    b = brain.base_rates(rows, cost=0.035)
+    n = b["normal"]["5"]
+    assert b["coins"] == 4 and b["dead"] == 1 and b["n_mayhem"] == 1 and n["n"] == 2
+    assert n["launch +25%"] == 1.0 and n["launch +100%"] == 0.5 and n["1 min +100%"] == 0.0 and n["1 min +50%"] == 0.5
+    assert n["launch, held: ended up"] == 0.5
+    assert any("normal, within 5 min" in line for line in brain.base_rates_lines(b))
+
+
+def _synthetic_bets(edge_mean=None, noise_mean=-0.05, days=8, strategies=8, seed=1):
+    """Bets for `strategies` noise strategies over `days` days (6 an hour each); if edge_mean is set, strategy "edge"
+    makes that much a trade in minutes :20-:29 only (and the noise elsewhere)."""
+    import datetime
+    import random
+    from zoneinfo import ZoneInfo
+
+    rng = random.Random(seed)
+    base = datetime.datetime(2026, 11, 12, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+
+    def ret(mean):                                         # rare big wins, common small losses, like the lab's
+        win_p = (mean + 0.07) / 0.45                       # win +38%, lose -7%: mean = p*0.38 - (1-p)*0.07
+        return 0.38 if rng.random() < win_p else -0.07
+    keys = [f"s{i}" for i in range(strategies)] + (["edge"] if edge_mean is not None else [])
+    out = []
+    for d in range(days):
+        for hr in range(24):
+            for k in keys:
+                for _ in range(6):
+                    mi = rng.randrange(60)
+                    m = edge_mean if (k == "edge" and 20 <= mi < 30) else noise_mean
+                    out.append({"k": k, "t": base + d * 86400 + hr * 3600 + mi * 60 + rng.random() * 59,
+                                "mi": mi, "hr": hr, "r": round(ret(m), 4)})
+    return out
+
+
+def test_brain_finds_the_one_real_edge_and_approves_no_noise():
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    tm = brain.timing_map(_synthetic_bets(edge_mean=0.12), cfg)
+    assert tm["approved"] == ["edge|slot2"]                 # found, and nothing else
+    w = tm["windows"]["edge|slot2"]
+    assert w["lb"] > cfg["target"] and w["oos_n"] >= cfg["min_oos_trades"] and w["oos_mean"] > 0
+    assert not tm["windows"]["edge|all"]["ok"]              # the strategy overall still loses
+    assert any("Approved: Edge" in line or "Approved: edge" in line for line in brain.timing_lines(tm, cfg))
+
+
+def test_brain_rejects_noise_right_at_the_target_and_shuffled_time_kills_the_edge():
+    import random
+
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    flat = brain.timing_map(_synthetic_bets(noise_mean=0.02, days=10, seed=2), cfg)
+    assert flat["approved"] == []                          # +2% true edge everywhere: never "beats" +2%
+    bets = _synthetic_bets(edge_mean=0.12, seed=3)
+    rng = random.Random(4)
+    minutes = [b["mi"] for b in bets]
+    rng.shuffle(minutes)                                   # a lookahead check: with the times scrambled, a timing
+    for b, m in zip(bets, minutes):                        # edge must vanish
+        b["mi"] = m
+    assert brain.timing_map(bets, cfg)["approved"] == []
+    assert any("Approved: none" in line for line in brain.timing_lines(flat, cfg))
+
+
+def test_brain_takes_real_fees_off_and_ignores_run_end_and_super_bot_bets():
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    rows = brain.usable_bets([{"k": "snipe", "t": 1_794_500_000, "mi": 5, "hr": 3, "r": 0.023},
+                              {"k": "snipe", "t": 1_794_500_000, "mi": 5, "hr": 3, "r": 0.5, "e": 1},
+                              {"k": "brain", "t": 1_794_500_000, "mi": 5, "hr": 3, "r": 0.5}], cfg)
+    assert len(rows) == 1 and round(rows[0]["ret"], 4) == 0.018 and rows[0]["day"]
+
+
+def _synthetic_coins(signal=True, days=8, per_day=600, seed=5):
+    import datetime
+    import random
+    from zoneinfo import ZoneInfo
+
+    rng = random.Random(seed)
+    base = datetime.datetime(2026, 11, 12, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    out = []
+    for d in range(days):
+        for i in range(per_day):
+            buyers = rng.randrange(1, 40)
+            top = rng.random()
+            p_win = (0.75 if buyers >= 30 else 0.08) if signal else 0.15
+            win = rng.random() < p_win
+            crash = (not win) and rng.random() < (0.8 if (signal and top > 0.7) else 0.3)
+            lo30 = 0.3 if crash else 0.7
+            hr = rng.randrange(24)
+            out.append({"m": f"C{d}-{i}", "t": base + d * 86400 + hr * 3600 + rng.random() * 3500, "hr": hr, "N": 20,
+                        "e60": 1.0, "s60": {"n": buyers + 3, "u": buyers, "top": round(top, 3), "bs": buyers * 0.3},
+                        "s10": {"n": 2, "u": 1}, "x60": ({"+50": [120.0, 1.5]} if win else {"-35": [200.0, lo30]}),
+                        "mk": {"5": [1.1, 0.8, 0.9], "30": [1.5 if win else 1.0, lo30, 1.2 if win else lo30]},
+                        "h1": [1.0, 0.9 if not crash else 0.45]})
+    return out
+
+
+def test_brain_coin_model_finds_a_real_first_minute_signal_and_rejects_noise():
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    m = brain.coin_model(_synthetic_coins(signal=True), cfg)
+    assert m["ok"] and m["lift"] > 2.5 and m["mean"] > 0.05 and m["picked"] >= 100
+    assert m["calibration"] and m["calibration"][-1][2] > 0.4      # high predictions really won more often
+    n = brain.coin_model(_synthetic_coins(signal=False, seed=6), cfg)
+    assert not n["ok"] and (n.get("lift") or 1.0) < 1.6             # nothing to find: nothing approved
+
+
+def test_brain_rug_filter_reports_what_it_catches_and_what_it_costs():
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    coins = _synthetic_coins(signal=True)
+    rf = brain.rug_filter(coins, [], cfg)
+    o = rf["one_minute"]
+    assert o["rugs_caught"] > o["winners_lost"] and o["flagged"] > 0
+    lines = brain.model_lines(brain.coin_model(coins, cfg), rf)
+    assert any(line.startswith("Coin model (tested only on days it never saw)") for line in lines)
+    assert any(line.startswith("Rug filter at 1 minute") for line in lines)
+    assert brain.trade_60({"e60": 1.0, "x60": {"-35": [50.0, 0.1]}}, 0.035) < -0.89      # a gap down counts in full
+
+
+def test_brain_super_bot_sits_out_unless_a_window_is_approved(tmp_path):
+    from bot import launch_lab as ll
+
+    def fresh_coin(lab, mint, t0):
+        lab.event(t0, {"kind": "trade", "mint": mint, "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5,
+                       "buy": True, "user": "u0", "fee": 0.0125, "tok": 1e7})
+    lab = ll.Lab(sol_usd=100.0)
+    fresh_coin(lab, "A", 1000.0)
+    assert "A" in lab.ghosts["snipe"].pending                         # the paper bots trade everything
+    assert "A" not in lab.accts["brain"].pending and "A" not in lab.ghosts["brain"].pending
+    assert len(lab.brain_sat) > 0 and "sat out" in lab.brain_line(1001.0)
+    lab.brain["approved"] = {"snipe|all"}                             # once a window passes the strict test
+    fresh_coin(lab, "B", 1002.0)
+    assert lab.accts["brain"].pending["B"]["via"] == "snipe" and "B" in lab.ghosts["brain"].pending
+    lab.brain["approved"] = {"snipe|slot5"}                           # approved only in minutes :50-:59
+    import datetime
+    from zoneinfo import ZoneInfo
+    t = datetime.datetime(2026, 11, 12, 3, 15, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    fresh_coin(lab, "C", t)
+    assert "C" not in lab.accts["brain"].pending
+
+
+def test_brain_buys_the_coin_models_pick_only_once_the_model_passed(tmp_path):
+    from bot import coin_log as cl
+    from bot import launch_lab as ll
+
+    class Sure:                                                        # a stand-in model: always 90%
+        def predict_proba(self, X):
+            import numpy as np
+            return np.array([[0.1, 0.9] for _ in X])
+    lab = ll.Lab(sol_usd=100.0)
+    lab.clog = cl.CoinLog(data_dir=tmp_path)
+    lab.clog.on_snap = lab.brain_coin
+    t = {"kind": "trade", "mint": "M", "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5, "buy": True,
+         "user": "u0", "fee": 0.0125, "tok": 1e7}
+    lab.event(1000.0, _coin_events("M"))
+    lab.event(1000.2, t)
+    lab.tick(1061.0)                                                   # the first minute is in: model not passed
+    assert "M" not in lab.accts["brain"].pending
+    lab.brain.update(model=Sure(), cut=0.5, model_ok=True)
+    lab.event(1100.0, _coin_events("N"))
+    lab.event(1100.2, {**t, "mint": "N"})
+    lab.tick(1161.0)
+    assert lab.accts["brain"].pending["N"]["via"] == "model"
+    lab.event(1163.0, {**t, "mint": "N", "vsol": 31.0})                 # filled (1.5 s after the signal)
+    pos = lab.accts["brain"].positions["N"]
+    lab.event(1170.0, {**t, "mint": "N", "vsol": 31.0 * 1.6})           # +60%: the model trade's +50% exit
+    assert pos.get("selling") and "take profit" in pos["selling"]["why"]
+
+
+def test_brain_live_approvals_reach_the_lab(tmp_path):
+    import gzip
+    import json
+
+    from bot import brain
+    from bot import launch_lab as ll
+
+    with gzip.open(tmp_path / "b-2026-11-12.jsonl.gz", "wt") as f:
+        for r in _synthetic_bets(edge_mean=0.12):
+            f.write(json.dumps(r) + "\n")
+    out = tmp_path / "live.pkl"
+    brain.main(data_dir=tmp_path, live_path=out)
+    lab = ll.Lab(sol_usd=100.0)
+    assert ll.load_brain(lab, out) and lab.brain["approved"] == {"edge|slot2"} and not lab.brain["model_ok"]
+    assert ll.load_brain(lab, tmp_path / "missing.pkl") is False and "couldn't load" in lab.brain["note"]
+
+
+def test_brain_reports_side_by_side_with_break_even_and_sit_outs(tmp_path):
+    import gzip
+    import json
+    import time as _t
+
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    now = _t.time()
+    rows = ([{"k": "snipe", "t": now - 3600, "mi": 1, "hr": 2, "r": 0.385} for _ in range(2)]
+            + [{"k": "snipe", "t": now - 3600, "mi": 1, "hr": 2, "r": -0.065} for _ in range(8)]
+            + [{"k": "random", "t": now - 3600, "mi": 1, "hr": 2, "r": -0.045}]
+            + [{"k": "_sat", "t": now - 3600, "n": 40}])
+    with gzip.open(tmp_path / f"b-{_t.strftime('%Y-%m-%d', _t.gmtime(now))}.jsonl.gz", "wt") as f:
+        f.write("".join(json.dumps(r) + "\n" for r in rows))
+    bb = brain.BetBlocks(cfg)
+    for r in rows:
+        bb.add(r)
+    rec = brain.record(bb.raw["snipe"])
+    assert rec["win_rate"] == 0.2 and round(rec["avg_win"], 3) == 0.38 and round(rec["avg_loss"], 3) == -0.07
+    assert round(rec["break_even"], 3) == round(0.07 / 0.45, 3)          # needs 15.6% to break even at this payoff
+    lines = brain.side_by_side_lines(bb.raw, bb.sat)
+    assert "The brain (super bot 3): no trades (sat out 40 signals: nothing qualified)." in lines[1]
+    assert lines[2].startswith("• Took every signal: 11 trades, won 18.2%")
+    text = brain.weekly(tmp_path, cfg)
+    assert "sat out 40 signals" in text and "Approved windows: 0" in text and len(text) < 3000
+
+
+def test_lab_logs_what_the_brain_sat_out(tmp_path):
+    from bot import coin_log as cl
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=100.0)
+    lab.clog = cl.CoinLog(data_dir=tmp_path)
+    lab.event(1000.0, {"kind": "trade", "mint": "A", "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5,
+                       "buy": True, "user": "u0", "fee": 0.0125, "tok": 1e7})
+    lab.tick(1001.0)
+    lab.tick(1001.0 + ll.SIGN_EVERY)                                    # the 5-minute signs row
+    sat = [r for r in lab.clog.buf["b"] if r["k"] == "_sat"]
+    assert sat and sat[0]["n"] >= 1 and lab._sat_n == 0
+
+
+def test_brain_go_live_gate_only_reports_and_needs_all_its_numbers():
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    assert "0 of 300 practice trades" in brain.gate_line({}, {}, cfg)
+    short = brain.gate_line({"brain": [320, 320 * 0.031, 90, 64.0]}, {"brain": 0}, cfg, now=20 * 86400)
+    assert "2.9 of 4 weeks" in short and "numbers are met" not in short          # not 4 weeks yet
+    met = brain.gate_line({"brain": [320, 320 * 0.031, 90, 64.0]}, {"brain": 0}, cfg, now=30 * 86400)
+    assert "numbers are met; real money still only if you say so" in met

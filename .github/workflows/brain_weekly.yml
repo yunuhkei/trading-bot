@@ -1,0 +1,27 @@
+# The super bot brain's weekly summary (practice only): what it traded or sat out, what passed the strict test, how
+# the coin model did on days it never saw, side by side with "took every signal" and "random coins". Reads the
+# research log only; trades nothing, saves nothing. One phone notification a week.
+name: brain-weekly
+on:
+  schedule:
+    - cron: "17 23 * * 0"     # Sundays, about 5:17 pm Milwaukee time
+  workflow_dispatch:
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: lab_data
+          key: lab-data-weekly-${{ github.run_id }}
+          restore-keys: lab-data-
+      - env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+        run: python -m bot brain --weekly

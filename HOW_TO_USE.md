@@ -593,3 +593,34 @@ let it ride +100%/-30%, hold, 15% or 30% trailing stops). They have no pretend a
 has more to choose from in every hour. With this many versions some will look good by luck, so it copies only the best 3
 for an hour. Day-by-hour
 records are kept for 35 days. No real money, ever.
+
+## The super bot's brain (design, Nov 10; branch claude/super-bot-brain, practice only)
+
+How the lab works today: one live feed of pump.fun trades; ~58 strategies each get a real practice account (it can
+bust) and a "ghost" (same trades, never runs out of money: the strategy's full record). Two super bots exist:
+`timing` (a strategy only in hours it won on 2+ days) and `streak` (copies what won in the last 30 minutes). What's
+saved: per strategy, per day, per hour [bets, wins, profit]; the real accounts' last 300 trades; the practice
+buyers' last 500. The ghosts' individual trades were never saved, and nothing records a coin's first minutes.
+
+The brain adds, without changing any strategy:
+1. A research log (`bot/coin_log.py`, daily gzip files in `lab_data/`, its own Actions cache so the lab's saved
+   state is never touched): every new coin's launch facts, its first 10 s and 60 s (trades, buyers, sizes,
+   timing), and what happened after (highs, lows and the price at 5/30/60 minutes; when it first crossed +25/+50/
+   +100% or -20/-35%; graduated; creator sold). Every ghost bet with the market at the moment of the signal
+   (minute of hour, hour, launch rate, the coin's volume and buyers so far, SOL's trend and swings, fill delay).
+   Point-in-time only: a snapshot holds only what was known at that second.
+2. Reports from that log (`bot/brain.py`): base rates; a timing map (six 10-minute slots per hour, 4 groups of
+   hours, fixed in advance); a strict approval rule (`brain.yaml`); a coin model and a rug filter, both tested
+   only on days they never saw.
+3. A new practice super bot, `brain` ($1,000, $250 trades): it trades only what's approved, otherwise sits out and
+   says why. It's reported next to "took every signal" and "random coins". Real money is not part of this.
+
+**The go-live gate (OFF; real money only when the owner says so):** the brain stays practice-only until all of
+these hold, and even then it needs the owner's word and a change by hand (nothing switches it on by itself):
+1. 300+ practice trades by the brain over 4+ weeks, with profit per trade after real fees above +2%, and the
+   approved windows / coin model still passing the strict test on days they never saw.
+2. A kill switch: if live results fall below the practice expectation (the same drop rule: its recent trades
+   clearly below what it showed), it stops and pings the owner.
+3. A profit lock: once the account doubles, the original money is moved out and only winnings stay in play.
+4. Small first: the sniper's limits (`sniper.yaml`), tighter slippage (see bot/TODO.md), the 2 am-style condition.
+The weekly summary says how far it is from point 1.
