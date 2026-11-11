@@ -38,7 +38,8 @@ category, list pointless workflows for the owner. Never delete Actions caches or
   keeps a 10% floor (was "anything").
 
 ## Done
-- 0. Safety (this commit).
+- 0. Safety.
+- 1. Design note (HOW_TO_USE.md, "The super bot's brain").
 
 ## Next
-- 1. Design note.
+- 2. Data logging (bot/coin_log.py + lab hooks + a separate lab-data cache in launch_lab.yml).
