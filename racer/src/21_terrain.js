@@ -22,9 +22,9 @@ async function carveRoads(prog){
       const ax=r.X[i],az=r.Z[i],ay=r.Y[i],bx=r.X[b],bz=r.Z[b],by=r.Y[b],dx=bx-ax,dz=bz-az,l2=dx*dx+dz*dz||1,wk=Math.min(r.wk[i],r.wk[b]),flat=r.hw*wk+RSH+4.1,R=flat+90;
       const i0=Math.max(0,Math.floor((Math.min(ax,bx)-R+half)/T)),i1=Math.min(N-1,Math.ceil((Math.max(ax,bx)+R+half)/T)),j0=Math.max(0,Math.floor((Math.min(az,bz)-R+half)/T)),j1=Math.min(N-1,Math.ceil((Math.max(az,bz)+R+half)/T));
       for(let j=j0;j<=j1;j++){const wz=-half+j*T,row=j*N;for(let ii=i0;ii<=i1;ii++){const wx=-half+ii*T;let t=((wx-ax)*dx+(wz-az)*dz)/l2;t=t<0?0:t>1?1:t;const px=ax+dx*t-wx,pz=az+dz*t-wz,dist=Math.sqrt(px*px+pz*pz),d=dist-flat,cfq=r.cf[i]+(r.cf[b]-r.cf[i])*t,yh=ay+(by-ay)*t+(cfq?clamp(((wx-ax)*(-dz)+(wz-az)*dx)/Math.sqrt(l2),-flat,flat)*cfq:0);
-        if(d<D[row+ii]){D[row+ii]=d;Yr[row+ii]=yh}
+        if(d<D[row+ii]){D[row+ii]=d;Yr[row+ii]=yh+(r.sw?.55:0)}   /* city: the ground beyond the curb is at sidewalk level (c = Yr - .5 below) */
         /* inside ANY road's paved footprint the ground must stay below that road's surface (the lowest of overlapping roads wins) */
-        if(dist<r.hw*wk+RSH+1.4){const p=yh-.55;if(p<PV[row+ii])PV[row+ii]=p}}}}
+        if(dist<r.hw*wk+(r.sw?.9:RSH+1.4)){const p=yh-.55;if(p<PV[row+ii])PV[row+ii]=p}}}}
     prog&&prog(ri/ROADS.length);await nextTick()}
   for(let k=0;k<N*N;k++){const d=D[k];if(d<1e8){const dd=d<0?0:d,c=Yr[k]-.5,lo=c-CUT_SLOPE*dd,hi=c+CUT_SLOPE*dd,h=hm[k];hm[k]=h<lo?lo:h>hi?hi:h}if(PV[k]<1e8&&hm[k]>PV[k])hm[k]=PV[k]}
   /* soften creases in the banks only (never under the asphalt) */

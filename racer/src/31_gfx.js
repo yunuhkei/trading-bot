@@ -69,7 +69,7 @@ function gfxSetTier(t,force){
   const sd=T.shadow?{SHADOW:T.shadow}:{};G.P.rd=gfxProg('rd',Object.assign({NL:T.NL,DET:T.hi},sd));G.P.ter=gfxProg('ter',Object.assign({DET:T.hi},sd));G.P.sky=gfxProg('sky',T.hi?{HI:1}:{});
   const pd={};if(T.blur)pd.BLUR=T.bloom?6:4;if(T.bloom)pd.BLOOM=1;if(T.hi)pd.LENS=1;G.P.postv=gfxProg2('post',POSTV,POSTF,['aP'],pd);
   if(T.bloom&&!G.P.bright){G.P.bright=gfxProg2('bright',POSTV,BRF,['aP']);G.P.blur=gfxProg2('blur',POSTV,BLF,['aP'])}
-  const lo=t==0;R.drawProp=[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw)];R.drawRoad=Math.round(1900*T.draw);
+  const lo=t==0;R.drawProp=[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw)];R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
   if(!GFX.fixed){Q.min=T.scMin;Q.max=T.scMax;Q.scale=Math.max(Q.min,Math.min(Q.max,Q.scale))}
   if(typeof trSetMul=='function')trSetMul(T.traf);
   GFX.since=0;Q.apply()}

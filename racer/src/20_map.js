@@ -110,7 +110,7 @@ function buildRoad(d,dry){
   /* blend heights into the roads we join so the junction is flush */
   /* within ~150 m of the parent road, follow the parent's own height so the two surfaces stay flush */
   /* the parent's height under a point (projected on its centre-line, not the nearest sample: on a 30 % street 4 m of sample spacing is a 0.3 m step) and the distance to it */
-  const under=(rr,x,z)=>{let bd=1e18,by=0;const c=rr.closed?rr.n:rr.n-1;for(let k=0;k<c;k++){const j=(k+1)%rr.n,ax=rr.X[k],az=rr.Z[k],ex=rr.X[j]-ax,ez=rr.Z[j]-az,l2=ex*ex+ez*ez||1;let t=((x-ax)*ex+(z-az)*ez)/l2;t=t<0?0:t>1?1:t;const dd=(x-ax-ex*t)**2+(z-az-ez*t)**2;if(dd<bd){bd=dd;by=rr.Y[k]+(rr.Y[j]-rr.Y[k])*t}}return[Math.sqrt(bd),by]};
+  const under=(rr,x,z)=>{let bd=1e18,by=0;const c=rr.closed?rr.n:rr.n-1;for(let k=0;k<c;k++){const j=(k+1)%rr.n,ax=rr.X[k],az=rr.Z[k],ex=rr.X[j]-ax,ez=rr.Z[j]-az,l2=ex*ex+ez*ez||1;let t=((x-ax)*ex+(z-az)*ez)/l2;t=t<0?0:t>1?1:t;const dd=(x-ax-ex*t)**2+(z-az-ez*t)**2;if(dd<bd){bd=dd;const l=Math.sqrt(l2),lat=((x-ax)*(-ez)+(z-az)*ex)/l,lim=rr.hw+Math.max(RSH,rr.sw);by=rr.Y[k]+(rr.Y[j]-rr.Y[k])*t+clamp(lat,-lim,lim)*(rr.cf[k]+(rr.cf[j]-rr.cf[k])*t)}}return[Math.sqrt(bd),by]};
   const yf=d.from||d.yFrom,yt=d.to||d.yTo;if(d.yLine)for(let i=0;i<n;i++)Y[i]=lerp(d.yLine[0],d.yLine[1],r.S[i]/r.len);
   {const ra=yf&&ROADS.find(q=>q.id==yf),rb=yt&&ROADS.find(q=>q.id==yt);
    if(ra||rb)for(let i=0;i<n;i++){const s0=r.S[i],s1=r.len-r.S[i],f=s0/r.len;let wa=0,wb=0,ya=0,yb=0;
@@ -140,6 +140,7 @@ function buildRoad(d,dry){
   if(d.from&&d.taper)for(let i=0;i<n;i++)r.wk[i]=lerp(.25,1,sstep(0,120,r.S[i]));
   if(d.to&&d.taper)for(let i=0;i<n;i++)r.wk[i]=Math.min(r.wk[i],lerp(.25,1,sstep(0,120,r.len-r.S[i])));
   r.rail=new Uint8Array(n);   /* bit0 left, bit1 right: filled in after carving (cliffs) + bridges */
+  r.sw=d.city&&d.style!=2?SWW:0;   /* sidewalk width (city streets and boulevards); where it is cut for crossing roads is worked out in buildSidewalks */
   r.cf=new Float32Array(n);   /* cross slope (m per m to the right of the index direction): 0 except where the road runs onto a road that climbs, see findJunctions */
   if(!dry)ROADS.push(r);return r}
 function switchbacks(cx,cz,arms){const o=[];arms.forEach((A,k)=>{const n=Math.max(3,Math.round(Math.abs(A[1]-A[0])/.12));for(let s=(k?1:0);s<=n;s++){const t=s/n,a=lerp(A[0],A[1],t),r=A[2]-(k<arms.length-1?(arms[k][2]-arms[k+1][2])*t*.0:0);o.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}});return o}
@@ -180,11 +181,16 @@ function cutRect(ax,az,bx,bz,R){/* remove the part of a segment inside the recta
   if(t0>=t1)return[[0,1]];const out=[];if(t0>0)out.push([0,t0]);if(t1<1)out.push([t1,1]);return out}
 function gridStreets(g){
   const cs=g.cs=Math.cos(g.ang),sn=g.sn=Math.sin(g.ang),toW=(u,v)=>[g.ox+u*cs-v*sn,g.oz+u*sn+v*cs],B=9000;g.roads=[];let idx=0;
+  const cand=[];
   const add=(tag,p0,p1)=>{const c=clipSeg(p0[0],p0[1],p1[0],p1[1],g.planes);if(!c)return;const ax=p0[0]+(p1[0]-p0[0])*c[0],az=p0[1]+(p1[1]-p0[1])*c[0],bx=p0[0]+(p1[0]-p0[0])*c[1],bz=p0[1]+(p1[1]-p0[1])*c[1];
     let pieces=[[0,1]];for(const R of(g.cut||[])){const next=[];for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1;for(const[c0,c1]of cutRect(sx,sz,ex,ez,R))next.push([a0+(a1-a0)*c0,a0+(a1-a0)*c1])}pieces=next}
-    for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1;if(Math.hypot(ex-sx,ez-sz)<34)continue;
-      const r=buildRoad({id:g.id+tag+(a0>0||a1<1?'~':''),hw:g.hw,lanes:1,style:g.style,city:1,smooth:g.smooth||60,grade:g.grade||.26,lift:g.lift+(idx++)*.0004,cityField:1,pts:[[sx,sz],[ex,ez]]});g.roads.push(r);cityEnds.push([sx,sz,r.id],[ex,ez,r.id])}};
-  g.us.forEach((u,i)=>add('u'+i,toW(u,-B),toW(u,B)));g.vs.forEach((v,j)=>add('v'+j,toW(-B,v),toW(B,v)));GRIDS.push(g);return g}
+    for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1,len=Math.hypot(ex-sx,ez-sz);if(len<34)continue;cand.push({id:g.id+tag+(a0>0||a1<1?'~':''),sx,sz,ex,ez,len,ok:1})}};
+  g.us.forEach((u,i)=>add('u'+i,toW(u,-B),toW(u,B)));g.vs.forEach((v,j)=>add('v'+j,toW(-B,v),toW(B,v)));
+  /* two streets of a rotated grid can end on the boulevard a few metres apart (their mouths on top of each other, and on a hill no landing can serve both): a short stub (under 150 m) that does this is left out */
+  g.dropped=[];for(const P of cand)for(const Q of cand){if(P===Q||!P.ok||!Q.ok||P.len>Q.len||(P.len==Q.len&&P.id>Q.id))continue;
+    for(const[px,pz]of[[P.sx,P.sz],[P.ex,P.ez]])for(const[qx,qz]of[[Q.sx,Q.sz],[Q.ex,Q.ez]]){const d=Math.hypot(px-qx,pz-qz);if(d>3&&d<g.hw*2+16&&P.ok&&P.len<150){P.ok=0;g.dropped.push(P.id)}}}
+  for(const P of cand){if(!P.ok)continue;const r=buildRoad({id:P.id,hw:g.hw,lanes:1,style:g.style,city:1,smooth:g.smooth||60,grade:g.grade||.26,lift:g.lift+(idx++)*.0004,cityField:1,pts:[[P.sx,P.sz],[P.ex,P.ez]]});g.roads.push(r);cityEnds.push([P.sx,P.sz,r.id],[P.ex,P.ez,r.id])}
+  GRIDS.push(g);return g}
 const nearEnd=(x,z)=>{let b=null,bd=1e18;for(const e of cityEnds){const d=(e[0]-x)**2+(e[1]-z)**2;if(d<bd){bd=d;b=e}}return b};
 function applyBridge(r,x,z,len,h){const c=roadNear(r,x,z),half=len/2,ramp=150;for(let i=0;i<r.n;i++){const k=1-sstep(half,half+ramp,Math.abs(r.S[i]-r.S[c]));if(k>0){r.Y[i]+=h*k;if(k>.35)r.br[i]=1}}}
 /* any two roads that cross away from their ends must pass at different levels (a real overpass), never at the same height */
@@ -220,8 +226,36 @@ function findJunctions(){JUNC.length=0;
       if(r.city&&o.city)continue;                       /* city streets share one height field: nothing to match */
       /* the parent's grade there, and how much of it lies across the branch */
       const a=o.closed?(k+2)%o.n:Math.min(o.n-1,k+2),b=o.closed?(k-2+o.n)%o.n:Math.max(0,k-2),dl=Math.hypot(o.X[a]-o.X[b],o.Z[a]-o.Z[b])||1,gp=(o.Y[a]-o.Y[b])/dl,px=(o.X[a]-o.X[b])/dl,pz=(o.Z[a]-o.Z[b])/dl,hwP=o.hw*o.wk[k];
-      for(let q=0;q<r.n;q++){const i=e?r.n-1-q:q,sd=e?r.len-r.S[i]:r.S[i];if(sd>hwP+40)break;const[tx,tz]=_tan(r,i);r.cf[i]=gp*(px*(-tz)+pz*tx)*(1-sstep(hwP+2,hwP+38,sd))}}}
+      for(let q=0;q<r.n;q++){const i=e?r.n-1-q:q,sd=e?r.len-r.S[i]:r.S[i];if(sd>hwP+40)break;const[tx,tz]=_tan(r,i);r.cf[i]=(gp*(px*(-tz)+pz*tx)+o.cf[k]*(px*tx+pz*tz))*(1-sstep(hwP+2,hwP+38,sd))}}}   /* the parent's plane: its grade and its own cross slope */
   return JUNC}
+/* CITY CROSSINGS ARE LANDINGS. The streets of a district take their height from one field along their centre lines, but each street is flat ACROSS, so where two crossed on a hill the edge of one stood
+   up to 1.6 m above or below the other (a slab across a 21 % San Francisco street). Like the real city, every crossing is now a nearly level landing: inside the box both streets follow ONE plane
+   through the crossing point whose grade along each street is that street's own grade limited to CITY_LAND (8 %); each street eases back to its own profile over the next 14 m and takes the plane's
+   cross slope (r.cf). So a steep street climbs in steps (steep, landing, steep), and crossings are flush from curb to curb. Called once per district, right after its streets and boulevard exist
+   and BEFORE any other road is joined to them (those copy the boulevard's height). */
+const CITY_LAND=.08;let _clFrom=0;
+function cityLand(){
+  const cr=ROADS.slice(_clFrom).filter(r=>r.city&&r.style!=2&&!r.landed);_clFrom=ROADS.length;if(cr.length<2)return 0;
+  const cell=32,H=new Map(),key=(a,b)=>(a+2048)*8192+(b+2048);
+  cr.forEach((r,ri)=>{r.landed=1;for(let i=0;i<r.n;i++){const k=key(Math.floor(r.X[i]/cell),Math.floor(r.Z[i]/cell));let L=H.get(k);if(!L)H.set(k,L=[]);L.push(ri,i)}});
+  const gradeAt=(r,i)=>{const k=3,a=r.closed?(i+k)%r.n:Math.min(r.n-1,i+k),b=r.closed?(i+r.n-k)%r.n:Math.max(0,i-k);let dl=r.S[a]-r.S[b];if(r.closed&&dl<=0)dl+=r.len;return dl>1?(r.Y[a]-r.Y[b])/dl:0};
+  /* the crossings of each street: the sample nearest another street's centre line (within 3.2 m), one per other street and place */
+  const nodes=[];
+  cr.forEach((A,ai)=>{const last=new Map();for(let i=0;i<A.n;i++){const x=A.X[i],z=A.Z[i],cx=Math.floor(x/cell),cz=Math.floor(z/cell),end=!A.closed&&(i==0||i==A.n-1),best=new Map();
+      for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){const L=H.get(key(cx+a,cz+b));if(!L)continue;for(let q=0;q<L.length;q+=2){if(L[q]===ai)continue;const o=cr[L[q]],k=L[q+1],d=Math.hypot(o.X[k]-x,o.Z[k]-z);
+          if(d<(end?o.hw+2:3.2)){const c=best.get(L[q]);if(!c||d<c.d)best.set(L[q],{k,d})}}}
+      for(const[bi,c]of best){const l=last.get(bi);if(l&&i-l.i<=3){if(c.d<l.d){l.i=i;l.k=c.k;l.d=c.d}continue}
+        const N={A,i,bi,B:cr[bi],k:c.k,d:c.d};last.set(bi,N);nodes.push(N);
+        if(end&&c.d>=3.2)nodes.push({A:cr[bi],i:c.k,bi:ai,B:A,k:i,d:c.d})}}});          /* a street END a few metres off (the rounded corners of a boulevard): the same node seen from the other street */
+  if(!nodes.length)return 0;
+  /* the plane of each node from the ORIGINAL profiles (all read before anything is changed) */
+  for(const N of nodes){const tA=_tan(N.A,N.i),tB=_tan(N.B,N.k);N.yc=(N.A.Y[N.i]-N.A.lift+N.B.Y[N.k]-N.B.lift)/2;N.gA=clamp(gradeAt(N.A,N.i),-CITY_LAND,CITY_LAND);N.gB=clamp(gradeAt(N.B,N.k),-CITY_LAND,CITY_LAND);
+    N.dot=tA[0]*tB[0]+tA[1]*tB[1];N.nt=-tA[1]*tB[0]+tA[0]*tB[1]}
+  const acc=new Map();
+  for(const N of nodes){const A=N.A,hb=N.B.hw+2,R=hb+14,cfN=Math.abs(N.nt)>.3?clamp((N.gB-N.dot*N.gA)/N.nt,-.12,.12):0;let o=acc.get(A);if(!o)acc.set(A,o={w:new Float32Array(A.n),y:new Float32Array(A.n),c:new Float32Array(A.n)});
+    for(let i=0;i<A.n;i++){let ds=A.S[i]-A.S[N.i];if(A.closed){if(ds>A.len/2)ds-=A.len;else if(ds<-A.len/2)ds+=A.len}if(Math.abs(ds)>R)continue;const w=1-sstep(hb,R,Math.abs(ds));o.w[i]+=w;o.y[i]+=w*(N.yc+N.gA*ds);o.c[i]+=w*cfN}}
+  for(const[A,o]of acc)for(let i=0;i<A.n;i++){const w=o.w[i];if(w<=0)continue;const k=w>1?1/w:1,y0=A.Y[i]-A.lift;A.Y[i]=A.lift+y0*(1-w*k)+o.y[i]*k;A.cf[i]=o.c[i]*k}
+  return nodes.length}
 /* a boulevard round a district: every street of the district ends on it */
 function perimeter(id,B,hw,lift){const r=30,P=[];
   const edge=(ax,az,bx,bz)=>{const L=Math.hypot(bx-ax,bz-az),k=Math.max(1,Math.ceil(L/70));for(let i=0;i<k;i++)P.push([ax+(bx-ax)*i/k,az+(bz-az)*i/k])};
@@ -232,7 +266,7 @@ function perimeter(id,B,hw,lift){const r=30,P=[];
 /* a small turnaround loop at the end of a road */
 function loopRoad(id,cx,cz,r,hw,lift,flat){const P=[];for(let k=0;k<8;k++){const a=k*TAU/8;P.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}return buildRoad({id,closed:1,hw,lanes:1,style:0,lift,pts:P,flat:flat==null?undefined:flat})}
 function defineRoads(){
-  ROADS.length=0;GRIDS.length=0;cityEnds.length=0;_cj=null;SAFEHOUSES.length=0;FARMS.length=0;FIELDS.length=0;
+  ROADS.length=0;GRIDS.length=0;cityEnds.length=0;_cj=null;_clFrom=0;SAFEHOUSES.length=0;FARMS.length=0;FIELDS.length=0;
   const ring=buildCurvy({id:'ring',closed:1,hw:13,lanes:3,style:1,smooth:120,minR:75,humps:[{f:.64,n:3,len:68,amp:6}],wig:{a1:430,l1:900,a2:120,l2:360,seed:3,straight:[[.60,.72]]},
     pts:[[-1640,120],[-1560,-520],[-1180,-980],[-620,-1260],[-60,-1380],[560,-1290],[1130,-1020],[1520,-540],[1680,60],[1560,700],[1320,1260],[700,1580],[-30,1560],[-640,1400],[-1160,1050],[-1500,600]]});
   const ramp=(par,hx,hz,nx,nz,hw)=>tJoin(par,jn(par,hx,hz),nx,nz);                 /* leave a road at the sample nearest (hx,hz), heading for (nx,nz): [J, A] */
@@ -248,7 +282,7 @@ function defineRoads(){
   const us2=[],vs2=[];for(let u=0;u<=ml;u+=125)us2.push(u);for(let k=0;k<9;k++)vs2.push(42.5+85*k);
   const gS=gridStreets({id:'sfs',kind:'sfS',ox:M.x0,oz:M.z0,ang:Math.atan2(mdz,mdx),us:us2,vs:vs2,hw:7.5,style:3,lift:.03,planes:planesBox(CITY).concat([[-nx,-nz,-c0]]),cut:[cutPark]});
   buildRoad({id:'market',hw:M.hw,lanes:2,style:4,city:1,cityField:1,lift:.015,pts:[[M.x0,M.z0],[M.x1,M.z1]]});cityEnds.push([M.x0,M.z0,'market'],[M.x1,M.z1,'market']);
-  const sfp=perimeter('sfp',CITY,11,.025);
+  const sfp=perimeter('sfp',CITY,11,.025);cityLand();
   /* Lombard Street: eight hairpins down one block of Russian Hill, joining the two streets above and below it */
   {let bi=0,bj=0,bd=1e18;for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){const d=((us[i]+us[i+1])/2+1090)**2+((vs[j]+vs[j+1])/2+5)**2;if(d<bd){bd=d;bi=i;bj=j}}
     gN.skip=[bi+','+bj];const xc=(us[bi]+us[bi+1])/2,z0=vs[bj],z1=vs[bj+1],pts=[[xc,z0]];const nzz=7;for(let k=1;k<nzz;k++){pts.push([xc+(k%2?-30:30),z0+(z1-z0)*k/nzz])}pts.push([xc,z1]);
@@ -259,11 +293,12 @@ function defineRoads(){
   buildRoad({id:'jfkp',hw:5.5,lanes:1,style:0,yFrom:'sfp',yTo:'sfnv7',lift:.05,smooth:25,
     pts:tOut(sfp,-1270,444).concat([[-1212,452],[-1162,444],[-1116,451],[-1082,454],[-1078,465]])});
   /* Twin Peaks Boulevard: out of the grid, a loop up over the two peaks and back down into the grid */
-  {const e1=nearEnd(-760,700),e2=nearEnd(-552,700);buildRoad({id:'tp',hw:5.5,lanes:1,style:0,smooth:18,grade:.22,lift:.05,yFrom:e1[2],yTo:e2[2],pts:[[e1[0],e1[1]],[-762,738],[-735,772],[-690,792],[-650,772],[-620,802],[-640,836],[-598,862],[-556,838],[-540,800],[-547,758],[e2[0],e2[1]]]})}
+  {const stEnd=(x,z)=>{let b=null,bd=1e18;for(const e of cityEnds){if(e[2]=='sfp')continue;const d=(e[0]-x)**2+(e[1]-z)**2;if(d<bd){bd=d;b=e}}return b},e1=nearEnd(-760,700),e2=stEnd(-552,700);   /* the east end comes down exactly opposite a street: a crossroads on the boulevard */
+   buildRoad({id:'tp',hw:5.5,lanes:1,style:0,smooth:18,grade:.22,lift:.05,yFrom:'sfp',yTo:'sfp',pts:[[e1[0],e1[1]],[-762,738],[-735,772],[-690,792],[-650,772],[-620,802],[-640,836],[-598,862],[-556,838],[-540,800],[-547,758],[e2[0],e2[1]]]})}
   /* ===== the long highways ===== */
   /* Geary: ring (west) -> the downtown boulevard */
   buildCurvy({id:'dc',hw:10,lanes:2,style:1,from:'ring',yTo:'sfp',lift:.03,minR:45,wig:{a1:40,l1:240,a2:14,l2:110,seed:8,fade:130},
-    pts:ramp(ring,-1480,195,-1410,212,10).concat([[-1410,212],[-1360,220],[CITY.x0,222]])});
+    pts:ramp(ring,-1480,195,-1410,212,10).concat([[-1410,210],[-1360,210],[CITY.x0,210]])});   /* arrives opposite the street at z = 210: a crossroads on the downtown boulevard */
   /* the boulevard: Market's north-east end -> east across the hills to the ring */
   const bv=buildCurvy({id:'bv',hw:10,lanes:2,style:1,to:'ring',yFrom:'sfp',lift:.04,smooth:70,minR:55,wig:{a1:230,l1:560,a2:70,l2:230,seed:5,fade:200},
     pts:[[CITY.x1,-6],[-390,0],[-300,60],[-180,170],[60,150],[300,225],[620,200],[980,130],[1300,90]].concat(rampIn(ring,1440,50,1300,90,10))});
@@ -287,7 +322,7 @@ function defineRoads(){
   /* ===== the Valley: LA style boulevards, ringed by a boulevard that joins the boulevard road and the ring ===== */
   const vu=[275,575,875,1015],vv=[565,825,1085,1245];
   gridStreets({id:'la',kind:'la',ox:0,oz:0,ang:0,us:vu,vs:vv,hw:12,style:4,lift:.05,planes:planesBox(VALLEY)});
-  const lap=perimeter('lap',VALLEY,11,.055);
+  const lap=perimeter('lap',VALLEY,11,.055);cityLand();
   buildCurvy({id:'lan',hw:9,lanes:1,style:0,to:'bv',yFrom:'lap',lift:.1,minR:50,wig:{a1:24,l1:300,a2:7,l2:120,seed:37,fade:120},pts:[[640,VALLEY.z0],[622,470],[590,380],[600,300]].concat(tIn(bv,600,300))});
   buildCurvy({id:'lae',hw:10,lanes:2,style:1,to:'ring',yFrom:'lap',lift:.11,minR:60,wig:{a1:40,l1:420,a2:10,l2:170,seed:41,fade:160},pts:[[VALLEY.x1,826],[1150,800],[1300,745]].concat(rampIn(ring,1300,745,1300,745,10))});
   /* the Valley's south road: straight down to the ring (the Valley used to have no way south: the harbour 1.5 km away was a 5 km drive) */
@@ -295,7 +330,7 @@ function defineRoads(){
   /* ===== Santa Cruz: a beach town on the south coast with a boardwalk and a pier ===== */
   const bu=[-470,-390,-310,-230,-170],bvv=[2580,2645,2710];
   gridStreets({id:'bt',kind:'beach',ox:0,oz:0,ang:0,us:bu,vs:bvv,hw:6,style:3,lift:.05,planes:planesBox(BEACH)});
-  perimeter('btp',BEACH,8,.055);
+  perimeter('btp',BEACH,8,.055);cityLand();
   {const c=ROADS.find(q=>q.id=='cr');buildRoad({id:'btl',hw:7,lanes:1,style:0,lift:.07,yFrom:'cr',yTo:'btp',pts:[at(c,jn(c,-350,BEACH.z0)),[-350,BEACH.z0]]})}
   /* the pier: out over the water from the boardwalk (a bridge deck on piles, with a T-shaped head to turn round on) */
   {const bp=ROADS.find(q=>q.id=='btp'),e=at(bp,jn(bp,-350,BEACH.z1+60)),yd=Math.max(Hs(-350,BEACH.z1+4),3.2)+.2,zh=BEACH.z1+205;
@@ -303,7 +338,7 @@ function defineRoads(){
    buildRoad({id:'pierhead',hw:5,lanes:1,style:2,flat:yd,lift:.04,bridge:[{x:-350,z:zh,len:500,h:0}],pts:[[-387,zh],[-350,zh],[-313,zh]]})}
   /* ===== Palm Springs: a desert resort town of wide palm boulevards, joined to the east link and the southern highway ===== */
   gridStreets({id:'ps',kind:'ps',ox:0,oz:0,ang:0,us:[1440,1620,1800],vs:[1480,1660,1840],hw:12,style:4,lift:.05,planes:planesBox(RESORT)});
-  perimeter('psp',RESORT,11,.055);
+  perimeter('psp',RESORT,11,.055);cityLand();
   buildCurvy({id:'psl',hw:9,lanes:1,style:0,to:'el',yFrom:'psp',lift:.1,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:43,fade:120},pts:[[RESORT.x1,1660],[1980,1650],[2100,1610]].concat(tIn(el,2100,1610))});
   buildCurvy({id:'pss',hw:9,lanes:1,style:0,to:'sh',yFrom:'psp',lift:.1,minR:50,wig:{a1:40,l1:320,a2:10,l2:130,seed:47,fade:140},pts:[[1620,RESORT.z1],[1612,2060],[1630,2250]].concat(tIn(sh,1630,2250))});
   defineWorld(ring,sh,{ramp,rampIn,tIn,tOut,at});

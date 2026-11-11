@@ -99,22 +99,54 @@ function cityJunctions(){if(_cj)return _cj;const cr=ROADS.filter(r=>r.city),cell
     if(!hit)continue;let c=null;for(const k of cl)if(Math.hypot(k.x-A.X[i],k.z-A.Z[i])<26){c=k;break}
     if(c){c.x=(c.x*c.n+A.X[i])/(c.n+1);c.z=(c.z*c.n+A.Z[i])/(c.n+1);c.n++}else cl.push({x:A.X[i],z:A.Z[i],n:1})}});
   const out=[];for(const k of cl)out.push(k.x,k.z);return _cj=out}
+/* is this spot on ANOTHER road's asphalt (at about the same height)? m widens that road */
+function otherAsphalt(x,z,self,y,m){const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)/cs),cz=Math.floor((z+W.half)/cs);if(!QH.st||cx<0||cz<0||cx>=nc||cz>=nc)return false;const c=cz*nc+cx;
+  for(let q=QH.st[c];q<QH.st[c+1];q++){const s=QH.li[q],r=ROADS[QH.segR[s]];if(r===self)continue;const i=QH.segI[s],j=i+1<r.n?i+1:0,ax=r.X[i],az=r.Z[i],dx=r.X[j]-ax,dz=r.Z[j]-az,l2=dx*dx+dz*dz||1;let t=((x-ax)*dx+(z-az)*dz)/l2;t=t<0?0:t>1?1:t;
+    if(Math.hypot(x-ax-dx*t,z-az-dz*t)<r.hw*(r.wk[i]+(r.wk[j]-r.wk[i])*t)+m&&Math.abs(r.Y[i]+(r.Y[j]-r.Y[i])*t-y)<3)return true}return false}
+/* SIDEWALKS: a city street has a raised sidewalk behind a curb on each side, except where another road's asphalt crosses it (a junction mouth). For each side the stations where it starts and stops
+   are found exactly (bisection between samples) and kept in r.swB[side] (sorted); r.sw0[side] says whether it is there at station 0. side 0 = the -n side, 1 = the +n side (n = (-tz,tx)). */
+function buildSidewalks(){
+  for(const r of ROADS){r.swB=null;if(!r.sw)continue;const n=r.n,cnt=r.closed?n:n-1;r.swB=[[],[]];r.sw0=[1,1];
+    for(let si=0;si<2;si++){const sd=si?1:-1;
+      const cut=(i,t)=>{const j=(i+1)%n,dx=r.X[j]-r.X[i],dz=r.Z[j]-r.Z[i],l=Math.hypot(dx,dz)||1,x=r.X[i]+dx*t,z=r.Z[i]+dz*t,y=r.Y[i]+(r.Y[j]-r.Y[i])*t,nx=-dz/l*sd,nz=dx/l*sd;
+        for(const o of[r.hw+.35,r.hw+r.sw*.5,r.hw+r.sw-.3])if(otherAsphalt(x+nx*o,z+nz*o,r,y,.3))return 1;return 0};
+      const c=new Uint8Array(n+1);for(let i=0;i<n;i++)c[i]=i<cnt?cut(i,0):cut(n-2,1);c[n]=r.closed?c[0]:c[n-1];r.sw0[si]=c[0]?0:1;
+      for(let i=0;i<cnt;i++){const j=r.closed?(i+1)%n:i+1;if(c[i]==c[j])continue;let lo=0,hi=1;for(let k=0;k<7;k++){const m=(lo+hi)/2;if(cut(i,m)==c[i])lo=m;else hi=m}
+        r.swB[si].push(r.S[i]+(lo+hi)/2*Math.hypot(r.X[j]-r.X[i],r.Z[j]-r.Z[i]))}}}}
+/* is there a sidewalk on that side of the road at station s? */
+function swOn(r,si,s){const B=r.swB[si];let k=r.sw0[si];for(let q=0;q<B.length&&B[q]<s;q++)k^=1;return k}
 function buildRoadMeshes(){
-  _cj=null;const out=[];
+  _cj=null;const out=[];buildSidewalks();
   for(const r of ROADS){
-    const n=r.n,rows=r.closed?n+1:n,S=r.S;
+    const n=r.n,rows=r.closed?n+1:n,S=r.S,sw=r.sw,NR=sw?8:6;
     if(r.city){const ix=cityJunctions();for(let i=0;i<n;i++){let m=1;for(let q=0;q<ix.length;q+=2){const d=Math.hypot(r.X[i]-ix[q],r.Z[i]-ix[q+1]);if(d<r.hw+10){const v=sstep(r.hw+1,r.hw+9,d);if(v<m)m=v}}r.mk[i]=m}}
     /* the junction box of every road end that sits on another road: no lane lines, no median, on the branch and on the road it joins */
     for(const J of JUNC){if(J.city||(J.r!==r&&J.par!==r))continue;for(let i=0;i<n;i++){const d=Math.hypot(r.X[i]-J.x,r.Z[i]-J.z);if(d<J.rad+9){const v=sstep(J.rad,J.rad+8,d);if(v<r.mk[i])r.mk[i]=v}}}
-    for(let p0=0;p0<rows-1;p0+=ROAD_PIECE){
-      const p1=Math.min(rows-1,p0+ROAD_PIECE),cnt=p1-p0+1,V=new Float32Array(cnt*6*7),I=new Uint16Array((cnt-1)*5*6);let bx0=1e9,bx1=-1e9,by0=1e9,by1=-1e9,bz0=1e9,bz1=-1e9;
-      for(let k=0;k<cnt;k++){const gi=p0+k,i=gi%n;const a=r.closed?(i+1)%n:Math.min(n-1,i+1),b=r.closed?(i+n-1)%n:Math.max(0,i-1);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;const nx=-tz,nz=tx;
-        const hw=r.hw*r.wk[i],y=r.Y[i],sv=(gi==n?r.len:S[i]),fl=r.lanes*16+r.style+.1+.8*r.mk[i];
-        const L=[-(hw+RSH+.5),-(hw+RSH),-hw,hw,hw+RSH,hw+RSH+.5],DY=[-.5,-.12,0,0,-.12,-.5];
-        for(let c=0;c<6;c++){const o=(k*6+c)*7,lt=L[c],x=r.X[i]+nx*lt,z=r.Z[i]+nz*lt,yy=y+DY[c]+lt*r.cf[i];V[o]=x;V[o+1]=yy;V[o+2]=z;V[o+3]=Math.max(-hw-RSH,Math.min(hw+RSH,lt));V[o+4]=sv;V[o+5]=hw;V[o+6]=fl;
+    /* the rows of the ribbon: one per sample, and two more (before / after) wherever a sidewalk starts or stops, so its end is a clean vertical face at the edge of the crossing road */
+    const RW=[];let sL=sw?r.sw0[0]:0,sR=sw?r.sw0[1]:0;
+    for(let gi=0;gi<rows;gi++){RW.push(gi,0,sL,sR);if(!sw||gi==rows-1)continue;const i=gi%n,j=(i+1)%n,s0=S[i],sl=Math.hypot(r.X[j]-r.X[i],r.Z[j]-r.Z[i])||1,ev=[];
+      for(let si=0;si<2;si++)for(const b of r.swB[si])if(b>=s0&&b<s0+sl)ev.push([(b-s0)/sl,si]);ev.sort((a,b)=>a[0]-b[0]);
+      for(const[t,si]of ev){const tt=Math.min(.999,Math.max(.001,t));RW.push(gi,tt,sL,sR);if(si)sR^=1;else sL^=1;RW.push(gi,tt,sL,sR)}}
+    const nrw=RW.length/4;
+    /* pieces of ROAD_PIECE samples (not rows: the extra rows of the sidewalk ends must not add draw calls) */
+    for(let p0=0;p0<nrw-1;){let p1=p0+1;const g0=RW[p0*4];while(p1<nrw-1&&!(RW[p1*4]>=g0+ROAD_PIECE&&RW[p1*4+1]==0))p1++;
+      const cnt=p1-p0+1,V=new Float32Array(cnt*NR*7),I=[];let bx0=1e9,bx1=-1e9,by0=1e9,by1=-1e9,bz0=1e9,bz1=-1e9;
+      for(let k=0;k<cnt;k++){const gi=RW[(p0+k)*4],ft=RW[(p0+k)*4+1],oL=RW[(p0+k)*4+2],oR=RW[(p0+k)*4+3],i=gi%n,i2=(i+1)%n;
+        const tan=q=>{const a=r.closed?(q+1)%n:Math.min(n-1,q+1),b=r.closed?(q+n-1)%n:Math.max(0,q-1);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const tl=Math.hypot(tx,tz)||1;return[tx/tl,tz/tl]};
+        let[tx,tz]=tan(i),cx=r.X[i],cz=r.Z[i],y=r.Y[i],hw=r.hw*r.wk[i],mk=r.mk[i],cf=r.cf[i],sv=(gi==n?r.len:S[i]);
+        if(ft>0){const t2=tan(i2);tx+=(t2[0]-tx)*ft;tz+=(t2[1]-tz)*ft;const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;cx+=(r.X[i2]-cx)*ft;cz+=(r.Z[i2]-cz)*ft;y+=(r.Y[i2]-y)*ft;hw+=(r.hw*r.wk[i2]-hw)*ft;mk+=(r.mk[i2]-mk)*ft;cf+=(r.cf[i2]-cf)*ft;sv+=Math.hypot(r.X[i2]-r.X[i],r.Z[i2]-r.Z[i])*ft}
+        const nx=-tz,nz=tx,fl=r.lanes*16+r.style+.1+.8*mk;let L,DY,A;
+        if(sw){const hL=oL?CURB_H:-.03,hR=oR?CURB_H:-.03,eL=oL?CURB_H:-.14,eR=oR?CURB_H:-.14;
+          L=[-(hw+sw+.4),-(hw+sw),-(hw+.04),-hw,hw,hw+.04,hw+sw,hw+sw+.4];DY=[-.5,eL,hL,0,0,hR,eR,-.5];A=[-(hw+sw),-(hw+sw),-(hw+.2),-hw,hw,hw+.2,hw+sw,hw+sw]}
+        else{L=[-(hw+RSH+.5),-(hw+RSH),-hw,hw,hw+RSH,hw+RSH+.5];DY=[-.5,-.12,0,0,-.12,-.5];A=[-(hw+RSH),-(hw+RSH),-hw,hw,hw+RSH,hw+RSH]}
+        for(let c=0;c<NR;c++){const o=(k*NR+c)*7,lt=L[c],x=cx+nx*lt,z=cz+nz*lt,yy=y+DY[c]+lt*cf;V[o]=x;V[o+1]=yy;V[o+2]=z;V[o+3]=A[c];V[o+4]=sv;V[o+5]=hw;V[o+6]=fl;
           if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(yy<by0)by0=yy;if(yy>by1)by1=yy;if(z<bz0)bz0=z;if(z>bz1)bz1=z}}
-      let q=0;for(let k=0;k<cnt-1;k++)for(let c=0;c<5;c++){const a=k*6+c,b=a+1,cc=a+6,d=cc+1;I[q++]=a;I[q++]=cc;I[q++]=b;I[q++]=b;I[q++]=cc;I[q++]=d}
-      out.push({V,I,cx:(bx0+bx1)/2,cy:(by0+by1)/2,cz:(bz0+bz1)/2,rad:Math.hypot(bx1-bx0,by1-by0,bz1-bz0)/2+2})}}
+      for(let k=0;k<cnt-1;k++)for(let c=0;c<NR-1;c++){const a=k*NR+c,b=a+1,cc=a+NR,d=cc+1;I.push(a,cc,b,b,cc,d)}
+      /* the far version of the piece (used beyond R.roadLod): every second sample, no sidewalk-end rows, and three strips across (the sidewalk a ramp, the shoulder a slope): about a third of the triangles */
+      const n1=I.length,COL=sw?[1,3,4,6]:[0,2,3,5];let kp=0;
+      for(let k=1;k<cnt;k++){const g=RW[(p0+k)*4],ft=RW[(p0+k)*4+1];if(k<cnt-1&&(ft>0||((g-g0)&1)))continue;
+        for(let c=0;c<3;c++){const a=kp*NR+COL[c],b=kp*NR+COL[c+1],cc=k*NR+COL[c],d=k*NR+COL[c+1];I.push(a,cc,b,b,cc,d)}kp=k}
+      out.push({V,I:new Uint16Array(I),n1,cx:(bx0+bx1)/2,cy:(by0+by1)/2,cz:(bz0+bz1)/2,rad:Math.hypot(bx1-bx0,by1-by0,bz1-bz0)/2+2});p0=p1}}
   return out}
 /* ---------- barriers, bridge decks + piers, lamp posts ---------- */
 const COLC=[],COLR=[],COLO=[];
@@ -144,7 +176,7 @@ function buildFurniture(){
       f4(P(-hwi,-1.6,0),P(-hwi,-1.6,1),P(hwi,-1.6,1),P(hwi,-1.6,0),[0,-.6,0],.9);
       if(i-lastPier>=7){lastPier=i;const gy=terrainH(r.X[i],r.Z[i]);if(r.Y[i]-gy>3){for(const o of[-hwi*.55,hwi*.55]){const px=r.X[i]+nx*o,pz=r.Z[i]+nz*o;pbox(0,px,terrainH(px,pz)-.5,pz,1.1,r.Y[i]-1.6,1.1,128,126,120,0,.8);COLC.push(px,pz,1.3,terrainH(px,pz)-.5,r.Y[i]-1.6)}}}}
     /* lamp posts */
-    const step=r.city?15:(r.style==1?16:12),off=r.hw+RSH+(r.city?.8:1.4);let cnt2=0;
+    const step=r.city?15:(r.style==1?16:12),off=r.hw+(r.sw?.75:RSH+(r.city?.8:1.4));let cnt2=0;
     for(let i=2;i<n-2;i+=step){if(r.br[i]||r.mk[i]<.5||r.wk[i]<.9)continue;const j=Math.min(n-1,i+1),dx=r.X[j]-r.X[i-1],dz=r.Z[j]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=((cnt2++)&1)?1:-1;
       if(r.style==1&&!r.city&&(cnt2&1))continue;
       const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-(r.city?.1:.35);pbox(0,px,gy,pz,.13,gy+7.2,.13,92,94,98,0,.7);
@@ -368,8 +400,8 @@ function buildScenery(){
   /* street trees along the city streets: broadleaf trees on the sidewalk, every other lamp's distance */
   ROADS.forEach((r,ri)=>{if(!r.city||r.style==4)return;const n=r.n,rg=mulberry(8800+ri);let d=rg()*20;
     for(let i=1;i<n-1;i++){d+=Math.hypot(r.X[i]-r.X[i-1],r.Z[i]-r.Z[i-1]);if(d<24)continue;d=0;if(r.br[i]||r.mk[i]<.9||r.wk[i]<.9||rg()<.45)continue;
-      const dx=r.X[i+1]-r.X[i-1],dz=r.Z[i+1]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=rg()<.5?-1:1,o=r.hw*r.wk[i]+RSH+.55,px=r.X[i]+nx*sd*o,pz=r.Z[i]+nz*sd*o,ty=terrainH(px,pz);
-      if(ty<3||Math.abs(ty-r.Y[i])>2.5||nearRoadXZ(px,pz,.2))continue;let c0=0;const q=mulberry((px*7+pz*3)|0),fr=()=>c0++==0?.8:q();ptree(px,pz,fr,ty,true);COLC.push(px,pz,.5,ty-.5,ty+8);St.street++}});
+      const dx=r.X[i+1]-r.X[i-1],dz=r.Z[i+1]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=rg()<.5?-1:1,o=r.hw*r.wk[i]+(r.sw?1.3:RSH+.55),px=r.X[i]+nx*sd*o,pz=r.Z[i]+nz*sd*o,ty=terrainH(px,pz);
+      if(ty<3||Math.abs(ty-r.Y[i])>2.5||otherAsphalt(px,pz,r,r.Y[i],RSH+.4)||(r.sw&&!swOn(r,sd>0?1:0,r.S[i])))continue;let c0=0;const q=mulberry((px*7+pz*3)|0),fr=()=>c0++==0?.8:q();ptree(px,pz,fr,ty,true);COLC.push(px,pz,.5,ty-.5,ty+8);St.street++}});
   ROADS.forEach((r,ri)=>{if(r.city)return;const n=r.n,hwy=r.style==1,poleSide=((ri*5+3)&1)?1:-1;
     const nx_={pole:sr()*40,del:sr()*40,gan:250+sr()*700,bill:300+sr()*800,sign:150+sr()*400,grove:0,turb:500+sr()*700,gas:700+sr()*1500,home:600+sr()*1200,hv:300+sr()*2000,hvn:0};
     let d=0,pp=null,lastChev=-1e9;const fence=[{n:0},{n:0}],hv={n:0,sd:1,p:null};
@@ -483,7 +515,7 @@ function buildRoadHash(){
   const cs=QH.cs,nc=QH.nc=Math.ceil(W.size/cs);let nseg=0;for(const r of ROADS)nseg+=r.closed?r.n:r.n-1;
   QH.segR=new Uint8Array(nseg);QH.segI=new Int32Array(nseg);let g=0;ROADS.forEach((r,ri)=>{const c=r.closed?r.n:r.n-1;for(let i=0;i<c;i++){QH.segR[g]=ri;QH.segI[g]=i;g++}});
   const cnt=new Int32Array(nc*nc+1);
-  const each=(fn)=>{for(let s=0;s<nseg;s++){const r=ROADS[QH.segR[s]],i=QH.segI[s],j=(i+1)%r.n,pad=r.hw+RSH+2,x0=Math.min(r.X[i],r.X[j])-pad,x1=Math.max(r.X[i],r.X[j])+pad,z0=Math.min(r.Z[i],r.Z[j])-pad,z1=Math.max(r.Z[i],r.Z[j])+pad;
+  const each=(fn)=>{for(let s=0;s<nseg;s++){const r=ROADS[QH.segR[s]],i=QH.segI[s],j=(i+1)%r.n,pad=r.hw+Math.max(RSH,r.sw)+2,x0=Math.min(r.X[i],r.X[j])-pad,x1=Math.max(r.X[i],r.X[j])+pad,z0=Math.min(r.Z[i],r.Z[j])-pad,z1=Math.max(r.Z[i],r.Z[j])+pad;
     const c0=Math.max(0,Math.floor((x0+W.half)/cs)),c1=Math.min(nc-1,Math.floor((x1+W.half)/cs)),d0=Math.max(0,Math.floor((z0+W.half)/cs)),d1=Math.min(nc-1,Math.floor((z1+W.half)/cs));for(let b=d0;b<=d1;b++)for(let a=c0;a<=c1;a++)fn(b*nc+a,s)}};
   each(c=>cnt[c+1]++);for(let k=0;k<nc*nc;k++)cnt[k+1]+=cnt[k];QH.st=cnt;QH.li=new Int32Array(cnt[nc*nc]);const fill=cnt.slice(0,nc*nc);each((c,s)=>{QH.li[fill[c]++]=s})}
 /* is this spot on or right beside any road (any height, bridges included)? used to keep trees and houses off roads and their ramps */
@@ -500,7 +532,7 @@ function buildQueries(){
   eachC(c=>ccnt[c+1]++);for(let k=0;k<cn*cn;k++)ccnt[k+1]+=ccnt[k];QH.cst=ccnt;QH.cli=new Int32Array(ccnt[cn*cn]);const f2=ccnt.slice(0,cn*cn);eachC((c,k)=>{QH.cli[f2[c]++]=k});QH.nR=nR;QH.nC=nC;
   QH.CR=new Float32Array(COLR);QH.CC=new Float32Array(COLC);QH.CO=new Float32Array(COLO)}
 /* nearest road surface under a point, filtered by height so overpasses and the road below do not mix */
-const RQ={on:0,y:0,lat:0,hw:0,tx:0,tz:0,nx:0,nz:0,rail:0,ri:0,br:0,ds:0};
+const RQ={on:0,y:0,lat:0,hw:0,tx:0,tz:0,nx:0,nz:0,rail:0,ri:0,br:0,ds:0,cb:0};
 function roadAt(x,z,yh){
   const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)/cs),cz=Math.floor((z+W.half)/cs);if(cx<0||cz<0||cx>=nc||cz>=nc)return false;
   const c=cz*nc+cx;let found=false,bestL=1e9,bestF=1e9,fl=false;
@@ -509,9 +541,12 @@ function roadAt(x,z,yh){
   for(let pass=0;pass<2;pass++){const tol=pass?4.5:1.3;if(pass&&found)break;
     for(let q=QH.st[c];q<QH.st[c+1];q++){const s=QH.li[q],r=ROADS[QH.segR[s]],i=QH.segI[s],j=i+1<r.n?i+1:0;
       const ax=r.X[i],az=r.Z[i],dx=r.X[j]-ax,dz=r.Z[j]-az,l2=dx*dx+dz*dz||1;let t=((x-ax)*dx+(z-az)*dz)/l2;t=t<0?0:t>1?1:t;
-      const px=ax+dx*t,pz=az+dz*t,ex=x-px,ez=z-pz,d=Math.sqrt(ex*ex+ez*ez),hw=r.hw*(r.wk[i]+(r.wk[j]-r.wk[i])*t)+RSH;if(d>hw)continue;
+      const px=ax+dx*t,pz=az+dz*t,ex=x-px,ez=z-pz,d=Math.sqrt(ex*ex+ez*ez),sh=r.sw||RSH,hw=r.hw*(r.wk[i]+(r.wk[j]-r.wk[i])*t)+sh;if(d>hw)continue;
       const yy=r.Y[i]+(r.Y[j]-r.Y[i])*t;if(Math.abs(yy-yh)>tol)continue;
-      if(d<bestL){bestL=d;found=true;const l=Math.sqrt(l2),tx=dx/l,tz=dz/l;RQ.tx=tx;RQ.tz=tz;RQ.nx=-tz;RQ.nz=tx;RQ.lat=ex*RQ.nx+ez*RQ.nz;RQ.y=yy+RQ.lat*(r.cf[i]+(r.cf[j]-r.cf[i])*t);RQ.hw=hw-RSH;RQ.rail=r.rail[i]&r.rail[j];RQ.ri=QH.segR[s];RQ.br=r.br[i];RQ.ds=r.S[i]+(r.S[j]-r.S[i])*t}}}
+      if(d<bestL){bestL=d;found=true;const l=Math.sqrt(l2),tx=dx/l,tz=dz/l;RQ.tx=tx;RQ.tz=tz;RQ.nx=-tz;RQ.nz=tx;RQ.lat=ex*RQ.nx+ez*RQ.nz;RQ.y=yy+RQ.lat*(r.cf[i]+(r.cf[j]-r.cf[i])*t);RQ.hw=hw-sh;RQ.rail=r.rail[i]&r.rail[j];RQ.ri=QH.segR[s];RQ.br=r.br[i];RQ.ds=r.S[i]+l*t}}}
   return found}
 /* ground height under a point (road surface if on a road at that level, else terrain) */
-function groundAt(x,z,yh){const ty=terrainH(x,z);RQ.on=0;if(roadAt(x,z,yh)){const over=Math.abs(RQ.lat)-RQ.hw;let y=RQ.y-(over>0?Math.min(over,RSH)/RSH*.12:0);if(y>ty-2.2){RQ.on=1;return y}}return ty}
+/* RQ.cb = 1 when the spot is up on a sidewalk (behind a curb) */
+function groundAt(x,z,yh){const ty=terrainH(x,z);RQ.on=0;RQ.cb=0;if(roadAt(x,z,yh)){const over=Math.abs(RQ.lat)-RQ.hw;let y=RQ.y;
+    if(over>0){const r=ROADS[RQ.ri];if(r.sw&&swOn(r,RQ.lat>0?1:0,RQ.ds)){y+=CURB_H*Math.min(1,over/.04);RQ.cb=1}else y-=Math.min(over,RSH)/RSH*.12}
+    if(y>ty-2.2){RQ.on=1;return y}}return ty}

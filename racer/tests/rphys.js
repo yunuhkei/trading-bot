@@ -87,10 +87,13 @@ const MODE=process.env.HNDMODE||'';
           M.I[deg+'deg@'+v]={kept1s:t1<0?null:+(sp/v).toFixed(2),lowest:+(vmin/v).toFixed(2),noseToRailDeg:+hd.toFixed(0),kJ:+((IMP.total-E1)/1000).toFixed(0),insideRoad:Math.abs((C.x-r.X[roadNear(r,C.x,C.z)])*Math.cos(a)+(C.z-r.Z[roadNear(r,C.x,C.z)])*Math.sin(a))<r.hw+1.2?1:0}}
         restore()}}
     /* ---------- J. curbs (only where the map has them) ---------- */
-    M.J=null;if(typeof curbAt==='function'){const r=ROADS.find(q=>q.id=='sfnu3')||ROADS.find(q=>q.city&&q.style==3);if(r){const i=Math.round(r.n*.43),a=Math.atan2(r.X[i+1]-r.X[i],-(r.Z[i+1]-r.Z[i]));QH.cst.fill(0);M.J={road:r.id};
-      for(const v of[6,15,30]){carPlace(r.X[i],r.Z[i],a+.5,r.Y[i]+.5);C.vx=Math.sin(C.yaw)*v;C.vz=-Math.cos(C.yaw)*v;C.steer=0;IN.assist=false;IN.thr=0;IN.brk=0;let y0=C.y,up=0,sh0=0,vmin=v,t=0;C.shake=0;
-        for(let k=0;k<120*1.2;k++){hold&&0;carStep(1/120);up=Math.max(up,C.y-y0);sh0=Math.max(sh0,C.shake);vmin=Math.min(vmin,C.speed)}
-        M.J['at'+v]={climbCm:+(up*100).toFixed(0),shake:+sh0.toFixed(2),speedLostPct:+((1-C.speed/v)*100).toFixed(0)}}
+    M.J=null;if(typeof swOn==='function'){const r=ROADS.find(q=>q.id=='lau1');if(r){const i=Math.round(r.n*.5),a=Math.atan2(r.X[i+1]-r.X[i],-(r.Z[i+1]-r.Z[i])),rx=Math.cos(a),rz=Math.sin(a);QH.cst.fill(0);
+      M.J={road:r.id,curbCm:+((groundAt(r.X[i]+rx*(r.hw+1),r.Z[i]+rz*(r.hw+1),r.Y[i])-groundAt(r.X[i]+rx*(r.hw-1),r.Z[i]+rz*(r.hw-1),r.Y[i]))*100).toFixed(1)};
+      /* the car coasts at the curb at 20 degrees: the speed it loses in the quarter second in which the wheels climb, less what coasting costs anyway (the quarter second before) */
+      for(const v of[9,15,30]){carPlace(r.X[i]+rx*(r.hw-2.2),r.Z[i]+rz*(r.hw-2.2),a+.35,r.Y[i]+.5);C.vx=Math.sin(C.yaw)*v;C.vz=-Math.cos(C.yaw)*v;C.steer=0;IN.assist=false;IN.thr=0;IN.brk=0;C.shake=0;const sp=[];let k0=-1,sh0=0,up=0,wmax=0;const y0=C.y;
+        for(let k=0;k<120*2.2;k++){carStep(1/120);sp.push(C.speed);if(k0<0&&C.cbN>0)k0=k;if(k0>=0&&k-k0<40)sh0=Math.max(sh0,C.shake);up=Math.max(up,C.y-y0);wmax=Math.max(wmax,C.cbN)}
+        const pre=k0>=30?sp[k0-30]-sp[k0-1]:0,post=k0>=0?sp[k0-1]-sp[Math.min(sp.length-1,k0+29)]:0;
+        M.J['at'+v]={climbCm:+(up*100).toFixed(0),shake:+sh0.toFixed(2),curbLossPct:k0<1?null:+((post-pre)/sp[k0-1]*100).toFixed(1),wheelsUp:wmax}}
       restore()}}
     return M});
   const M=res;const P=(k,v)=>console.log(k.padEnd(4),JSON.stringify(v));
@@ -122,7 +125,8 @@ const MODE=process.env.HNDMODE||'';
     ck(M.H.meanGapCm<6&&M.H.maxGapCm<15&&M.H.airFrames<30,'H ground following on Mulholland: mean gap '+M.H.meanGapCm+' cm, worst '+M.H.maxGapCm+' cm');
     if(M.I){for(const v of[35,60]){ck(M.I['6deg@'+v].kept1s>=.9&&M.I['12deg@'+v].kept1s>=.85,'I rail at 6 / 12 degrees, '+v+' m/s: keeps '+M.I['6deg@'+v].kept1s+' / '+M.I['12deg@'+v].kept1s+' of the speed');ck(M.I['12deg@'+v].noseToRailDeg<=5,'I the car is turned along the rail ('+M.I['12deg@'+v].noseToRailDeg+' deg)');ck(M.I['75deg@'+v].kept1s<.5,'I a steep rail hit stops or bounces ('+M.I['75deg@'+v].kept1s+')');ck(M.I['25deg@'+v].kJ>M.I['6deg@'+v].kJ,'I damage grows with the angle ('+M.I['6deg@'+v].kJ+' kJ at 6, '+M.I['25deg@'+v].kJ+' at 25, '+M.I['75deg@'+v].kJ+' at 75)')}
       for(const k of Object.keys(M.I))if(M.I[k]&&M.I[k].insideRoad===0)ck(false,'I the car went through the rail at '+k)}
-    if(M.J){ck(M.J.at6.climbCm>=8&&M.J.at6.climbCm<=22,'J the curb is climbed ('+M.J.at6.climbCm+' cm)');ck(M.J.at15.shake>.05,'J climbing it jolts the car (shake '+M.J.at15.shake+')');ck(M.J.at30.speedLostPct>=2&&M.J.at30.speedLostPct<=15,'J and costs a little speed ('+M.J.at30.speedLostPct+' % at 30 m/s)')}
+    if(M.J){ck(M.J.curbCm>=12&&M.J.curbCm<=18,'J the sidewalk is a curb above the street ('+M.J.curbCm+' cm)');ck(M.J.at9.climbCm>=8&&M.J.at9.wheelsUp>=2,'J the car climbs it ('+M.J.at9.climbCm+' cm, '+M.J.at9.wheelsUp+' wheels up at 9 m/s)');
+      ck(M.J.at15.shake>.05,'J climbing it jolts the car (shake '+M.J.at9.shake+' / '+M.J.at15.shake+' / '+M.J.at30.shake+' at 9 / 15 / 30 m/s)');ck(M.J.at30.curbLossPct>=1&&M.J.at30.curbLossPct<=10&&M.J.at15.curbLossPct>=1,'J and costs a little speed ('+M.J.at15.curbLossPct+' % at 15 m/s, '+M.J.at30.curbLossPct+' % at 30 m/s)')}
   }
   console.log('errs',T.errs.length?T.errs:0);await T.close();process.exit(bad||T.errs.length?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});

@@ -95,7 +95,11 @@ const SH={
   'if(tw||dv){float d=fract(v/12.);float on=step(d,dv?.26:.28);for(int i=1;i<5;i++){if(float(i)<lanes)wh+=ln(ax,x0+float(i)*lw,.07,aa)*on;}}'+
   /* markings fade out towards junctions */
   'wh*=mkf;ye*=mkf;'+
-  'float shd=smoothstep(hw-.1,hw+.35,ax);/* shoulder: gravel */asph=mix(asph,(style>2.5&&style<4.5?vec3(.46,.45,.43):vec3(.30,.27,.22))*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
+  /* beside the asphalt: a gravel shoulder, or in town a curb (its face in shadow, a pale curb stone) and a sidewalk of paving slabs */
+  'bool cty=style>2.5&&style<4.5;float so=ax-hw;float shd=cty?smoothstep(0.,.1,so):smoothstep(-.1,.35,so);vec3 sdc=cty?vec3(.46,.45,.43):vec3(.30,.27,.22);'+
+  'if(cty&&so>0.){float face=1.-smoothstep(.17,.2,so);float stone=smoothstep(.19,.2,so)*(1.-smoothstep(.5,.52,so));float jn=min(min(abs(fract(v/1.6)-.5)*1.6,abs(so-.52)),abs(so-2.06));'+
+  'float jl=(1.-smoothstep(0.,.03+aa*.6,jn))*step(.5,so)*exp(-dist*.025);sdc*=(1.-.5*face)*(1.+.22*stone)*(1.-.3*jl);}'+
+  'asph=mix(asph,sdc*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
   '\n#ifdef DET\nfloat lcn=(ax-x0)/lw;float fl2=abs(fract(lcn)-.5)*lw;float trk=exp(-pow((fl2-.82)/.34,2.))*step(0.,lcn)*step(lcn,lanes)*(1.-smoothstep(hw-.6,hw,ax))*(tw||dv?1.:0.);asph*=1.-trk*.2;asph*=1.+(1.-trk)*.04;\n#endif\n'+
   'vec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;'+
   /* wet: darker, puddles that act like mirrors, ripples in the surface, a reflection of the sky and of every light near the car */

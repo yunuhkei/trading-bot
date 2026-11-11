@@ -5,7 +5,7 @@
 function makeTown(id,B,theme,o){o=o||{};
   const us=[],vs=[];for(let x=B.x0+(o.mu||45);x<B.x1-30;x+=o.du||95)us.push(x);for(let z=B.z0+(o.mv||40);z<B.z1-30;z+=o.dv||85)vs.push(z);
   const g=gridStreets({id,kind:o.kind||'town',theme,ox:0,oz:0,ang:0,us,vs,hw:o.hw||5.5,style:3,lift:o.lift||.05,planes:planesBox(B)});
-  g.box=B;g.phw=o.phw||7;perimeter(id+'p',B,g.phw,(o.lift||.05)+.005);return g}
+  g.box=B;g.phw=o.phw||7;perimeter(id+'p',B,g.phw,(o.lift||.05)+.005);cityLand();return g}
 /* a spot beside a road: x,z and the road's direction (cs,sn) there; side +1 is to the left of the direction of travel, -1 to the right */
 function besideRoad(id,f,side,off){const r=ROADS.find(q=>q.id==id);if(!r)return null;const i=Math.max(1,Math.min(r.n-2,Math.round(f*(r.closed?r.n:r.n-1)))),t=_tan(r,i),nx=-t[1],nz=t[0],d=r.hw+RSH+off;
   return{x:r.X[i]+nx*side*d,z:r.Z[i]+nz*side*d,cs:t[0],sn:t[1]}}
@@ -25,9 +25,9 @@ function defineWorld(ring,sh,H){
   buildCurvy({id:'eh',hw:10,lanes:2,style:1,from:'ring',to:'barp',lift:.085,smooth:100,minR:60,wig:{a1:180,l1:600,a2:50,l2:240,seed:51,fade:220},
     pts:tJoin(ring,jn(ring,1440,50),2300,250).concat([[2300,250],[2750,520],[3150,800],[3450,1100]]).concat(tIn(bar,3580,1180))});   /* leaves the ring exactly opposite the boulevard road (bv): one crossroads */
   buildCurvy({id:'sh2',hw:9,lanes:1,style:0,yFrom:'lookout',to:'mojp',lift:.09,smooth:80,minR:50,wig:{a1:60,l1:420,a2:16,l2:160,seed:52,fade:140},
-    pts:tOut(look,2830,2400).concat([[2900,2385]]).concat(tIn(moj,3040,2300))});
+    pts:tOut(look,2830,2400).concat([[2900,2385]]).concat(tIn(moj,3040,2285))});
   buildCurvy({id:'sh3',hw:10,lanes:2,style:1,yFrom:'mojp',to:'barp',lift:.095,smooth:100,minR:60,wig:{a1:90,l1:480,a2:24,l2:180,seed:53,fade:150},
-    pts:tOut(moj,3380,2080).concat([[3400,1900],[3470,1760]]).concat(tIn(bar,3520,1650))});
+    pts:tOut(moj,3360,2080).concat([[3400,1900],[3470,1760]]).concat(tIn(bar,3545,1650))});
   /* the canyon road: along the floor of the canyon, up to a turnaround on the rim */
   loopRoad('rim',3600,-2700,40,6,.1);
   buildRoad({id:'cyr',hw:7,lanes:1,style:0,lift:.06,smooth:40,grade:.12,yFrom:'eh',yTo:'rim',
@@ -39,9 +39,9 @@ function defineWorld(ring,sh,H){
     pts:tJoin(mp,jn(mp,-190,-2380),-175,-2780).concat([[-175,-2780],[-190,-2880]]).concat(tIn(big,-190,-2950))});   /* starts where nh1 ends on the pass: one crossroads */
   /* ---------- north-west: the farm roads ---------- */
   buildCurvy({id:'fr1',hw:7,lanes:1,style:0,yFrom:'mp',to:'frep',lift:.07,smooth:60,minR:40,wig:{a1:40,l1:300,a2:12,l2:120,seed:56,fade:100},
-    pts:tOut(mp,-1150,-2110).concat([[-1250,-2125]]).concat(tIn(fre,-1330,-2130))});
+    pts:tOut(mp,-1150,-2110).concat([[-1250,-2130]]).concat(tIn(fre,-1330,-2135))});
   buildCurvy({id:'fr2',hw:7,lanes:1,style:0,yFrom:'frep',to:'mp',lift:.072,smooth:60,minR:40,wig:{a1:60,l1:320,a2:16,l2:130,seed:57,fade:100},
-    pts:tOut(fre,-1500,-1960).concat([[-1520,-1800],[-1470,-1620],[-1400,-1530]]).concat(tIn(mp,-1330,-1500))});
+    pts:tOut(fre,-1510,-1960).concat([[-1520,-1800],[-1470,-1620],[-1400,-1530]]).concat(tIn(mp,-1330,-1500))});
   /* ---------- the coast and the harbour ---------- */
   buildRoad({id:'pcl',hw:6,lanes:1,style:0,yFrom:'cr',yTo:'pacp',lift:.07,pts:[at(cr,jn(cr,-1840,1500)),at(pac,jn(pac,-1860,1500))]});
   buildRoad({id:'hb',hw:7,lanes:1,style:0,yFrom:'sh',yTo:'harp',lift:.08,pts:(q=>[at(sh,q),[sh.X[q],IND_HAR.z0]])(jn(sh,1000,2420))});
