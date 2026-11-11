@@ -4,8 +4,10 @@
 # models/wallet_styles.json. Reads the copy practice's record but trades nothing. Needs the HELIUS_API_KEY secret.
 name: wallet-styles
 on:
-  schedule:
-    - cron: "23 22 * * 0"    # Sundays 4:23 pm Milwaukee time; the job itself skips every other week
+  # Off (Nov 11 2026): it only studies wallets for the copy bot, which is off.
+  # To turn it back on, uncomment the two lines below.
+  # schedule:
+  #   - cron: "23 22 * * 0"    # Sundays 4:23 pm Milwaukee time; the job itself skips every other week
   workflow_dispatch:
 permissions:
   contents: write            # saves models/wallet_styles.json
