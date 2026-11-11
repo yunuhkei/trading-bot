@@ -1,5 +1,9 @@
 # trading-bot
 
+**Which doc is for what:** [HOW_TO_USE.md](HOW_TO_USE.md) is the current manual (every bot that runs, how to
+check it, what each setting does). [GUIDE.md](GUIDE.md) is the step-by-step path from a backtest to real money.
+This page is the original overview of the backtesting and alert tools.
+
 A small, safety-first spot crypto trading bot built on [ccxt](https://github.com/ccxt/ccxt) (100+ exchanges).
 It runs one strategy on one symbol, long or long/short, and acts once per closed candle.
 
