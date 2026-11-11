@@ -120,6 +120,10 @@ function trThink(c,dt){
   vd=Math.max(2,vd*c.v0f);if(c.cm>0&&c.kind===1){const tp=copTop(c);if(vd>tp)vd=tp}
   _term=0;_emerg=0;_swerve=0;_yGap=1e9;c.flags=0;c.yPrev=c.yTo;c.yTo=-1;
   if(c.hend){/* the path ends (the lane has to be changed first): stop at its end */const gap=(c.hnTrue-1)*c.hs-c.hl-.8;trTerm(c,v,gap,0)}
+  /* TRAFFIC LIGHTS: on red stop at the line (unless it is too late to stop: then it is a late yellow and the car goes), on yellow stop only if it can do so comfortably. A chasing cop ignores them.
+     Every car within 160 m of a red line is flagged (8) as waiting at a light, so a queue is not taken for a jam (stopT) and does not try to pass the car in front. */
+  if(!c.L&&c.e&&!(c.kind===1&&c.cm>0)){const e=c.e,g=lgNextJ(e,c.u);if(g&&g.sig){let su=g.minFu;if(e.closed&&su<c.u-1e-6)su+=e.n;const d=trSu(e,su)-trSu(e,c.u);
+    if(d>-.5&&d<160){const st=sigState(g.sig);if(st>0){c.flags|=8;const gap=d-c.hl-.3,need=v*v/(2*Math.max(gap,.1));if(gap>-.3&&(st==2?need<7.5:need<3.2))trTerm(c,v,gap<.15?.15:gap,0)}}}}
   /* neighbours */
   const st=++TR.stamp,cx=Math.floor(c.x/48),cz=Math.floor(c.z/48),cars=TR.cars;
   for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){const k=((Math.imul(cx+a+4096,73856093)^Math.imul(cz+b+4096,19349663))&4095);
@@ -132,7 +136,7 @@ function trThink(c,dt){
   /* giving way has a memory: for a second after the conflict was last seen the car keeps braking for the same stop point (no brake/gas flicker at a junction) */
   if(c.flags&2){c.yHold=1;c.yGap=_yGap}
   else if(c.yHold>0){c.yHold-=dt;c.yGap-=v*dt;trTerm(c,v,c.yGap,0);c.flags|=2;if(c.yPrev>=0)c.yTo=c.yPrev}
-  if(c.v<.3)c.stopT+=dt;else c.stopT=0;
+  if(c.v<.3&&!(c.flags&8))c.stopT+=dt;else c.stopT=0;
   if(c.offHold>0){c.offHold-=dt}else c.offT=0;
   const rate=c.offHold>0?3:1.1;c.off+=(c.offT-c.off)*Math.min(1,dt*rate);
   /* IDM */
@@ -183,7 +187,7 @@ function trLaneChange(c,dt){
   if(g){const pk=trPick(c,g,e);if(pk&&pk.from!==e){const dist=(e.closed?((pk.fu-iw+e.n)%e.n):(pk.fu-iw))*e.ds;if((dist>32&&dist<190)||c.hend)want=pk.from.k}}
   if(want<0){/* a dead-end lane (no turn from it, no straight) */ if(g&&!g.through){let has=false;for(const l of e.out)if(l.jg===g)has=true;if(!has){for(const l of g.links){want=l.from.k;break}}}}
   if(want<0){/* pass a slow car: only on multi-lane roads, only if we are blocked */
-    if(c.flags&4&&c.bg>=10&&c.v<c.vlim*(c.cm>0&&c.kind===1?c.v0f:1)*.72&&c.offHold<=0){want=e.k>0?e.k-1:e.k+1;if(want>=o.length)want=-1}}
+    if(c.flags&4&&!(c.flags&8)&&c.bg>=10&&c.v<c.vlim*(c.cm>0&&c.kind===1?c.v0f:1)*.72&&c.offHold<=0){want=e.k>0?e.k-1:e.k+1;if(want>=o.length)want=-1}}
   if(want<0||want===e.k)return;
   if(c.hend&&c.stopT>2.5){trSwitchLane(c,o[want]);c.lcCool=2;c.stopT=0;TR.stat.forced++;return}      /* stuck at the end of a lane: just take the lane */
   const k2=e.k+(want>e.k?1:-1),e2=o[k2],st=++TR.stamp,cars=TR.cars,cx=Math.floor(c.x/48),cz=Math.floor(c.z/48);let ok=true;
@@ -348,6 +352,8 @@ function trSpawn(){
     /* start no faster than the car in front */
     let v=Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*.85;
     for(const c of TR.cars)if(c.alive&&c.e===e&&!c.L){const dd=(c.u-u)*e.ds;if(dd>0&&dd<45&&c.v<v)v=c.v}
+    /* never put a car where it could not stop for a red (or soon red) light ahead */
+    {const g=lgNextJ(e,u);if(g&&g.sig&&sigState(g.sig)>0){let su=g.minFu;if(e.closed&&su<u)su+=e.n;const d=trSu(e,su)-trSu(e,u);if(d>-2&&d<v*v/5+12)continue}}
     const c=trPlace(e,u,type,col,v,seed);return c}
   return null}
 /* the graphics tier scales how many cars the player sees (a stronger phone gets more) */
@@ -364,7 +370,7 @@ function trTick(dt){
   TR.head.fill(-1);for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const k=trCell(c.x,c.z);c.nxt=TR.head[k];TR.head[k]=i}
   /* each car thinks every other tick (30 Hz, half of the cars on each tick); it steers and moves every tick */
   const par=(TR.tk=(TR.tk|0)+1)&1;
-  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;if(c.state==0){if((i&1)===par||c.hn===0){c.think=1;trHorizon(c);trSamples(c,false)}else c.think=0}else if(c.state==3){copHorizon(c);trSamples(c,false)}else trSamples(c,true)}
+  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;if(c.state==0){if((i&1)===par||c.hn===0){c.think=1;trHorizon(c);trSamples(c,(c.flags&8)!==0&&c.v<1.5)}else c.think=0}   /* a car waiting at a red light is a parked obstacle for the conflict test, not a car about to move into the junction */else if(c.state==3){copHorizon(c);trSamples(c,false)}else trSamples(c,true)}
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;
     if(c.state==0){if(c.think){trThink(c,dt*2);if((c.flags&2)==0&&c.e)trLaneChange(c,dt*2)}else c.v=Math.max(0,c.v+c.acc*dt);trMove(c,dt);c.vlim=c.hv[0]}
     else if(c.state==3)copFree(c,dt);
@@ -384,4 +390,4 @@ function trTick(dt){
   copTick(dt);
   if(TR.prof){const ms=performance.now()-t0;TR.ms+=(ms-TR.ms)*.03;TR.stat.msSum+=ms;TR.stat.ticks++;if(ms>TR.stat.msMax)TR.stat.msMax=ms}}
 /* the fixed-step world: the player at 120 Hz (collisions with traffic included), traffic at 60 Hz */
-function worldStep(dt){if(GAME.lock)gameLockInputs();carStep(dt);if(TR.on&&TR.nAlive)trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);if(!(++TR.sub&1))trTick(dt*2)}
+function worldStep(dt){SIG.t+=dt;if(GAME.lock)gameLockInputs();carStep(dt);if(TR.on&&TR.nAlive)trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);if(!(++TR.sub&1))trTick(dt*2)}

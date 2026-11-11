@@ -6,7 +6,7 @@ const QS=new URLSearchParams(location.search);
 async function boot(){
   try{
     loadMsg(.02,'Shaping the land…');
-    const t0=performance.now();defineRoads();BOOT.lgMs=0;{const t1=performance.now();lgBuild();BOOT.lgMs=performance.now()-t1}await genHeight(p=>loadMsg(.02+p*.18));
+    const t0=performance.now();defineRoads();BOOT.lgMs=0;{const t1=performance.now();lgBuild();BOOT.lgMs=performance.now()-t1;BOOT.sig=sigBuild()}await genHeight(p=>loadMsg(.02+p*.18));
     loadMsg(.2,'Laying roads…');await nextTick();await carveRoads(p=>loadMsg(.2+p*.15));railPass();
     loadMsg(.38,'Painting the ground…');await nextTick();genColors();
     loadMsg(.45,'Starting the graphics…');await nextTick();
@@ -26,7 +26,7 @@ async function boot(){
     BOOT.genMs=performance.now()-t0;
     loadMsg(1,'Ready  ('+Math.round(BOOT.genMs/100)/10+' s, '+R.stats.buildings+' buildings, '+R.stats.trees+' trees)');
     if(QS.has('go')||window.__autoGo){startRun()}else{const go=$('go');go.style.display='block';go.onclick=()=>{audioStart();startRun()}}
-    window.RACER={PHYS,physSetClassic,deflect,ENV,ENVP,envApply,envCycle,PP,DEB,PDM,partDetach,partsHit,partsStep,partsReset,partHinge,NAV,MAPV,navSet,navClear,navSnap,navAStar,navLane,navPolyline,mapOpenNow,mapDown,mapMove,mapUp,mapWheel,copTrigger,COP,trGenType,trDent,TTYPES,MENU,CAROWN,menuOpen,menuClose,menuPreview,menuChoose,carUnlock,carSelect,CAR_ROSTER,CARSEL,HND,HND0,CARM,CD,cgBuild,GFX,GFXT,GOV,SHD,SMOKE,SPARK,LAMPS,NEONS,CARL,gfxGovern,gfxSetTier,gfxSetMode,C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
+    window.RACER={SIG,sigState,sigBuild,PHYS,physSetClassic,deflect,ENV,ENVP,envApply,envCycle,PP,DEB,PDM,partDetach,partsHit,partsStep,partsReset,partHinge,NAV,MAPV,navSet,navClear,navSnap,navAStar,navLane,navPolyline,mapOpenNow,mapDown,mapMove,mapUp,mapWheel,copTrigger,COP,trGenType,trDent,TTYPES,MENU,CAROWN,menuOpen,menuClose,menuPreview,menuChoose,carUnlock,carSelect,CAR_ROSTER,CARSEL,HND,HND0,CARM,CD,cgBuild,GFX,GFXT,GOV,SHD,SMOKE,SPARK,LAMPS,NEONS,CARL,gfxGovern,gfxSetTier,gfxSetMode,C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
   }catch(e){showErr('Startup failed: '+(e&&e.message||e));console.error(e)}}
 let last=0,acc=0,running=false;const DT=1/120;
 function startRun(){$('load').classList.add('off');running=true;last=performance.now();requestAnimationFrame(loop)}

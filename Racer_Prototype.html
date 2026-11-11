@@ -992,6 +992,7 @@ const COLC=[],COLR=[],COLO=[];
 /* lights that glow: street lamp heads (x,y,z) and neon signs (x,y,z,r,g,b,size); the renderer draws a glow for the ones near the car and lights the wet road with them */
 const LAMPS=[],NEONS=[];/* colliders: circles [x,z,r], rects [x0,z0,x1,z1,top], rotated rects [cx,z,hx,hz,cos,sin,top] */
 function buildFurniture(){
+  if(typeof sigProps==='function')BOOT.sigHeads=sigProps();
   const cc=[170,166,158];
   for(const r of ROADS){const n=r.n,cnt=r.closed?n:n-1;
     for(let i=0;i<cnt;i++){const j=(i+1)%n;const a=r.rail[i]&r.rail[j];if(!a&&!(r.br[i]&&r.br[j]))continue;
@@ -1600,6 +1601,53 @@ function lgBuild(){
 function lgNextJ(e,u){const G=LG.jg[e.ri*2+lgDirI(e.dir)];if(!G||!G.length)return null;
   for(let i=0;i<G.length;i++)if(G[i].foot>=u)return G[i];
   return e.closed?G[0]:null}
+
+'use strict';
+/* ===== traffic lights (world 1d): a controller at every junction where roads cross or meet, two phases, cars stop at the line and queue =====
+   An APPROACH is one road direction arriving at a junction (a junction group of the lane graph, LG.jg). Approaches whose groups lie within 24 m of each other form one INTERSECTION.
+   Phase 0 holds the approaches along the main road's axis (the highest road class), phase 1 the ones across it. An intersection gets a light when it has three or more approaches and both phases;
+   where the main road is a highway (class 3) the side roads just give way, as before. Cycle: green, yellow (3 s, 3.5 on main roads), all red (1.2 s), then the other phase.
+   The main road gets 14 s of green and the cross street 9 s when it is the bigger road, 11 / 11 when they are equal. Each intersection starts at its own offset (a hash).
+   The stop line is where the first turn of the group starts (g.minFu): 3 m before the crossing road's asphalt. Time is SIG.t (advanced by worldStep), so everything is deterministic.
+   Pure data plus two small functions the traffic and the renderer call; the poles and heads are props (buildFurniture), the lit lamps are glow sprites (41_fx.js). */
+const SIG={t:0,I:[],heads:[],nAp:0};
+function sigHash(a){let h=Math.imul(a|0,2654435761)^0x5bd1e995;h=Math.imul(h^(h>>>15),2246822519);return((h^(h>>>13))>>>0)/4294967296}
+function sigBuild(){
+  SIG.I.length=0;SIG.heads.length=0;SIG.nAp=0;const ap=[];
+  ROADS.forEach((r,ri)=>{const o=LG.ofRoad[ri];if(!o)return;
+    for(let di=0;di<2;di++){const G=LG.jg[ri*2+di];if(!G)continue;
+      for(const g of G){g.sig=null;if(g.links.every(l=>l.kind==3))continue;const e=g.e0,ix=di==0?g.foot:r.n-1-g.foot;if(ix<0||ix>=r.n)continue;
+        let toFoot=e.S[Math.min(e.n-1,g.foot)]-e.S[g.minFu];if(toFoot<0&&e.closed)toFoot+=e.len;if(toFoot<0||toFoot>40)continue;
+        const t=lgTan(e,g.minFu);ap.push({g,r,ri,di,e,x:r.X[ix],z:r.Z[ix],ax:Math.atan2(t[1],t[0]),tx:t[0],tz:t[1],cls:e.cls,su:g.minFu})}}});
+  /* group approaches into intersections (greedy, by the junction point) */
+  const done=new Uint8Array(ap.length);
+  for(let a=0;a<ap.length;a++){if(done[a])continue;const L=[ap[a]];done[a]=1;let cx=ap[a].x,cz=ap[a].z;
+    for(let b=a+1;b<ap.length;b++){if(done[b])continue;if(Math.hypot(ap[b].x-cx,ap[b].z-cz)<24){done[b]=1;L.push(ap[b]);cx=(cx*(L.length-1)+ap[b].x)/L.length;cz=(cz*(L.length-1)+ap[b].z)/L.length}}
+    if(L.length<3)continue;
+    let main=L[0];for(const p of L)if(p.cls>main.cls)main=p;if(main.cls>=3)continue;
+    const axd=p=>{let d=Math.abs(angd(p.ax,main.ax));if(d>Math.PI/2)d=Math.PI-d;return d};
+    for(const p of L)p.ph=axd(p)<Math.PI/4?0:1;
+    const n0=L.filter(p=>p.ph==0).length;if(n0==0||n0==L.length)continue;
+    const c0=Math.max(...L.filter(p=>p.ph==0).map(p=>p.cls)),c1=Math.max(...L.filter(p=>p.ph==1).map(p=>p.cls));
+    const I={id:SIG.I.length,x:cx,z:cz,ap:L,g0:c0>c1?14:11,g1:c0>c1?9:11,Y:c0>=2?3.5:3,AR:1.2};I.T=I.g0+I.g1+2*(I.Y+I.AR);I.off=sigHash(I.id*7+Math.round(cx)+Math.round(cz)*3)*I.T;
+    for(const p of L){p.g.sig={I,ph:p.ph};SIG.nAp++}SIG.I.push(I)}
+  return{intersections:SIG.I.length,approaches:SIG.nAp}}
+/* 0 green, 1 yellow, 2 red for phase ph of intersection I at time t */
+function sigState(s,t){const I=s.I,k=((((t==null?SIG.t:t)+I.off)%I.T)+I.T)%I.T,a=I.g0+I.Y+I.AR;
+  if(s.ph==0)return k<I.g0?0:k<I.g0+I.Y?1:2;
+  return k<a?2:k<a+I.g1?0:k<a+I.g1+I.Y?1:2}
+/* the poles and heads, placed once the props are being built: a pole on the right-hand corner of each approach at the stop line with a head at 2.8 m, and an arm reaching over the road with a
+   second head at 5.6 m. heads: [x,y,z, facing x,z, intersection, phase] (two per approach) for the lit lamps */
+function sigProps(){SIG.heads.length=0;
+  for(const I of SIG.I)for(const p of I.ap){const r=p.r,ix=p.di==0?p.su:r.n-1-p.su;if(ix<0||ix>=r.n)continue;const nx=-p.tz,nz=p.tx,hw=r.hw*r.wk[ix],off=hw+(r.sw?.9:RSH*.75),y=r.Y[ix]+(r.sw?CURB_H:-.1);
+    const px=r.X[ix]+nx*off,pz=r.Z[ix]+nz*off;if(otherAsphalt(px,pz,r,r.Y[ix],.2))continue;
+    const fx=-p.tx,fz=-p.tz,arm=clamp(off-hw*.45,2,8),ax=px-nx*arm,az=pz-nz*arm;
+    ptrunk(0,px,y-.3,pz,.11,6.1,96,100,104);pbar(0,px,y+5.95,pz,ax,y+5.95,az,.12,96,100,104);COLC.push(px,pz,.25,y-.5,y+6);
+    for(const[hx,hy,hz]of[[ax,y+5.35,az],[px-nx*.25,y+2.8,pz-nz*.25]]){
+      pboxR(0,hx,hz,.15,.19,-nz,nx,hy-.55,hy+.55,30,32,34,false,1);                                   /* the housing: 0.38 m wide, 1.1 m tall */
+      for(const dy of[.34,0,-.34])pboxR(0,hx+fx*.15,hz+fz*.15,.03,.13,-nz,nx,hy+dy-.13,hy+dy+.13,14,14,16,false,1);   /* three dark lenses (the lit one is a glow sprite) */
+      SIG.heads.push(hx+fx*.24,hy,hz+fz*.24,fx,fz,I.id,p.ph)}}
+  return SIG.heads.length/7}
 
 'use strict';
 /* ===== renderer: uploads the static world once, then each frame = sky/terrain clipmap/roads/props/car/effects/water ===== */
@@ -2299,6 +2347,9 @@ function fxDraw(){
       if(c.siren){const ph=Math.sin(R.time*12)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),2.6+d*.016,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(1,k*2.6))}
       else if(c.kind===1&&c.cm===0&&c.type===4){const ph=Math.sin(R.time*2.6)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),1.1+d*.01,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(.9,k*2))}}}
   /* police lights are drawn with plain blending (a saturated red or blue even against the bright sky), the other glows are added */
+  /* traffic lights: the lit lamp of every head that faces the camera, within 220 m (plain blending, so red, yellow and green read in bright sun) */
+  {let k=0;const H=SIG.heads,cx2=CAM.x,cz2=CAM.z;for(let i=0;i<H.length&&k<64;i+=7){const dx=H[i]-cx2,dz=H[i+2]-cz2,d2=dx*dx+dz*dz;if(d2>48400||dx*H[i+3]+dz*H[i+4]>0)continue;if(dx*R.fw[0]+dz*R.fw[2]<-3)continue;
+    const I=SIG.I[H[i+5]],st=sigState({I,ph:H[i+6]}),d=Math.sqrt(d2),dy=st==2?.34:st==1?0:-.34,c=st==2?[1,.07,.04]:st==1?[1,.62,.04]:[.1,1,.45];SRN.push(H[i],H[i+1]+dy,H[i+2],.5+d*.011,c[0],c[1],c[2],Math.min(1,1.25-d/260));k++}}
   batch(8);for(let q=0;q<SRN.length;q+=8)sprite(SRN[q],SRN[q+1],SRN[q+2],SRN[q+3],SRN[q+4],SRN[q+5],SRN[q+6],SRN[q+7]);SRN.length=0;
   /* a lit garage door sign etc. could go here */
   batch(7);
@@ -2667,6 +2718,10 @@ function trThink(c,dt){
   vd=Math.max(2,vd*c.v0f);if(c.cm>0&&c.kind===1){const tp=copTop(c);if(vd>tp)vd=tp}
   _term=0;_emerg=0;_swerve=0;_yGap=1e9;c.flags=0;c.yPrev=c.yTo;c.yTo=-1;
   if(c.hend){/* the path ends (the lane has to be changed first): stop at its end */const gap=(c.hnTrue-1)*c.hs-c.hl-.8;trTerm(c,v,gap,0)}
+  /* TRAFFIC LIGHTS: on red stop at the line (unless it is too late to stop: then it is a late yellow and the car goes), on yellow stop only if it can do so comfortably. A chasing cop ignores them.
+     Every car within 160 m of a red line is flagged (8) as waiting at a light, so a queue is not taken for a jam (stopT) and does not try to pass the car in front. */
+  if(!c.L&&c.e&&!(c.kind===1&&c.cm>0)){const e=c.e,g=lgNextJ(e,c.u);if(g&&g.sig){let su=g.minFu;if(e.closed&&su<c.u-1e-6)su+=e.n;const d=trSu(e,su)-trSu(e,c.u);
+    if(d>-.5&&d<160){const st=sigState(g.sig);if(st>0){c.flags|=8;const gap=d-c.hl-.3,need=v*v/(2*Math.max(gap,.1));if(gap>-.3&&(st==2?need<7.5:need<3.2))trTerm(c,v,gap<.15?.15:gap,0)}}}}
   /* neighbours */
   const st=++TR.stamp,cx=Math.floor(c.x/48),cz=Math.floor(c.z/48),cars=TR.cars;
   for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){const k=((Math.imul(cx+a+4096,73856093)^Math.imul(cz+b+4096,19349663))&4095);
@@ -2679,7 +2734,7 @@ function trThink(c,dt){
   /* giving way has a memory: for a second after the conflict was last seen the car keeps braking for the same stop point (no brake/gas flicker at a junction) */
   if(c.flags&2){c.yHold=1;c.yGap=_yGap}
   else if(c.yHold>0){c.yHold-=dt;c.yGap-=v*dt;trTerm(c,v,c.yGap,0);c.flags|=2;if(c.yPrev>=0)c.yTo=c.yPrev}
-  if(c.v<.3)c.stopT+=dt;else c.stopT=0;
+  if(c.v<.3&&!(c.flags&8))c.stopT+=dt;else c.stopT=0;
   if(c.offHold>0){c.offHold-=dt}else c.offT=0;
   const rate=c.offHold>0?3:1.1;c.off+=(c.offT-c.off)*Math.min(1,dt*rate);
   /* IDM */
@@ -2730,7 +2785,7 @@ function trLaneChange(c,dt){
   if(g){const pk=trPick(c,g,e);if(pk&&pk.from!==e){const dist=(e.closed?((pk.fu-iw+e.n)%e.n):(pk.fu-iw))*e.ds;if((dist>32&&dist<190)||c.hend)want=pk.from.k}}
   if(want<0){/* a dead-end lane (no turn from it, no straight) */ if(g&&!g.through){let has=false;for(const l of e.out)if(l.jg===g)has=true;if(!has){for(const l of g.links){want=l.from.k;break}}}}
   if(want<0){/* pass a slow car: only on multi-lane roads, only if we are blocked */
-    if(c.flags&4&&c.bg>=10&&c.v<c.vlim*(c.cm>0&&c.kind===1?c.v0f:1)*.72&&c.offHold<=0){want=e.k>0?e.k-1:e.k+1;if(want>=o.length)want=-1}}
+    if(c.flags&4&&!(c.flags&8)&&c.bg>=10&&c.v<c.vlim*(c.cm>0&&c.kind===1?c.v0f:1)*.72&&c.offHold<=0){want=e.k>0?e.k-1:e.k+1;if(want>=o.length)want=-1}}
   if(want<0||want===e.k)return;
   if(c.hend&&c.stopT>2.5){trSwitchLane(c,o[want]);c.lcCool=2;c.stopT=0;TR.stat.forced++;return}      /* stuck at the end of a lane: just take the lane */
   const k2=e.k+(want>e.k?1:-1),e2=o[k2],st=++TR.stamp,cars=TR.cars,cx=Math.floor(c.x/48),cz=Math.floor(c.z/48);let ok=true;
@@ -2895,6 +2950,8 @@ function trSpawn(){
     /* start no faster than the car in front */
     let v=Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*.85;
     for(const c of TR.cars)if(c.alive&&c.e===e&&!c.L){const dd=(c.u-u)*e.ds;if(dd>0&&dd<45&&c.v<v)v=c.v}
+    /* never put a car where it could not stop for a red (or soon red) light ahead */
+    {const g=lgNextJ(e,u);if(g&&g.sig&&sigState(g.sig)>0){let su=g.minFu;if(e.closed&&su<u)su+=e.n;const d=trSu(e,su)-trSu(e,u);if(d>-2&&d<v*v/5+12)continue}}
     const c=trPlace(e,u,type,col,v,seed);return c}
   return null}
 /* the graphics tier scales how many cars the player sees (a stronger phone gets more) */
@@ -2911,7 +2968,7 @@ function trTick(dt){
   TR.head.fill(-1);for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const k=trCell(c.x,c.z);c.nxt=TR.head[k];TR.head[k]=i}
   /* each car thinks every other tick (30 Hz, half of the cars on each tick); it steers and moves every tick */
   const par=(TR.tk=(TR.tk|0)+1)&1;
-  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;if(c.state==0){if((i&1)===par||c.hn===0){c.think=1;trHorizon(c);trSamples(c,false)}else c.think=0}else if(c.state==3){copHorizon(c);trSamples(c,false)}else trSamples(c,true)}
+  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;if(c.state==0){if((i&1)===par||c.hn===0){c.think=1;trHorizon(c);trSamples(c,(c.flags&8)!==0&&c.v<1.5)}else c.think=0}   /* a car waiting at a red light is a parked obstacle for the conflict test, not a car about to move into the junction */else if(c.state==3){copHorizon(c);trSamples(c,false)}else trSamples(c,true)}
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;
     if(c.state==0){if(c.think){trThink(c,dt*2);if((c.flags&2)==0&&c.e)trLaneChange(c,dt*2)}else c.v=Math.max(0,c.v+c.acc*dt);trMove(c,dt);c.vlim=c.hv[0]}
     else if(c.state==3)copFree(c,dt);
@@ -2931,7 +2988,7 @@ function trTick(dt){
   copTick(dt);
   if(TR.prof){const ms=performance.now()-t0;TR.ms+=(ms-TR.ms)*.03;TR.stat.msSum+=ms;TR.stat.ticks++;if(ms>TR.stat.msMax)TR.stat.msMax=ms}}
 /* the fixed-step world: the player at 120 Hz (collisions with traffic included), traffic at 60 Hz */
-function worldStep(dt){if(GAME.lock)gameLockInputs();carStep(dt);if(TR.on&&TR.nAlive)trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);if(!(++TR.sub&1))trTick(dt*2)}
+function worldStep(dt){SIG.t+=dt;if(GAME.lock)gameLockInputs();carStep(dt);if(TR.on&&TR.nAlive)trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);if(!(++TR.sub&1))trTick(dt*2)}
 
 'use strict';
 /* ===== traffic rendering: four low-poly body types built in code (about 200 triangles each), drawn instanced (one draw per type; if the GPU has no instancing, one draw per car) ===== */
@@ -4125,7 +4182,7 @@ const QS=new URLSearchParams(location.search);
 async function boot(){
   try{
     loadMsg(.02,'Shaping the land…');
-    const t0=performance.now();defineRoads();BOOT.lgMs=0;{const t1=performance.now();lgBuild();BOOT.lgMs=performance.now()-t1}await genHeight(p=>loadMsg(.02+p*.18));
+    const t0=performance.now();defineRoads();BOOT.lgMs=0;{const t1=performance.now();lgBuild();BOOT.lgMs=performance.now()-t1;BOOT.sig=sigBuild()}await genHeight(p=>loadMsg(.02+p*.18));
     loadMsg(.2,'Laying roads…');await nextTick();await carveRoads(p=>loadMsg(.2+p*.15));railPass();
     loadMsg(.38,'Painting the ground…');await nextTick();genColors();
     loadMsg(.45,'Starting the graphics…');await nextTick();
@@ -4145,7 +4202,7 @@ async function boot(){
     BOOT.genMs=performance.now()-t0;
     loadMsg(1,'Ready  ('+Math.round(BOOT.genMs/100)/10+' s, '+R.stats.buildings+' buildings, '+R.stats.trees+' trees)');
     if(QS.has('go')||window.__autoGo){startRun()}else{const go=$('go');go.style.display='block';go.onclick=()=>{audioStart();startRun()}}
-    window.RACER={PHYS,physSetClassic,deflect,ENV,ENVP,envApply,envCycle,PP,DEB,PDM,partDetach,partsHit,partsStep,partsReset,partHinge,NAV,MAPV,navSet,navClear,navSnap,navAStar,navLane,navPolyline,mapOpenNow,mapDown,mapMove,mapUp,mapWheel,copTrigger,COP,trGenType,trDent,TTYPES,MENU,CAROWN,menuOpen,menuClose,menuPreview,menuChoose,carUnlock,carSelect,CAR_ROSTER,CARSEL,HND,HND0,CARM,CD,cgBuild,GFX,GFXT,GOV,SHD,SMOKE,SPARK,LAMPS,NEONS,CARL,gfxGovern,gfxSetTier,gfxSetMode,C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
+    window.RACER={SIG,sigState,sigBuild,PHYS,physSetClassic,deflect,ENV,ENVP,envApply,envCycle,PP,DEB,PDM,partDetach,partsHit,partsStep,partsReset,partHinge,NAV,MAPV,navSet,navClear,navSnap,navAStar,navLane,navPolyline,mapOpenNow,mapDown,mapMove,mapUp,mapWheel,copTrigger,COP,trGenType,trDent,TTYPES,MENU,CAROWN,menuOpen,menuClose,menuPreview,menuChoose,carUnlock,carSelect,CAR_ROSTER,CARSEL,HND,HND0,CARM,CD,cgBuild,GFX,GFXT,GOV,SHD,SMOKE,SPARK,LAMPS,NEONS,CARL,gfxGovern,gfxSetTier,gfxSetMode,C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
   }catch(e){showErr('Startup failed: '+(e&&e.message||e));console.error(e)}}
 let last=0,acc=0,running=false;const DT=1/120;
 function startRun(){$('load').classList.add('off');running=true;last=performance.now();requestAnimationFrame(loop)}

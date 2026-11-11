@@ -102,6 +102,9 @@ function fxDraw(){
       if(c.siren){const ph=Math.sin(R.time*12)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),2.6+d*.016,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(1,k*2.6))}
       else if(c.kind===1&&c.cm===0&&c.type===4){const ph=Math.sin(R.time*2.6)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),1.1+d*.01,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(.9,k*2))}}}
   /* police lights are drawn with plain blending (a saturated red or blue even against the bright sky), the other glows are added */
+  /* traffic lights: the lit lamp of every head that faces the camera, within 220 m (plain blending, so red, yellow and green read in bright sun) */
+  {let k=0;const H=SIG.heads,cx2=CAM.x,cz2=CAM.z;for(let i=0;i<H.length&&k<64;i+=7){const dx=H[i]-cx2,dz=H[i+2]-cz2,d2=dx*dx+dz*dz;if(d2>48400||dx*H[i+3]+dz*H[i+4]>0)continue;if(dx*R.fw[0]+dz*R.fw[2]<-3)continue;
+    const I=SIG.I[H[i+5]],st=sigState({I,ph:H[i+6]}),d=Math.sqrt(d2),dy=st==2?.34:st==1?0:-.34,c=st==2?[1,.07,.04]:st==1?[1,.62,.04]:[.1,1,.45];SRN.push(H[i],H[i+1]+dy,H[i+2],.5+d*.011,c[0],c[1],c[2],Math.min(1,1.25-d/260));k++}}
   batch(8);for(let q=0;q<SRN.length;q+=8)sprite(SRN[q],SRN[q+1],SRN[q+2],SRN[q+3],SRN[q+4],SRN[q+5],SRN[q+6],SRN[q+7]);SRN.length=0;
   /* a lit garage door sign etc. could go here */
   batch(7);
