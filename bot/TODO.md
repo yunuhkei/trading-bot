@@ -73,7 +73,11 @@ category, list pointless workflows for the owner. Never delete Actions caches or
 - 10. Go-live gate documented in HOW_TO_USE.md, OFF; the weekly summary says how far the brain is from it.
 - PART 1 DONE (practice only). The owner merges claude/super-bot-brain into main to start the data.
 
+- PART 2 DONE on claude/repo-cleanup: removed bot/creators.py (dead), README says which doc is for what; every
+  other top-level file is used. The 24 old branches are fully in main but were NOT deleted: this session can't
+  create the backup tags (GitHub write to tags is blocked here), and the rule is tag first. Waiting on the owner:
+  delete them on GitHub's Branches page (nothing is lost), and decide on the schedules of solbot, copytrade,
+  smart-wallets and wallet-styles (listed in the cleanup report).
+
 ## Next
-- PART 2: repo cleanup on claude/repo-cleanup (from main): inventory, archive merged branches as tags, remove
-  unused files by category, list pointless scheduled workflows for the owner (don't disable).
 - Day ~14 after the merge: first honest read (`launch-lab-status` artifact: brain_report.json). Day ~30: decision.
