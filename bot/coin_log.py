@@ -11,7 +11,8 @@ Point-in-time only: a snapshot holds just the trades seen up to that second, and
 at launch (a creator's past coins count only coins that had finished before this one launched).
 
 Prices are relative: "e0" is the price right after a coin's first trade (about what a sniper pays); multiples are
-price / e0, and the "x60" crossing times are measured from the price at the 60-second snapshot.
+price / e0, and the "x60" crossings ([seconds, multiple of the trade that crossed]) are measured from the price at the 60-second
+snapshot; a drop's multiple can be far below its line (a coin can gap from +0% to -90% in one trade).
 """
 from __future__ import annotations
 
@@ -77,14 +78,14 @@ class Track:
 
     __slots__ = ("mint", "t0", "creator", "mayhem", "ctx", "n", "nb", "ns", "bsol", "ssol", "maxb", "wallets", "t5",
                  "dev", "cs", "p", "e0", "tf", "e60", "snaps", "hi1", "lo1", "hi", "lo", "marks", "x0", "x60", "grad",
-                 "last")
+                 "last", "f0")
 
     def __init__(self, mint: str, t0: float, creator: str | None, mayhem: bool, ctx: dict):
         self.mint, self.t0, self.creator, self.mayhem, self.ctx = mint, t0, creator, mayhem, ctx
         self.n = self.nb = self.ns = 0
         self.bsol = self.ssol = self.maxb = self.dev = 0.0
         self.wallets: dict = {}                   # other buyers in the first minute -> SOL each bought
-        self.t5 = self.cs = self.p = self.e0 = self.tf = self.e60 = self.grad = None
+        self.t5 = self.cs = self.p = self.e0 = self.tf = self.e60 = self.grad = self.f0 = None
         self.snaps: dict = {}
         self.hi1 = self.lo1 = self.hi = self.lo = None
         self.marks: dict = {}
@@ -119,6 +120,8 @@ class Track:
         a = now - self.t0
         if self.e0 is None:
             self.e0, self.tf = p, now
+            if buy and user is not None and user == self.creator:
+                self.f0 = sol                         # the creator's own first buy (known at launch)
         self.p, self.last = p, now
         self.n += 1
         mine = user is not None and user == self.creator
@@ -149,18 +152,18 @@ class Track:
             self.lo = m if self.lo is None else min(self.lo, m)
         for th in UPS:
             if th not in self.x0 and m >= th:
-                self.x0[th] = now - self.tf
+                self.x0[th] = (now - self.tf, m)
         for th in DOWNS:
             if th not in self.x0 and m <= th:
-                self.x0[th] = now - self.tf
+                self.x0[th] = (now - self.tf, m)
         if self.e60 and a > SNAPS[-1]:
             m60 = p / self.e60
             for th in UPS:
                 if th not in self.x60 and m60 >= th:
-                    self.x60[th] = now - (self.t0 + SNAPS[-1])
+                    self.x60[th] = (now - (self.t0 + SNAPS[-1]), m60)
             for th in DOWNS:
                 if th not in self.x60 and m60 <= th:
-                    self.x60[th] = now - (self.t0 + SNAPS[-1])
+                    self.x60[th] = (now - (self.t0 + SNAPS[-1]), m60)
 
     def finished(self, now: float) -> bool:
         a = now - self.t0
@@ -177,10 +180,10 @@ class Track:
         if self.n > 1 or self.grad is not None:
             d.update({"s10": self.snaps.get(10), "s60": self.snaps.get(60), "h1": [rnd(self.hi1), rnd(self.lo1)],
                       "mk": {str(h // 60): v for h, v in self.marks.items()},
-                      "x0": {th_key(k): round(v, 1) for k, v in self.x0.items()},
-                      "x60": {th_key(k): round(v, 1) for k, v in self.x60.items()},
+                      "x0": {th_key(k): [round(v[0], 1), rnd(v[1])] for k, v in self.x0.items()},
+                      "x60": {th_key(k): [round(v[0], 1), rnd(v[1])] for k, v in self.x60.items()},
                       "e60": rnd(self.e60 / self.e0, 4) if self.e60 and self.e0 else None,
-                      "g": rnd(self.grad, 1), "cs": rnd(self.cs, 1)})
+                      "g": rnd(self.grad, 1), "cs": rnd(self.cs, 1), "f0": rnd(self.f0, 3)})
         if cut is not None:
             d["cut"] = round(cut)                 # the run ended this many seconds after launch: later marks missing
         return {k: v for k, v in d.items() if v not in (None, {}, [None, None])}

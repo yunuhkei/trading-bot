@@ -4002,7 +4002,9 @@ def test_research_log_snapshots_know_only_the_past_and_outcomes_are_measured_rig
     r = lg.buf["c"][0]
     assert r["s10"]["n"] == 6 and r["s10"]["u"] == 5 and r["s10"]["t5"] == 6.0 and r["s10"]["dv"] == 0.5
     assert "cs" not in r["s10"] and r["s60"]["cs"] == 1 and r["s60"]["u"] == 6     # the 11-s buyer shows up at 60 s
-    assert r["e60"] == 1.3 and r["x60"] == {"+25": 40.0, "+50": 40.0, "-20": 340.0, "-35": 340.0}
+    assert r["e60"] == 1.3 and r["x60"] == {"+25": [40.0, 1.6], "+50": [40.0, 1.6], "-20": [340.0, 0.3846],
+                                            "-35": [340.0, 0.3846]}           # the drop gapped to -62%
+    assert r["f0"] == 0.5
     assert r["mk"]["5"] == [2.08, 2.08, 2.08]                        # at 5 min: high, low, last (vs e0); the
     assert r["mk"]["30"] == [2.08, 0.5, 0.7]                         # drop at 6m40s isn't in the 5-min mark
     assert r["mk"]["60"] == [2.08, 0.5, 0.7]                         # nothing after it went quiet
@@ -4152,3 +4154,53 @@ def test_brain_takes_real_fees_off_and_ignores_run_end_and_super_bot_bets():
                               {"k": "snipe", "t": 1_794_500_000, "mi": 5, "hr": 3, "r": 0.5, "e": 1},
                               {"k": "brain", "t": 1_794_500_000, "mi": 5, "hr": 3, "r": 0.5}], cfg)
     assert len(rows) == 1 and round(rows[0]["ret"], 4) == 0.018 and rows[0]["day"]
+
+
+def _synthetic_coins(signal=True, days=8, per_day=600, seed=5):
+    import datetime
+    import random
+    from zoneinfo import ZoneInfo
+
+    rng = random.Random(seed)
+    base = datetime.datetime(2026, 11, 12, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    out = []
+    for d in range(days):
+        for i in range(per_day):
+            buyers = rng.randrange(1, 40)
+            top = rng.random()
+            p_win = (0.75 if buyers >= 30 else 0.08) if signal else 0.15
+            win = rng.random() < p_win
+            crash = (not win) and rng.random() < (0.8 if (signal and top > 0.7) else 0.3)
+            lo30 = 0.3 if crash else 0.7
+            hr = rng.randrange(24)
+            out.append({"m": f"C{d}-{i}", "t": base + d * 86400 + hr * 3600 + rng.random() * 3500, "hr": hr, "N": 20,
+                        "e60": 1.0, "s60": {"n": buyers + 3, "u": buyers, "top": round(top, 3), "bs": buyers * 0.3},
+                        "s10": {"n": 2, "u": 1}, "x60": ({"+50": [120.0, 1.5]} if win else {"-35": [200.0, lo30]}),
+                        "mk": {"5": [1.1, 0.8, 0.9], "30": [1.5 if win else 1.0, lo30, 1.2 if win else lo30]},
+                        "h1": [1.0, 0.9 if not crash else 0.45]})
+    return out
+
+
+def test_brain_coin_model_finds_a_real_first_minute_signal_and_rejects_noise():
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    m = brain.coin_model(_synthetic_coins(signal=True), cfg)
+    assert m["ok"] and m["lift"] > 2.5 and m["mean"] > 0.05 and m["picked"] >= 100
+    assert m["calibration"] and m["calibration"][-1][2] > 0.4      # high predictions really won more often
+    n = brain.coin_model(_synthetic_coins(signal=False, seed=6), cfg)
+    assert not n["ok"] and (n.get("lift") or 1.0) < 1.6             # nothing to find: nothing approved
+
+
+def test_brain_rug_filter_reports_what_it_catches_and_what_it_costs():
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    coins = _synthetic_coins(signal=True)
+    rf = brain.rug_filter(coins, [], cfg)
+    o = rf["one_minute"]
+    assert o["rugs_caught"] > o["winners_lost"] and o["flagged"] > 0
+    lines = brain.model_lines(brain.coin_model(coins, cfg), rf)
+    assert any(line.startswith("Coin model (tested only on days it never saw)") for line in lines)
+    assert any(line.startswith("Rug filter at 1 minute") for line in lines)
+    assert brain.trade_60({"e60": 1.0, "x60": {"-35": [50.0, 0.1]}}, 0.035) < -0.89      # a gap down counts in full

@@ -253,12 +253,233 @@ def timing_lines(tm: dict, cfg: dict, top: int = 5) -> list[str]:
     return lines
 
 
+# ---- steps 6-7: the coin model and the rug filter ----
+F60 = ([("s60", k) for k in ("n", "nb", "ns", "bs", "ss", "mb", "u", "t5", "dv", "cs", "top", "pm")]
+       + [("s10", k) for k in ("n", "u", "bs", "pm")] + [(None, k) for k in ("hr", "lr", "cp", "cd", "cg", "st", "sv", "f0")])
+F0 = [(None, k) for k in ("cp", "cd", "cg", "f0", "lr", "hr")]     # known at launch (for the snipes)
+FEAT_DEFAULT = {"t5": 99.0, "pm": 1.0}
+
+
+def features(r: dict, feats: list) -> list[float]:
+    out = []
+    for sec, k in feats:
+        v = ((r.get(sec) or {}) if sec else r).get(k)
+        out.append(float(FEAT_DEFAULT.get(k, 0.0) if v is None else v))
+    return out
+
+
+def _cross(x: dict, key: str) -> tuple[float | None, float | None]:
+    v = (x or {}).get(key)
+    if v is None:
+        return None, None
+    return (v[0], v[1]) if isinstance(v, list) else (v, None)
+
+
+def trade_60(r: dict, cost: float, tp: str = "+50", sl: str = "-35", hold: float = 1740) -> float | None:
+    """One fixed practice trade on a coin: bought at its 1-minute price, sold when it first reaches +50% or falls
+    through -35% (at the price it really fell to), else at 30 minutes; after a real round trip's cost."""
+    e60 = r.get("e60")
+    if not e60:
+        return None
+    x = r.get("x60") or {}
+    tu, _ = _cross(x, tp)
+    td, md = _cross(x, sl)
+    tu = tu if tu is not None and tu <= hold else None
+    td = td if td is not None and td <= hold else None
+    if tu is not None and (td is None or tu < td):
+        raw = float(tp) / 100
+    elif td is not None:
+        raw = (md if md is not None else 1 + float(sl) / 100) - 1
+    else:
+        m = (r.get("mk") or {}).get("30")
+        if not m or m[2] is None:
+            return None
+        raw = m[2] / e60 - 1
+    return (1 + raw) * (1 - cost) - 1
+
+
+def rugged(r: dict, at_launch: bool = False) -> bool | None:
+    """From its 1-minute price (or right after launch), it fell to half or less within 30 (or 5) minutes."""
+    if at_launch:
+        m, lo1 = (r.get("mk") or {}).get("5"), (r.get("h1") or [None, None])[1]
+        lows = [x for x in ((m or [None, None])[1], lo1) if x is not None]
+        return (min(lows) <= 0.5) if (m and lows) else None
+    e60, m = r.get("e60"), (r.get("mk") or {}).get("30")
+    return (m[1] / e60 <= 0.5) if (e60 and m and m[1] is not None) else None
+
+
+def walk_forward(X, y, days, window_days: int = 14, min_train: int = 2000, max_train: int = 100_000, seed: int = 0):
+    """Day by day: fit on up to 14 earlier days only, predict the next day. NaN where there was no model yet."""
+    import numpy as np
+    from sklearn.ensemble import HistGradientBoostingClassifier
+
+    rng = np.random.default_rng(seed)
+    order = sorted(set(days))
+    pred = np.full(len(y), np.nan)
+    for i, d in enumerate(order):
+        lo = order[max(0, i - window_days)]
+        tr = np.where((days < d) & (days >= lo))[0]
+        if len(tr) < min_train or len(set(days[tr])) < 2 or len(set(y[tr])) < 2:
+            continue
+        if len(tr) > max_train:
+            tr = rng.choice(tr, max_train, replace=False)
+        te = np.where(days == d)[0]
+        m = HistGradientBoostingClassifier(max_iter=100, max_leaf_nodes=15, l2_regularization=1.0, random_state=seed)
+        m.fit(X[tr], y[tr])
+        pred[te] = m.predict_proba(X[te])[:, 1]
+    return pred
+
+
+def picks(pred, days, frac: float):
+    """Each day picks the coins whose prediction beats the cut-off set by the PREVIOUS day's predictions (a top
+    `frac` share), so a day's own results never set its own bar."""
+    import numpy as np
+
+    sel, cut = np.zeros(len(pred), bool), None
+    for d in sorted(set(days)):
+        mask = days == d
+        p = pred[mask]
+        if cut is not None:
+            sel[mask] = np.nan_to_num(p, nan=-1) >= cut
+        ok = p[~np.isnan(p)]
+        if len(ok):
+            cut = float(np.quantile(ok, 1 - frac))
+    return sel
+
+
+def _rows_for(coins: list[dict], cost: float):
+    import numpy as np
+
+    rows = [r for r in coins if not r.get("my") and "hr" in r]
+    rets = [trade_60(r, cost) for r in rows]
+    keep = [i for i, x in enumerate(rets) if x is not None]
+    rows = [rows[i] for i in keep]
+    rets = np.array([rets[i] for i in keep])
+    days = np.array([day_of(r["t"]) for r in rows])
+    return rows, rets, days
+
+
+def coin_model(coins: list[dict], cfg: dict, pick: float = 0.10, seed: int = 0) -> dict:
+    """Can the first minute pick winners? Bought at 1 minute (the fixed trade above) on the top 10% of coins by a
+    model trained only on earlier days. Lift = how many times more often those picks won than the average coin."""
+    import numpy as np
+    from statistics import NormalDist
+
+    rows, rets, days = _rows_for(coins, cfg["cost"])
+    out = {"coins": len(rows), "ok": False, "why": "not enough data yet"}
+    if len(rows) < 100:
+        return out
+    X = np.array([features(r, F60) for r in rows])
+    y = (rets > 0).astype(int)
+    pred = walk_forward(X, y, days, seed=seed)
+    sel = picks(pred, days, pick)
+    oos = ~np.isnan(pred)
+    out.update(oos_coins=int(oos.sum()), base_win=float(y[oos].mean()) if oos.any() else None,
+               base_mean=float(rets[oos].mean()) if oos.any() else None, picked=int(sel.sum()))
+    if not sel.any():
+        return out
+    z = NormalDist().inv_cdf(1 - cfg["alpha"] / 2)          # the model and the rug filter: 2 things tested
+    st = _stats([{"ret": float(rets[i]), "day": days[i], "hr": rows[i]["hr"]} for i in np.where(sel)[0]], cfg, z,
+                np.random.default_rng(seed))
+    ok, why = passes(st, cfg)
+    cal = []
+    for a, b in ((0, .1), (.1, .2), (.2, .3), (.3, .5), (.5, 1.01)):
+        m = oos & (pred >= a) & (pred < b)
+        if m.sum() >= 20:
+            cal.append([a, round(float(pred[m].mean()), 3), round(float(y[m].mean()), 3), int(m.sum())])
+    recent_days = sorted(set(days[sel]))[-2:]
+    recent = rets[sel & np.isin(days, recent_days)]
+    trusted = len(recent) < 20 or recent.mean() > 0               # decay: its latest picks fell below break-even
+    if ok and not trusted:
+        ok, why = False, f"not trusted: its picks on the last 2 days made {pct(float(recent.mean()))} a trade"
+    out.update(st, ok=ok, why=why, lift=(st["win_rate"] / out["base_win"]) if out["base_win"] else None,
+               calibration=cal, recent_mean=float(recent.mean()) if len(recent) else None)
+    return out
+
+
+def rug_filter(coins: list[dict], bets: list[dict], cfg: dict, flag: float = 0.20, seed: int = 0) -> dict:
+    """Which coins are about to crash? Flags the 20% most likely (by a model trained on earlier days only) and shows
+    what that would have saved and cost: at 1 minute on every coin, and at launch on the "snipe every coin" bets."""
+    import numpy as np
+
+    out = {}
+    rows, rets, days = _rows_for(coins, cfg["cost"])
+    lab = [rugged(r) for r in rows]
+    keep = [i for i, v in enumerate(lab) if v is not None]
+    if len(keep) >= 100:
+        rows2, rets2, days2 = [rows[i] for i in keep], rets[keep], days[keep]
+        y = np.array([int(lab[i]) for i in keep])
+        pred = walk_forward(np.array([features(r, F60) for r in rows2]), y, days2, seed=seed)
+        oos = ~np.isnan(pred)
+        fl = picks(pred, days2, flag) & oos
+        judged = oos
+        if fl.any() and (judged & ~fl).any():
+            tail = rets2 <= -0.30
+            win = rets2 > 0
+            out["one_minute"] = {
+                "coins": int(judged.sum()), "flagged": int(fl.sum()),
+                "rugs_caught": float((fl & (y == 1)).sum() / max(1, (judged & (y == 1)).sum())),
+                "loss_tail_removed": float((fl & tail).sum() / max(1, (judged & tail).sum())),
+                "winners_lost": float((fl & win).sum() / max(1, (judged & win).sum())),
+                "mean_all": float(rets2[judged].mean()), "mean_kept": float(rets2[judged & ~fl].mean())}
+    # at launch, for the snipes: only what's known at launch (the creator's past coins, its first buy, the hour)
+    launch = [r for r in coins if not r.get("my") and "hr" in r and rugged(r, at_launch=True) is not None]
+    if len(launch) >= 100:
+        y = np.array([int(rugged(r, at_launch=True)) for r in launch])
+        d = np.array([day_of(r["t"]) for r in launch])
+        pred = walk_forward(np.array([features(r, F0) for r in launch]), y, d, seed=seed)
+        fl = picks(pred, d, flag) & ~np.isnan(pred)
+        flagged = {r["m"] for r, f in zip(launch, fl) if f}
+        judged_m = {r["m"] for r, p in zip(launch, pred) if not np.isnan(p)}
+        snipes = [b for b in usable_bets(bets, cfg) if b["k"] == "snipe" and b.get("m") in judged_m]
+        if snipes:
+            sr = np.array([b["ret"] for b in snipes])
+            f = np.array([b["m"] in flagged for b in snipes])
+            tail = sr <= -0.30
+            out["launch_snipes"] = {
+                "bets": len(snipes), "flagged": int(f.sum()),
+                "loss_tail_removed": float((f & tail).sum() / max(1, tail.sum())),
+                "winners_lost": float((f & (sr > 0)).sum() / max(1, (sr > 0).sum())),
+                "mean_all": float(sr.mean()), "mean_kept": float(sr[~f].mean()) if (~f).any() else None}
+    return out
+
+
+def model_lines(m: dict, rf: dict) -> list[str]:
+    lines = []
+    if not m.get("picked"):
+        lines.append(f"Coin model: {m.get('why', 'not enough data yet')} ({m.get('coins', 0):,} coins logged; it needs "
+                     "a few days to learn, then it's tested only on days it never saw).")
+    else:
+        lines.append(f"Coin model (tested only on days it never saw): picked {m['picked']:,} of {m['oos_coins']:,} coins; "
+                     f"they won {m['win_rate']:.1%} vs {m['base_win']:.1%} for every coin (lift {m['lift']:.2f}x); "
+                     f"{pct(m['mean'])} a trade after fees (every coin: {pct(m['base_mean'])}). "
+                     + ("APPROVED." if m["ok"] else f"Not approved: {m['why']}."))
+        if m.get("calibration"):
+            lines.append("  Predicted vs real win chance: " + ", ".join(
+                f"{c[1]:.0%} -> {c[2]:.0%} ({c[3]})" for c in m["calibration"]))
+    o, s = rf.get("one_minute"), rf.get("launch_snipes")
+    if o:
+        lines.append(f"Rug filter at 1 minute: flagged {o['flagged']:,} of {o['coins']:,} coins; caught {o['rugs_caught']:.0%} "
+                     f"of the crashes and {o['loss_tail_removed']:.0%} of the big losses, but also {o['winners_lost']:.0%} "
+                     f"of the winners; a trade on every coin went from {pct(o['mean_all'])} to {pct(o['mean_kept'])}.")
+    if s:
+        lines.append(f"Rug filter at launch, on the snipes: flagged {s['flagged']:,} of {s['bets']:,}; removed "
+                     f"{s['loss_tail_removed']:.0%} of the big losses and {s['winners_lost']:.0%} of the winners; snipes "
+                     f"went from {pct(s['mean_all'])} to {pct(s['mean_kept'])} a bet.")
+    if not o and not s:
+        lines.append("Rug filter: not enough data yet.")
+    return lines
+
+
 # ---- the report ----
 def report(data_dir: Path = cl.DATA_DIR, cfg: dict | None = None) -> dict:
     cfg = cfg or config()
     coins = cl.read("c", data_dir)              # a coin cut off by a run's end counts only at the marks it reached
-    out = {"base_rates": base_rates(coins, cfg["cost"]), "timing": timing_map(cl.read("b", data_dir), cfg)}
-    out["lines"] = base_rates_lines(out["base_rates"]) + timing_lines(out["timing"], cfg)
+    bets = cl.read("b", data_dir)
+    out = {"base_rates": base_rates(coins, cfg["cost"]), "timing": timing_map(bets, cfg),
+           "model": coin_model(coins, cfg), "rug": rug_filter(coins, bets, cfg)}
+    out["lines"] = (base_rates_lines(out["base_rates"]) + timing_lines(out["timing"], cfg)
+                    + model_lines(out["model"], out["rug"]))
     return out
 
 

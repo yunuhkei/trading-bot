@@ -54,5 +54,12 @@ category, list pointless workflows for the owner. Never delete Actions caches or
   Bonferroni over every window tested), day share, walk-forward on unseen days, drop rule. Synthetic tests: finds
   the one planted edge, approves no noise at +2%, shuffled time kills it, fees taken off.
 
+- 6+7. Coin model + rug filter (bot/brain.py `coin_model`, `rug_filter`): one fixed practice trade per coin
+  (bought at 1 min, sold at +50% / through -35% at the price it really fell to / at 30 min, after costs);
+  gradient-boosted model on first-minute features, trained on up to 14 earlier days only, top 10% picked with
+  the previous day's cut-off; lift, calibration, a 2-day decay check, the strict test. Rug filter at 1 minute and
+  at launch (on the snipe bets): what it catches vs which winners it costs. Logging now records the real price a
+  drop gapped to, and the creator's first buy.
+
 ## Next
-- 6+7. Coin model (first-minute features, walk-forward by day, lift, calibration, decay) + rug filter.
+- 8. Super bot "brain" (practice): trades approved windows (and approved model picks), sits out and says why.
