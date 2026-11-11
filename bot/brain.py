@@ -2,11 +2,15 @@
 
 Everything here reads lab_data/ and works out, from past rows only, what's worth trading. Its thresholds live in
 brain.yaml. The answer "nothing qualifies" is a valid result and is reported as such.
+
+The log can hold millions of rows, so nothing loads it whole: bets are boiled down, as they're read, to tallies
+per (strategy, day, hour, 10-minute slot), and coins to a compact table of numbers.
 """
 from __future__ import annotations
 
 import json
 import math
+from collections import deque
 from pathlib import Path
 
 import yaml
@@ -29,6 +33,7 @@ DEFAULTS = {
     "slots": 6,               # 10-minute slots per hour
     "hour_groups": [[0, 6], [6, 12], [12, 18], [18, 24]],     # Milwaukee time: night, morning, afternoon, evening
 }
+SUPER_KEYS = ("timing", "streak", "brain")        # bots built on the others: never judged as strategies
 
 
 def config(path: Path = CONFIG) -> dict:
@@ -40,6 +45,21 @@ def config(path: Path = CONFIG) -> dict:
 
 def pct(x: float | None, digits: int = 1) -> str:
     return "n/a" if x is None else f"{x * 100:+.{digits}f}%"
+
+
+_DAYS: dict = {}
+
+
+def day_of(t: float) -> str:
+    """The Milwaukee date of a time (the time-zone lookup is done once per minute of time)."""
+    k = int(t // 60)
+    d = _DAYS.get(k)
+    if d is None:
+        from .launch_lab import local_time
+        if len(_DAYS) > 200_000:
+            _DAYS.clear()
+        d = _DAYS[k] = local_time(k * 60).strftime("%Y-%m-%d")
+    return d
 
 
 # ---- step 3: base rates ----
@@ -60,28 +80,50 @@ def coin_paths(r: dict) -> dict:
     return out
 
 
-def base_rates(coins: list[dict], cost: float, ups=(0.25, 0.5, 1.0)) -> dict:
+class BaseRates:
+    """Counts, one coin at a time, of which coins touched +25/+50/+100% after a real round trip's cost."""
+    UPS = (0.25, 0.5, 1.0)
+
+    def __init__(self, cost: float):
+        self.cost, self.coins, self.dead, self.n_mayhem = cost, 0, 0, 0
+        self.c: dict = {}                         # (group, horizon) -> counters
+
+    def add(self, r: dict):
+        self.coins += 1
+        self.dead += r.get("N", 0) <= 1
+        self.n_mayhem += bool(r.get("my"))
+        g = "mayhem" if r.get("my") else "normal"
+        for h, x in coin_paths(r).items():
+            c = self.c.setdefault((g, h), {"n": 0, "n60": 0, "up": 0, **{f"l{u}": 0 for u in self.UPS},
+                                           **{f"m{u}": 0 for u in self.UPS}})
+            c["n"] += 1
+            c["up"] += (x["last0"] or 0) * (1 - self.cost) > 1
+            for u in self.UPS:
+                c[f"l{u}"] += x["hi0"] * (1 - self.cost) >= 1 + u
+            if x["hi60"] is not None:
+                c["n60"] += 1
+                for u in self.UPS:
+                    c[f"m{u}"] += x["hi60"] * (1 - self.cost) >= 1 + u
+
+    def result(self) -> dict:
+        out = {"coins": self.coins, "dead": self.dead, "n_mayhem": self.n_mayhem}
+        for (g, h), c in self.c.items():
+            row = {"n": c["n"]}
+            for u in self.UPS:
+                row[f"launch +{u:.0%}"] = c[f"l{u}"] / c["n"]
+                row[f"1 min +{u:.0%}"] = c[f"m{u}"] / c["n60"] if c["n60"] else None
+            row["launch, held: ended up"] = c["up"] / c["n"]
+            out.setdefault(g, {})[h] = row
+        return out
+
+
+def base_rates(coins, cost: float) -> dict:
     """What share of new coins touched +25/+50/+100% after a real round trip's cost: bought right after launch
     (about what a sniper pays) or at 1 minute. "Touched" is the best case: the high, not a price you'd surely get."""
-    out = {"coins": len(coins), "dead": sum(1 for r in coins if r.get("N", 0) <= 1),
-           "n_mayhem": sum(1 for r in coins if r.get("my"))}
-    for group, rows in (("normal", [r for r in coins if not r.get("my")]), ("mayhem", [r for r in coins if r.get("my")])):
-        g = {}
-        for h in ("5", "30", "60"):
-            got = [coin_paths(r).get(h) for r in rows]
-            got = [x for x in got if x]
-            if not got:
-                continue
-            row = {"n": len(got)}
-            for u in ups:
-                row[f"launch +{u:.0%}"] = sum(1 for x in got if x["hi0"] * (1 - cost) >= 1 + u) / len(got)
-                at60 = [x for x in got if x["hi60"] is not None]
-                row[f"1 min +{u:.0%}"] = (sum(1 for x in at60 if x["hi60"] * (1 - cost) >= 1 + u) / len(at60)
-                                          if at60 else None)
-            row["launch, held: ended up"] = sum(1 for x in got if (x["last0"] or 0) * (1 - cost) > 1) / len(got)
-            g[h] = row
-        out[group] = g
-    return out
+    b = BaseRates(cost)
+    for r in coins:
+        b.add(r)
+    return b.result()
 
 
 def base_rates_lines(b: dict) -> list[str]:
@@ -103,9 +145,6 @@ def base_rates_lines(b: dict) -> list[str]:
 
 
 # ---- steps 4-5: the timing map and the strict test ----
-SUPER_KEYS = ("timing", "streak", "brain")        # bots built on the others: never judged as strategies
-
-
 def hour_group(hr: int, cfg: dict) -> int:
     return next((i for i, (a, b) in enumerate(cfg["hour_groups"]) if a <= hr < b), 0)
 
@@ -126,47 +165,93 @@ def window_label(w: str, cfg: dict) -> str:
     return "any time"
 
 
-def day_of(t: float) -> str:
-    from .launch_lab import local_time
-    return local_time(t).strftime("%Y-%m-%d")
+def usable(r: dict) -> bool:
+    """A ghost bet that counts: not a super bot, not closed by a run ending, with the time of its signal."""
+    return not (r.get("e") or r.get("k") in SUPER_KEYS or "mi" not in r or "hr" not in r or r.get("r") is None)
 
 
-def usable_bets(bets: list[dict], cfg: dict) -> list[dict]:
-    """Ghost bets that count: not a super bot, not closed by a run ending, with the time of their signal; each gets
-    its day and its result after the extra real cost."""
-    out = []
-    for r in bets:
-        if r.get("e") or r.get("k") in SUPER_KEYS or "mi" not in r or "hr" not in r or r.get("r") is None:
-            continue
-        out.append({**r, "day": day_of(r["t"]), "ret": r["r"] - cfg["extra_cost"]})
-    return out
+def usable_bets(bets, cfg: dict) -> list[dict]:
+    return [{**r, "day": day_of(r["t"]), "ret": r["r"] - cfg["extra_cost"]} for r in bets if usable(r)]
 
 
-def _stats(rows: list[dict], cfg: dict, z: float, rng) -> dict:
+class BetBlocks:
+    """Bets boiled down as they're read: per (strategy, day, hour, slot) [trades, sum of results, wins, sum of
+    wins], plus each window's latest results (for the drop rule), the snipes (for the launch rug filter) and every
+    bot's totals (for the baselines)."""
+
+    def __init__(self, cfg: dict):
+        self.cfg = cfg
+        self.b: dict = {}
+        self.recent: dict = {}
+        self.snipes: list = []
+        self.raw: dict = {}
+        self.n = 0
+
+    def add(self, r: dict):
+        k = r.get("k")
+        if r.get("r") is not None and not r.get("e"):
+            s = self.raw.setdefault(k, [0, 0.0, 0])
+            s[0] += 1
+            s[1] += r["r"] - self.cfg["extra_cost"]
+            s[2] += r["r"] - self.cfg["extra_cost"] > 0
+        if not usable(r):
+            return
+        ret, day = r["r"] - self.cfg["extra_cost"], day_of(r["t"])
+        slot = r["mi"] * self.cfg["slots"] // 60
+        x = self.b.setdefault((k, day, r["hr"], slot), [0, 0.0, 0, 0.0])
+        x[0] += 1
+        x[1] += ret
+        if ret > 0:
+            x[2] += 1
+            x[3] += ret
+        for w in ("all", f"slot{slot}", f"hours{hour_group(r['hr'], self.cfg)}"):
+            q = self.recent.get((k, w))
+            if q is None:
+                q = self.recent[(k, w)] = deque(maxlen=self.cfg["drop_recent"])
+            q.append(ret)
+        if k == "snipe":
+            self.snipes.append((r.get("m"), ret, day))
+        self.n += 1
+
+    def windows(self) -> dict:
+        """(strategy, window) -> its blocks [(day, hour, trades, sum, wins, sum of wins)]."""
+        out: dict = {}
+        for (k, day, hr, slot), (n, s, w, sw) in self.b.items():
+            blk = (day, hr, n, s, w, sw)
+            for win in ("all", f"slot{slot}", f"hours{hour_group(hr, self.cfg)}"):
+                out.setdefault((k, win), []).append(blk)
+        return out
+
+
+def _stats(blocks: list, cfg: dict, z: float, rng) -> dict:
+    """A window's record from its blocks; the lower bound only for one that could pass (bootstrap by hour blocks)."""
     import numpy as np
 
-    rets = np.array([r["ret"] for r in rows], dtype=float)
-    n = len(rets)
-    wins, losses = rets[rets > 0], rets[rets <= 0]
+    n = sum(b[2] for b in blocks)
+    s = sum(b[3] for b in blocks)
+    w = sum(b[4] for b in blocks)
+    sw = sum(b[5] for b in blocks)
     days: dict = {}
-    for r in rows:
-        days.setdefault(r["day"], []).append(r["ret"])
-    counted = [v for v in days.values() if len(v) >= 5]
-    st = {"n": n, "days": len(days), "win_rate": float(len(wins) / n) if n else None,
-          "avg_win": float(wins.mean()) if len(wins) else None, "avg_loss": float(losses.mean()) if len(losses) else None,
-          "mean": float(rets.mean()) if n else None,
-          "day_share": (sum(1 for v in counted if sum(v) > 0) / len(counted)) if counted else None, "lb": None}
-    if n >= 2 and st["mean"] - cfg["target"] > 0:      # only a window that could pass gets the (slower) bootstrap
-        blocks: dict = {}
-        for r in rows:
-            b = blocks.setdefault((r["day"], r["hr"]), [0.0, 0])
-            b[0] += r["ret"]
-            b[1] += 1
-        sums = np.array([b[0] for b in blocks.values()])
-        cnts = np.array([b[1] for b in blocks.values()])
-        idx = rng.integers(0, len(sums), (cfg["bootstrap"], len(sums)))
-        means = sums[idx].sum(1) / cnts[idx].sum(1)
-        se = float(means.std(ddof=1)) if len(sums) > 1 else float("inf")
+    hours: dict = {}
+    for d, hr, bn, bs, *_ in blocks:
+        x = days.setdefault(d, [0, 0.0])
+        x[0] += bn
+        x[1] += bs
+        y = hours.setdefault((d, hr), [0, 0.0])
+        y[0] += bn
+        y[1] += bs
+    counted = [v for v in days.values() if v[0] >= 5]
+    st = {"n": n, "days": len(days), "win_rate": w / n if n else None, "avg_win": sw / w if w else None,
+          "avg_loss": (s - sw) / (n - w) if n > w else None, "mean": s / n if n else None,
+          "day_share": (sum(1 for v in counted if v[1] > 0) / len(counted)) if counted else None, "lb": None}
+    if n >= 2 and st["mean"] - cfg["target"] > 0:
+        sums = np.array([v[1] for v in hours.values()])
+        cnts = np.array([v[0] for v in hours.values()])
+        if len(sums) > 1:
+            idx = rng.integers(0, len(sums), (cfg["bootstrap"], len(sums)))
+            se = float((sums[idx].sum(1) / cnts[idx].sum(1)).std(ddof=1))
+        else:
+            se = float("inf")
         st["lb"] = st["mean"] - z * se
     return st
 
@@ -185,18 +270,21 @@ def passes(st: dict, cfg: dict) -> tuple[bool, str]:
     return True, "passed"
 
 
-def timing_map(bets: list[dict], cfg: dict, seed: int = 0) -> dict:
+def timing_map(bets, cfg: dict, seed: int = 0) -> dict:
     """Every (strategy, window): its record, and whether it passes the strict test, including walk-forward (judged
-    day by day only on earlier days, then scored on the next day it never saw) and the drop rule."""
+    day by day only on earlier days, then scored on the next day it never saw) and the drop rule. `bets` is any
+    iterable of bet rows, or a BetBlocks already filled."""
     import numpy as np
     from statistics import NormalDist
 
+    if isinstance(bets, BetBlocks):
+        bb = bets
+    else:
+        bb = BetBlocks(cfg)
+        for r in bets:
+            bb.add(r)
     rng = np.random.default_rng(seed)
-    rows = sorted(usable_bets(bets, cfg), key=lambda r: r["t"])
-    groups: dict = {}
-    for r in rows:
-        for w in windows_of(r, cfg):
-            groups.setdefault((r["k"], w), []).append(r)
+    groups = bb.windows()
     tested = len(groups)
     z = NormalDist().inv_cdf(1 - cfg["alpha"] / max(1, tested))        # corrected for every window tested
     out = {}
@@ -205,20 +293,19 @@ def timing_map(bets: list[dict], cfg: dict, seed: int = 0) -> dict:
         ok, why = passes(st, cfg)
         st["oos_n"], st["oos_mean"] = 0, None
         if ok:                                         # walk-forward: approve on earlier days, score the next one
-            days = sorted({r["day"] for r in g})
-            oos = []
+            days = sorted({b[0] for b in g})
+            oos_n, oos_s = 0, 0.0
             for i in range(cfg["min_days"], len(days)):
-                before = [r for r in g if r["day"] < days[i]]
-                if passes(_stats(before, cfg, z, rng), cfg)[0]:
-                    oos += [r["ret"] for r in g if r["day"] == days[i]]
-            st["oos_n"] = len(oos)
-            st["oos_mean"] = sum(oos) / len(oos) if oos else None
-            if len(oos) < cfg["min_oos_trades"]:
-                ok, why = False, f"only {len(oos)} trades on later days it never saw (needs {cfg['min_oos_trades']})"
+                if passes(_stats([b for b in g if b[0] < days[i]], cfg, z, rng), cfg)[0]:
+                    oos_n += sum(b[2] for b in g if b[0] == days[i])
+                    oos_s += sum(b[3] for b in g if b[0] == days[i])
+            st["oos_n"], st["oos_mean"] = oos_n, (oos_s / oos_n if oos_n else None)
+            if oos_n < cfg["min_oos_trades"]:
+                ok, why = False, f"only {oos_n} trades on later days it never saw (needs {cfg['min_oos_trades']})"
             elif st["oos_mean"] <= 0:
                 ok, why = False, f"lost on later days it never saw ({pct(st['oos_mean'])} a trade)"
         if ok:                                         # the drop rule: its latest trades fall clearly short
-            recent = np.array([r["ret"] for r in g[-cfg["drop_recent"]:]])
+            recent = np.array(bb.recent.get((k, w)) or [])
             if len(recent) >= cfg["drop_recent"] and recent.mean() < 0:
                 se = recent.std(ddof=1) / math.sqrt(len(recent)) or 1e-9
                 if (recent.mean() - st["mean"]) / se < -1.645:
@@ -308,6 +395,38 @@ def rugged(r: dict, at_launch: bool = False) -> bool | None:
     return (m[1] / e60 <= 0.5) if (e60 and m and m[1] is not None) else None
 
 
+class CoinTable:
+    """Normal (non-mayhem) coins as numbers, built one row at a time: what the model and the rug filter need."""
+
+    def __init__(self, cost: float):
+        self.cost = cost
+        self.m, self.day, self.hr, self.x60, self.ret, self.rug, self.x0, self.rug0 = ([] for _ in range(8))
+
+    def add(self, r: dict):
+        if r.get("my") or "hr" not in r:
+            return
+        ret, r0 = trade_60(r, self.cost), rugged(r, at_launch=True)
+        if ret is None and r0 is None:
+            return
+        self.m.append(r.get("m"))
+        self.day.append(day_of(r["t"]))
+        self.hr.append(r["hr"])
+        self.x60.append(features(r, F60) if ret is not None else None)
+        self.ret.append(ret)
+        self.rug.append(rugged(r))
+        self.x0.append(features(r, F0))
+        self.rug0.append(r0)
+
+    @classmethod
+    def of(cls, coins, cost: float) -> "CoinTable":
+        if isinstance(coins, cls):
+            return coins
+        t = cls(cost)
+        for r in coins:
+            t.add(r)
+        return t
+
+
 def walk_forward(X, y, days, window_days: int = 14, min_train: int = 2000, max_train: int = 100_000, seed: int = 0):
     """Day by day: fit on up to 14 earlier days only, predict the next day. NaN where there was no model yet."""
     import numpy as np
@@ -347,29 +466,21 @@ def picks(pred, days, frac: float):
     return sel
 
 
-def _rows_for(coins: list[dict], cost: float):
-    import numpy as np
-
-    rows = [r for r in coins if not r.get("my") and "hr" in r]
-    rets = [trade_60(r, cost) for r in rows]
-    keep = [i for i, x in enumerate(rets) if x is not None]
-    rows = [rows[i] for i in keep]
-    rets = np.array([rets[i] for i in keep])
-    days = np.array([day_of(r["t"]) for r in rows])
-    return rows, rets, days
-
-
-def coin_model(coins: list[dict], cfg: dict, pick: float = 0.10, seed: int = 0) -> dict:
+def coin_model(coins, cfg: dict, pick: float = 0.10, seed: int = 0) -> dict:
     """Can the first minute pick winners? Bought at 1 minute (the fixed trade above) on the top 10% of coins by a
     model trained only on earlier days. Lift = how many times more often those picks won than the average coin."""
     import numpy as np
     from statistics import NormalDist
 
-    rows, rets, days = _rows_for(coins, cfg["cost"])
-    out = {"coins": len(rows), "ok": False, "why": "not enough data yet"}
-    if len(rows) < 100:
+    t = CoinTable.of(coins, cfg["cost"])
+    idx = [i for i, r in enumerate(t.ret) if r is not None]
+    out = {"coins": len(idx), "ok": False, "why": "not enough data yet"}
+    if len(idx) < 100:
         return out
-    X = np.array([features(r, F60) for r in rows])
+    X = np.array([t.x60[i] for i in idx])
+    rets = np.array([t.ret[i] for i in idx])
+    days = np.array([t.day[i] for i in idx])
+    hrs = [t.hr[i] for i in idx]
     y = (rets > 0).astype(int)
     pred = walk_forward(X, y, days, seed=seed)
     sel = picks(pred, days, pick)
@@ -379,8 +490,15 @@ def coin_model(coins: list[dict], cfg: dict, pick: float = 0.10, seed: int = 0) 
     if not sel.any():
         return out
     z = NormalDist().inv_cdf(1 - cfg["alpha"] / 2)          # the model and the rug filter: 2 things tested
-    st = _stats([{"ret": float(rets[i]), "day": days[i], "hr": rows[i]["hr"]} for i in np.where(sel)[0]], cfg, z,
-                np.random.default_rng(seed))
+    blocks: dict = {}
+    for i in np.where(sel)[0]:
+        b = blocks.setdefault((days[i], hrs[i]), [0, 0.0, 0, 0.0])
+        b[0] += 1
+        b[1] += float(rets[i])
+        if rets[i] > 0:
+            b[2] += 1
+            b[3] += float(rets[i])
+    st = _stats([(d, h, *v) for (d, h), v in blocks.items()], cfg, z, np.random.default_rng(seed))
     ok, why = passes(st, cfg)
     cal = []
     for a, b in ((0, .1), (.1, .2), (.2, .3), (.3, .5), (.5, 1.01)):
@@ -397,47 +515,48 @@ def coin_model(coins: list[dict], cfg: dict, pick: float = 0.10, seed: int = 0) 
     return out
 
 
-def rug_filter(coins: list[dict], bets: list[dict], cfg: dict, flag: float = 0.20, seed: int = 0) -> dict:
+def rug_filter(coins, snipes, cfg: dict, flag: float = 0.20, seed: int = 0) -> dict:
     """Which coins are about to crash? Flags the 20% most likely (by a model trained on earlier days only) and shows
-    what that would have saved and cost: at 1 minute on every coin, and at launch on the "snipe every coin" bets."""
+    what that would have saved and cost: at 1 minute on every coin, and at launch on the "snipe every coin" bets.
+    `snipes`: (mint, result after fees, day) for each snipe bet, or bet rows."""
     import numpy as np
 
+    t = CoinTable.of(coins, cfg["cost"])
     out = {}
-    rows, rets, days = _rows_for(coins, cfg["cost"])
-    lab = [rugged(r) for r in rows]
-    keep = [i for i, v in enumerate(lab) if v is not None]
-    if len(keep) >= 100:
-        rows2, rets2, days2 = [rows[i] for i in keep], rets[keep], days[keep]
-        y = np.array([int(lab[i]) for i in keep])
-        pred = walk_forward(np.array([features(r, F60) for r in rows2]), y, days2, seed=seed)
+    idx = [i for i in range(len(t.m)) if t.ret[i] is not None and t.rug[i] is not None]
+    if len(idx) >= 100:
+        rets = np.array([t.ret[i] for i in idx])
+        days = np.array([t.day[i] for i in idx])
+        y = np.array([int(t.rug[i]) for i in idx])
+        pred = walk_forward(np.array([t.x60[i] for i in idx]), y, days, seed=seed)
         oos = ~np.isnan(pred)
-        fl = picks(pred, days2, flag) & oos
-        judged = oos
-        if fl.any() and (judged & ~fl).any():
-            tail = rets2 <= -0.30
-            win = rets2 > 0
+        fl = picks(pred, days, flag) & oos
+        if fl.any() and (oos & ~fl).any():
+            tail, win = rets <= -0.30, rets > 0
             out["one_minute"] = {
-                "coins": int(judged.sum()), "flagged": int(fl.sum()),
-                "rugs_caught": float((fl & (y == 1)).sum() / max(1, (judged & (y == 1)).sum())),
-                "loss_tail_removed": float((fl & tail).sum() / max(1, (judged & tail).sum())),
-                "winners_lost": float((fl & win).sum() / max(1, (judged & win).sum())),
-                "mean_all": float(rets2[judged].mean()), "mean_kept": float(rets2[judged & ~fl].mean())}
+                "coins": int(oos.sum()), "flagged": int(fl.sum()),
+                "rugs_caught": float((fl & (y == 1)).sum() / max(1, (oos & (y == 1)).sum())),
+                "loss_tail_removed": float((fl & tail).sum() / max(1, (oos & tail).sum())),
+                "winners_lost": float((fl & win).sum() / max(1, (oos & win).sum())),
+                "mean_all": float(rets[oos].mean()), "mean_kept": float(rets[oos & ~fl].mean())}
     # at launch, for the snipes: only what's known at launch (the creator's past coins, its first buy, the hour)
-    launch = [r for r in coins if not r.get("my") and "hr" in r and rugged(r, at_launch=True) is not None]
-    if len(launch) >= 100:
-        y = np.array([int(rugged(r, at_launch=True)) for r in launch])
-        d = np.array([day_of(r["t"]) for r in launch])
-        pred = walk_forward(np.array([features(r, F0) for r in launch]), y, d, seed=seed)
+    idx = [i for i in range(len(t.m)) if t.rug0[i] is not None]
+    snipes = [s if isinstance(s, tuple) else (s.get("m"), s["r"] - cfg["extra_cost"], day_of(s["t"]))
+              for s in snipes if isinstance(s, tuple) or (usable(s) and s.get("k") == "snipe")]
+    if len(idx) >= 100 and snipes:
+        y = np.array([int(t.rug0[i]) for i in idx])
+        d = np.array([t.day[i] for i in idx])
+        pred = walk_forward(np.array([t.x0[i] for i in idx]), y, d, seed=seed)
         fl = picks(pred, d, flag) & ~np.isnan(pred)
-        flagged = {r["m"] for r, f in zip(launch, fl) if f}
-        judged_m = {r["m"] for r, p in zip(launch, pred) if not np.isnan(p)}
-        snipes = [b for b in usable_bets(bets, cfg) if b["k"] == "snipe" and b.get("m") in judged_m]
-        if snipes:
-            sr = np.array([b["ret"] for b in snipes])
-            f = np.array([b["m"] in flagged for b in snipes])
+        flagged = {t.m[i] for i, f in zip(idx, fl) if f}
+        judged = {t.m[i] for i, p in zip(idx, pred) if not np.isnan(p)}
+        sn = [s for s in snipes if s[0] in judged]
+        if sn:
+            sr = np.array([s[1] for s in sn])
+            f = np.array([s[0] in flagged for s in sn])
             tail = sr <= -0.30
             out["launch_snipes"] = {
-                "bets": len(snipes), "flagged": int(f.sum()),
+                "bets": len(sn), "flagged": int(f.sum()),
                 "loss_tail_removed": float((f & tail).sum() / max(1, tail.sum())),
                 "winners_lost": float((f & (sr > 0)).sum() / max(1, (sr > 0).sum())),
                 "mean_all": float(sr.mean()), "mean_kept": float(sr[~f].mean()) if (~f).any() else None}
@@ -472,12 +591,24 @@ def model_lines(m: dict, rf: dict) -> list[str]:
 
 
 # ---- the report ----
+def read_all(data_dir: Path, cfg: dict) -> tuple[BaseRates, CoinTable, BetBlocks]:
+    """One pass over each kind of file (a coin cut off by a run's end counts only at the marks it reached)."""
+    br, ct, bb = BaseRates(cfg["cost"]), CoinTable(cfg["cost"]), BetBlocks(cfg)
+    for r in cl.rows("c", data_dir):
+        br.add(r)
+        ct.add(r)
+    for r in cl.rows("b", data_dir):
+        bb.add(r)
+    return br, ct, bb
+
+
 def report(data_dir: Path = cl.DATA_DIR, cfg: dict | None = None) -> dict:
     cfg = cfg or config()
-    coins = cl.read("c", data_dir)              # a coin cut off by a run's end counts only at the marks it reached
-    bets = cl.read("b", data_dir)
-    out = {"base_rates": base_rates(coins, cfg["cost"]), "timing": timing_map(bets, cfg),
-           "model": coin_model(coins, cfg), "rug": rug_filter(coins, bets, cfg)}
+    br, ct, bb = read_all(data_dir, cfg)
+    out = {"base_rates": br.result(), "timing": timing_map(bb, cfg), "model": coin_model(ct, cfg),
+           "rug": rug_filter(ct, bb.snipes, cfg),
+           "bots": {k: {"bets": v[0], "per_bet": round(v[1] / v[0], 4), "won": round(v[2] / v[0], 3)}
+                    for k, v in bb.raw.items() if v[0]}}
     out["lines"] = (base_rates_lines(out["base_rates"]) + timing_lines(out["timing"], cfg)
                     + model_lines(out["model"], out["rug"]))
     return out
@@ -485,6 +616,6 @@ def report(data_dir: Path = cl.DATA_DIR, cfg: dict | None = None) -> dict:
 
 def main(data_dir: Path = cl.DATA_DIR, out_path: Path = Path("brain_report.json")) -> dict:
     r = report(data_dir)
-    out_path.write_text(json.dumps(r))
+    out_path.write_text(json.dumps(r, default=str))
     print("\n".join(r["lines"]), flush=True)
     return r

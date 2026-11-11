@@ -331,9 +331,9 @@ class CoinLog:
             await asyncio.sleep(60)
 
 
-def read(kind: str, data_dir: Path = DATA_DIR, since: float = 0.0) -> list[dict]:
-    """Every row of one kind ("c" or "b") with a time at or after `since`, oldest file first."""
-    out = []
+def rows(kind: str, data_dir: Path = DATA_DIR, since: float = 0.0):
+    """Every row of one kind ("c" or "b") with a time at or after `since`, oldest file first, one at a time (the
+    files can hold millions of rows: nothing here loads them all)."""
     for p in sorted(Path(data_dir).glob(f"{kind}-*.jsonl.gz")):
         try:
             with gzip.open(p, "rt", encoding="utf-8") as f:
@@ -341,7 +341,10 @@ def read(kind: str, data_dir: Path = DATA_DIR, since: float = 0.0) -> list[dict]
                     if line.strip():
                         r = json.loads(line)
                         if r.get("t", 0) >= since:
-                            out.append(r)
+                            yield r
         except (OSError, EOFError, json.JSONDecodeError) as ex:     # a file cut off mid-write: keep what's readable
             log.warning("research log: %s: %s", p.name, ex)
-    return out
+
+
+def read(kind: str, data_dir: Path = DATA_DIR, since: float = 0.0) -> list[dict]:
+    return list(rows(kind, data_dir, since))
