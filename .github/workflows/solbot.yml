@@ -3,8 +3,10 @@
 # Remembers its trades between jobs; saves young-coin list changes and solbot_stopped.json (pauses/stops) to the repo.
 name: solbot
 on:
-  schedule:
-    - cron: "*/30 * * * *"   # starts a new job if none is running; waits its turn otherwise
+  # Off (Nov 11 2026): stopped by its own -50% limit since Nov 4, set to real money, and the wallet is empty.
+  # To turn it back on, uncomment the two lines below.
+  # schedule:
+  #   - cron: "*/30 * * * *"   # starts a new job if none is running; waits its turn otherwise
   workflow_dispatch:
 concurrency:
   group: solbot

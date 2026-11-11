@@ -3,8 +3,10 @@
 # (solbot.yaml copytrade:). One long job of almost 6 hours, then the next one takes over. Needs the HELIUS_API_KEY secret.
 name: copytrade
 on:
-  schedule:
-    - cron: "*/30 * * * *"   # starts a new job if none is running; waits its turn otherwise
+  # Off (Nov 11 2026): practice only since Nov 9, and the wallet it copied stopped trading Nov 6.
+  # To turn it back on, uncomment the two lines below.
+  # schedule:
+  #   - cron: "*/30 * * * *"   # starts a new job if none is running; waits its turn otherwise
   workflow_dispatch:
 concurrency:
   group: copytrade
