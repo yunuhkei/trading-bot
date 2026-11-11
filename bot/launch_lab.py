@@ -251,6 +251,8 @@ def decode(line: str) -> dict | None:
                 out.append(raw[o + 4:o + 4 + n].decode("utf-8", "replace"))
                 o += 4 + n
             ev = {"kind": "create", "name": out[0], "symbol": out[1], "mint": b58(raw[o:o + 32])}
+            if len(raw) >= o + 128:                    # then bonding curve, user, creator
+                ev["user"], ev["creator"] = b58(raw[o + 64:o + 96]), b58(raw[o + 96:o + 128])
             if len(raw) >= o + 200:                    # then bonding curve, user, creator, 5 numbers, token program
                 ev["token_program"] = b58(raw[o + 168:o + 200])
             if len(raw) > o + 200:                     # then is_mayhem_mode
@@ -443,6 +445,8 @@ class Lab:
         self._direct_state = state.get("direct")
         self.sniper = None                                # the sniper (REAL money, bot/sniper.py), set by run()
         self._sniper_state = state.get("sniper")
+        self.clog = None                                  # the super bot's research log (bot/coin_log.py), set by run()
+        self._clog_state = state.get("clog")
         self._streak: tuple = (-1e18, [])
         # market signs every 5 minutes, to find out later what shows up before a good stretch
         self.signs: list = state.get("signs") or []
@@ -534,7 +538,9 @@ class Lab:
             a.cash += CASH                                              # a ghost never runs out: it only keeps score
         if not a.can_buy(mint):
             return
-        a.pending[mint] = {"side": "buy", "at": now + self.lb, "why": why, "signal": now, "via": via}
+        a.pending[mint] = {"side": "buy", "at": now + self.lb, "why": why, "signal": now, "via": via,
+                           "ctx": self.clog.bet_ctx(now, self.coins.get(mint)) if self.clog is not None and a.ghost
+                           else None}
         a.cash -= a.per_trade                                           # reserved
         for sh in (self.fast, self.direct, self.sniper):
             if sh and a.ghost and a.key == FAST_WATCH:
@@ -561,7 +567,7 @@ class Lab:
                 a.positions[coin.mint] = {"tokens": tok, "net": sol_in * (1 - coin.fee), "cost": a.per_trade, "t": now,
                                           "entry": coin.price,
                                           "peak": coin.price, "why": o["why"], "lag": round(now - o["signal"], 2),
-                                          "via": o.get("via"),
+                                          "via": o.get("via"), "ctx": o.get("ctx"),
                                           "name": self.names.get(coin.mint, coin.mint[:6])}
             p = a.positions.get(coin.mint)
             if p and p.get("selling") and (now >= p["selling"]["at"] or stale):
@@ -591,6 +597,12 @@ class Lab:
             del a.trades[:-1000]
         a.trades.append({"t": round(p["t"]), "s": round(now - p["t"], 1), "name": p["name"], "mint": coin.mint,
                          "profit": round(profit, 2), "why_in": p["why"], "why_out": why, "lag": p["lag"]})
+        if self.clog is not None and a.ghost:            # every ghost bet, with the market when it was signalled
+            row = {"k": a.key, "t": round(p["t"]), "f": p["lag"], "s": round(now - p["t"], 1),
+                   "r": round(profit / p["cost"], 4), "m": coin.mint[:12], "x": why[:16], **(p.get("ctx") or {})}
+            if why == "the run ended":
+                row["e"] = 1
+            self.clog.bet(row)
 
     # strategies, checked on every trade of a coin
     def on_trade(self, now: float, coin: Coin, t: dict):
@@ -789,6 +801,8 @@ class Lab:
 
     def event(self, now: float, e: dict):
         self.events += 1
+        if self.clog is not None:
+            self.clog.on_event(now, e)
         self.watch(now, e)
         if e.get("mayhem"):
             self.mayhem.add(e["mint"])
@@ -852,6 +866,8 @@ class Lab:
     def tick(self, now: float):
         """Every second: time-based exits and orders on coins that went quiet; forget old coins; the signs log."""
         self.log_signs(now)
+        if self.clog is not None:
+            self.clog.tick(now)
         for c in list(self.coins.values()):
             busy = any(c.mint in a.positions or c.mint in a.pending for a in self.books())    # ghosts too
             if busy:
@@ -1055,7 +1071,8 @@ class Lab:
                 "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs, "clean_since": self.clean_since,
                 "marks_reset": True, "fast": self.fast.to_state() if self.fast else self._fast_state,
                 "direct": self.direct.to_state() if self.direct else self._direct_state,
-                "sniper": self.sniper.to_state() if self.sniper else self._sniper_state}
+                "sniper": self.sniper.to_state() if self.sniper else self._sniper_state,
+                "clog": self.clog.to_state() if self.clog is not None else self._clog_state}
 
     def ghost_state(self) -> dict:
         out = {}
@@ -1083,7 +1100,8 @@ class Lab:
                 "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs, "clean_since": self.clean_since,
                 "marks_reset": True, "fast": self.fast.to_state() if self.fast else self._fast_state,
                 "direct": self.direct.to_state() if self.direct else self._direct_state,
-                "sniper": self.sniper.to_state() if self.sniper else self._sniper_state}
+                "sniper": self.sniper.to_state() if self.sniper else self._sniper_state,
+                "clog": self.clog.to_state() if self.clog is not None else self._clog_state}
 
 
 async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_after: float = 180,
@@ -1102,6 +1120,8 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
         for mint in list(lab.sniper.open):                  # anything left from a run that was killed: sell it now
             lab.sniper.queue.append(("sell", mint, time.time(), "left from the last run"))
     sniper_task = asyncio.create_task(lab.sniper.run(sniper_session, end)) if lab.sniper else None
+    sol_task = (asyncio.create_task(lab.clog.poll_sol(fast_session, end))
+                if lab.clog is not None and fast_session else None)
     while time.time() < end:
         try:
             async with aiohttp.ClientSession() as s:
@@ -1140,6 +1160,8 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
                                 from .sniper import config as sniper_config
                                 lab.sniper.cfg = sniper_config()
                             peek(lab, now)
+                            if lab.clog is not None:
+                                lab.clog.flush(now)
                             try:
                                 STATE.write_text(json.dumps(lab.snapshot()))
                             except Exception as ex:
@@ -1154,6 +1176,8 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
         except Exception as e:
             log.warning("feed dropped (%s); reconnecting", e)
             await asyncio.sleep(3)
+    if sol_task:
+        sol_task.cancel()
     shadows = [t for t in (fast_task, direct_task) if t]
 
     async def sniper_end():                                 # real money first: never kept waiting for practice
@@ -1242,6 +1266,8 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
             "sniper": lab.sniper.to_state()}))
         print(lab.fast.line(), lab.direct.line(), lab.sniper.line(), sep="\n", flush=True)
         return
+    from .coin_log import CoinLog
+    lab.clog = CoinLog(state.get("clog"))
     import signal
 
     def stop(*_):                                       # a cancelled job still saves the accounts
@@ -1254,6 +1280,7 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
         pass
     finally:
         STATE.write_text(json.dumps(lab.to_state()))
+        lab.clog.close()                                # coins still being followed are written as they stand
         if lab.sniper and lab.sniper.open and lab.sniper.kp:    # stopped mid-run: try to sell what the sniper holds
             try:
                 asyncio.run(asyncio.wait_for(_sell_now(lab.sniper), 9))

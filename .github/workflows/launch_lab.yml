@@ -33,6 +33,12 @@ jobs:
           path: launch_lab_state.json
           key: launch-lab-${{ github.run_id }}
           restore-keys: launch-lab-
+      # the super bot's research log (daily files, pruned after 3-5 weeks): its own cache, apart from the lab's state
+      - uses: actions/cache/restore@v4
+        with:
+          path: lab_data
+          key: lab-data-${{ github.run_id }}
+          restore-keys: lab-data-
       - name: Watch pump.fun and practice-trade
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
@@ -43,6 +49,7 @@ jobs:
           RESUME_SUPER: ${{ inputs.resume_super }}
         # pull new commits every 5 minutes, so a change to sniper.yaml (like live: false) reaches the running lab
         run: |
+          mkdir -p lab_data
           (while sleep 300; do git pull -q --ff-only origin main || true; done) &
           python -m bot launch-lab --minutes 340 ${FIRST_REPORT:+--first-report "$FIRST_REPORT"} $( [ "$RESUME_SUPER" = "yes" ] && echo --resume-super )
       - uses: actions/cache/save@v4
@@ -50,3 +57,8 @@ jobs:
         with:
           path: launch_lab_state.json
           key: launch-lab-${{ github.run_id }}
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: lab_data
+          key: lab-data-${{ github.run_id }}

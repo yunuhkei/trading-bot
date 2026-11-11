@@ -25,3 +25,4 @@ data/maker_trades.json
 # the launch lab and its sniper save here while running (the job pulls new commits every 5 minutes)
 launch_lab_state.json
 lab_status.json
+lab_data/

@@ -3973,3 +3973,85 @@ def test_sniper_skips_a_buy_with_no_price_to_protect_it():
     asyncio.run(s.buy(session, "M", 0.0))
     assert "sendTransaction" not in calls and s.stats == {"buy skipped: no price to protect it": 1}
     assert "M" not in s.unconfirmed and not s.busy
+
+
+def _coin_events(mint="MINT", creator="CREATOR"):
+    """A launch at t=1000, then trades: (time, vsol, vtok in tokens, sol, buy, user)."""
+    return {"kind": "create", "mint": mint, "creator": creator, "user": creator, "symbol": "X", "name": "X"}
+
+
+def test_research_log_snapshots_know_only_the_past_and_outcomes_are_measured_right(tmp_path):
+    from bot import coin_log as cl
+
+    lg = cl.CoinLog(data_dir=tmp_path)
+    lg.on_event(1000.0, _coin_events())
+
+    def tr(t, vsol, sol, buy, user):
+        lg.on_event(t, {"kind": "trade", "mint": "MINT", "vsol": vsol, "vtok": 1e9, "sol": sol, "buy": buy, "user": user})
+    tr(1000.5, 30.0, 0.5, True, "CREATOR")                # the dev buy: price 30/1e9 is e0
+    for i, t in enumerate((1002, 1003, 1004, 1005, 1006)):
+        tr(t, 30.0 + i + 1, 1.0, True, f"W{i}")            # 5 other buyers in 6 s
+    tr(1011, 45.0, 2.0, True, "W9")                        # after the 10-s snapshot: not in it
+    tr(1030, 30.0 * 1.3, 1.0, False, "CREATOR")            # the creator sells
+    lg.tick(1061)                                          # the 60-s snapshot, taken with no trade after 60 s
+    tr(1100, 30.0 * 1.3 * 1.6, 3.0, True, "W10")           # +60% from the 60-s price: crosses +25 and +50 (not +100)
+    tr(1400, 30.0 * 0.5, 2.0, False, "W10")
+    tr(2000, 30.0 * 0.7, 0.1, True, "W11")
+    lg.tick(3000)                                          # quiet 1000 s after its last trade: finished early
+    assert "MINT" not in lg.tracks
+    r = lg.buf["c"][0]
+    assert r["s10"]["n"] == 6 and r["s10"]["u"] == 5 and r["s10"]["t5"] == 6.0 and r["s10"]["dv"] == 0.5
+    assert "cs" not in r["s10"] and r["s60"]["cs"] == 1 and r["s60"]["u"] == 6     # the 11-s buyer shows up at 60 s
+    assert r["e60"] == 1.3 and r["x60"] == {"+25": 40.0, "+50": 40.0, "-20": 340.0, "-35": 340.0}
+    assert r["mk"]["5"] == [2.08, 2.08, 2.08]                        # at 5 min: high, low, last (vs e0); the
+    assert r["mk"]["30"] == [2.08, 0.5, 0.7]                         # drop at 6m40s isn't in the 5-min mark
+    assert r["mk"]["60"] == [2.08, 0.5, 0.7]                         # nothing after it went quiet
+    assert r["cs"] == 30.0 and r["N"] == 11 and "cut" not in r
+    assert lg.creators[cl.tag("CREATOR")] == [1, 0, 0]               # its record: 1 finished coin (ended at 0.7x)
+    lg.on_event(4000.0, _coin_events("MINT2"))
+    assert lg.tracks["MINT2"].ctx["cp"] == 1                          # the creator's next launch knows its past
+
+
+def test_research_log_files_round_trip_and_old_ones_are_pruned(tmp_path):
+    import time as _t
+
+    from bot import coin_log as cl
+
+    lg = cl.CoinLog(data_dir=tmp_path)
+    old = tmp_path / "b-2000-01-01.jsonl.gz"
+    tmp_path.mkdir(exist_ok=True)
+    import gzip
+    with gzip.open(old, "wt") as f:
+        f.write('{"t": 1}\n')
+    lg.bet({"k": "snipe", "t": 1_800_000_000, "r": -0.03})
+    lg.flush(1_800_000_000)
+    lg.bet({"k": "snipe", "t": 1_800_000_100, "r": 0.10})
+    lg.flush(1_800_000_100)                               # appended to the same day's file
+    assert not old.exists()
+    rows = cl.read("b", tmp_path)
+    assert [r["r"] for r in rows] == [-0.03, 0.10] and lg.buf["b"] == []
+    lg.on_event(_t.time(), _coin_events("M3"))
+    lg.close()                                            # a run ends: a coin still followed is written, marked cut
+    c = cl.read("c", tmp_path)
+    assert c[0]["m"] == "M3" and "cut" in c[0]
+
+
+def test_lab_logs_every_ghost_bet_with_the_market_at_its_signal(tmp_path):
+    from bot import coin_log as cl
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=100.0)
+    lab.clog = cl.CoinLog(data_dir=tmp_path)
+    t = {"kind": "trade", "mint": "M", "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5, "buy": True,
+         "user": "u0", "fee": 0.0125, "tok": 1e7}
+    lab.event(1000.0, {**_coin_events("M")})
+    lab.event(1000.2, t)
+    g = lab.ghosts["snipe"]
+    assert "M" in g.pending and g.pending["M"]["ctx"]["lr"] == 0.1     # the snipe signal, with its context
+    lab.event(1002.0, {**t, "vsol": 31.0, "user": "u1"})                # filled
+    assert "M" in g.positions
+    c = lab.coins["M"]
+    lab.close(g, c, 1010.0, "test exit")
+    rows = [r for r in lab.clog.buf["b"] if r["k"] == "snipe"]
+    assert rows and rows[0]["m"] == "M" and rows[0]["x"] == "test exit" and "hr" in rows[0] and "mi" in rows[0]
+    assert rows[0]["ag"] == 0.0 and rows[0]["nb"] == 1 and isinstance(rows[0]["r"], float)

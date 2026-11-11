@@ -40,6 +40,10 @@ category, list pointless workflows for the owner. Never delete Actions caches or
 ## Done
 - 0. Safety.
 - 1. Design note (HOW_TO_USE.md, "The super bot's brain").
+- 2. Data logging: bot/coin_log.py (coins + ghost bets, daily gzip in lab_data/, coins kept 21 days, bets 35),
+  hooked into launch_lab.py (event, tick, _buy ctx, close), SOL price polled once a minute, separate `lab-data-`
+  cache in launch_lab.yml (the lab's own state cache untouched). Live check: ~80 B/coin, ~17 B/bet compressed,
+  ~5-6 MB/day. NOTE: it only collects once the owner merges this branch into main (the lab runs from main).
 
 ## Next
-- 2. Data logging (bot/coin_log.py + lab hooks + a separate lab-data cache in launch_lab.yml).
+- 3. Base rates report (bot/brain.py) + status workflow reads lab_data.
