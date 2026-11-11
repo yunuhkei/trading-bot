@@ -1787,6 +1787,29 @@ function impactAdd(src,vn,E,mass,x,z,nx,nz){
   const zone=src==2?-1:(Math.abs(lz)/2.2>Math.abs(lx)/.95?(lz>0?0:1):(lx>0?3:2));
   const r={t:C.t,src,vn,E,mass,x,z,nx,nz,zone};IMP.last=r;IMP.n++;IMP.total+=E;IMP.q.push(r);if(IMP.q.length>IMP.max)IMP.q.shift()}
 const WB=1.35,RADIUS=1.05;
+/* handling review: the fixes below are on unless the old behaviour is asked for with ?hnd=classic (or the HANDLING switch in the car menu), so the two can be compared on the phone.
+   What the review changed (measured by tests/rphys.js): 1 the road assist only steers with the thumb OFF the stick (it used to cancel small steering inputs up to 22 % of the stick);
+   2 a glancing hit on a wall, a bank or a rail turns the car along it and keeps its speed (it used to leave the nose in the wall and grind to a stop);
+   3 a real turning circle at low speed, with the tail following the nose (it used to spin about its middle on a 2 m radius); 4 reverse has a top speed; 5 the launch boost fades out instead of cutting at 14 m/s;
+   6 in the air the car stops turning within about a third of a second (it used to keep the yaw rate it left the ground with for the whole flight and land sideways). */
+const PHYS={classic:false,rmin:4.2,lr:1.33,revMax:11,wallMu:.2,railMu:.06,railE:.12};
+try{const q=new URLSearchParams(location.search).get('hnd');PHYS.classic=q?q=='classic':localStorage.getItem('racer.hnd')=='classic'}catch(e){}
+function physSetClassic(v){PHYS.classic=!!v;try{localStorage.setItem('racer.hnd',v?'classic':'new')}catch(e){}}
+/* a hit on something long and solid (wall, bank, rail) with unit normal (nx,nz) pointing AWAY from it, the car closing at vn>0: bounce (restitution e), scrape (friction mu) and, when the hit is glancing,
+   turn the car along the surface the way it is travelling, so it slides on instead of driving its nose into it. Returns the speed lost into the surface (for the impact record). */
+function deflect(nx,nz,vn,e,mu){
+  C.vx+=(1+e)*vn*nx;C.vz+=(1+e)*vn*nz;
+  const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,vn*mu)/vt;C.vx*=sc;C.vz*=sc;
+  /* the surface's direction, taken the way the car is moving */
+  let tx=-nz,tz=nx;const al=C.vx*tx+C.vz*tz;if(al<0){tx=-tx;tz=-tz}
+  const ang=Math.atan2(vn,Math.abs(al)+1e-3);                       /* 0 = sliding along it, pi/2 = straight into it */
+  const k=1-sstep(.6,1.0,ang);                                       /* glancing up to about 35 degrees, nothing past 57 */
+  if(k>0&&vt>4){const fwd=Math.sin(C.yaw)*tx-Math.cos(C.yaw)*tz,want=Math.atan2(tx,-tz)+(fwd<0?Math.PI:0);   /* a car sliding along it backwards keeps facing backwards */
+    const d=angd(want,C.yaw);C.yaw+=d*.3*k;C.wyaw*=1-.5*k;
+    /* what is left of the speed points along the surface (the bounce is damped), so the tyres do not have to scrub it off */
+    const out=C.vx*nx+C.vz*nz;if(out>0){C.vx-=out*nx*.6*k;C.vz-=out*nz*.6*k}}
+  return vn}
+
 /* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
 const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5};
 function carPlace(x,z,yaw,yh){C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6}
@@ -1841,8 +1864,8 @@ function carStep(dt){
   const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*C.boostK)*DMG.spd,surf=C.onRoad?1:HND.grass;
   /* ---- longitudinal: weighty launch, strong but not instant braking ---- */
   if(gr){
-    let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(f<14?1:0))*(1+.9*C.boostK)*DMG.acc}
-    if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8}   /* brake, then reverse */
+    let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(PHYS.classic?(f<14?1:0):1-sstep(9,19,f)))*(1+.9*C.boostK)*DMG.acc}
+    if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8*(PHYS.classic?1:clamp(1+f/PHYS.revMax,0,1))}   /* brake, then reverse (up to PHYS.revMax m/s) */
     a-=Math.sign(f)*(.35+af*af*.0004);                 /* rolling + air drag */
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */
     a-=GRAV*slope/m2;                                  /* hills: gravity along the ground (climbing turns speed into height, descending turns height into speed) */
@@ -1861,12 +1884,12 @@ function carStep(dt){
   const sl=hand?1:(gr&&spd>6?C.slideT/Math.max(.05,C.slideMax):0);   /* a tap keeps the slide going for a moment after the finger lifts */
   if(Math.abs(steer)>.3)C.lastSteer=Math.sign(steer);
   {const dT=hand?1:.75*sl;C.drift+=(dT-C.drift)*Math.min(1,dt*(dT>C.drift?14:lerp(9,HND.driftRelease,Math.min(1,C.slip*4))))}   /* a real slide lets go of the tyres more slowly */
-  const dr=C.drift;let beta=0;
+  const dr=C.drift;let beta=0,sK=0;
   if(gr){
     /* the most sideways acceleration the tyres give: a little aero grip at speed, much less on grass */
     const A=(HND.aBase+HND.aAero*af*af)*surf*(1-HND.powerOS*thr*Math.max(0,1-af/45));   /* rear-drive cars with a lot of power break traction under throttle at low speed */
     /* steering target: yaw rate limited by that budget, so at speed full lock just gives you the tightest line (understeer), not a slide */
-    const omN=steer*Math.min(HND.omLow*Math.min(1,af/6),A/Math.max(af,4))*(f<-1?-1:1);
+    const omN=steer*Math.min(PHYS.classic?HND.omLow*Math.min(1,af/6):af/(PHYS.rmin*HND0.omLow/HND.omLow),A/Math.max(af,4))*(f<-1?-1:1);   /* slow: the turning circle of a car (it used to be a 2 m radius); fast: the tyre budget */
     /* drift assist: the stick chooses the slide angle, the assist holds it and straightens the car the moment you let go */
     /* full-circle slide angle (signed forward speed): at speed the stick asks for a modest slide, as the drift sheds speed the allowed angle grows until a full-stick handbrake spins the car right round */
     beta=spd>2?Math.atan2(s,f):0;
@@ -1876,7 +1899,9 @@ function carStep(dt){
     /* lateral friction: strong normally, weak in a drift; always limited, so a hit or a hard turn cannot snap the car around */
     let kg=HND.grip*surf;if(brk>0&&af>20&&Math.abs(steer)>.5)kg=Math.min(kg,HND.gripBrake);
     kg=lerp(kg,HND.gripDrift*(1-.4*C.dbK),dr);const fr=lerp(1.3*A,(HND.driftFric+HND.driftFricV*af)*(.6+.4*surf),dr);
-    let ds=Math.min(Math.abs(s)*kg,fr)*dt;if(ds>Math.abs(s))ds=Math.abs(s);const s0=s;s-=Math.sign(s)*ds;
+    /* at low speed the car turns about its REAR axle like a real one (the middle of the car then moves sideways at yaw rate x the distance to that axle); it used to spin about its middle */
+    sK=PHYS.classic?0:C.wyaw*PHYS.lr*(1-sstep(7,15,af))*(1-dr)*(f<0?-1:1);
+    const se=s-sK;let ds=Math.min(Math.abs(se)*kg,fr)*dt;if(ds>Math.abs(se))ds=Math.abs(se);const s0=s;s-=Math.sign(se)*ds;
     /* in a drift the friction turns the car's path instead of eating its speed (the velocity is rotated, not braked) */
     if(dr>.02){const e=Math.sqrt(Math.max(0,f*f+s0*s0-s*s));f=Math.sign(f||1)*lerp(Math.abs(f),e,dr)}
     /* sliding costs a little speed; so does cornering at the limit */
@@ -1887,16 +1912,16 @@ function carStep(dt){
     /* steering assist: with the thumb off the stick the car quietly follows the road (fades out as you steer) */
     if(IN.assist&&C.onRoad&&dr<.2&&af>12&&f>0&&roadAt(C.x,C.z,C.y)){const ang=Math.atan2(RQ.tx,-RQ.tz),dd=angd(ang,C.yaw);if(Math.abs(dd)<.9){/* follow the road's direction, and lean back towards the middle when you drift towards an edge */
       const edge=clamp((Math.abs(RQ.lat)-.55*RQ.hw)/(.45*RQ.hw),0,1),want=dd-Math.sign(RQ.lat)*edge*.2;
-      wt+=want*1.6*Math.min(1,af/35)*(1-Math.min(1,Math.abs(steer)/.22))}}
+      wt+=want*1.6*Math.min(1,af/35)*(PHYS.classic?1-Math.min(1,Math.abs(steer)/.22):1-sstep(.015,.05,Math.abs(steer)))}}   /* only with the thumb off the stick: it used to fade out at 22 % of the stick and cancelled small corrections */
     wt+=DMG.pull*Math.min(1,af/12);                       /* a damaged side drags the car towards it (0 when undamaged) */
     {const lim=lerp(A/Math.max(af,4),HND.omDrift*(1+.55*C.dbK),dr);wt=wt>lim?lim:wt<-lim?-lim:wt}   /* nothing (assist included) may ask for more than the tyres have */
     C.wyaw+=(wt-C.wyaw)*(1-Math.exp(-dt*lerp(HND.respond,HND.respondDrift,dr)));
-  }else{C.wyaw*=Math.max(0,1-dt*.6);const kd=Math.max(0,1-HND.airDrag*spd*dt);f*=kd;s*=kd;C.vy*=kd}   /* airborne: gravity and air drag only */
+  }else{C.wyaw*=Math.max(0,1-dt*(PHYS.classic?.6:3));const kd=Math.max(0,1-HND.airDrag*spd*dt);f*=kd;s*=kd;C.vy*=kd}   /* airborne: gravity and air drag only */
   /* back to world velocity with the OLD heading: the car turns, the velocity does not, so the difference becomes slip */
   C.vx=fx*f+rx*s;C.vz=fz*f+rz*s;
   C.yaw+=C.wyaw*dt;
   /* ---- drift bookkeeping (nitro and score only while really sliding) ---- */
-  const slipA=spd>8?Math.abs(s)/spd:0;C.slip=slipA;
+  const slipA=spd>8?Math.abs(s-sK)/spd:0;C.slip=slipA;
   /* any slide is a drift (whether or not the drift pedal is down: a slide that carries on after a tap, a slide after a landing or on grass); a short grace keeps the combo alive across a change of direction */
   const sliding=gr&&spd>10&&slipA>(C.dActive?.09:.15);
   if(sliding){if(!C.dActive){C.dActive=1;C.dCombo=0;C.dTime=0;C.dStart=C.t;C.dLast=null}C.dGrace=.5;C.dTime+=dt;const pts=dt*spd*slipA*2*(1+2*C.dbK);C.dCombo+=pts;C.driftScore+=pts;C.nos=Math.min(1,C.nos+dt*.2*Math.min(1,slipA*2.2+.3))}
@@ -1907,7 +1932,7 @@ function carStep(dt){
   /* ---- steep ground (cut banks, cliffs) is a wall ---- */
   if(C.speed>1){const px=C.x+C.vx/C.speed*2.3,pz=C.z+C.vz/C.speed*2.3,hp=groundAt(px,pz,C.y+.3);
     if(!RQ.on&&hp-C.y>1.05){let gx=terrainH(px+2,pz)-terrainH(px-2,pz),gz=terrainH(px,pz+2)-terrainH(px,pz-2);const gl=Math.hypot(gx,gz);if(gl<.05){gx=C.vx;gz=C.vz;const l=Math.hypot(gx,gz)||1;gx/=l;gz/=l}else{gx/=gl;gz/=gl}
-      C.x=C.px;C.z=C.pz;const vin=C.vx*gx+C.vz*gz;if(vin>0){C.vx-=1.3*vin*gx;C.vz-=1.3*vin*gz;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,vin*.25)/vt;C.vx*=sc;C.vz*=sc;C.hit=Math.max(C.hit,vin);C.shake=Math.min(1,C.shake+vin*.03);if(vin>1.2)impactAdd(1,vin,0,0,C.x,C.z,-gx,-gz)}}}
+      C.x=C.px;C.z=C.pz;const vin=C.vx*gx+C.vz*gz;if(vin>0){if(PHYS.classic){C.vx-=1.3*vin*gx;C.vz-=1.3*vin*gz;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,vin*.25)/vt;C.vx*=sc;C.vz*=sc}else{deflect(-gx,-gz,vin,.3,.22);C.x+=C.vx*dt;C.z+=C.vz*dt}C.hit=Math.max(C.hit,vin);C.shake=Math.min(1,C.shake+vin*.03);if(vin>1.2)impactAdd(1,vin,0,0,C.x,C.z,-gx,-gz)}}}
   /* ---- guard rails ---- */
   if(roadAt(C.x,C.z,C.y)&&RQ.rail){const lim=RQ.hw+.55,a=RQ.lat;if((a>lim&&(RQ.rail&2))||(a<-lim&&(RQ.rail&1))){const out=Math.abs(a)-lim,sg=a>0?1:-1;C.x-=RQ.nx*sg*out;C.z-=RQ.nz*sg*out;const vn=C.vx*RQ.nx*sg+C.vz*RQ.nz*sg;if(vn>0){C.vx-=RQ.nx*sg*vn*1.25;C.vz-=RQ.nz*sg*vn*1.25;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,vn*.22)/vt;C.vx*=sc;C.vz*=sc;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.03)}}}
   /* ---- solid things: buildings, poles, trees ---- */
@@ -1939,8 +1964,8 @@ function collide(fx,fz){
         if(d2>=RADIUS*RADIUS)continue;if(d2>1e-6){const d=Math.sqrt(d2);nlx=ex/d;nlz=ez/d;pen=RADIUS-d}else{const a1=lx+hx,a2=hx-lx,a3=lz+hz,a4=hz-lz,m=Math.min(a1,a2,a3,a4);if(m==a1)nlx=-1;else if(m==a2)nlx=1;else if(m==a3)nlz=-1;else nlz=1;pen=RADIUS+m}
         nx=nlx*cs2-nlz*sn2;nz=nlx*sn2+nlz*cs2}
       C.x+=nx*pen;C.z+=nz*pen;const vn=C.vx*nx+C.vz*nz;
-      if(vn<0){const e=.22;C.vx-=(1+e)*vn*nx;C.vz-=(1+e)*vn*nz;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,-vn*.3)/vt;C.vx*=sc;C.vz*=sc;C.hit=Math.max(C.hit,-vn);C.shake=Math.min(1,C.shake+-vn*.04);if(-vn>1.2)impactAdd(0,-vn,0,0,cx,cz,nx,nz);
-        /* a glancing hit turns the nose along the wall */const tx=-nz,tz=nx,al=C.vx*tx+C.vz*tz,fa=Math.sin(C.yaw)*tx-Math.cos(C.yaw)*tz;C.wyaw+=(fa>0?-1:1)*Math.min(1.2,-vn*.05)*(ci?1:-1)*.3}}}}}
+      if(vn<0){const e=.22;if(PHYS.classic||(k>=QH.nR&&k<QH.nR+QH.nC)){C.vx-=(1+e)*vn*nx;C.vz-=(1+e)*vn*nz;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,-vn*.3)/vt;C.vx*=sc;C.vz*=sc}else deflect(nx,nz,-vn,e,PHYS.wallMu);   /* trees and poles (circles) knock the car as before; walls deflect it */C.hit=Math.max(C.hit,-vn);C.shake=Math.min(1,C.shake+-vn*.04);if(-vn>1.2)impactAdd(0,-vn,0,0,cx,cz,nx,nz);
+        /* a glancing hit turns the nose along the wall */if(PHYS.classic){const tx=-nz,tz=nx,al=C.vx*tx+C.vz*tz,fa=Math.sin(C.yaw)*tx-Math.cos(C.yaw)*tz;C.wyaw+=(fa>0?-1:1)*Math.min(1.2,-vn*.05)*(ci?1:-1)*.3}}}}}}
 /* ---------- chase camera ---------- */
 const CAM={x:0,y:0,z:0,tx:0,ty:0,tz:0,fov:1.08};
 function camStep(dt,snap){
@@ -2230,6 +2255,7 @@ function hudDraw(){
   {const t=UI.stickT;if(t){c.globalAlpha=.5;c.strokeStyle='#fff';c.lineWidth=3;c.beginPath();c.arc(t.x0,t.y0,Math.max(46,UI.w*.075),0,TAU);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(clamp(t.x,t.x0-Math.max(46,UI.w*.075),t.x0+Math.max(46,UI.w*.075)),t.y0,18,0,TAU);c.fill();c.globalAlpha=1}}
   /* stats */
   if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px ui-monospace,Menlo,monospace';c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'gfx '+GFX.cur.name+' ('+GFX.mode+')  work '+GFX.work.toFixed(1)+' ms  fxaa'+(GFX.cur.blur?' blur':'')+(GFX.cur.bloom?' bloom':'')+(GFX.shadowOn?' shadow'+GFX.cur.shadow:''),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
+  if(PHYS.classic&&!window.__shot){c.save();c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,164,58,.9)';c.fillText('CLASSIC HANDLING',W_*.5,H_-u*.12);c.restore()}   /* the old handling is on (?hnd=classic or the switch in the car menu) */
   copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);
   if(UI.paused&&!window.__shot){c.fillStyle='rgba(0,0,0,.55)';c.fillRect(0,0,W_,H_);c.fillStyle='#fff';c.textAlign='center';c.font='800 28px sans-serif';c.fillText('PAUSED - tap to resume',W_/2,H_/2)}
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}
@@ -2287,7 +2313,7 @@ function menuLayout(W_,H_,u){
   const x0=px+m,iw=pw-m*2;let y=py+u*1.2;const L={px,py,pw,ph,m,x0,iw};
   L.stats=y;y+=u*.3*5+u*.34;L.dotsLabel=y;y+=u*.1;const gs=u*.3,gap=(iw-15*gs)/14;L.gy=y;for(let k=0;k<CAR_ROSTER.length;k++)add('dot'+k,x0+(k%15)*(gs+gap),y+((k/15)|0)*(gs+u*.06),gs,gs,()=>menuPreview(k));L.gs=gs;y+=2*(gs+u*.06)+u*.26;
   L.paintLabel=y;y+=u*.08;L.sy=y;for(let k=0;k<CAR_PAINTS.length;k++)add('paint'+k,x0+k*(u*.46),y,u*.4,u*.4,()=>menuPaint(k));y+=u*.5;
-  add('all',x0,y,iw,u*.34,()=>menuUnlockAll());y+=u*.42;L.by=y;const bw=(iw-m)/2;add('select',x0,y,bw,u*.5,()=>menuChoose());add('close',x0+bw+m,y,bw,u*.5,()=>menuClose());
+  {const hw2=(iw-m)/2;add('all',x0,y,hw2,u*.34,()=>menuUnlockAll());add('hnd',x0+hw2+m,y,hw2,u*.34,()=>{physSetClassic(!PHYS.classic);safeToast('Handling: '+(PHYS.classic?'CLASSIC (the old one)':'NEW'),2.5)})}y+=u*.42;L.by=y;const bw=(iw-m)/2;add('select',x0,y,bw,u*.5,()=>menuChoose());add('close',x0+bw+m,y,bw,u*.5,()=>menuClose());
   L.b=b;return L}
 function menuDraw(c,W_,H_,u){
   const L=menuLayout(W_,H_,u),d=CAR_ROSTER[MENU.i],own=carOwned(MENU.i),cur=MENU.i==CARSEL.cur;MENU.btns=L.b;
@@ -2302,7 +2328,8 @@ function menuDraw(c,W_,H_,u){
   for(let k=0;k<CAR_ROSTER.length;k++){const bt=L.b.find(q=>q.id=='dot'+k),o=carOwned(k);c.fillStyle=k==MENU.i?'#fff':o?'#4be07a':'rgba(255,255,255,.25)';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,k==MENU.i?bt.w*.55:bt.w*.38,0,TAU);c.fill()}
   c.fillStyle='rgba(255,255,255,.5)';c.font=fs(.18);c.fillText('PAINT',x0,L.paintLabel);
   for(let k=0;k<CAR_PAINTS.length;k++){const bt=L.b.find(q=>q.id=='paint'+k),pc=CAR_PAINTS[k]||d.paint,sel=(CAROWN.color[d.id]|0)==k;c.fillStyle='rgb('+pc[0]+','+pc[1]+','+pc[2]+')';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,bt.w/2,0,TAU);c.fill();c.strokeStyle=sel?'#fff':'rgba(255,255,255,.35)';c.lineWidth=sel?2.5:1;c.stroke()}
-  const sb=L.b.find(q=>q.id=='all');c.fillStyle=CAROWN.all?'#4be07a':'rgba(255,255,255,.18)';rr(c,sb.x,sb.y,sb.w,sb.h,u*.1);c.fill();c.fillStyle=CAROWN.all?'#102016':'rgba(255,255,255,.85)';c.font=fs(.19,700);c.textAlign='center';c.fillText(CAROWN.all?'ALL CARS UNLOCKED (for now) - tap to lock':'UNLOCK ALL CARS (for now)',sb.x+sb.w/2,sb.y+sb.h*.68);
+  const sb=L.b.find(q=>q.id=='all');c.fillStyle=CAROWN.all?'#4be07a':'rgba(255,255,255,.18)';rr(c,sb.x,sb.y,sb.w,sb.h,u*.1);c.fill();c.fillStyle=CAROWN.all?'#102016':'rgba(255,255,255,.85)';c.font=fs(.19,700);c.textAlign='center';c.fillText(CAROWN.all?'ALL CARS UNLOCKED':'UNLOCK ALL CARS',sb.x+sb.w/2,sb.y+sb.h*.68);
+  {const hb=L.b.find(q=>q.id=='hnd');c.fillStyle=PHYS.classic?'#ffa43a':'rgba(255,255,255,.18)';rr(c,hb.x,hb.y,hb.w,hb.h,u*.1);c.fill();c.fillStyle=PHYS.classic?'#201408':'rgba(255,255,255,.85)';c.fillText('HANDLING: '+(PHYS.classic?'CLASSIC':'NEW'),hb.x+hb.w/2,hb.y+hb.h*.68)}
   for(const id of['select','close']){const bt=L.b.find(q=>q.id==id),sel=id=='select';c.fillStyle=sel&&own?'#ff7a1a':'rgba(255,255,255,.18)';rr(c,bt.x,bt.y,bt.w,bt.h,u*.14);c.fill();c.fillStyle=sel&&own?'#111':'#fff';c.font=fs(.26,800);c.fillText(sel?(own?(cur?'DRIVE IT':'DRIVE THIS'):'LOCKED'):'BACK',bt.x+bt.w/2,bt.y+bt.h*.66)}
   if(!own){c.fillStyle='#ff9a4a';c.font=fs(.18);c.fillText('How to earn this car is not decided yet',L.px+L.pw/2,L.by+u*.66)}
   /* the arrows next to the car */
@@ -3911,7 +3938,7 @@ async function boot(){
     BOOT.genMs=performance.now()-t0;
     loadMsg(1,'Ready  ('+Math.round(BOOT.genMs/100)/10+' s, '+R.stats.buildings+' buildings, '+R.stats.trees+' trees)');
     if(QS.has('go')||window.__autoGo){startRun()}else{const go=$('go');go.style.display='block';go.onclick=()=>{audioStart();startRun()}}
-    window.RACER={ENV,ENVP,envApply,envCycle,PP,DEB,PDM,partDetach,partsHit,partsStep,partsReset,partHinge,NAV,MAPV,navSet,navClear,navSnap,navAStar,navLane,navPolyline,mapOpenNow,mapDown,mapMove,mapUp,mapWheel,copTrigger,COP,trGenType,trDent,TTYPES,MENU,CAROWN,menuOpen,menuClose,menuPreview,menuChoose,carUnlock,carSelect,CAR_ROSTER,CARSEL,HND,HND0,CARM,CD,cgBuild,GFX,GFXT,GOV,SHD,SMOKE,SPARK,LAMPS,NEONS,CARL,gfxGovern,gfxSetTier,gfxSetMode,C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
+    window.RACER={PHYS,physSetClassic,deflect,ENV,ENVP,envApply,envCycle,PP,DEB,PDM,partDetach,partsHit,partsStep,partsReset,partHinge,NAV,MAPV,navSet,navClear,navSnap,navAStar,navLane,navPolyline,mapOpenNow,mapDown,mapMove,mapUp,mapWheel,copTrigger,COP,trGenType,trDent,TTYPES,MENU,CAROWN,menuOpen,menuClose,menuPreview,menuChoose,carUnlock,carSelect,CAR_ROSTER,CARSEL,HND,HND0,CARM,CD,cgBuild,GFX,GFXT,GOV,SHD,SMOKE,SPARK,LAMPS,NEONS,CARL,gfxGovern,gfxSetTier,gfxSetMode,C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
   }catch(e){showErr('Startup failed: '+(e&&e.message||e));console.error(e)}}
 let last=0,acc=0,running=false;const DT=1/120;
 function startRun(){$('load').classList.add('off');running=true;last=performance.now();requestAnimationFrame(loop)}

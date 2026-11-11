@@ -31,7 +31,7 @@ function menuLayout(W_,H_,u){
   const x0=px+m,iw=pw-m*2;let y=py+u*1.2;const L={px,py,pw,ph,m,x0,iw};
   L.stats=y;y+=u*.3*5+u*.34;L.dotsLabel=y;y+=u*.1;const gs=u*.3,gap=(iw-15*gs)/14;L.gy=y;for(let k=0;k<CAR_ROSTER.length;k++)add('dot'+k,x0+(k%15)*(gs+gap),y+((k/15)|0)*(gs+u*.06),gs,gs,()=>menuPreview(k));L.gs=gs;y+=2*(gs+u*.06)+u*.26;
   L.paintLabel=y;y+=u*.08;L.sy=y;for(let k=0;k<CAR_PAINTS.length;k++)add('paint'+k,x0+k*(u*.46),y,u*.4,u*.4,()=>menuPaint(k));y+=u*.5;
-  add('all',x0,y,iw,u*.34,()=>menuUnlockAll());y+=u*.42;L.by=y;const bw=(iw-m)/2;add('select',x0,y,bw,u*.5,()=>menuChoose());add('close',x0+bw+m,y,bw,u*.5,()=>menuClose());
+  {const hw2=(iw-m)/2;add('all',x0,y,hw2,u*.34,()=>menuUnlockAll());add('hnd',x0+hw2+m,y,hw2,u*.34,()=>{physSetClassic(!PHYS.classic);safeToast('Handling: '+(PHYS.classic?'CLASSIC (the old one)':'NEW'),2.5)})}y+=u*.42;L.by=y;const bw=(iw-m)/2;add('select',x0,y,bw,u*.5,()=>menuChoose());add('close',x0+bw+m,y,bw,u*.5,()=>menuClose());
   L.b=b;return L}
 function menuDraw(c,W_,H_,u){
   const L=menuLayout(W_,H_,u),d=CAR_ROSTER[MENU.i],own=carOwned(MENU.i),cur=MENU.i==CARSEL.cur;MENU.btns=L.b;
@@ -46,7 +46,8 @@ function menuDraw(c,W_,H_,u){
   for(let k=0;k<CAR_ROSTER.length;k++){const bt=L.b.find(q=>q.id=='dot'+k),o=carOwned(k);c.fillStyle=k==MENU.i?'#fff':o?'#4be07a':'rgba(255,255,255,.25)';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,k==MENU.i?bt.w*.55:bt.w*.38,0,TAU);c.fill()}
   c.fillStyle='rgba(255,255,255,.5)';c.font=fs(.18);c.fillText('PAINT',x0,L.paintLabel);
   for(let k=0;k<CAR_PAINTS.length;k++){const bt=L.b.find(q=>q.id=='paint'+k),pc=CAR_PAINTS[k]||d.paint,sel=(CAROWN.color[d.id]|0)==k;c.fillStyle='rgb('+pc[0]+','+pc[1]+','+pc[2]+')';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,bt.w/2,0,TAU);c.fill();c.strokeStyle=sel?'#fff':'rgba(255,255,255,.35)';c.lineWidth=sel?2.5:1;c.stroke()}
-  const sb=L.b.find(q=>q.id=='all');c.fillStyle=CAROWN.all?'#4be07a':'rgba(255,255,255,.18)';rr(c,sb.x,sb.y,sb.w,sb.h,u*.1);c.fill();c.fillStyle=CAROWN.all?'#102016':'rgba(255,255,255,.85)';c.font=fs(.19,700);c.textAlign='center';c.fillText(CAROWN.all?'ALL CARS UNLOCKED (for now) - tap to lock':'UNLOCK ALL CARS (for now)',sb.x+sb.w/2,sb.y+sb.h*.68);
+  const sb=L.b.find(q=>q.id=='all');c.fillStyle=CAROWN.all?'#4be07a':'rgba(255,255,255,.18)';rr(c,sb.x,sb.y,sb.w,sb.h,u*.1);c.fill();c.fillStyle=CAROWN.all?'#102016':'rgba(255,255,255,.85)';c.font=fs(.19,700);c.textAlign='center';c.fillText(CAROWN.all?'ALL CARS UNLOCKED':'UNLOCK ALL CARS',sb.x+sb.w/2,sb.y+sb.h*.68);
+  {const hb=L.b.find(q=>q.id=='hnd');c.fillStyle=PHYS.classic?'#ffa43a':'rgba(255,255,255,.18)';rr(c,hb.x,hb.y,hb.w,hb.h,u*.1);c.fill();c.fillStyle=PHYS.classic?'#201408':'rgba(255,255,255,.85)';c.fillText('HANDLING: '+(PHYS.classic?'CLASSIC':'NEW'),hb.x+hb.w/2,hb.y+hb.h*.68)}
   for(const id of['select','close']){const bt=L.b.find(q=>q.id==id),sel=id=='select';c.fillStyle=sel&&own?'#ff7a1a':'rgba(255,255,255,.18)';rr(c,bt.x,bt.y,bt.w,bt.h,u*.14);c.fill();c.fillStyle=sel&&own?'#111':'#fff';c.font=fs(.26,800);c.fillText(sel?(own?(cur?'DRIVE IT':'DRIVE THIS'):'LOCKED'):'BACK',bt.x+bt.w/2,bt.y+bt.h*.66)}
   if(!own){c.fillStyle='#ff9a4a';c.font=fs(.18);c.fillText('How to earn this car is not decided yet',L.px+L.pw/2,L.by+u*.66)}
   /* the arrows next to the car */

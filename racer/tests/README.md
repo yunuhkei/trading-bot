@@ -34,6 +34,7 @@ node racer/tests/<name>.js        # one test; RFILE=/path/to/other.html tests an
 | `rtrshot.js` | screenshots of the traffic at places (`rtrshot.js '[["sfnu3",0.43]]' name`) |
 | `raudit.js` | which lane markings each road really renders (decodes the road shader's style number per sample) versus what it should |
 | `rbot.js` | a pure-pursuit bot drives every road (`SPD=24`, `ONLY=ring,sh`) with real collisions: stuck, off-road, buried wheels, falls, hits, flights |
+| `rphys.js` | the handling review, as the game is PLAYED (road assist on): A steering (gain against stick position, a small stick held, step response, a quick dab, hands off), B the pivot point and turning circle at low speed, C grip and slide (limit, drift tap, release, grass), D braking and reverse, E throttle steps, F walls at 8-90 degrees (speed kept, nose along the wall, energy), G jump landings (with and without steering at take-off), H ground following, I guard rails, J curbs. `HNDMODE=classic node racer/tests/rphys.js` prints the old handling's numbers |
 | `rhandle.js` `rturn.js` `rdriftspd.js` `rdrift2.js` `rdrive.js` | the FEEL: cornering grip, handbrake drift, brake distance, turn-around times, drift pedal tap and hold, 0-100 |
 | `renergy.js` | energy logic on synthetic ground: coasting over a hill, ballistic flight, crest launch threshold, landings on slopes |
 | `rjump.js` | drives the jump hills at several speeds: air time, flight length, buried wheels after landing |
@@ -89,3 +90,23 @@ Small differences from rounding are fine; a change of more than about 10 percent
 * Roads: no crest or dip tighter than 35 m radius outside the designed jump hills (`node` scan of the profiles: before the smoothing 88 places under 45 m, the worst 16 m on the mountain pass).
 * Not measured: any real phone. 5-10k triangles for the player's car and about 2.8k for each nearby traffic car are a bigger load than before (about 9.5k for the old car, 200 per traffic car): see the quality tiers, the traffic LOD distance is 34 m on Low.
 * The test harness (`rlib.js`) loads the game with `env=overcast` unless a test asks for another weather, so the older tests, which were written for the gloomy look, measure what they always did; `renv.js` covers all three looks.
+
+## Handling review baseline (`rphys`, the starter car)
+
+| | classic (`?hnd=classic`) | new |
+|---|---|---|
+| A1 yaw gain at 12 % / 6 % of the stick, relative to full stick, 40 m/s | 0.26 / 0.01 | 1 / 1 |
+| A1 the same at 65 m/s | 0.21 / -0.12 | 1 / 1 |
+| A2 12 % stick held at 30 m/s: heading after 1.5 s / 3 s | 5.5 / 7.1 deg | 8.6 / 17.4 deg |
+| A3 step response (63 % / 90 % of the yaw rate) | 0.11 / 0.20 s | same |
+| B full lock at 5 m/s: radius, rear axle sliding sideways | 2.0 m, 3.6 m/s | 4.4 m, 0.1 m/s |
+| C1 limit at 100 km/h | 2.75 g, 1 deg slip | same |
+| D1 100-0 km/h | 15.8 m | same |
+| D2 reverse top speed (8 s) | 47.7 m/s | 10.4 m/s |
+| E biggest step in acceleration | 1.9 m/s2 at 14 m/s | 0.29 |
+| F wall at 15 deg, 55 m/s: speed kept after 1.5 s, nose off the wall, impacts | 0.62, 18 deg, 20 | 0.98, 0 deg, 7 |
+| F wall at 25 / 40 / 60 / 90 deg, 55 m/s | 0.41 / 0.11 / 0.01 / 0 | 0.83 / 0.60 / 0.01 / 0.01 |
+| G2 slide after a jump taken with 60 % stick | 15.5 deg | 7 deg |
+| H Mulholland at 25 m/s: mean / worst gap to the ground | 3.2 / 4 cm | same |
+
+`rcars.js` has two failures that are older than this review (body numbers and body size checks); they are listed in `racer/TODO.md`.
