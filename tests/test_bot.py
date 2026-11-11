@@ -4086,3 +4086,69 @@ def test_brain_base_rates_count_gains_after_real_costs():
     assert n["launch +25%"] == 1.0 and n["launch +100%"] == 0.5 and n["1 min +100%"] == 0.0 and n["1 min +50%"] == 0.5
     assert n["launch, held: ended up"] == 0.5
     assert any("normal, within 5 min" in line for line in brain.base_rates_lines(b))
+
+
+def _synthetic_bets(edge_mean=None, noise_mean=-0.05, days=8, strategies=8, seed=1):
+    """Bets for `strategies` noise strategies over `days` days (6 an hour each); if edge_mean is set, strategy "edge"
+    makes that much a trade in minutes :20-:29 only (and the noise elsewhere)."""
+    import datetime
+    import random
+    from zoneinfo import ZoneInfo
+
+    rng = random.Random(seed)
+    base = datetime.datetime(2026, 11, 12, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+
+    def ret(mean):                                         # rare big wins, common small losses, like the lab's
+        win_p = (mean + 0.07) / 0.45                       # win +38%, lose -7%: mean = p*0.38 - (1-p)*0.07
+        return 0.38 if rng.random() < win_p else -0.07
+    keys = [f"s{i}" for i in range(strategies)] + (["edge"] if edge_mean is not None else [])
+    out = []
+    for d in range(days):
+        for hr in range(24):
+            for k in keys:
+                for _ in range(6):
+                    mi = rng.randrange(60)
+                    m = edge_mean if (k == "edge" and 20 <= mi < 30) else noise_mean
+                    out.append({"k": k, "t": base + d * 86400 + hr * 3600 + mi * 60 + rng.random() * 59,
+                                "mi": mi, "hr": hr, "r": round(ret(m), 4)})
+    return out
+
+
+def test_brain_finds_the_one_real_edge_and_approves_no_noise():
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    tm = brain.timing_map(_synthetic_bets(edge_mean=0.12), cfg)
+    assert tm["approved"] == ["edge|slot2"]                 # found, and nothing else
+    w = tm["windows"]["edge|slot2"]
+    assert w["lb"] > cfg["target"] and w["oos_n"] >= cfg["min_oos_trades"] and w["oos_mean"] > 0
+    assert not tm["windows"]["edge|all"]["ok"]              # the strategy overall still loses
+    assert any("Approved: Edge" in line or "Approved: edge" in line for line in brain.timing_lines(tm, cfg))
+
+
+def test_brain_rejects_noise_right_at_the_target_and_shuffled_time_kills_the_edge():
+    import random
+
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    flat = brain.timing_map(_synthetic_bets(noise_mean=0.02, days=10, seed=2), cfg)
+    assert flat["approved"] == []                          # +2% true edge everywhere: never "beats" +2%
+    bets = _synthetic_bets(edge_mean=0.12, seed=3)
+    rng = random.Random(4)
+    minutes = [b["mi"] for b in bets]
+    rng.shuffle(minutes)                                   # a lookahead check: with the times scrambled, a timing
+    for b, m in zip(bets, minutes):                        # edge must vanish
+        b["mi"] = m
+    assert brain.timing_map(bets, cfg)["approved"] == []
+    assert any("Approved: none" in line for line in brain.timing_lines(flat, cfg))
+
+
+def test_brain_takes_real_fees_off_and_ignores_run_end_and_super_bot_bets():
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    rows = brain.usable_bets([{"k": "snipe", "t": 1_794_500_000, "mi": 5, "hr": 3, "r": 0.023},
+                              {"k": "snipe", "t": 1_794_500_000, "mi": 5, "hr": 3, "r": 0.5, "e": 1},
+                              {"k": "brain", "t": 1_794_500_000, "mi": 5, "hr": 3, "r": 0.5}], cfg)
+    assert len(rows) == 1 and round(rows[0]["ret"], 4) == 0.018 and rows[0]["day"]

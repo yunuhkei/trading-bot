@@ -49,5 +49,10 @@ category, list pointless workflows for the owner. Never delete Actions caches or
   thresholds), launch_lab_status.yml restores the lab-data cache (read only) and uploads brain_report.json in the
   `lab-status` artifact.
 
+- 4+5. Timing map + strict test (bot/brain.py `timing_map`): windows fixed in advance (overall, six 10-min slots,
+  4 hour groups); per window n, win rate, avg win/loss, mean after fees, lower bound (bootstrap by hour blocks,
+  Bonferroni over every window tested), day share, walk-forward on unseen days, drop rule. Synthetic tests: finds
+  the one planted edge, approves no noise at +2%, shuffled time kills it, fees taken off.
+
 ## Next
-- 4+5. Timing map + approval rule (bootstrap by hour blocks, Bonferroni, day share, walk-forward, drop rule).
+- 6+7. Coin model (first-minute features, walk-forward by day, lift, calibration, decay) + rug filter.
