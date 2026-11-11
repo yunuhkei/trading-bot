@@ -185,15 +185,23 @@ class BetBlocks:
         self.recent: dict = {}
         self.snipes: list = []
         self.raw: dict = {}
+        self.sat = 0                              # signals the brain sat out (logged every 5 minutes by the lab)
         self.n = 0
 
     def add(self, r: dict):
         k = r.get("k")
+        if k == "_sat":
+            self.sat += r.get("n", 0)
+            return
         if r.get("r") is not None and not r.get("e"):
-            s = self.raw.setdefault(k, [0, 0.0, 0])
-            s[0] += 1
-            s[1] += r["r"] - self.cfg["extra_cost"]
-            s[2] += r["r"] - self.cfg["extra_cost"] > 0
+            ret = r["r"] - self.cfg["extra_cost"]
+            for key in ((k, "every signal") if k not in SUPER_KEYS else (k,)):
+                s = self.raw.setdefault(key, [0, 0.0, 0, 0.0])
+                s[0] += 1
+                s[1] += ret
+                if ret > 0:
+                    s[2] += 1
+                    s[3] += ret
         if not usable(r):
             return
         ret, day = r["r"] - self.cfg["extra_cost"], day_of(r["t"])
@@ -590,6 +598,63 @@ def model_lines(m: dict, rf: dict) -> list[str]:
     return lines
 
 
+# ---- step 9: side by side ----
+def record(v: list | None) -> dict | None:
+    """[trades, sum, wins, sum of wins] -> the numbers that matter, with the break-even win rate for that payoff."""
+    if not v or not v[0]:
+        return None
+    n, s, w, sw = v
+    avg_win = sw / w if w else None
+    avg_loss = (s - sw) / (n - w) if n > w else None
+    be = (-avg_loss / (avg_win - avg_loss)) if (avg_win and avg_loss and avg_win > avg_loss) else None
+    return {"n": n, "win_rate": w / n, "avg_win": avg_win, "avg_loss": avg_loss, "per_trade": s / n, "break_even": be}
+
+
+def side_by_side_lines(raw: dict, sat: int) -> list[str]:
+    rows = (("The brain (super bot 3)", raw.get("brain")), ("Took every signal", raw.get("every signal")),
+            ("Random coins (luck)", raw.get("random")))
+    lines = ["Side by side, after fees (win rate vs the win rate needed to break even with that payoff):"]
+    for name, v in rows:
+        r = record(v)
+        if not r:
+            lines.append(f"• {name}: no trades" + (f" (sat out {sat:,} signals: nothing qualified)"
+                                                    if name.startswith("The brain") else "") + ".")
+            continue
+        lines.append(f"• {name}: {r['n']:,} trades, won {r['win_rate']:.1%} (needs {r['break_even']:.1%})"
+                     if r["break_even"] is not None else f"• {name}: {r['n']:,} trades, won {r['win_rate']:.1%}")
+        lines[-1] += (f", avg win {pct(r['avg_win'])}, avg loss {pct(r['avg_loss'])}, {pct(r['per_trade'])} a trade"
+                      + (f"; sat out {sat:,} signals" if name.startswith("The brain") else "") + ".")
+    return lines
+
+
+def weekly(data_dir: Path = cl.DATA_DIR, cfg: dict | None = None, since_days: float = 7.0) -> str:
+    """The weekly summary for the phone: what the brain did, what qualified, and how it compares. Short."""
+    import time
+
+    cfg = cfg or config()
+    since = time.time() - since_days * 86400
+    br, ct, bb = BaseRates(cfg["cost"]), CoinTable(cfg["cost"]), BetBlocks(cfg)
+    for r in cl.rows("c", data_dir):
+        ct.add(r)
+    for r in cl.rows("b", data_dir):
+        bb.add(r)
+    week = BetBlocks(cfg)
+    for r in cl.rows("b", data_dir, since=since):
+        week.add(r)
+    tm, m = timing_map(bb, cfg), coin_model(ct, cfg)
+    lines = side_by_side_lines(week.raw, week.sat)
+    lines.append(f"Approved windows: {len(tm['approved'])} of {tm['tested']}" + (
+        ": " + ", ".join(tm["approved"][:5]) if tm["approved"] else " (nothing passed: it sat out)."))
+    if m.get("picked"):
+        lines.append(f"Coin model on days it never saw: lift {m['lift']:.2f}x, {pct(m['mean'])} a trade; "
+                     + ("approved." if m["ok"] else f"not approved ({m['why']})."))
+        if m.get("calibration"):
+            lines.append("Predicted vs real win chance: " + ", ".join(f"{c[1]:.0%}->{c[2]:.0%}" for c in m["calibration"]))
+    else:
+        lines.append(f"Coin model: {m.get('why')}.")
+    return "\n".join(lines)
+
+
 # ---- the report ----
 def read_all(data_dir: Path, cfg: dict) -> tuple[BaseRates, CoinTable, BetBlocks]:
     """One pass over each kind of file (a coin cut off by a run's end counts only at the marks it reached)."""
@@ -607,10 +672,9 @@ def report(data_dir: Path = cl.DATA_DIR, cfg: dict | None = None) -> dict:
     br, ct, bb = read_all(data_dir, cfg)
     out = {"base_rates": br.result(), "timing": timing_map(bb, cfg), "model": coin_model(ct, cfg),
            "rug": rug_filter(ct, bb.snipes, cfg),
-           "bots": {k: {"bets": v[0], "per_bet": round(v[1] / v[0], 4), "won": round(v[2] / v[0], 3)}
-                    for k, v in bb.raw.items() if v[0]}}
+           "bots": {k: record(v) for k, v in bb.raw.items() if v[0]}, "sat_out": bb.sat}
     out["lines"] = (base_rates_lines(out["base_rates"]) + timing_lines(out["timing"], cfg)
-                    + model_lines(out["model"], out["rug"]))
+                    + model_lines(out["model"], out["rug"]) + side_by_side_lines(bb.raw, bb.sat))
     return out
 
 

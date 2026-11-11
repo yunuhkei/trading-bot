@@ -4271,3 +4271,45 @@ def test_brain_live_approvals_reach_the_lab(tmp_path):
     lab = ll.Lab(sol_usd=100.0)
     assert ll.load_brain(lab, out) and lab.brain["approved"] == {"edge|slot2"} and not lab.brain["model_ok"]
     assert ll.load_brain(lab, tmp_path / "missing.pkl") is False and "couldn't load" in lab.brain["note"]
+
+
+def test_brain_reports_side_by_side_with_break_even_and_sit_outs(tmp_path):
+    import gzip
+    import json
+    import time as _t
+
+    from bot import brain
+
+    cfg = dict(brain.DEFAULTS)
+    now = _t.time()
+    rows = ([{"k": "snipe", "t": now - 3600, "mi": 1, "hr": 2, "r": 0.385} for _ in range(2)]
+            + [{"k": "snipe", "t": now - 3600, "mi": 1, "hr": 2, "r": -0.065} for _ in range(8)]
+            + [{"k": "random", "t": now - 3600, "mi": 1, "hr": 2, "r": -0.045}]
+            + [{"k": "_sat", "t": now - 3600, "n": 40}])
+    with gzip.open(tmp_path / f"b-{_t.strftime('%Y-%m-%d', _t.gmtime(now))}.jsonl.gz", "wt") as f:
+        f.write("".join(json.dumps(r) + "\n" for r in rows))
+    bb = brain.BetBlocks(cfg)
+    for r in rows:
+        bb.add(r)
+    rec = brain.record(bb.raw["snipe"])
+    assert rec["win_rate"] == 0.2 and round(rec["avg_win"], 3) == 0.38 and round(rec["avg_loss"], 3) == -0.07
+    assert round(rec["break_even"], 3) == round(0.07 / 0.45, 3)          # needs 15.6% to break even at this payoff
+    lines = brain.side_by_side_lines(bb.raw, bb.sat)
+    assert "The brain (super bot 3): no trades (sat out 40 signals: nothing qualified)." in lines[1]
+    assert lines[2].startswith("• Took every signal: 11 trades, won 18.2%")
+    text = brain.weekly(tmp_path, cfg)
+    assert "sat out 40 signals" in text and "Approved windows: 0" in text and len(text) < 3000
+
+
+def test_lab_logs_what_the_brain_sat_out(tmp_path):
+    from bot import coin_log as cl
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=100.0)
+    lab.clog = cl.CoinLog(data_dir=tmp_path)
+    lab.event(1000.0, {"kind": "trade", "mint": "A", "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5,
+                       "buy": True, "user": "u0", "fee": 0.0125, "tok": 1e7})
+    lab.tick(1001.0)
+    lab.tick(1001.0 + ll.SIGN_EVERY)                                    # the 5-minute signs row
+    sat = [r for r in lab.clog.buf["b"] if r["k"] == "_sat"]
+    assert sat and sat[0]["n"] >= 1 and lab._sat_n == 0

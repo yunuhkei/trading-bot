@@ -66,6 +66,9 @@ category, list pointless workflows for the owner. Never delete Actions caches or
   its approvals are refreshed every 3 h by a separate process (`python -m bot brain --live brain_live.pkl`) so
   the lab never slows; one line in the hourly ping. Live check: loop ran, nothing approved, it sat out.
 
+- 9. Honest reports: the brain report shows the brain, "took every signal" and "random coins" side by side (win
+  rate vs the break-even win rate for that payoff, avg win/loss, per trade, sat-out count; the lab logs sit-outs
+  every 5 min); `python -m bot brain --weekly` + brain_weekly.yml (Sundays ~5:17 pm, one ping, reads only).
+
 ## Next
-- 9. Honest reports: baselines (took every signal / random coins) and break-even win rate in the brain report; a
-  weekly summary ping (low volume).
+- 10. Go-live gate documented, OFF. Then the final report for Part 1; then Part 2 (repo cleanup).

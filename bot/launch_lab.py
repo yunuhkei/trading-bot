@@ -458,6 +458,7 @@ class Lab:
         self.brain = {"approved": set(), "model": None, "cut": None, "model_ok": False, "at": None,
                       "note": "not checked yet"}
         self.brain_sat: deque = deque(maxlen=200_000)
+        self._sat_n = 0                                   # sit-outs since the last 5-minute signs row
         self._streak: tuple = (-1e18, [])
         # market signs every 5 minutes, to find out later what shows up before a good stretch
         self.signs: list = state.get("signs") or []
@@ -540,6 +541,7 @@ class Lab:
                 self._buy(self.ghosts["brain"], mint, now, why3, via=key)
             else:
                 self.brain_sat.append(now)
+                self._sat_n += 1
             self._buy(self.ghosts[key], mint, now, why)
         if key in self.accts:
             self._buy(self.accts[key], mint, now, why)
@@ -911,6 +913,9 @@ class Lab:
                            "coins": len(self.coins), "sol_usd": round(self.sol_usd, 2),
                            "up_share": self.up_share(w),
                            "fam": {k: [v[0], round(v[1], 1)] for k, v in w["fam"].items()}})
+        if self.clog is not None and self._sat_n:         # what the brain sat out, for the reports
+            self.clog.bet({"k": "_sat", "t": round(w["start"]), "n": self._sat_n})
+            self._sat_n = 0
         cut = now - KEEP_DAYS * 86400
         while self.signs and self.signs[0]["t"] < cut:
             self.signs.pop(0)
