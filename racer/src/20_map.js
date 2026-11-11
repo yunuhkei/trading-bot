@@ -109,13 +109,22 @@ function buildRoad(d,dry){
   r.len=r.S[n-1]+(r.closed?Math.hypot(X[0]-X[n-1],Z[0]-Z[n-1]):0);
   /* blend heights into the roads we join so the junction is flush */
   /* within ~150 m of the parent road, follow the parent's own height so the two surfaces stay flush */
-  const blend=(ref,at,fromStart)=>{const rr=ROADS.find(q=>q.id==ref);if(!rr)return;
-    for(let i=0;i<n;i++){const s=fromStart?r.S[i]:r.len-r.S[i];if(s>320)continue;let bd=1e18,bk=0;for(let k=0;k<rr.n;k++){const dd=(rr.X[k]-X[i])**2+(rr.Z[k]-Z[i])**2;if(dd<bd){bd=dd;bk=k}}
-      const t=sstep(8,170,Math.sqrt(bd)),w=Math.max(t,sstep(150,320,s));Y[i]=lerp(rr.Y[bk],Y[i],w)}};
+  /* the parent's height under a point (projected on its centre-line, not the nearest sample: on a 30 % street 4 m of sample spacing is a 0.3 m step) and the distance to it */
+  const under=(rr,x,z)=>{let bd=1e18,by=0;const c=rr.closed?rr.n:rr.n-1;for(let k=0;k<c;k++){const j=(k+1)%rr.n,ax=rr.X[k],az=rr.Z[k],ex=rr.X[j]-ax,ez=rr.Z[j]-az,l2=ex*ex+ez*ez||1;let t=((x-ax)*ex+(z-az)*ez)/l2;t=t<0?0:t>1?1:t;const dd=(x-ax-ex*t)**2+(z-az-ez*t)**2;if(dd<bd){bd=dd;by=rr.Y[k]+(rr.Y[j]-rr.Y[k])*t}}return[Math.sqrt(bd),by]};
   const yf=d.from||d.yFrom,yt=d.to||d.yTo;if(d.yLine)for(let i=0;i<n;i++)Y[i]=lerp(d.yLine[0],d.yLine[1],r.S[i]/r.len);
-  if(yf)blend(yf,0,true);if(yt)blend(yt,0,false);
+  {const ra=yf&&ROADS.find(q=>q.id==yf),rb=yt&&ROADS.find(q=>q.id==yt);
+   if(ra||rb)for(let i=0;i<n;i++){const s0=r.S[i],s1=r.len-r.S[i],f=s0/r.len;let wa=0,wb=0,ya=0,yb=0;
+     if(ra&&s0<=320){const q=under(ra,X[i],Z[i]);ya=q[1];wa=1-Math.max(sstep(8,170,q[0]),sstep(150,320,s0))}
+     if(rb&&s1<=320){const q=under(rb,X[i],Z[i]);yb=q[1];wb=1-Math.max(sstep(8,170,q[0]),sstep(150,320,s1))}
+     /* a short connector is pulled by both ends: each end rules its own half (the far end used to drag the near end off its road by up to half a metre) */
+     if(ra&&rb){wa*=1-sstep(.2,.6,f);wb*=sstep(.4,.8,f)}
+     Y[i]=Y[i]*(1-wa)*(1-wb)+ya*wa*(1-wb)+yb*wb}}
   if((yf||yt)&&d.flat==null&&!d.cityField&&!d.yLine){const g=(d.grade||.085)*ds,p0=Y[0],p1=Y[n-1];for(let it=0;it<3;it++){if(yf)Y[0]=p0;for(let i=1;i<n;i++)Y[i]=clamp(Y[i],Y[i-1]-g,Y[i-1]+g);if(yt)Y[n-1]=p1;for(let i=n-2;i>=0;i--)Y[i]=clamp(Y[i],Y[i+1]-g,Y[i+1]+g)}}
   if(d.flat==null&&!d.cityField&&!d.yLine)vSmooth(Y,ds,!!d.closed,(yf?1:0)|(yt?2:0));
+  /* the smoothing lets the hill beyond leak into the junction (a mountain road was already 0.4-0.8 m off its parent at the parent's edge): across the parent's width the branch takes the parent's
+     height exactly, and it eases to its own profile over the next 30 m */
+  if(!d.cityField&&!d.yLine)for(const[ref,fromStart]of[[yf,true],[yt,false]]){const rr=ref&&ROADS.find(q=>q.id==ref);if(!rr)continue;
+    for(let q=0;q<n;q++){const i=fromStart?q:n-1-q,sd=fromStart?r.S[i]:r.len-r.S[i];if(sd>rr.hw+46)break;const u=under(rr,X[i],Z[i]);Y[i]=lerp(u[1],Y[i],sstep(rr.hw+3,rr.hw+34,u[0]))}}
   /* jump hills: a run of n sin^2 crests of the given length and height starting f of the way along the road. A crest of height h and length L has a crest radius of about L^2/(2 pi^2 h),
      and a car leaves the ground over it once v^2/radius > gravity (so a 6 m, 68 m crest launches a car at about 68 mph) */
   if(d.humps)for(const h of d.humps){const s0=h.f*r.len;for(let i=0;i<n;i++){const t=(r.S[i]-s0)/h.len;if(t>0&&t<h.n)Y[i]+=h.amp*Math.pow(Math.sin(Math.PI*t),2)}}
@@ -126,13 +135,12 @@ function buildRoad(d,dry){
   r.Y=Y;for(let i=0;i<n;i++)r.Y[i]+=r.lift;
   /* marking fade near the ends of side roads / near crossings (0..1) */
   r.mk=new Float32Array(n).fill(1);
-  if(d.from)for(let i=0;i<n;i++)r.mk[i]=Math.min(r.mk[i],sstep(30,110,r.S[i]));
-  if(d.to)for(let i=0;i<n;i++)r.mk[i]=Math.min(r.mk[i],sstep(30,110,r.len-r.S[i]));
   /* width ramps in over the first stretch of a branch so it merges like a slip road */
   r.wk=new Float32Array(n).fill(1);
   if(d.from&&d.taper)for(let i=0;i<n;i++)r.wk[i]=lerp(.25,1,sstep(0,120,r.S[i]));
   if(d.to&&d.taper)for(let i=0;i<n;i++)r.wk[i]=Math.min(r.wk[i],lerp(.25,1,sstep(0,120,r.len-r.S[i])));
   r.rail=new Uint8Array(n);   /* bit0 left, bit1 right: filled in after carving (cliffs) + bridges */
+  r.cf=new Float32Array(n);   /* cross slope (m per m to the right of the index direction): 0 except where the road runs onto a road that climbs, see findJunctions */
   if(!dry)ROADS.push(r);return r}
 function switchbacks(cx,cz,arms){const o=[];arms.forEach((A,k)=>{const n=Math.max(3,Math.round(Math.abs(A[1]-A[0])/.12));for(let s=(k?1:0);s<=n;s++){const t=s/n,a=lerp(A[0],A[1],t),r=A[2]-(k<arms.length-1?(arms[k][2]-arms[k+1][2])*t*.0:0);o.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}});return o}
 /* ---------- curvy roads: displace the centre-line with smooth noise, then check the curves are drivable and the road stays on land ---------- */
@@ -152,6 +160,10 @@ function landOK(r){for(let i=0;i<r.n;i+=2)if(baseH(r.X[i],r.Z[i])<2.4)return fal
 function segX(ax,az,bx,bz,cx,cz,dx,dz){const den=(bx-ax)*(dz-cz)-(bz-az)*(dx-cx);if(Math.abs(den)<1e-9)return null;const t=((cx-ax)*(dz-cz)-(cz-az)*(dx-cx))/den,u=((cx-ax)*(bz-az)-(cz-az)*(bx-ax))/den;return(t>=0&&t<=1&&u>=0&&u<=1)?[ax+t*(bx-ax),az+t*(bz-az)]:null}
 function trimTo(pts,par){for(let i=0;i<pts.length-1;i++)for(let k=0;k<par.n-1;k++){const p=segX(pts[i][0],pts[i][1],pts[i+1][0],pts[i+1][1],par.X[k],par.Z[k],par.X[k+1],par.Z[k+1]);if(p)return pts.slice(0,i+1).concat([[p[0],p[1]]])}return pts}
 const DISTRICT_BOXES=[CITY,VALLEY,BEACH,RESORT,PARK,TOWN_PAC,TOWN_FRE,TOWN_BAR,TOWN_BIG,IND_HAR,IND_MOJ];
+/* every city, town and industrial area with the boulevard round it (the network test routes between every pair of them) */
+const PLACES=[{name:'Downtown',road:'sfp',box:CITY},{name:'The Valley',road:'lap',box:VALLEY},{name:'Santa Cruz',road:'btp',box:BEACH},{name:'Palm Springs',road:'psp',box:RESORT},{name:'Pacifica',road:'pacp',box:TOWN_PAC},{name:'Fresno',road:'frep',box:TOWN_FRE},{name:'Barstow',road:'barp',box:TOWN_BAR},{name:'Big Pines',road:'bigp',box:TOWN_BIG},{name:'Harbor',road:'harp',box:IND_HAR},{name:'Mojave Works',road:'mojp',box:IND_MOJ}];
+/* road ends that are meant to lead nowhere */
+const DEAD_OK=['pierhead'];
 function clearOf(r){const lo=r.closed?0:170;for(let i=0;i<r.n;i+=2){if(!r.closed&&(r.S[i]<lo||r.len-r.S[i]<lo))continue;for(const B of DISTRICT_BOXES)if(inBox(r.X[i],r.Z[i],B,46))return false}return true}
 function buildCurvy(def){
   const w=def.wig;if(!w)return buildRoad(def);
@@ -192,17 +204,24 @@ function fixCrossings(){
 /* ---------- junction helpers ---------- */
 const jn=(par,x,z)=>roadNear(par,x,z);
 const _tan=(par,i)=>{const n=par.n,a=par.closed?(i+1)%n:Math.min(n-1,i+1),b=par.closed?(i+n-1)%n:Math.max(0,i-1);let tx=par.X[a]-par.X[b],tz=par.Z[a]-par.Z[b];const l=Math.hypot(tx,tz)||1;return[tx/l,tz/l]};
-/* leave (or join) a road along its side: three control points that start touching the parent's edge, run alongside for a while and peel away, so the branch never lies on top of the parent */
-function rampPts(par,ix,nx,nz,hwB){
-  const n=par.n,ds=par.ds,I=i=>par.closed?((i%n)+n)%n:Math.max(0,Math.min(n-1,i)),[tx,tz]=_tan(par,I(ix)),px=par.X[I(ix)],pz=par.Z[I(ix)];
-  const side=((nx-px)*(-tz)+(nz-pz)*tx)>=0?1:-1,dir=((nx-px)*tx+(nz-pz)*tz)>=0?1:-1,off=par.hw*par.wk[I(ix)]+hwB+1.4,out=[];
-  {const dl0=Math.hypot(nx-px,nz-pz)||1;if(Math.abs((nx-px)*tx+(nz-pz)*tz)/dl0<.5)return[edgePt(par,I(ix),nx,nz)]}   /* leaving at a steep angle: a plain T */
-  let qi=ix;for(const[k,ex]of[[0,0],[Math.round(80/ds),6],[Math.round(170/ds),30]]){const i=I(ix+dir*k),[a,b]=_tan(par,i);out.push([par.X[i]-b*side*(off+ex),par.Z[i]+a*side*(off+ex)]);qi=i}
-  {const[Tx,Tz]=_tan(par,I(qi)),Q=out[2],dx=nx-Q[0],dz=nz-Q[1],dl=Math.hypot(dx,dz)||1,ux=dx/dl,uz=dz/dl,tx2=Tx*dir,tz2=Tz*dir,dot=tx2*ux+tz2*uz;
-   if(dot<.92&&dl>140){const bx=tx2+ux,bz=tz2+uz,bl=Math.hypot(bx,bz)||1,L=Math.max(70,Math.min(170,dl*.32));out.push([Q[0]+bx/bl*L,Q[1]+bz/bl*L])}}
-  return out}
-/* a T-junction end that touches the parent's edge from the side the branch comes from (instead of overlapping its lanes) */
-function edgePt(par,ix,fx,fz){const px=par.X[ix],pz=par.Z[ix],dx=fx-px,dz=fz-pz,l=Math.hypot(dx,dz)||1,e=par.hw*par.wk[ix]+1.0;return[px+dx/l*e,pz+dz/l*e]}
+/* JOINING A ROAD: a branch runs square onto its parent and ends ON THE PARENT'S CENTRE LINE (like the city streets do), so the asphalt of the two always overlaps and there is never a strip of shoulder across the mouth.
+   tJoin returns the two control points of that: J on the parent's centre line (at sample ix) and A, 34 m beyond the parent's edge on the side (fx,fz) is on. The junction box (no lane markings, the median open)
+   is made from the list findJunctions() builds. (The old helpers left a 1 m gap at every T, let roads arrive at 12 degrees, and one 'ramp' started as a blunt second road beside the highway.) */
+function tJoin(par,ix,fx,fz){const[tx,tz]=_tan(par,ix),px=par.X[ix],pz=par.Z[ix],side=((fx-px)*(-tz)+(fz-pz)*tx)>=0?1:-1,L=par.hw*par.wk[ix]+34;return[[px,pz],[px-tz*side*L,pz+tx*side*L]]}
+/* every place a road END sits on another road: {r,e (0 start, 1 end),par,pi,x,z,y,rad}. Two ends on the same spot of the parent make a crossroads. Also sets the cross slope (r.cf) of the branch near its end,
+   so its surface lies on the parent's even where the parent climbs (the branch is flat across, the parent is not flat along) */
+const JUNC=[];
+function findJunctions(){JUNC.length=0;
+  for(const r of ROADS){if(r.closed)continue;for(const e of[0,1]){const ie=e?r.n-1:0,x=r.X[ie],z=r.Z[ie];let best=null;
+      for(const o of ROADS){if(o===r||o.style==2&&r.style!=2)continue;const c=o.closed?o.n:o.n-1;for(let k=0;k<c;k++){const j=(k+1)%o.n,ax=o.X[k],az=o.Z[k],ex=o.X[j]-ax,ez=o.Z[j]-az,l2=ex*ex+ez*ez||1;let t=((x-ax)*ex+(z-az)*ez)/l2;t=t<0?0:t>1?1:t;
+          const dd=Math.hypot(x-ax-ex*t,z-az-ez*t),hw=o.hw*o.wk[k];if(dd>hw+RSH+2.5)continue;const yy=o.Y[k]+(o.Y[j]-o.Y[k])*t;if(Math.abs(yy-r.Y[ie])>3.5)continue;const kk=t>.5?j:k,g=dd-hw+(!o.closed&&(kk<=1||kk>=o.n-2)?100:0);   /* another road's END is the last choice: two ends on one spot of a through road are a crossroads on that road */
+          if(!best||g<best.g)best={g,o,k:kk,yy}}}
+      if(!best)continue;const o=best.o,k=best.k;JUNC.push({r,e,par:o,pi:k,x:o.X[k],z:o.Z[k],y:best.yy,rad:Math.max(o.hw,r.hw)+1.5,city:r.city&&o.city});
+      if(r.city&&o.city)continue;                       /* city streets share one height field: nothing to match */
+      /* the parent's grade there, and how much of it lies across the branch */
+      const a=o.closed?(k+2)%o.n:Math.min(o.n-1,k+2),b=o.closed?(k-2+o.n)%o.n:Math.max(0,k-2),dl=Math.hypot(o.X[a]-o.X[b],o.Z[a]-o.Z[b])||1,gp=(o.Y[a]-o.Y[b])/dl,px=(o.X[a]-o.X[b])/dl,pz=(o.Z[a]-o.Z[b])/dl,hwP=o.hw*o.wk[k];
+      for(let q=0;q<r.n;q++){const i=e?r.n-1-q:q,sd=e?r.len-r.S[i]:r.S[i];if(sd>hwP+40)break;const[tx,tz]=_tan(r,i);r.cf[i]=gp*(px*(-tz)+pz*tx)*(1-sstep(hwP+2,hwP+38,sd))}}}
+  return JUNC}
 /* a boulevard round a district: every street of the district ends on it */
 function perimeter(id,B,hw,lift){const r=30,P=[];
   const edge=(ax,az,bx,bz)=>{const L=Math.hypot(bx-ax,bz-az),k=Math.max(1,Math.ceil(L/70));for(let i=0;i<k;i++)P.push([ax+(bx-ax)*i/k,az+(bz-az)*i/k])};
@@ -211,14 +230,16 @@ function perimeter(id,B,hw,lift){const r=30,P=[];
   P.pop();   /* the last arc point is the first edge point */
   const road=buildRoad({id,closed:1,hw,lanes:2,style:4,city:1,cityField:1,lift,pts:P});for(let i=0;i<road.n;i+=3)cityEnds.push([road.X[i],road.Z[i],id]);return road}
 /* a small turnaround loop at the end of a road */
-function loopRoad(id,cx,cz,r,hw,lift){const P=[];for(let k=0;k<8;k++){const a=k*TAU/8;P.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}return buildRoad({id,closed:1,hw,lanes:1,style:0,lift,pts:P})}
+function loopRoad(id,cx,cz,r,hw,lift,flat){const P=[];for(let k=0;k<8;k++){const a=k*TAU/8;P.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}return buildRoad({id,closed:1,hw,lanes:1,style:0,lift,pts:P,flat:flat==null?undefined:flat})}
 function defineRoads(){
   ROADS.length=0;GRIDS.length=0;cityEnds.length=0;_cj=null;SAFEHOUSES.length=0;FARMS.length=0;FIELDS.length=0;
   const ring=buildCurvy({id:'ring',closed:1,hw:13,lanes:3,style:1,smooth:120,minR:75,humps:[{f:.64,n:3,len:68,amp:6}],wig:{a1:430,l1:900,a2:120,l2:360,seed:3,straight:[[.60,.72]]},
     pts:[[-1640,120],[-1560,-520],[-1180,-980],[-620,-1260],[-60,-1380],[560,-1290],[1130,-1020],[1520,-540],[1680,60],[1560,700],[1320,1260],[700,1580],[-30,1560],[-640,1400],[-1160,1050],[-1500,600]]});
-  const ramp=(par,hx,hz,nx,nz,hw)=>rampPts(par,jn(par,hx,hz),nx,nz,hw);          /* leave a road at the sample nearest (hx,hz), heading for (nx,nz) */
-  const rampIn=(par,hx,hz,px,pz,hw)=>rampPts(par,jn(par,hx,hz),px,pz,hw).reverse(); /* arrive onto a road at the sample nearest (hx,hz), coming from (px,pz) */
-  const tIn=(par,px,pz)=>edgePt(par,jn(par,px,pz),px,pz);  /* T-end touching a road's edge, on the side the branch comes from */
+  const ramp=(par,hx,hz,nx,nz,hw)=>tJoin(par,jn(par,hx,hz),nx,nz);                 /* leave a road at the sample nearest (hx,hz), heading for (nx,nz): [J, A] */
+  const rampIn=(par,hx,hz,px,pz,hw)=>tJoin(par,jn(par,hx,hz),px,pz).reverse();      /* arrive onto a road at the sample nearest (hx,hz), coming from (px,pz): [A, J] */
+  const tIn=(par,px,pz)=>tJoin(par,jn(par,px,pz),px,pz).reverse();                 /* the same for a point given once: [A, J] (use tOut for a start) */
+  const tOut=(par,px,pz)=>tJoin(par,jn(par,px,pz),px,pz);
+  const at=(par,q)=>[par.X[q],par.Z[q]];
   /* ===== San Francisco style downtown: a boulevard round the box, two street grids that meet along the diagonal Market Street ===== */
   const M=MARKET,ml=Math.hypot(M.x1-M.x0,M.z1-M.z0),mdx=(M.x1-M.x0)/ml,mdz=(M.z1-M.z0)/ml,nx=-mdz,nz=mdx,c0=nx*M.x0+nz*M.z0;   /* n points to the south-east of Market */
   const cutPark={x0:PARK.x0-2,z0:381,x1:PARK.x1+2,z1:464};   /* the park interior: the two streets along its edges (Fulton, Lincoln) stay, the cross streets stop at them */
@@ -234,9 +255,9 @@ function defineRoads(){
     buildRoad({id:'lombard',hw:3.8,lanes:1,style:2,lift:.05,yLine:[Hs(xc,z0)+.02,Hs(xc,z1)+.02],pts});gN.lombard={xc,z0,z1,bi,bj}}
   /* Golden Gate Park drive: from the ring road through the park to Lincoln Way */
   buildRoad({id:'jfk',hw:5.5,lanes:1,style:0,from:'ring',yTo:'sfp',lift:.05,smooth:25,
-    pts:ramp(ring,-1480,446,-1440,449,5.5).concat([[-1440,449],[-1392,444]]).concat([tIn(sfp,-1392,444)])});
+    pts:ramp(ring,-1480,446,-1440,449,5.5).concat([[-1440,449]]).concat(tIn(sfp,-1392,444))});
   buildRoad({id:'jfkp',hw:5.5,lanes:1,style:0,yFrom:'sfp',yTo:'sfnv7',lift:.05,smooth:25,
-    pts:[tIn(sfp,-1270,444),[-1262,446],[-1212,452],[-1162,444],[-1116,451],[-1082,454],[-1078,465]]});
+    pts:tOut(sfp,-1270,444).concat([[-1212,452],[-1162,444],[-1116,451],[-1082,454],[-1078,465]])});
   /* Twin Peaks Boulevard: out of the grid, a loop up over the two peaks and back down into the grid */
   {const e1=nearEnd(-760,700),e2=nearEnd(-552,700);buildRoad({id:'tp',hw:5.5,lanes:1,style:0,smooth:18,grade:.22,lift:.05,yFrom:e1[2],yTo:e2[2],pts:[[e1[0],e1[1]],[-762,738],[-735,772],[-690,792],[-650,772],[-620,802],[-640,836],[-598,862],[-556,838],[-540,800],[-547,758],[e2[0],e2[1]]]})}
   /* ===== the long highways ===== */
@@ -252,39 +273,41 @@ function defineRoads(){
     pts:ramp(ring,sb[0][0],sb[0][1],sb[4][0],sb[4][1],8.5).concat(sb.slice(4)).concat([[1420,-1700],[1250,-1950],[1000,-2180],[650,-2420],[200,-2540],[-300,-2480],[-760,-2300],[-1110,-1960],[-1260,-1480]]).concat(rampIn(ring,-1235,-1260,-1260,-1480,8.5))});
   /* Mulholland: very twisty ridge road, off the ring and down onto the boulevard */
   {const bi=jn(bv,520,130);buildCurvy({id:'mh',hw:7,lanes:1,style:0,from:'ring',to:'bv',lift:.09,smooth:35,grade:.13,minR:34,wig:{a1:120,l1:380,a2:34,l2:150,seed:31,fade:260},
-    pts:ramp(ring,1480,-190,1330,-170,7).concat([[1330,-170],[1160,-195],[990,-150],[820,-135],[670,-100],[570,-70],[520,-10]]).concat([tIn(bv,520,-10)])})}
+    pts:ramp(ring,1480,-190,1330,-170,7).concat([[1330,-170],[1160,-195],[990,-150],[820,-135],[670,-100],[570,-70]]).concat(tIn(bv,520,-60))})}
   /* the southern highway: ring (south) -> long straight on the plains -> a turnaround loop at the beach lookout; the east link meets it from the north */
   const sh=buildCurvy({id:'sh',hw:12,lanes:2,style:1,from:'ring',lift:.07,smooth:150,grade:.05,minR:85,humps:[{f:.53,n:3,len:68,amp:6},{f:.76,n:3,len:68,amp:6}],wig:{a1:220,l1:700,a2:60,l2:260,seed:23,straight:[[.52,.88]],fade:260},
     pts:ramp(ring,40,1850,40,1850,12).concat([[300,2260],[800,2420],[1500,2440],[2100,2420],[2500,2420],[2610,2418]])});
-  loopRoad('lookout',2650,2418,40,6,.09);
+  loopRoad('lookout',2650,2418,40,6,.09,sh.Y[sh.n-1]-sh.lift);   /* flat, at the height the highway arrives at (it used to sit half a metre lower) */
   /* the east link: ring (east) -> south along the east side -> onto the southern highway */
   const el=buildCurvy({id:'el',hw:10,lanes:2,style:1,from:'ring',to:'sh',yFrom:null,lift:.08,smooth:100,minR:65,humps:[{f:.66,n:3,len:68,amp:6}],wig:{a1:230,l1:620,a2:66,l2:250,seed:29,straight:[[.62,.80]],fade:200},
-    pts:ramp(ring,2000,1060,2000,1060,10).concat([[2000,1060],[2300,1560],[2410,2000],[2412,2280],tIn(sh,2412,2280)])});
+    pts:tJoin(ring,jn(ring,1300,745),2000,1060).concat([[2000,1060],[2300,1560],[2410,2000],[2412,2280]]).concat(tIn(sh,2412,2280))});   /* leaves the ring exactly opposite the Valley's east road (lae): one crossroads */
   /* the coast road (Highway 1 style): out of Market's south-west end, over the ring, along the beach, round a headland and onto the southern highway */
   {buildCurvy({id:'cr',hw:9,lanes:1,style:0,to:'sh',yFrom:'sfp',lift:.06,smooth:70,minR:45,bridgeOver:['ring'],wig:{a1:190,l1:480,a2:60,l2:200,seed:17,fade:200},
-    pts:[[M.x0,M.z0],[-1275,742],[-1380,790],[-1560,1000],[-1790,1250],[-1900,1600],[-1840,2000],[-1560,2300],[-1100,2470],[-560,2432],[-80,2400],[230,2452],[420,2438],[540,2398]].concat([tIn(sh,540,2398)])})}
+    pts:[[M.x0,M.z0],[-1275,742],[-1380,790],[-1560,1000],[-1790,1250],[-1900,1600],[-1840,2000],[-1560,2300],[-1100,2470],[-560,2432],[-80,2400],[230,2452],[400,2462]].concat((q=>tJoin(sh,q,sh.X[q],sh.Z[q]+200).reverse())(jn(sh,560,2400)))})}   /* it used to run onto the highway at 12 degrees */
   /* ===== the Valley: LA style boulevards, ringed by a boulevard that joins the boulevard road and the ring ===== */
   const vu=[275,575,875,1015],vv=[565,825,1085,1245];
   gridStreets({id:'la',kind:'la',ox:0,oz:0,ang:0,us:vu,vs:vv,hw:12,style:4,lift:.05,planes:planesBox(VALLEY)});
   const lap=perimeter('lap',VALLEY,11,.055);
-  buildCurvy({id:'lan',hw:9,lanes:1,style:0,to:'bv',yFrom:'lap',lift:.1,minR:50,wig:{a1:24,l1:300,a2:7,l2:120,seed:37,fade:120},pts:[[640,VALLEY.z0],[622,470],[590,380],[600,300],tIn(bv,600,300)]});
+  buildCurvy({id:'lan',hw:9,lanes:1,style:0,to:'bv',yFrom:'lap',lift:.1,minR:50,wig:{a1:24,l1:300,a2:7,l2:120,seed:37,fade:120},pts:[[640,VALLEY.z0],[622,470],[590,380],[600,300]].concat(tIn(bv,600,300))});
   buildCurvy({id:'lae',hw:10,lanes:2,style:1,to:'ring',yFrom:'lap',lift:.11,minR:60,wig:{a1:40,l1:420,a2:10,l2:170,seed:41,fade:160},pts:[[VALLEY.x1,826],[1150,800],[1300,745]].concat(rampIn(ring,1300,745,1300,745,10))});
+  /* the Valley's south road: straight down to the ring (the Valley used to have no way south: the harbour 1.5 km away was a 5 km drive) */
+  buildCurvy({id:'las',hw:9,lanes:1,style:0,to:'ring',yFrom:'lap',lift:.1,minR:50,wig:{a1:16,l1:260,a2:5,l2:110,seed:39,fade:90,hold:60},pts:[[640,VALLEY.z1],[648,1400]].concat(tIn(ring,645,1500))});
   /* ===== Santa Cruz: a beach town on the south coast with a boardwalk and a pier ===== */
   const bu=[-470,-390,-310,-230,-170],bvv=[2580,2645,2710];
   gridStreets({id:'bt',kind:'beach',ox:0,oz:0,ang:0,us:bu,vs:bvv,hw:6,style:3,lift:.05,planes:planesBox(BEACH)});
   perimeter('btp',BEACH,8,.055);
-  {const c=ROADS.find(q=>q.id=='cr');buildRoad({id:'btl',hw:7,lanes:1,style:0,lift:.07,yFrom:'cr',yTo:'btp',pts:[tIn(c,-350,BEACH.z0),[-350,BEACH.z0]]})}
+  {const c=ROADS.find(q=>q.id=='cr');buildRoad({id:'btl',hw:7,lanes:1,style:0,lift:.07,yFrom:'cr',yTo:'btp',pts:[at(c,jn(c,-350,BEACH.z0)),[-350,BEACH.z0]]})}
   /* the pier: out over the water from the boardwalk (a bridge deck on piles, with a T-shaped head to turn round on) */
-  {const bp=ROADS.find(q=>q.id=='btp'),e=tIn(bp,-350,BEACH.z1+60),yd=Math.max(Hs(-350,BEACH.z1+4),3.2)+.2,zh=BEACH.z1+205;
+  {const bp=ROADS.find(q=>q.id=='btp'),e=at(bp,jn(bp,-350,BEACH.z1+60)),yd=Math.max(Hs(-350,BEACH.z1+4),3.2)+.2,zh=BEACH.z1+205;
    buildRoad({id:'pier',hw:5,lanes:1,style:2,flat:yd,lift:.04,bridge:[{x:-350,z:BEACH.z1+110,len:500,h:0}],pts:[e,[-350,BEACH.z1+110],[-350,zh]]});
    buildRoad({id:'pierhead',hw:5,lanes:1,style:2,flat:yd,lift:.04,bridge:[{x:-350,z:zh,len:500,h:0}],pts:[[-387,zh],[-350,zh],[-313,zh]]})}
   /* ===== Palm Springs: a desert resort town of wide palm boulevards, joined to the east link and the southern highway ===== */
   gridStreets({id:'ps',kind:'ps',ox:0,oz:0,ang:0,us:[1440,1620,1800],vs:[1480,1660,1840],hw:12,style:4,lift:.05,planes:planesBox(RESORT)});
   perimeter('psp',RESORT,11,.055);
-  buildCurvy({id:'psl',hw:9,lanes:1,style:0,to:'el',yFrom:'psp',lift:.1,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:43,fade:120},pts:[[RESORT.x1,1660],[1980,1650],[2100,1610],tIn(el,2100,1610)]});
-  buildCurvy({id:'pss',hw:9,lanes:1,style:0,to:'sh',yFrom:'psp',lift:.1,minR:50,wig:{a1:40,l1:320,a2:10,l2:130,seed:47,fade:140},pts:[[1620,RESORT.z1],[1612,2060],[1630,2250],tIn(sh,1630,2250)]});
-  defineWorld(ring,sh,{ramp,rampIn,tIn});
-  const fixed=fixCrossings();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;findJumps();
+  buildCurvy({id:'psl',hw:9,lanes:1,style:0,to:'el',yFrom:'psp',lift:.1,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:43,fade:120},pts:[[RESORT.x1,1660],[1980,1650],[2100,1610]].concat(tIn(el,2100,1610))});
+  buildCurvy({id:'pss',hw:9,lanes:1,style:0,to:'sh',yFrom:'psp',lift:.1,minR:50,wig:{a1:40,l1:320,a2:10,l2:130,seed:47,fade:140},pts:[[1620,RESORT.z1],[1612,2060],[1630,2250]].concat(tIn(sh,1630,2250))});
+  defineWorld(ring,sh,{ramp,rampIn,tIn,tOut,at});
+  const fixed=fixCrossings();findJunctions();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;findJumps();
   return GRIDS}
 let BRIDGES_ADDED=[];
 /* where the jump hills are: [x,z,radius] (for the map and the region name) */

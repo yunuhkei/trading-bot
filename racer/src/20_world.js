@@ -11,7 +11,7 @@ function besideRoad(id,f,side,off){const r=ROADS.find(q=>q.id==id);if(!r)return 
   return{x:r.X[i]+nx*side*d,z:r.Z[i]+nz*side*d,cs:t[0],sn:t[1]}}
 function addSafe(id,name,road,f,side,off){const p=besideRoad(road,f,side,off||14);if(p)SAFEHOUSES.push({id,name,x:p.x,z:p.z,cs:p.cs,sn:p.sn,side})}
 function defineWorld(ring,sh,H){
-  const {ramp,rampIn,tIn}=H;
+  const {ramp,rampIn,tIn,tOut,at}=H;
   /* ---------- towns and industrial areas ---------- */
   makeTown('pac',TOWN_PAC,'coast',{du:90,dv:80});
   makeTown('fre',TOWN_FRE,'farm',{du:95,dv:75});
@@ -23,28 +23,28 @@ function defineWorld(ring,sh,H){
   const mp=R_('mp'),cr=R_('cr'),bar=R_('barp'),moj=R_('mojp'),big=R_('bigp'),fre=R_('frep'),pac=R_('pacp'),har=R_('harp'),look=R_('lookout');
   /* ---------- east: the desert highway to Barstow, the refinery, and the loop back along the southern highway ---------- */
   buildCurvy({id:'eh',hw:10,lanes:2,style:1,from:'ring',to:'barp',lift:.085,smooth:100,minR:60,wig:{a1:180,l1:600,a2:50,l2:240,seed:51,fade:220},
-    pts:ramp(ring,1680,60,2300,250,10).concat([[2300,250],[2750,520],[3150,800],[3450,1100],[3560,1180]]).concat([tIn(bar,3580,1180)])});
+    pts:tJoin(ring,jn(ring,1440,50),2300,250).concat([[2300,250],[2750,520],[3150,800],[3450,1100]]).concat(tIn(bar,3580,1180))});   /* leaves the ring exactly opposite the boulevard road (bv): one crossroads */
   buildCurvy({id:'sh2',hw:9,lanes:1,style:0,yFrom:'lookout',to:'mojp',lift:.09,smooth:80,minR:50,wig:{a1:60,l1:420,a2:16,l2:160,seed:52,fade:140},
-    pts:[tIn(look,2830,2400),[2900,2385],[3030,2340],tIn(moj,3040,2300)]});
+    pts:tOut(look,2830,2400).concat([[2900,2385]]).concat(tIn(moj,3040,2300))});
   buildCurvy({id:'sh3',hw:10,lanes:2,style:1,yFrom:'mojp',to:'barp',lift:.095,smooth:100,minR:60,wig:{a1:90,l1:480,a2:24,l2:180,seed:53,fade:150},
-    pts:[tIn(moj,3380,2080),[3400,1900],[3470,1760],tIn(bar,3520,1650)]});
+    pts:tOut(moj,3380,2080).concat([[3400,1900],[3470,1760]]).concat(tIn(bar,3520,1650))});
   /* the canyon road: along the floor of the canyon, up to a turnaround on the rim */
   loopRoad('rim',3600,-2700,40,6,.1);
   buildRoad({id:'cyr',hw:7,lanes:1,style:0,lift:.06,smooth:40,grade:.12,yFrom:'eh',yTo:'rim',
-    pts:[tIn(R_('eh'),3040,640),[3030,500]].concat(CANYON).slice(0,-1).concat([tIn(R_('rim'),3600,-2600)])});
+    pts:tOut(R_('eh'),3040,640).concat([[3030,500]]).concat(CANYON).slice(0,-1).concat(tIn(R_('rim'),3600,-2600))});
   /* ---------- north: from the ring over the mountain pass loop to the village in the foothills ---------- */
   buildCurvy({id:'nh1',hw:10,lanes:2,style:1,from:'ring',to:'mp',lift:.075,smooth:100,minR:60,wig:{a1:140,l1:600,a2:40,l2:240,seed:54,fade:200},
-    pts:ramp(ring,-100,-1385,-120,-1900,10).concat([[-120,-1900],[-170,-2200]]).concat([tIn(mp,-190,-2380)])});
+    pts:ramp(ring,-100,-1385,-120,-1900,10).concat([[-120,-1900],[-170,-2200]]).concat(tIn(mp,-190,-2380))});
   buildCurvy({id:'nh2',hw:10,lanes:2,style:1,yFrom:'mp',to:'bigp',lift:.078,smooth:70,grade:.17,minR:55,wig:{a1:100,l1:420,a2:30,l2:180,seed:55,fade:160},
-    pts:[tIn(mp,-170,-2680),[-175,-2780],[-190,-2880],tIn(big,-190,-2950)]});
+    pts:tJoin(mp,jn(mp,-190,-2380),-175,-2780).concat([[-175,-2780],[-190,-2880]]).concat(tIn(big,-190,-2950))});   /* starts where nh1 ends on the pass: one crossroads */
   /* ---------- north-west: the farm roads ---------- */
   buildCurvy({id:'fr1',hw:7,lanes:1,style:0,yFrom:'mp',to:'frep',lift:.07,smooth:60,minR:40,wig:{a1:40,l1:300,a2:12,l2:120,seed:56,fade:100},
-    pts:[tIn(mp,-1150,-2110),[-1250,-2125],[-1300,-2130],tIn(fre,-1330,-2130)]});
+    pts:tOut(mp,-1150,-2110).concat([[-1250,-2125]]).concat(tIn(fre,-1330,-2130))});
   buildCurvy({id:'fr2',hw:7,lanes:1,style:0,yFrom:'frep',to:'mp',lift:.072,smooth:60,minR:40,wig:{a1:60,l1:320,a2:16,l2:130,seed:57,fade:100},
-    pts:[tIn(fre,-1500,-1960),[-1520,-1800],[-1470,-1620],[-1400,-1530],tIn(mp,-1330,-1500)]});
+    pts:tOut(fre,-1500,-1960).concat([[-1520,-1800],[-1470,-1620],[-1400,-1530]]).concat(tIn(mp,-1330,-1500))});
   /* ---------- the coast and the harbour ---------- */
-  buildRoad({id:'pcl',hw:6,lanes:1,style:0,yFrom:'cr',yTo:'pacp',lift:.07,pts:[tIn(cr,-1840,1500),tIn(pac,-1860,1500)]});
-  buildRoad({id:'hb',hw:7,lanes:1,style:0,yFrom:'sh',yTo:'harp',lift:.08,pts:[tIn(sh,1000,2500),tIn(har,1000,2500)]});
+  buildRoad({id:'pcl',hw:6,lanes:1,style:0,yFrom:'cr',yTo:'pacp',lift:.07,pts:[at(cr,jn(cr,-1840,1500)),at(pac,jn(pac,-1860,1500))]});
+  buildRoad({id:'hb',hw:7,lanes:1,style:0,yFrom:'sh',yTo:'harp',lift:.08,pts:(q=>[at(sh,q),[sh.X[q],IND_HAR.z0]])(jn(sh,1000,2420))});
   /* ---------- farms along the farm roads, each with a yard and a field behind it ---------- */
   {const FC=[[[.52,.43,.16],[.44,.36,.12]],[[.2,.4,.12],[.17,.34,.1]],[[.4,.27,.14],[.34,.22,.11]]];let k=0;
    const farm=(road,f,side)=>{const p=besideRoad(road,f,side,46);if(!p)return;FARMS.push({x:p.x,z:p.z,cs:p.cs,sn:p.sn});

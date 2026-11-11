@@ -24,7 +24,7 @@ function lgSpeeds(X,Z,Y,n,closed,lim,alat,K){
   return W}
 function lgMkEdge(r,ri,dir,k,li,lim){
   const n=r.n,off=li.x0+(k+.5)*li.lw,X=new Float32Array(n),Z=new Float32Array(n),Y=new Float32Array(n),S=new Float32Array(n);
-  for(let j=0;j<n;j++){const i=dir>0?j:n-1-j,t=_tan(r,i),nx=-t[1]*dir,nz=t[0]*dir;X[j]=r.X[i]+nx*off;Z[j]=r.Z[i]+nz*off;Y[j]=r.Y[i]}
+  for(let j=0;j<n;j++){const i=dir>0?j:n-1-j,t=_tan(r,i),nx=-t[1]*dir,nz=t[0]*dir;X[j]=r.X[i]+nx*off;Z[j]=r.Z[i]+nz*off;Y[j]=r.Y[i]+off*dir*(r.cf?r.cf[i]:0)}
   for(let j=1;j<n;j++)S[j]=S[j-1]+Math.hypot(X[j]-X[j-1],Z[j]-Z[j-1]);
   const len=S[n-1]+(r.closed?Math.hypot(X[0]-X[n-1],Z[0]-Z[n-1]):0);
   const e={id:LG.edges.length,ri,road:r,dir,k,nl:li.nl,n,closed:r.closed,X,Z,Y,S,len,V:lgSpeeds(X,Z,Y,n,r.closed,lim[0],LG_ALAT),lim:lim[0],cls:lim[1],out:[],ds:len/(r.closed?n:n-1),hw:r.hw};
@@ -60,7 +60,7 @@ function lgTurn(X,dx,fx,Y,dy,fy){
     const sx=dx>0?fx-ai:fx+ai,sy=dy>0?fy+bi:fy-bi,qx=((sx%nx)+nx)%nx,qy=((sy%ny)+ny)%ny,cx=X.closed?qx:Math.max(0,Math.min(nx-1,sx)),cy=Y.closed?qy:Math.max(0,Math.min(ny-1,sy));
     lat=(Y.X[cy]-X.X[cx])*(-uz)+(Y.Z[cy]-X.Z[cx])*ux;if(lat>3.5)cat=1;else if(lat<-3.5)cat=2}
   const highway=(X.style==1&&!X.city)||(Y.style==1&&!Y.city);
-  if(cat==2&&highway)return;                                                              /* no left turns across a highway's median */
+  if(cat==2&&highway&&!LG._box)return;                                                    /* no left turns across a highway's median, except at a junction box (where a road ends on it: the median is open there) */
   const left=k=>end?k<Math.ceil(nlx/2):k==0,right=k=>end?k>=Math.floor(nlx/2):k==nlx-1;
   for(let k=0;k<nlx;k++){
     if(cat==1&&!right(k))continue;if(cat==2&&!left(k))continue;
@@ -91,8 +91,10 @@ function lgBuild(){
         const A=best.A,aEnd=!A.closed&&(best.j<=1||best.j>=A.n-2);
         if(aEnd){const k1=Math.min(A.ri,bi)+'.'+Math.max(A.ri,bi)+'.'+Math.round(x/20)+'.'+Math.round(z/20);if(tseen.has(k1))continue;tseen.add(k1)}
         touches.push({B,e,A,j:best.j})}}});
+  LG._box=true;
   for(const t of touches){const{B,e,A,j}=t,out=e==B.n-1?-1:1;     /* B leaves the junction in direction `out` and arrives in direction -out */
     for(const dA of[1,-1]){lgTurn(A,dA,j,B,out,e);lgTurn(B,-out,e,A,dA,j)}}
+  LG._box=false;
   /* ---- crossings at the same level ---- */
   const sc=96,SG=new Map();
   ROADS.forEach((r,ri)=>{if(!LG.ofRoad[ri])return;const c=r.closed?r.n:r.n-1;

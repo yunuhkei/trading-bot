@@ -104,12 +104,14 @@ function buildRoadMeshes(){
   for(const r of ROADS){
     const n=r.n,rows=r.closed?n+1:n,S=r.S;
     if(r.city){const ix=cityJunctions();for(let i=0;i<n;i++){let m=1;for(let q=0;q<ix.length;q+=2){const d=Math.hypot(r.X[i]-ix[q],r.Z[i]-ix[q+1]);if(d<r.hw+10){const v=sstep(r.hw+1,r.hw+9,d);if(v<m)m=v}}r.mk[i]=m}}
+    /* the junction box of every road end that sits on another road: no lane lines, no median, on the branch and on the road it joins */
+    for(const J of JUNC){if(J.city||(J.r!==r&&J.par!==r))continue;for(let i=0;i<n;i++){const d=Math.hypot(r.X[i]-J.x,r.Z[i]-J.z);if(d<J.rad+9){const v=sstep(J.rad,J.rad+8,d);if(v<r.mk[i])r.mk[i]=v}}}
     for(let p0=0;p0<rows-1;p0+=ROAD_PIECE){
       const p1=Math.min(rows-1,p0+ROAD_PIECE),cnt=p1-p0+1,V=new Float32Array(cnt*6*7),I=new Uint16Array((cnt-1)*5*6);let bx0=1e9,bx1=-1e9,by0=1e9,by1=-1e9,bz0=1e9,bz1=-1e9;
       for(let k=0;k<cnt;k++){const gi=p0+k,i=gi%n;const a=r.closed?(i+1)%n:Math.min(n-1,i+1),b=r.closed?(i+n-1)%n:Math.max(0,i-1);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;const nx=-tz,nz=tx;
         const hw=r.hw*r.wk[i],y=r.Y[i],sv=(gi==n?r.len:S[i]),fl=r.lanes*16+r.style+.1+.8*r.mk[i];
         const L=[-(hw+RSH+.5),-(hw+RSH),-hw,hw,hw+RSH,hw+RSH+.5],DY=[-.5,-.12,0,0,-.12,-.5];
-        for(let c=0;c<6;c++){const o=(k*6+c)*7,lt=L[c],x=r.X[i]+nx*lt,z=r.Z[i]+nz*lt,yy=y+DY[c];V[o]=x;V[o+1]=yy;V[o+2]=z;V[o+3]=Math.max(-hw-RSH,Math.min(hw+RSH,lt));V[o+4]=sv;V[o+5]=hw;V[o+6]=fl;
+        for(let c=0;c<6;c++){const o=(k*6+c)*7,lt=L[c],x=r.X[i]+nx*lt,z=r.Z[i]+nz*lt,yy=y+DY[c]+lt*r.cf[i];V[o]=x;V[o+1]=yy;V[o+2]=z;V[o+3]=Math.max(-hw-RSH,Math.min(hw+RSH,lt));V[o+4]=sv;V[o+5]=hw;V[o+6]=fl;
           if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(yy<by0)by0=yy;if(yy>by1)by1=yy;if(z<bz0)bz0=z;if(z>bz1)bz1=z}}
       let q=0;for(let k=0;k<cnt-1;k++)for(let c=0;c<5;c++){const a=k*6+c,b=a+1,cc=a+6,d=cc+1;I[q++]=a;I[q++]=cc;I[q++]=b;I[q++]=b;I[q++]=cc;I[q++]=d}
       out.push({V,I,cx:(bx0+bx1)/2,cy:(by0+by1)/2,cz:(bz0+bz1)/2,rad:Math.hypot(bx1-bx0,by1-by0,bz1-bz0)/2+2})}}
@@ -143,7 +145,7 @@ function buildFurniture(){
       if(i-lastPier>=7){lastPier=i;const gy=terrainH(r.X[i],r.Z[i]);if(r.Y[i]-gy>3){for(const o of[-hwi*.55,hwi*.55]){const px=r.X[i]+nx*o,pz=r.Z[i]+nz*o;pbox(0,px,terrainH(px,pz)-.5,pz,1.1,r.Y[i]-1.6,1.1,128,126,120,0,.8);COLC.push(px,pz,1.3,terrainH(px,pz)-.5,r.Y[i]-1.6)}}}}
     /* lamp posts */
     const step=r.city?15:(r.style==1?16:12),off=r.hw+RSH+(r.city?.8:1.4);let cnt2=0;
-    for(let i=2;i<n-2;i+=step){if(r.br[i]||(r.city&&r.mk[i]<.5)||r.wk[i]<.9)continue;const j=Math.min(n-1,i+1),dx=r.X[j]-r.X[i-1],dz=r.Z[j]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=((cnt2++)&1)?1:-1;
+    for(let i=2;i<n-2;i+=step){if(r.br[i]||r.mk[i]<.5||r.wk[i]<.9)continue;const j=Math.min(n-1,i+1),dx=r.X[j]-r.X[i-1],dz=r.Z[j]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=((cnt2++)&1)?1:-1;
       if(r.style==1&&!r.city&&(cnt2&1))continue;
       const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-(r.city?.1:.35);pbox(0,px,gy,pz,.13,gy+7.2,.13,92,94,98,0,.7);
       pbox(0,px-nx*sd*1.1,gy+7.1,pz-nz*sd*1.1,.9*Math.abs(nx)+.1,gy+7.3,.9*Math.abs(nz)+.1,92,94,98,0,1);pbox(0,px-nx*sd*1.9,gy+6.95,pz-nz*sd*1.9,.35*Math.abs(nx)+.25,gy+7.12,.35*Math.abs(nz)+.25,255,236,180,2,1);COLC.push(px,pz,.45,gy-.5,gy+7.2);LAMPS.push(px-nx*sd*1.9,gy+6.9,pz-nz*sd*1.9)}}
@@ -509,7 +511,7 @@ function roadAt(x,z,yh){
       const ax=r.X[i],az=r.Z[i],dx=r.X[j]-ax,dz=r.Z[j]-az,l2=dx*dx+dz*dz||1;let t=((x-ax)*dx+(z-az)*dz)/l2;t=t<0?0:t>1?1:t;
       const px=ax+dx*t,pz=az+dz*t,ex=x-px,ez=z-pz,d=Math.sqrt(ex*ex+ez*ez),hw=r.hw*(r.wk[i]+(r.wk[j]-r.wk[i])*t)+RSH;if(d>hw)continue;
       const yy=r.Y[i]+(r.Y[j]-r.Y[i])*t;if(Math.abs(yy-yh)>tol)continue;
-      if(d<bestL){bestL=d;found=true;const l=Math.sqrt(l2),tx=dx/l,tz=dz/l;RQ.y=yy;RQ.tx=tx;RQ.tz=tz;RQ.nx=-tz;RQ.nz=tx;RQ.lat=ex*RQ.nx+ez*RQ.nz;RQ.hw=hw-RSH;RQ.rail=r.rail[i]&r.rail[j];RQ.ri=QH.segR[s];RQ.br=r.br[i];RQ.ds=r.S[i]+(r.S[j]-r.S[i])*t}}}
+      if(d<bestL){bestL=d;found=true;const l=Math.sqrt(l2),tx=dx/l,tz=dz/l;RQ.tx=tx;RQ.tz=tz;RQ.nx=-tz;RQ.nz=tx;RQ.lat=ex*RQ.nx+ez*RQ.nz;RQ.y=yy+RQ.lat*(r.cf[i]+(r.cf[j]-r.cf[i])*t);RQ.hw=hw-RSH;RQ.rail=r.rail[i]&r.rail[j];RQ.ri=QH.segR[s];RQ.br=r.br[i];RQ.ds=r.S[i]+(r.S[j]-r.S[i])*t}}}
   return found}
 /* ground height under a point (road surface if on a road at that level, else terrain) */
 function groundAt(x,z,yh){const ty=terrainH(x,z);RQ.on=0;if(roadAt(x,z,yh)){const over=Math.abs(RQ.lat)-RQ.hw;let y=RQ.y-(over>0?Math.min(over,RSH)/RSH*.12:0);if(y>ty-2.2){RQ.on=1;return y}}return ty}

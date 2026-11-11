@@ -90,7 +90,7 @@ const SH={
   /* edge lines (solid white) */
   'wh+=ln(ax,hw-.55,.11,aa);'+
   /* two-way: double yellow centre line; divided: median strip with a yellow line each side; patch: edge lines only */
-  'if(tw){ye+=ln(ax,.2,.07,aa);}else if(dv){float md=1.-smoothstep(.95,1.1,ax);asph=mix(asph,vec3(.28,.27,.25),md);ye+=ln(ax,1.35,.08,aa);}'+
+  'if(tw){ye+=ln(ax,.2,.07,aa);}else if(dv){float md=(1.-smoothstep(.95,1.1,ax))*mkf;asph=mix(asph,vec3(.28,.27,.25),md);ye+=ln(ax,1.35,.08,aa);}'+
   /* dashed white lines between the lanes of each direction (same lane width as the traffic lane graph) */
   'if(tw||dv){float d=fract(v/12.);float on=step(d,dv?.26:.28);for(int i=1;i<5;i++){if(float(i)<lanes)wh+=ln(ax,x0+float(i)*lw,.07,aa)*on;}}'+
   /* markings fade out towards junctions */

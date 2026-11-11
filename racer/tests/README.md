@@ -12,7 +12,9 @@ node racer/tests/<name>.js        # one test; RFILE=/path/to/other.html tests an
 
 | script | what it checks |
 |---|---|
-| `netcheck.js` | road network in Node: roads lying on top of each other, dead ends, disconnected pieces |
+| `rnet.js` | **the road network audit** (Node, 2 s): every road end sits on another road (no gap to the asphalt, no height step over 0.16 m, joins at 60 degrees or more, the mouth corners lie on the parent road even where it climbs), the only dead ends are the planned ones, no same-level crossing away from a junction, nothing lying on top of something else outside the junction boxes, the lane graph (every lane has a way on, no dead-end u-turns, one strongly connected piece), and an A* route between every pair of the places in `PLACES`, both ways, continuous and without silly detours |
+| `rtops.js` | several bird's-eye pictures in one load: `node racer/tests/rtops.js '[[x,z,height,"name"],...]'` |
+| `netcheck.js` | road network in Node: roads lying on top of each other, dead ends, disconnected pieces (older and looser than `rnet.js`; its 'overlaps' now list the junction boxes, which is expected) |
 | `lanecheck.js` | lane graph in Node: lane centres sit exactly where `laneInfo` puts them, no NaN, every lane has a way on, the road directions form one strongly connected piece, no road end sits at a different height from the road it joins |
 | `rtraffic.js` | traffic only, car pinned beside the road, 90 s at ten places (downtown, Valley, ring, mountain pass, coast, east highway, Big Pines, harbour, Palm Springs, Mulholland): cars alive vs target, wreck rate, far-off-lane, off-road, stuck for 25 s, deadlock breaker uses, CPU per tick. `SEED=n` `SECS=n` `ONLY=a,b` |
 | `rtrhit.js` | player against traffic: A collision physics on synthetic bodies (momentum, energy 1/2 mu (1-e^2) v^2, spin-out, tap), B real hits (energy and zone recorded), C a bot drives through busy traffic on three roads |
@@ -110,3 +112,9 @@ Small differences from rounding are fine; a change of more than about 10 percent
 | H Mulholland at 25 m/s: mean / worst gap to the ground | 3.2 / 4 cm | same |
 
 `rcars.js` has two failures that are older than this review (body numbers and body size checks); they are listed in `racer/TODO.md`.
+
+## Network baseline (world logic 1a)
+
+* `rnet`: all pass. 246 road ends, 244 on a road, 2 planned dead ends (the pier head); worst height step at an end 0.11 m (that is the lift between overlapping roads), worst mouth corner 0.16 m; 486 lane edges, 2,461 turns (1,184 left, 1,186 right), 0 dead-end u-turns, 266 of 266 road directions strongly connected; 90 routes between the 10 places (1.5 ms each), worst detour The Valley to Palm Springs 2.9 km for 1.0 km.
+* Before the fix the same audit gave: 30 road ends 1 m short of the asphalt, 3 height steps of 0.32-0.56 m, joins at 1-12 degrees, 25 lane directions with no left turn at their end, 4 dead-end u-turns.
+* `rbot` at 24 m/s on the 25 roads that changed: all completed, no off-road, no falls, no hits. `rtraffic` (60 s) on the ring, the coast road and the east highway: 0-1.2 % wrecked, nothing stuck.
