@@ -614,7 +614,45 @@ def report(data_dir: Path = cl.DATA_DIR, cfg: dict | None = None) -> dict:
     return out
 
 
-def main(data_dir: Path = cl.DATA_DIR, out_path: Path = Path("brain_report.json")) -> dict:
+def live(data_dir: Path = cl.DATA_DIR, cfg: dict | None = None) -> dict:
+    """What the practice super bot may trade now: the approved windows and, if it passed, the coin model (fitted on
+    the last 14 days, with the cut-off for its top 10% from its picks on the latest day)."""
+    import time
+
+    import numpy as np
+    from sklearn.ensemble import HistGradientBoostingClassifier
+
+    cfg = cfg or config()
+    _, ct, bb = read_all(data_dir, cfg)
+    tm = timing_map(bb, cfg)
+    out = {"approved": tm["approved"], "model": None, "cut": None, "model_ok": False, "at": time.time(), "cfg": cfg,
+           "note": f"{len(tm['approved'])} of {tm['tested']} windows approved"}
+    m = coin_model(ct, cfg)
+    if m.get("ok"):
+        idx = [i for i, r in enumerate(ct.ret) if r is not None]
+        days = np.array([ct.day[i] for i in idx])
+        recent = sorted(set(days))[-14:]
+        keep = np.isin(days, recent)
+        X = np.array([ct.x60[i] for i in idx])[keep]
+        y = (np.array([ct.ret[i] for i in idx]) > 0).astype(int)[keep]
+        model = HistGradientBoostingClassifier(max_iter=100, max_leaf_nodes=15, l2_regularization=1.0, random_state=0)
+        model.fit(X, y)
+        last = days[keep] == recent[-1]
+        out.update(model=model, model_ok=True, cut=float(np.quantile(model.predict_proba(X[last])[:, 1], 0.9)),
+                   note=out["note"] + "; the coin model passed")
+    return out
+
+
+def main(data_dir: Path = cl.DATA_DIR, out_path: Path = Path("brain_report.json"), live_path: Path | None = None) -> dict:
+    if live_path is not None:                            # for the running lab: its approvals, nothing printed
+        import pickle
+
+        d = live(data_dir)
+        tmp = Path(str(live_path) + ".tmp")
+        with open(tmp, "wb") as f:
+            pickle.dump(d, f)
+        tmp.replace(live_path)
+        return d
     r = report(data_dir)
     out_path.write_text(json.dumps(r, default=str))
     print("\n".join(r["lines"]), flush=True)

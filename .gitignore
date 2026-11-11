@@ -27,3 +27,4 @@ launch_lab_state.json
 lab_status.json
 lab_data/
 brain_report.json
+brain_live.pkl

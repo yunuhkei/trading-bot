@@ -61,5 +61,11 @@ category, list pointless workflows for the owner. Never delete Actions caches or
   at launch (on the snipe bets): what it catches vs which winners it costs. Logging now records the real price a
   drop gapped to, and the creator's first buy.
 
+- 8. Super bot 3 "brain" (practice $1,000, $250): takes a strategy's signal only in an approved window, buys a
+  coin model pick only once the model passed (sold by the model's tested rule), otherwise sits out and counts it;
+  its approvals are refreshed every 3 h by a separate process (`python -m bot brain --live brain_live.pkl`) so
+  the lab never slows; one line in the hourly ping. Live check: loop ran, nothing approved, it sat out.
+
 ## Next
-- 8. Super bot "brain" (practice): trades approved windows (and approved model picks), sits out and says why.
+- 9. Honest reports: baselines (took every signal / random coins) and break-even win rate in the brain report; a
+  weekly summary ping (low volume).

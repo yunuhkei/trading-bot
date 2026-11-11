@@ -4204,3 +4204,70 @@ def test_brain_rug_filter_reports_what_it_catches_and_what_it_costs():
     assert any(line.startswith("Coin model (tested only on days it never saw)") for line in lines)
     assert any(line.startswith("Rug filter at 1 minute") for line in lines)
     assert brain.trade_60({"e60": 1.0, "x60": {"-35": [50.0, 0.1]}}, 0.035) < -0.89      # a gap down counts in full
+
+
+def test_brain_super_bot_sits_out_unless_a_window_is_approved(tmp_path):
+    from bot import launch_lab as ll
+
+    def fresh_coin(lab, mint, t0):
+        lab.event(t0, {"kind": "trade", "mint": mint, "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5,
+                       "buy": True, "user": "u0", "fee": 0.0125, "tok": 1e7})
+    lab = ll.Lab(sol_usd=100.0)
+    fresh_coin(lab, "A", 1000.0)
+    assert "A" in lab.ghosts["snipe"].pending                         # the paper bots trade everything
+    assert "A" not in lab.accts["brain"].pending and "A" not in lab.ghosts["brain"].pending
+    assert len(lab.brain_sat) > 0 and "sat out" in lab.brain_line(1001.0)
+    lab.brain["approved"] = {"snipe|all"}                             # once a window passes the strict test
+    fresh_coin(lab, "B", 1002.0)
+    assert lab.accts["brain"].pending["B"]["via"] == "snipe" and "B" in lab.ghosts["brain"].pending
+    lab.brain["approved"] = {"snipe|slot5"}                           # approved only in minutes :50-:59
+    import datetime
+    from zoneinfo import ZoneInfo
+    t = datetime.datetime(2026, 11, 12, 3, 15, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    fresh_coin(lab, "C", t)
+    assert "C" not in lab.accts["brain"].pending
+
+
+def test_brain_buys_the_coin_models_pick_only_once_the_model_passed(tmp_path):
+    from bot import coin_log as cl
+    from bot import launch_lab as ll
+
+    class Sure:                                                        # a stand-in model: always 90%
+        def predict_proba(self, X):
+            import numpy as np
+            return np.array([[0.1, 0.9] for _ in X])
+    lab = ll.Lab(sol_usd=100.0)
+    lab.clog = cl.CoinLog(data_dir=tmp_path)
+    lab.clog.on_snap = lab.brain_coin
+    t = {"kind": "trade", "mint": "M", "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5, "buy": True,
+         "user": "u0", "fee": 0.0125, "tok": 1e7}
+    lab.event(1000.0, _coin_events("M"))
+    lab.event(1000.2, t)
+    lab.tick(1061.0)                                                   # the first minute is in: model not passed
+    assert "M" not in lab.accts["brain"].pending
+    lab.brain.update(model=Sure(), cut=0.5, model_ok=True)
+    lab.event(1100.0, _coin_events("N"))
+    lab.event(1100.2, {**t, "mint": "N"})
+    lab.tick(1161.0)
+    assert lab.accts["brain"].pending["N"]["via"] == "model"
+    lab.event(1163.0, {**t, "mint": "N", "vsol": 31.0})                 # filled (1.5 s after the signal)
+    pos = lab.accts["brain"].positions["N"]
+    lab.event(1170.0, {**t, "mint": "N", "vsol": 31.0 * 1.6})           # +60%: the model trade's +50% exit
+    assert pos.get("selling") and "take profit" in pos["selling"]["why"]
+
+
+def test_brain_live_approvals_reach_the_lab(tmp_path):
+    import gzip
+    import json
+
+    from bot import brain
+    from bot import launch_lab as ll
+
+    with gzip.open(tmp_path / "b-2026-11-12.jsonl.gz", "wt") as f:
+        for r in _synthetic_bets(edge_mean=0.12):
+            f.write(json.dumps(r) + "\n")
+    out = tmp_path / "live.pkl"
+    brain.main(data_dir=tmp_path, live_path=out)
+    lab = ll.Lab(sol_usd=100.0)
+    assert ll.load_brain(lab, out) and lab.brain["approved"] == {"edge|slot2"} and not lab.brain["model_ok"]
+    assert ll.load_brain(lab, tmp_path / "missing.pkl") is False and "couldn't load" in lab.brain["note"]

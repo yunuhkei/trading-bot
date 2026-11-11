@@ -78,7 +78,7 @@ class Track:
 
     __slots__ = ("mint", "t0", "creator", "mayhem", "ctx", "n", "nb", "ns", "bsol", "ssol", "maxb", "wallets", "t5",
                  "dev", "cs", "p", "e0", "tf", "e60", "snaps", "hi1", "lo1", "hi", "lo", "marks", "x0", "x60", "grad",
-                 "last", "f0")
+                 "last", "f0", "told")
 
     def __init__(self, mint: str, t0: float, creator: str | None, mayhem: bool, ctx: dict):
         self.mint, self.t0, self.creator, self.mayhem, self.ctx = mint, t0, creator, mayhem, ctx
@@ -86,6 +86,7 @@ class Track:
         self.bsol = self.ssol = self.maxb = self.dev = 0.0
         self.wallets: dict = {}                   # other buyers in the first minute -> SOL each bought
         self.t5 = self.cs = self.p = self.e0 = self.tf = self.e60 = self.grad = self.f0 = None
+        self.told = False
         self.snaps: dict = {}
         self.hi1 = self.lo1 = self.hi = self.lo = None
         self.marks: dict = {}
@@ -200,6 +201,7 @@ class CoinLog:
         self.buf: dict[str, list] = {"c": [], "b": []}
         self.stats = Counter()
         self._next_tick = 0.0
+        self.on_snap = None                       # (track, now): called once, when a coin's 60-s snapshot is in
 
     def to_state(self) -> dict:
         return {"creators": dict(list(self.creators.items())[-50000:])}
@@ -251,6 +253,7 @@ class CoinLog:
             tr = self.tracks.get(e["mint"])
             if tr is not None and e.get("vtok", 0) > 0:
                 tr.trade(now, e["vsol"] / e["vtok"], e.get("sol", 0.0), bool(e.get("buy")), e.get("user"))
+                self._told(tr, now)
         elif k == "complete":
             tr = self.tracks.get(e.get("mint"))
             if tr is not None and tr.grad is None:
@@ -266,6 +269,17 @@ class CoinLog:
                 self._finish(tr)
             else:
                 tr.due(now)
+                self._told(tr, now)
+
+    def _told(self, tr: Track, now: float):
+        if not tr.told and SNAPS[-1] in tr.snaps and tr.e60:
+            tr.told = True
+            if self.on_snap is not None:
+                try:
+                    self.on_snap(tr, now)
+                except Exception as ex:           # the brain never stops the log
+                    self.stats["error in on_snap"] += 1
+                    log.warning("research log: on_snap: %r", ex)
 
     def _finish(self, tr: Track, cut: float | None = None):
         if cut is None:
