@@ -19,9 +19,17 @@ jobs:
           path: launch_lab_state.json
           key: launch-lab-status-${{ github.run_id }}
           restore-keys: launch-lab-
+      - uses: actions/cache/restore@v4
+        with:
+          path: lab_data
+          key: lab-data-status-${{ github.run_id }}
+          restore-keys: lab-data-
       - run: python -m bot launch-lab --status
+      - run: python -m bot brain                # the super bot's brain report (reads the research log only)
       - uses: actions/upload-artifact@v4
         with:
           name: lab-status
-          path: lab_status.json
+          path: |
+            lab_status.json
+            brain_report.json
           retention-days: 3

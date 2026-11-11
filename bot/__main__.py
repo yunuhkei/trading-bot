@@ -424,6 +424,7 @@ def main(argv=None):
     ka = sub.add_parser("kalshi", help="Kalshi bot: weather markets + arbitrage (settings: kalshi.yaml)")
     ka.add_argument("--settings", default="kalshi.yaml")
     ka.add_argument("--status", action="store_true", help="print every strategy's saved record (reads only)")
+    sub.add_parser("brain", help="practice: the super bot's brain report from the research log (reads only)")
     ll = sub.add_parser("launch-lab", help="practice: every pump.fun coin live, 1-second charts, many strategies")
     ll.add_argument("--minutes", type=float, default=340)
     ll.add_argument("--status", action="store_true", help="print each strategy's record")
@@ -510,6 +511,9 @@ def main(argv=None):
                f"spotting it), sold it {args.hold:g} s later: {res['result_usd']:+.4f} dollars after all fees."
                if res.get("outcome") == "ok" else res.get("outcome"))
         tell("🎯 Sniper check (real money)", msg)
+    elif args.cmd == "brain":
+        from .brain import main as brain_main
+        brain_main()
     elif args.cmd == "launch-lab":
         cmd_launch_lab(args, cfg)
     elif args.cmd == "callouts":

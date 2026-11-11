@@ -45,5 +45,9 @@ category, list pointless workflows for the owner. Never delete Actions caches or
   cache in launch_lab.yml (the lab's own state cache untouched). Live check: ~80 B/coin, ~17 B/bet compressed,
   ~5-6 MB/day. NOTE: it only collects once the owner merges this branch into main (the lab runs from main).
 
+- 3. Base rates: bot/brain.py (`python -m bot brain`, writes brain_report.json), brain.yaml (the strict test's
+  thresholds), launch_lab_status.yml restores the lab-data cache (read only) and uploads brain_report.json in the
+  `lab-status` artifact.
+
 ## Next
-- 3. Base rates report (bot/brain.py) + status workflow reads lab_data.
+- 4+5. Timing map + approval rule (bootstrap by hour blocks, Bonferroni, day share, walk-forward, drop rule).

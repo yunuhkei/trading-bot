@@ -4071,3 +4071,18 @@ def test_research_log_errors_never_stop_the_lab(tmp_path):
     lab.tick(1001.0)
     assert "M" in lab.ghosts["snipe"].pending             # the lab still trades
     assert lab.clog.stats["error in on_event"] == 2
+
+
+def test_brain_base_rates_count_gains_after_real_costs():
+    from bot import brain
+
+    rows = [{"N": 1, "t": 1},                                                        # never traded after launch
+            {"N": 9, "h1": [1.3, 1.0], "mk": {"5": [1.1, 0.9, 1.0]}, "e60": 1.0},   # +30% high: +25% after 3.5%
+            {"N": 9, "h1": [1.2, 1.0], "mk": {"5": [2.2, 1.0, 2.1]}, "e60": 1.1},   # +120% at 5 min; +100% from 1 min
+            {"N": 9, "h1": [1.0, 0.5], "mk": {"5": [0.6, 0.4, 0.5]}, "e60": 0.5, "my": 1}]
+    b = brain.base_rates(rows, cost=0.035)
+    n = b["normal"]["5"]
+    assert b["coins"] == 4 and b["dead"] == 1 and b["n_mayhem"] == 1 and n["n"] == 2
+    assert n["launch +25%"] == 1.0 and n["launch +100%"] == 0.5 and n["1 min +100%"] == 0.0 and n["1 min +50%"] == 0.5
+    assert n["launch, held: ended up"] == 0.5
+    assert any("normal, within 5 min" in line for line in brain.base_rates_lines(b))
