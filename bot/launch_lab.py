@@ -1358,6 +1358,7 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
         Path("lab_status.json").write_text(json.dumps({
             "days": {k: g.days for k, g in lab.ghosts.items() if g.days}, "signs": lab.signs, "activity": lab.activity,
             "fast": lab.fast.summary(), "direct": lab.direct.summary(), "direct_trades": lab.direct.trades,
+            "super_trades": {k: lab.accts[k].trades for k in SUPER if k in lab.accts},
             "sniper": lab.sniper.to_state()}))
         print(lab.fast.line(), lab.direct.line(), lab.sniper.line(), sep="\n", flush=True)
         return
