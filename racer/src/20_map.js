@@ -27,8 +27,12 @@ const TOWN_BAR={x0:3500,z0:1250,x1:3860,z1:1560};       /* Barstow: a desert tow
 const TOWN_BIG={x0:-350,z0:-3250,x1:-30,z1:-3000};      /* Big Pines: a mountain village in the northern foothills */
 const IND_HAR={x0:900,z0:2560,x1:1500,z1:2760};         /* the harbour industrial area on the south coast */
 const IND_MOJ={x0:3150,z0:2150,x1:3600,z1:2420};        /* Mojave Works: a desert refinery and warehouses */
+/* three more cities, each with its own look (world 1c) */
+const CITY_VEG={x0:3960,z0:1820,x1:4480,z1:2400};        /* Las Vegas: a neon casino strip in the south-east desert */
+const CITY_SAC={x0:70,z0:-2240,x1:540,z1:-1800};         /* Sacramento: a brick capital city with a domed capitol, north of the ring */
+const CITY_SJ={x0:-380,z0:-930,x1:240,z1:-450};          /* San Jose: glass tech campuses round a ring-shaped headquarters, inside the ring */
 const TERRACES=[[-190,-3125,380,85]];                   /* flattened sites: x,z,radius,height */
-const ZONES=[{b:TOWN_PAC,c:[.30,.27,.22]},{b:TOWN_FRE,c:[.26,.24,.19]},{b:TOWN_BAR,c:[.33,.27,.19]},{b:TOWN_BIG,c:[.2,.2,.19]},{b:IND_HAR,c:[.2,.2,.2]},{b:IND_MOJ,c:[.25,.23,.2]}];   /* ground colour (linear) inside each */
+const ZONES=[{b:TOWN_PAC,c:[.30,.27,.22]},{b:TOWN_FRE,c:[.26,.24,.19]},{b:TOWN_BAR,c:[.33,.27,.19]},{b:TOWN_BIG,c:[.2,.2,.19]},{b:IND_HAR,c:[.2,.2,.2]},{b:IND_MOJ,c:[.25,.23,.2]},{b:CITY_VEG,c:[.3,.25,.19],d:.85},{b:CITY_SAC,c:[.19,.2,.17],d:.8},{b:CITY_SJ,c:[.2,.22,.2],d:.8}];   /* ground colour (linear) inside each */
 const FIELDS=[];                                        /* farm fields: {b,c:[[r,g,b],[r,g,b]]} (filled in with the farm roads) */
 const FARMS=[];                                         /* {x,z,cs,sn}: a barn, silo, house and shed */
 const SAFEHOUSES=[];                                    /* {id,name,x,z,yaw} filled in by defineWorld */
@@ -160,9 +164,9 @@ function minRadius(r,k){const n=r.n,lo=r.closed?0:Math.max(k,30),hi=r.closed?n:n
 function landOK(r){for(let i=0;i<r.n;i+=2)if(baseH(r.X[i],r.Z[i])<2.4)return false;return true}
 function segX(ax,az,bx,bz,cx,cz,dx,dz){const den=(bx-ax)*(dz-cz)-(bz-az)*(dx-cx);if(Math.abs(den)<1e-9)return null;const t=((cx-ax)*(dz-cz)-(cz-az)*(dx-cx))/den,u=((cx-ax)*(bz-az)-(cz-az)*(bx-ax))/den;return(t>=0&&t<=1&&u>=0&&u<=1)?[ax+t*(bx-ax),az+t*(bz-az)]:null}
 function trimTo(pts,par){for(let i=0;i<pts.length-1;i++)for(let k=0;k<par.n-1;k++){const p=segX(pts[i][0],pts[i][1],pts[i+1][0],pts[i+1][1],par.X[k],par.Z[k],par.X[k+1],par.Z[k+1]);if(p)return pts.slice(0,i+1).concat([[p[0],p[1]]])}return pts}
-const DISTRICT_BOXES=[CITY,VALLEY,BEACH,RESORT,PARK,TOWN_PAC,TOWN_FRE,TOWN_BAR,TOWN_BIG,IND_HAR,IND_MOJ];
+const DISTRICT_BOXES=[CITY,VALLEY,BEACH,RESORT,PARK,TOWN_PAC,TOWN_FRE,TOWN_BAR,TOWN_BIG,IND_HAR,IND_MOJ,CITY_VEG,CITY_SAC,CITY_SJ];
 /* every city, town and industrial area with the boulevard round it (the network test routes between every pair of them) */
-const PLACES=[{name:'Downtown',road:'sfp',box:CITY},{name:'The Valley',road:'lap',box:VALLEY},{name:'Santa Cruz',road:'btp',box:BEACH},{name:'Palm Springs',road:'psp',box:RESORT},{name:'Pacifica',road:'pacp',box:TOWN_PAC},{name:'Fresno',road:'frep',box:TOWN_FRE},{name:'Barstow',road:'barp',box:TOWN_BAR},{name:'Big Pines',road:'bigp',box:TOWN_BIG},{name:'Harbor',road:'harp',box:IND_HAR},{name:'Mojave Works',road:'mojp',box:IND_MOJ}];
+const PLACES=[{name:'Downtown',road:'sfp',box:CITY},{name:'The Valley',road:'lap',box:VALLEY},{name:'Santa Cruz',road:'btp',box:BEACH},{name:'Palm Springs',road:'psp',box:RESORT},{name:'Pacifica',road:'pacp',box:TOWN_PAC},{name:'Fresno',road:'frep',box:TOWN_FRE},{name:'Barstow',road:'barp',box:TOWN_BAR},{name:'Big Pines',road:'bigp',box:TOWN_BIG},{name:'Harbor',road:'harp',box:IND_HAR},{name:'Mojave Works',road:'mojp',box:IND_MOJ},{name:'Las Vegas',road:'vegp',box:CITY_VEG},{name:'Sacramento',road:'sacp',box:CITY_SAC},{name:'San Jose',road:'sjp',box:CITY_SJ}];
 /* road ends that are meant to lead nowhere */
 const DEAD_OK=['pierhead'];
 function clearOf(r){const lo=r.closed?0:170;for(let i=0;i<r.n;i+=2){if(!r.closed&&(r.S[i]<lo||r.len-r.S[i]<lo))continue;for(const B of DISTRICT_BOXES)if(inBox(r.X[i],r.Z[i],B,46))return false}return true}
@@ -182,10 +186,10 @@ function cutRect(ax,az,bx,bz,R){/* remove the part of a segment inside the recta
 function gridStreets(g){
   const cs=g.cs=Math.cos(g.ang),sn=g.sn=Math.sin(g.ang),toW=(u,v)=>[g.ox+u*cs-v*sn,g.oz+u*sn+v*cs],B=9000;g.roads=[];let idx=0;
   const cand=[];
-  const add=(tag,p0,p1,fam)=>{const c=clipSeg(p0[0],p0[1],p1[0],p1[1],g.planes);if(!c)return;const ax=p0[0]+(p1[0]-p0[0])*c[0],az=p0[1]+(p1[1]-p0[1])*c[0],bx=p0[0]+(p1[0]-p0[0])*c[1],bz=p0[1]+(p1[1]-p0[1])*c[1];
+  const add=(tag,p0,p1,fam,ov)=>{const c=clipSeg(p0[0],p0[1],p1[0],p1[1],g.planes);if(!c)return;const ax=p0[0]+(p1[0]-p0[0])*c[0],az=p0[1]+(p1[1]-p0[1])*c[0],bx=p0[0]+(p1[0]-p0[0])*c[1],bz=p0[1]+(p1[1]-p0[1])*c[1];
     let pieces=[[0,1]];for(const R of(g.cut||[])){const next=[];for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1;for(const[c0,c1]of cutRect(sx,sz,ex,ez,R))next.push([a0+(a1-a0)*c0,a0+(a1-a0)*c1])}pieces=next}
-    for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1,len=Math.hypot(ex-sx,ez-sz);if(len<34)continue;cand.push({id:g.id+tag+(a0>0||a1<1?'~':''),fam,sx,sz,ex,ez,len,ok:1,ps:a0>0?-1:c[2],pe:a1<1?-1:c[3]})}};
-  g.us.forEach((u,i)=>add('u'+i,toW(u,-B),toW(u,B),0));g.vs.forEach((v,j)=>add('v'+j,toW(-B,v),toW(B,v),1));
+    for(const[a0,a1]of pieces){const sx=ax+(bx-ax)*a0,sz=az+(bz-az)*a0,ex=ax+(bx-ax)*a1,ez=az+(bz-az)*a1,len=Math.hypot(ex-sx,ez-sz);if(len<34)continue;cand.push({id:g.id+tag+(a0>0||a1<1?'~':''),fam,sx,sz,ex,ez,len,ok:1,ps:a0>0?-1:c[2],pe:a1<1?-1:c[3],ov})}};
+  g.us.forEach((u,i)=>add('u'+i,toW(u,-B),toW(u,B),0,g.uw&&g.uw[i]));g.vs.forEach((v,j)=>add('v'+j,toW(-B,v),toW(B,v),1));
   /* ONE FAMILY OF STREETS PER EDGE. Where the grid is not square to the edge that cuts it (the rotated grid against the box, the straight grid against Market Street) the streets along u and
      along v both reached the edge, at irregular spacings: mouths 13-23 m apart on the boulevard with a crossing just behind them, three junctions on top of each other (and on a hill no landing
      could serve them all). Now only the family that meets an edge more squarely opens onto it; a street of the other family stops as a T on the last street it crosses that is at least 40 m
@@ -196,7 +200,7 @@ function gridStreets(g){
      for(const Q of cand){if(Q.fam==P.fam||!Q.ok)continue;const k=1.5/(Q.len||1),X=segX(P.sx,P.sz,P.ex,P.ez,Q.sx-(Q.ex-Q.sx)*k,Q.sz-(Q.ez-Q.sz)*k,Q.ex+(Q.ex-Q.sx)*k,Q.ez+(Q.ez-Q.sz)*k);   /* (a street that stops AT this one, cut by the park, counts) */if(!X)continue;if((Q.ps>=0&&Math.hypot(X[0]-Q.sx,X[1]-Q.sz)<40)||(Q.pe>=0&&Math.hypot(X[0]-Q.ex,X[1]-Q.ez)<40))continue;const d=Math.hypot(X[0]-ex,X[1]-ez);if(d<bd){bd=d;best=X}}
      g.trimmed.push(P.id+(end?' end':' start')+(best?' -'+Math.round(bd)+' m':' gone'));
      if(!best){P.ok=0;continue}if(end){P.ex=best[0];P.ez=best[1];P.pe=-1}else{P.sx=best[0];P.sz=best[1];P.ps=-1}P.len=Math.hypot(P.ex-P.sx,P.ez-P.sz);if(P.len<34)P.ok=0}}
-  for(const P of cand){if(!P.ok)continue;const r=buildRoad({id:P.id,hw:g.hw,lanes:1,style:g.style,city:1,smooth:g.smooth||60,grade:g.grade||.26,lift:g.lift+(idx++)*.0004,cityField:1,pts:[[P.sx,P.sz],[P.ex,P.ez]]});g.roads.push(r);cityEnds.push([P.sx,P.sz,r.id],[P.ex,P.ez,r.id])}
+  for(const P of cand){if(!P.ok)continue;const r=buildRoad({id:P.id,hw:P.ov?P.ov.hw:g.hw,lanes:1,style:P.ov?P.ov.style:g.style,city:1,smooth:g.smooth||60,grade:g.grade||.26,lift:g.lift+(idx++)*.0004,cityField:1,pts:[[P.sx,P.sz],[P.ex,P.ez]]});g.roads.push(r);cityEnds.push([P.sx,P.sz,r.id],[P.ex,P.ez,r.id])}
   GRIDS.push(g);return g}
 const nearEnd=(x,z)=>{let b=null,bd=1e18;for(const e of cityEnds){const d=(e[0]-x)**2+(e[1]-z)**2;if(d<bd){bd=d;b=e}}return b};
 function applyBridge(r,x,z,len,h){const c=roadNear(r,x,z),half=len/2,ramp=150;for(let i=0;i<r.n;i++){const k=1-sstep(half,half+ramp,Math.abs(r.S[i]-r.S[c]));if(k>0){r.Y[i]+=h*k;if(k>.35)r.br[i]=1}}}

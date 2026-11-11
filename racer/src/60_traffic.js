@@ -320,7 +320,7 @@ function trProbe(x,z){TRP.ri=-1;const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)
 /* how busy the roads are at a place (0..1) */
 function trDens(x,z,cls){
   if(inBox(x,z,CITY,60))return 1;if(inBox(x,z,VALLEY,60))return .9;if(inBox(x,z,BEACH,60)||inBox(x,z,RESORT,60))return .65;
-  for(const zn of ZONES)if(inBox(x,z,zn.b,60))return .6;
+  for(const zn of ZONES)if(inBox(x,z,zn.b,60))return zn.d||.6;
   return cls>=3?.4:cls==2?.3:.22}
 function trSeen(x,z){const dx=x-C.x,dz=z-C.z,d=Math.hypot(dx,dz);if(d<TR.visMin)return true;if(d>TR.visFar)return false;
   const hx=Math.sin(C.yaw),hz=-Math.cos(C.yaw);return(dx*hx+dz*hz)/d>.4}

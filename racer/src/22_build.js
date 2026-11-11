@@ -12,7 +12,9 @@ class MB{constructor(){this.cap=512;this.f=new Float32Array(this.cap*7);this.u=n
 /* a set of meshes keyed by 128 m cell + category; splits automatically before the 16-bit index limit */
 const PCELL=128,PCATS=3;/* 0 street furniture, 1 buildings, 2 trees */
 const PSET=new Map();
-function pmb(x,z,cat,need){const k=(Math.floor((x+W.half)/PCELL)*128+Math.floor((z+W.half)/PCELL))*4+cat;let L=PSET.get(k);if(!L){L=[new MB()];PSET.set(k,L)}let m=L[L.length-1];if(m.n+need>60000){m=new MB();L.push(m)}return m}
+/* buildings are merged per 256 m cell (a quarter of the draw calls of 128 m cells: draw calls, not triangles, are what the new cities cost), furniture and trees per 128 m */
+const PCELLS=[PCELL,PCELL*2,PCELL];
+function pmb(x,z,cat,need){const pc=PCELLS[cat],k=(Math.floor((x+W.half)/pc)*128+Math.floor((z+W.half)/pc))*4+cat;let L=PSET.get(k);if(!L){L=[new MB()];PSET.set(k,L)}let m=L[L.length-1];if(m.n+need>60000){m=new MB();L.push(m)}return m}
 /* box with flat-shaded faces, ambient-occlusion gradient on the walls, optional window tiling */
 function pbox(cat,cx,y0,cz,hx,y1,hz,r,g,b,win,ao){const m=pmb(cx,cz,cat,24),h=y1-y0,a0=ao==null?.62:ao;const sc=(k)=>Math.round(k);
   const wall=(ax,az,bx,bz,nx,nz,len)=>{const u1=len/3.2,v1=h/3.4;const i0=m.v(ax,y0,az,nx,0,nz,r*a0,g*a0,b*a0,0,v1,win),i1=m.v(bx,y0,bz,nx,0,nz,r*a0,g*a0,b*a0,u1,v1,win),i2=m.v(bx,y1,bz,nx,0,nz,r,g,b,u1,0,win),i3=m.v(ax,y1,az,nx,0,nz,r,g,b,0,0,win);m.q(i0,i1,i2,i3)};
@@ -197,9 +199,9 @@ function proofR(cat,cx,cz,hx,hz,cs,sn,y,rh,r,g,b,alongX){
   if(alongX){face(Q(-hx,y,hz),Q(hx,y,hz),Q(hx,y+rh,0),Q(-hx,y+rh,0),0,.7,.7,1);face(Q(hx,y,-hz),Q(-hx,y,-hz),Q(-hx,y+rh,0),Q(hx,y+rh,0),0,.7,-.7,.85)}
   else{face(Q(hx,y,-hz),Q(hx,y,hz),Q(0,y+rh,hz),Q(0,y+rh,-hz),.7,.7,0,1);face(Q(-hx,y,hz),Q(-hx,y,-hz),Q(0,y+rh,-hz),Q(0,y+rh,hz),-.7,.7,0,.85)}}
 /* pyramid tower (a nod to the Transamerica Pyramid) */
-function ppyramid(cat,cx,cz,hb,y0,h,cs,sn){const m=pmb(cx,cz,cat,16),Wd=(lx,lz)=>{const w=[cx+lx*cs-lz*sn,cz+lx*sn+lz*cs];return w},cn=[[-hb,hb],[hb,hb],[hb,-hb],[-hb,-hb]],sl=hb/h;
+function ppyramid(cat,cx,cz,hb,y0,h,cs,sn,col){const pc=col||[222,224,226];const m=pmb(cx,cz,cat,16),Wd=(lx,lz)=>{const w=[cx+lx*cs-lz*sn,cz+lx*sn+lz*cs];return w},cn=[[-hb,hb],[hb,hb],[hb,-hb],[-hb,-hb]],sl=hb/h;
   for(let k=0;k<4;k++){const c0=cn[k],c1=cn[(k+1)%4],mx=(c0[0]+c1[0])/2,mz=(c0[1]+c1[1])/2,l=Math.hypot(mx,mz),nlx=mx/l,nlz=mz/l,ny=sl*1.15,nn=Math.hypot(1,ny),nx=(nlx*cs-nlz*sn)/nn,nz=(nlx*sn+nlz*cs)/nn,sh=.75+.25*(k&1);
-    const p0=Wd(c0[0],c0[1]),p1=Wd(c1[0],c1[1]),i0=m.v(p0[0],y0,p0[1],nx,ny/nn,nz,222*sh,224*sh,226*sh,.03,.03,0),i1=m.v(p1[0],y0,p1[1],nx,ny/nn,nz,222*sh,224*sh,226*sh,.03,.03,0),i2=m.v(cx,y0+h,cz,nx,ny/nn,nz,240*sh,242*sh,244*sh,.03,.03,0);m.t(i0,i1,i2)}}
+    const p0=Wd(c0[0],c0[1]),p1=Wd(c1[0],c1[1]),i0=m.v(p0[0],y0,p0[1],nx,ny/nn,nz,pc[0]*sh,pc[1]*sh,pc[2]*sh,.03,.03,0),i1=m.v(p1[0],y0,p1[1],nx,ny/nn,nz,pc[0]*sh,pc[1]*sh,pc[2]*sh,.03,.03,0),i2=m.v(cx,y0+h,cz,nx,ny/nn,nz,Math.min(255,pc[0]*1.08)*sh,Math.min(255,pc[1]*1.08)*sh,Math.min(255,pc[2]*1.08)*sh,.03,.03,0);m.t(i0,i1,i2)}}
 /* flat ground patch (parking lots, lawns) */
 function pflat(cat,cx,cz,hx,hz,cs,sn,y,r,g,b){const m=pmb(cx,cz,cat,4),Wd=(lx,lz)=>[cx+lx*cs-lz*sn,cz+lx*sn+lz*cs];
   const k=[[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz]].map(c=>{const w=Wd(c[0],c[1]);return m.v(w[0],y,w[1],0,1,0,r,g,b,.03,.03,0)});m.q(k[0],k[3],k[2],k[1])}
@@ -216,8 +218,8 @@ const BRICK=[[168,112,92],[190,150,120],[150,120,104],[120,126,140]];
 /* every block of a rotated street grid: calls fn with its local extents */
 function forBlocks(g,fn){const hw=g.hw+3.8,pl=g.planes,Wd=(u,v)=>[g.ox+u*g.cs-v*g.sn,g.oz+u*g.sn+v*g.cs],sf=g.kind!='la';
   /* a town (g.box) also has blocks between its outer streets and the boulevard round it */
-  const bx=g.box,ph=(g.phw||7)+3.8,us=bx?[bx.x0].concat(g.us,[bx.x1]):g.us,vs=bx?[bx.z0].concat(g.vs,[bx.z1]):g.vs,hu=(k,n)=>bx&&(k==0||k==n-1)?ph:hw;
-  for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){const u0=us[i]+hu(i,us.length),u1=us[i+1]-hu(i+1,us.length),v0=vs[j]+hu(j,vs.length),v1=vs[j+1]-hu(j+1,vs.length);if(u1-u0<14||v1-v0<14)continue;
+  const bx=g.box,ph=(g.phw||7)+3.8,us=bx?[bx.x0].concat(g.us,[bx.x1]):g.us,vs=bx?[bx.z0].concat(g.vs,[bx.z1]):g.vs,hv=(k,n)=>bx&&(k==0||k==n-1)?ph:hw,hu=(k,n)=>{const w=g.uw&&g.uw[bx?k-1:k];return w?w.hw+3.8:hv(k,n)};
+  for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){const u0=us[i]+hu(i,us.length),u1=us[i+1]-hu(i+1,us.length),v0=vs[j]+hv(j,vs.length),v1=vs[j+1]-hv(j+1,vs.length);if(u1-u0<14||v1-v0<14)continue;
     let ok=true,x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const[u,v]of[[u0,v0],[u1,v0],[u1,v1],[u0,v1]]){const p=Wd(u,v);x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);z0=Math.min(z0,p[1]);z1=Math.max(z1,p[1]);
       for(let k=0;k<pl.length;k++){const m=(sf&&k==4)?MARKET.hw+12:(bx?6:18);if(pl[k][0]*p[0]+pl[k][1]*p[1]>pl[k][2]-m)ok=false}}
@@ -338,6 +340,71 @@ function buildCity(){
           const[cx0,cz0]=B.W(cu,cv),y=terrainH(cx0,cz0);ptrunk(1,cx0,y-.4,cz0,1.6,38,150,140,130);COLC.push(cx0,cz0,1.7,y-.5,y+38)}
         else{for(let k=0;k<10;k++){const[px,pz]=B.W(B.u0+wu*(.12+.76*((k%5)/4)),B.v0+wv*(.3+.4*((k/5)|0)));bld(px,pz,6,1.3,cs,sn,2.6+(rng()<.4?2.6:0),CONT[(rng()*CONT.length)|0],false)}}});
       continue}
+    if(g.kind=='vegas'){/* Las Vegas: hotel towers in gold, black glass and pink over wide podiums, a black pyramid with a beam of light, a needle tower, low casinos with lit marquees, neon everywhere, palms */
+      const vr=mulberry(7007),HOT=[[214,172,64],[34,38,50],[236,124,164],[58,168,190],[238,232,218],[152,44,56],[96,66,156],[226,150,50]],cs=g.cs,sn=g.sn;let pyr=false,ndl=false;
+      const glow=(x,y,z,c,sz)=>NEONS.push(x,y,z,c[0]/255,c[1]/255,c[2]/255,sz),palmV=(x,z)=>{const y=terrainH(x,z);if(y<2||nearRoadXZ(x,z,.5))return;ppalm(x,z,vr,y);COLC.push(x,z,.5,y-.5,y+12)};
+      /* a sign pylon by the street: a post and a lit panel */
+      const pylon=(x,z,h,c)=>{const y=terrainH(x,z);pbox(1,x,y-.4,z,.45,y+h,.45,70,72,80,false,.8);pboxR(1,x,z,2.6,.35,cs,sn,y+h*.55,y+h,c[0],c[1],c[2],2,1);pboxR(1,x,z,2.9,.25,cs,sn,y+h,y+h+.5,250,240,200,2,1);COLC.push(x,z,.7,y-.5,y+h);glow(x,y+h*.78,z,c,5)};
+      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=vr(),c=HOT[(vr()*HOT.length)|0],c2=NEONC[(vr()*NEONC.length)|0];
+        if(!pyr&&B.i==1&&B.j==2){pyr=true;const hb=Math.min(wu,wv)*.4,gy=gmin(cx,cz,hb,hb,cs,sn);pboxR(1,cx,cz,hb+3,hb+3,cs,sn,gy-1.5,gy+1.2,60,58,56,false,.8);ppyramid(1,cx,cz,hb,gy+1.2,hb*1.3,cs,sn,[30,32,42]);reg(cx,cz,hb*.7,hb*.7,cs,sn,gy+hb);nb++;
+          pbox(1,cx,gy+hb*1.3,cz,.5,gy+hb*1.3+70,.5,255,250,225,2,1);glow(cx,gy+hb*1.3+2,cz,[255,250,220],9);const[sx,sz]=B.W(B.u0+5,B.v1-5);pylon(sx,sz,13,[250,200,60]);return}
+        if(!ndl&&B.i==4&&B.j==1){ndl=true;const y=terrainH(cx,cz);pfrus(1,cx,y-.5,cz,3.4,1.5,104,214,214,220,8);pfrus(1,cx,y+100,cz,2,9.5,3,226,226,232,10);pfrus(1,cx,y+103,cz,9.5,8,3.2,90,170,220,10);pfrus(1,cx,y+106.2,cz,8,1,5,226,226,232,10);
+          pbox(1,cx,y+111,cz,.3,y+132,.3,255,90,90,2,1);COLC.push(cx,cz,3.6,y-.5,y+100);glow(cx,y+105,cz,[90,190,255],10);glow(cx,y+131,cz,[255,60,60],5);
+          for(const[du,dv]of[[-.3,-.3],[.3,.3]]){const[px,pz]=B.W(cu+wu*du,cv+wv*dv);bld(px,pz,wu*.16,wv*.16,cs,sn,7,HOT[(vr()*HOT.length)|0],true)}return}
+        if(r<.55){/* a hotel: a slab tower on a podium, a lit crown, a pylon sign */
+          const h=42+vr()*48,hx=wu*.36,hz=Math.min(11,wv*.2),[tx,tz]=B.W(cu,B.v0+hz+6),gy=bld(tx,tz,hx,hz,cs,sn,h,c,true);pboxR(1,tx,tz,hx+.4,hz+.4,cs,sn,gy+h,gy+h+1.6,c2[0],c2[1],c2[2],2,1);glow(tx,gy+h+1,tz,c2,8);
+          if(vr()<.6){const[wx,wz]=B.W(cu+(vr()<.5?-1:1)*(hx-hz),cv+2);bld(wx,wz,hz,wv*.22,cs,sn,h*.8,c,true)}
+          const[px,pz]=B.W(cu,cv+wv*.2);bld(px,pz,wu*.44,wv*.22,cs,sn,8,[c[0]*.8+40,c[1]*.8+40,c[2]*.8+40],false);pboxR(1,px,pz,wu*.44+.3,wv*.22+.3,cs,sn,gy+8,gy+8.5,c[0]*.5+30,c[1]*.5+30,c[2]*.5+30,false,1);for(const sd of[-1,1]){const[mx,mz]=B.W(cu,cv+wv*.2+sd*(wv*.22+.35));pboxR(1,mx,mz,wu*.4,.3,cs,sn,gy+6.3,gy+7.6,c2[0],c2[1],c2[2],2,1)}
+          const[sx,sz]=B.W(B.u0+5,B.v1-5);pylon(sx,sz,11+vr()*6,c2);for(let k=0;k<4;k++){const[qx,qz]=B.W(lerp(B.u0+12,B.u1-6,k/3),B.v1-4);palmV(qx,qz)}}
+        else if(r<.82){/* a low casino under a big marquee */
+          const gy=bld(cx,cz,wu*.42,wv*.34,cs,sn,10+vr()*4,[c[0]*.6+70,c[1]*.6+70,c[2]*.6+70],false);for(const sd of[-1,1]){const[mx,mz]=B.W(cu,cv+sd*(wv*.34+.5));pboxR(1,mx,mz,wu*.3,.5,cs,sn,gy+5,gy+9,c2[0],c2[1],c2[2],2,1);glow(mx,gy+7,mz,c2,7)}
+          const[dx,dz]=B.W(cu+wu*.2,cv);pfrus(1,dx,gy+10,dz,Math.min(wu,wv)*.16,2,7,c[0],c[1],c[2],10);for(let k=0;k<3;k++){const[qx,qz]=B.W(lerp(B.u0+8,B.u1-8,k/2),B.v0+4);palmV(qx,qz)}}
+        else{/* a parking lot with palms and a small white chapel with a spire */
+          pflat(1,cx,cz,wu/2-4,wv/2-4,cs,sn,terrainH(cx,cz)+.12,48,48,54);const[px,pz]=B.W(B.u0+14,B.v0+12),gy=bld(px,pz,6,4.5,cs,sn,4.5,[244,244,240],true);proofR(1,px,pz,6,4.5,cs,sn,gy+4.5,2.4,200,70,90,true);ppyramid(1,px,pz,1.3,gy+6,7,cs,sn,[244,244,240]);
+          glow(px,gy+5,pz,[255,120,180],4);for(let k=0;k<5;k++){const[qx,qz]=B.W(lerp(B.u0+8,B.u1-8,k/4),B.v1-5);palmV(qx,qz)}}});
+      /* palms down both sides of the Strip */
+      for(const r of g.roads){if(r.hw<11)continue;for(let i=4;i<r.n-4;i+=5){if(r.mk[i]<.6)continue;const t=_tan(r,i);for(const sd of[-1,1])palmV(r.X[i]-t[1]*sd*(r.hw+SWW+2.2),r.Z[i]+t[0]*sd*(r.hw+SWW+2.2))}}
+      continue}
+    if(g.kind=='cap'){/* Sacramento: red and brown brick blocks with stone cornices and shop awnings, a white capitol with a gold dome and columns in a park, brick row houses, oaks */
+      const sr2=mulberry(4004),cs=g.cs,sn=g.sn,BR=[[150,74,58],[168,96,70],[132,70,60],[176,122,92],[120,84,70],[158,110,96]],AW=[[40,110,70],[150,40,44],[36,70,130],[220,180,60]];let capd=false;
+      const oak=(x,z)=>{const y=terrainH(x,z);if(y<2||nearRoadXZ(x,z,1))return;let c0=0;const fr=()=>c0++==0?.8:sr2();ptree(x,z,fr,y,true);COLC.push(x,z,.5,y-.5,y+10)};
+      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=sr2();
+        if(!capd&&B.i==2&&B.j==2){capd=true;/* the capitol */const y=terrainH(cx,cz);pflat(1,cx,cz,wu/2-2,wv/2-2,cs,sn,y+.1,60,118,58);
+          const gy=bld(cx,cz,wu*.3,wv*.17,cs,sn,13,[236,232,220],true);pboxR(1,cx,cz,wu*.3+.6,wv*.17+.6,cs,sn,gy+13,gy+14,226,222,210,false,1);
+          for(const sd of[-1,1]){const[wx,wz]=B.W(cu+sd*wu*.3,cv);bld(wx,wz,wu*.08,wv*.22,cs,sn,10,[232,228,216],true)}
+          pfrus(1,cx,gy+14,cz,7.4,7.4,7,232,228,216,14);pblob(1,cx,gy+19.5,cz,7.6,7.2,214,178,70,0);ptrunk(1,cx,gy+28,cz,.9,3.4,236,232,220);pcone(1,cx,gy+31.4,cz,1.1,2.2,214,178,70,8,0);
+          for(let k=0;k<8;k++){const[px,pz]=B.W(cu+(k-3.5)*wu*.05,cv+wv*.17+1.6);ptrunk(1,px,gy-.3,pz,.5,10.5,238,236,228)}{const[px,pz]=B.W(cu,cv+wv*.17+1.6);pboxR(1,px,pz,wu*.2,1.3,cs,sn,gy+10.2,gy+12.6,236,232,220,false,.9);reg(px,pz,wu*.2,1.2,cs,sn,gy+12)}
+          for(let k=0;k<14;k++){const a=k/14*TAU,[px,pz]=B.W(cu+Math.cos(a)*wu*.42,cv+Math.sin(a)*wv*.4);oak(px,pz)}return}
+        if(r<.14){/* a square: lawn, oaks, a bandstand */const y=terrainH(cx,cz);pflat(1,cx,cz,wu/2-3,wv/2-3,cs,sn,y+.1,58,112,56);pfrus(1,cx,y,cz,3.4,3.4,.7,200,196,188,8);for(let k=0;k<6;k++){const a=k/6*TAU;ptrunk(1,cx+Math.cos(a)*3,y+.7,cz+Math.sin(a)*3,.12,2.8,236,236,232)}pcone(1,cx,y+3.5,cz,3.9,1.6,150,60,52,8,0);COLC.push(cx,cz,3.4,y-.5,y+4);
+          for(let k=0;k<10;k++){const[px,pz]=B.W(lerp(B.u0+5,B.u1-5,sr2()),lerp(B.v0+5,B.v1-5,sr2()));if(Math.hypot(px-cx,pz-cz)>7)oak(px,pz)}return}
+        if(r<.72){/* brick blocks: two or three lots, a stone cornice, awnings over the shops */
+          const lots=wu>70?3:2,lw=wu/lots;for(let a=0;a<lots;a++){const u=B.u0+lw*(a+.5),[px,pz]=B.W(u,cv),c=BR[(sr2()*BR.length)|0],h=12+((sr2()*4)|0)*3.4,hx=lw/2-1.2,hz=wv/2-2,gy=bld(px,pz,hx,hz,cs,sn,h,c,true);
+            pboxR(1,px,pz,hx+.45,hz+.45,cs,sn,gy+h,gy+h+.8,214,206,190,false,1);const aw=AW[(sr2()*AW.length)|0];for(const sd of[-1,1]){const[ax,az]=B.W(u,cv+sd*(hz+.7));pboxR(1,ax,az,hx*.8,.7,cs,sn,gy+3.1,gy+3.5,aw[0],aw[1],aw[2],false,1)}}}
+        else{/* brick row houses with gables */
+          const depth=Math.min(13,wv/2-2);for(const side of[-1,1]){const v=side<0?B.v0+depth/2+1:B.v1-depth/2-1;let u=B.u0+1;while(u<B.u1-6){const w=Math.min(7+sr2()*2.5,B.u1-u-1),c=BR[(sr2()*BR.length)|0],h=7.5+sr2()*2.5,[px,pz]=B.W(u+w/2,v),gy=gmin(px,pz,w/2,depth/2,cs,sn);
+              pboxR(1,px,pz,w/2-.1,depth/2,cs,sn,gy-2,gy+h,c[0],c[1],c[2],true,.7);proofR(1,px,pz,w/2-.1,depth/2,cs,sn,gy+h,2.6,86,82,84,false);u+=w}
+            const[rx,rz]=B.W(cu,v);reg(rx,rz,wu/2-1,depth/2,cs,sn,terrainH(rx,rz)+11);nb++}
+          for(let k=0;k<3;k++){const[px,pz]=B.W(lerp(B.u0+8,B.u1-8,k/2),cv);oak(px,pz)}}});
+      continue}
+    if(g.kind=='tech'){/* San Jose: a ring-shaped headquarters in a park, low glass and white campuses on lawns, car parks under solar roofs, windowless data halls, white apartment blocks */
+      const tq=mulberry(9009),cs=g.cs,sn=g.sn,GL=[[120,168,196],[136,184,176],[108,150,190],[150,176,200]];let ringd=false;
+      const sap=(x,z)=>{const y=terrainH(x,z);if(y<2||nearRoadXZ(x,z,1))return;ptrunk(2,x,y-.2,z,.12,2.4,96,80,62);pcrown(2,x,y+3.6,z,1.5,1.6,1.5,5,2,((x*5.1+z*3.3)|0),70,128,58,0);COLC.push(x,z,.35,y-.5,y+5)};
+      const solar=(px,pz,hx,hz)=>{const y=terrainH(px,pz);pflat(1,px,pz,hx,hz,cs,sn,y+.12,52,54,60);for(const k of[-1,1]){const lz=k*hz*.5,wx=px-lz*sn,wz=pz+lz*cs;pboxR(1,wx,wz,hx-1,2.6,cs,sn,y+3.1,y+3.3,26,44,96,false,1);for(const q of[-1,1]){const ex=wx+q*(hx-2)*cs,ez=wz+q*(hx-2)*sn;pbox(1,ex,y,ez,.14,y+3.1,.14,180,182,188,false,.8);COLC.push(ex,ez,.25,y-.5,y+3.1)}}};
+      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=tq(),c=GL[(tq()*GL.length)|0];
+        if(!ringd&&B.i==2&&B.j==1){ringd=true;/* the ring */const y=terrainH(cx,cz),Rr=Math.min(wu,wv)*.4,N=18,sw=Rr*TAU/N*.56;pflat(1,cx,cz,wu/2-2,wv/2-2,cs,sn,y+.1,70,132,62);
+          for(let k=0;k<N;k++){const a=k/N*TAU,px=cx+Math.cos(a)*Rr,pz=cz+Math.sin(a)*Rr,c2=Math.cos(a+Math.PI/2),s2=Math.sin(a+Math.PI/2),gy=gmin(px,pz,sw,5,c2,s2);pboxR(1,px,pz,sw,5,c2,s2,gy-1,gy+13,150,196,214,true,.72);pboxR(1,px,pz,sw+.2,5.5,c2,s2,gy+13,gy+13.7,240,240,244,false,1);reg(px,pz,sw,5,c2,s2,gy+13.7);nb++}
+          for(let k=0;k<9;k++){const a=k/9*TAU+.3;sap(cx+Math.cos(a)*Rr*.5,cz+Math.sin(a)*Rr*.5)}return}
+        if(r<.5){/* a campus: two low glass buildings with white bands, a lawn, a car park under solar roofs */
+          const y=terrainH(cx,cz);pflat(1,cx,cz,wu/2-2,wv/2-2,cs,sn,y+.1,74,134,64);
+          for(const k of[-1,1]){const[px,pz]=B.W(cu+k*wu*.24,B.v0+wv*.3),hx=wu*.2,hz=wv*.2,h=9+((tq()*3)|0)*3.5,gy=bld(px,pz,hx,hz,cs,sn,h,c,true);for(let q=3.5;q<h;q+=3.5)pboxR(1,px,pz,hx+.25,hz+.25,cs,sn,gy+q-.35,gy+q,238,240,244,false,1);pboxR(1,px,pz,hx+.25,hz+.25,cs,sn,gy+h,gy+h+.5,238,240,244,false,1)}
+          {const[px,pz]=B.W(cu,B.v1-wv*.2);solar(px,pz,wu*.4,wv*.14)}for(let k=0;k<5;k++){const[px,pz]=B.W(lerp(B.u0+6,B.u1-6,k/4),cv+2);sap(px,pz)}}
+        else if(r<.72){/* a data hall: a big white windowless box with cooling units on the roof and a fence of vents */
+          const hx=wu*.4,hz=wv*.34,gy=bld(cx,cz,hx,hz,cs,sn,11,[232,234,238],false);pboxR(1,cx,cz,hx+.3,hz+.3,cs,sn,gy+4,gy+4.5,40,120,200,false,1);
+          for(let k=0;k<6;k++){const lx=(k%3-1)*hx*.55,lz=((k/3|0)-.5)*hz*.9,wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs;pboxR(1,wx,wz,3,2,cs,sn,gy+11,gy+12.6,160,166,174,false,.85)}}
+        else{/* white apartment blocks with balconies */
+          for(const k of[-1,1]){const[px,pz]=B.W(cu+k*wu*.25,cv),hx=wu*.17,hz=wv*.36,h=15+tq()*5,gy=bld(px,pz,hx,hz,cs,sn,h,[236,236,232],true);for(let q=3.2;q<h-1;q+=3.2)for(const sd of[-1,1]){const lx=sd*(hx+.5),wx=px+lx*cs,wz=pz+lx*sn;pboxR(1,wx,wz,.5,hz*.9,cs,sn,gy+q,gy+q+.25,150,156,164,false,1)}}
+          for(let k=0;k<4;k++){const[px,pz]=B.W(cu,lerp(B.v0+6,B.v1-6,k/3));sap(px,pz)}}});
+      continue}
     /* San Francisco blocks */
     forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,[cx,cz]=B.W(cu,cv),cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,dcore=Math.hypot(cx-CORE.x,cz-CORE.z),th=terrainH(cx,cz),r=rng();
       if(g.skip&&g.skip.indexOf(B.i+','+B.j)>=0){treesIn(B,5);return}                  /* the Lombard Street block */
@@ -373,7 +440,7 @@ function buildCity(){
     const gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(W.D8[gj*W.N+gi]<5||pr()<.25||nearRoadXZ(px,pz,8))continue;ptree(px,pz,pr,terrainH(px,pz),true);COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);np++}}
   /* suburb: low houses on a loose grid around the city, clear of every road and of the districts */
   const sub=mulberry(77);let ns=0;
-  for(const[SB,mx,mz]of[[CITY,420,380],[VALLEY,380,380],[TOWN_BAR,300,300],[TOWN_PAC,300,300],[TOWN_FRE,320,320],[TOWN_BIG,240,240]])
+  for(const[SB,mx,mz]of[[CITY,420,380],[VALLEY,380,380],[TOWN_BAR,300,300],[TOWN_PAC,300,300],[TOWN_FRE,320,320],[TOWN_BIG,240,240],[CITY_SAC,280,260],[CITY_SJ,300,280]])
   for(let x=SB.x0-mx;x<SB.x1+mx;x+=34)for(let z=SB.z0-mz;z<SB.z1+mz;z+=34){
     if(inUrban(x,z,50))continue;
     const px=x+(sub()-.5)*20,pz=z+(sub()-.5)*20,gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(gi<2||gj<2||gi>=W.N-2||gj>=W.N-2)continue;
