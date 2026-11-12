@@ -19,6 +19,9 @@ on:
       lead2:
         description: "Add the models' two-day-ahead forecasts to the saved data and re-test: yes / no"
         default: "no"
+      blend:
+        description: "Blend test instead (collects each model's past forecasts, then the walk-forward test): yes / no"
+        default: "no"
 permissions:
   contents: write            # saves the data and the per-city forecast corrections (models/kalshi_priors.json)
 jobs:
@@ -36,7 +39,9 @@ jobs:
         env:
           ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
         run: |
-          if [ "${{ inputs.lead2 }}" = "yes" ]; then
+          if [ "${{ inputs.blend }}" = "yes" ]; then
+            python -m bot kalshi-backtest --blend
+          elif [ "${{ inputs.lead2 }}" = "yes" ]; then
             python -m bot kalshi-backtest --lead2
           elif [ "${{ inputs.walkforward }}" = "yes" ]; then
             python -m bot kalshi-backtest --walkforward --kind "${{ inputs.kind || 'high' }}"
@@ -49,9 +54,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/kalshi_*.json models/kalshi_priors.json
+          git add data/kalshi_*.json models/kalshi_*.json
           if ! git diff --cached --quiet; then
             git commit -q -m "Kalshi backtest: saved settled city-days and what it measured"
-            git pull -q --rebase origin main
-            git push -q origin HEAD:main
+            git pull -q --rebase origin "${GITHUB_REF_NAME}"
+            git push -q origin "HEAD:${GITHUB_REF_NAME}"     # the branch it ran on (main when run from main)
           fi

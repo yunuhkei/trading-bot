@@ -4493,3 +4493,24 @@ def test_kalshi_brain_uses_only_what_was_known_then_and_corrects_for_many_slices
     assert len(live["F"]) == 1 and live["F"][0]["src"] == "live F1000" and live["F"][0]["city"] == "KMDW"
     only_old = kb.live_trades({"C": [old]}, {}, "2026-11-05", {"Chicago": "KMDW"})["C"][0]
     assert only_old["day"] == "2026-11-09" and only_old["hour"] is None and only_old["city"] == "KMDW"
+
+
+def test_kalshi_blend_learns_each_citys_models_from_past_days_only_and_bets_past_fees_and_a_margin():
+    from bot import kalshi_blend as bl
+    days = [f"2026-10-{d:02d}" for d in range(1, 21)]
+    rows = [{"day": d, "station": "KMDW", "actual": 70.0, "event": {"event_ticker": f"E{d}", "markets": []}} for d in days]
+    highs = {"KMDW": {d: {"2": {"good": 70.5, "bad": 76.0}} for d in days}}
+    fc = bl.forecasts(rows, highs)
+    assert abs(fc["E2026-10-01"]["mu"] - 73.25) < 1e-9                  # nothing known yet: equal weights
+    assert fc["E2026-10-02"]["mu"] == fc["E2026-10-01"]["mu"]            # the day before isn't over: still nothing
+    assert abs(fc["E2026-10-20"]["mu"] - 70.0) < 0.6                     # learned: trust "good", correct "bad"'s +6
+    late = bl.forecasts(rows[:-1] + [{**rows[-1], "actual": 99.0}], highs)
+    assert late["E2026-10-20"]["mu"] == fc["E2026-10-20"]["mu"]          # a day's own result never changes its forecast
+    m = bl.market_chances({"A": (0.62, 0.58), "B": (0.42, 0.38)})
+    assert abs(sum(m.values()) - 1) < 1e-9 and m["A"] == 0.6
+    snap = {9: {"q": {"A": (0.50, 0.48), "B": (0.52, 0.50)}, "model": {"A": 0.80, "B": 0.20},
+                "market": {"A": 0.49, "B": 0.51}, "result": {"A": "yes", "B": "no"}}}
+    t = bl.pick(snap, mix=1.0, margin=0.05)
+    assert t and t["ticker"] == "A" and t["side"] == "yes" and t["won"]   # 80% vs 50c: past fee + slip + margin
+    assert bl.pick(snap, mix=0.0, margin=0.05) is None                   # trusting only the market: no edge
+    assert bl.pick(snap, mix=1.0, margin=0.40) is None                   # the margin isn't met
