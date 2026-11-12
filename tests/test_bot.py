@@ -4616,3 +4616,32 @@ def test_kalshi_stocks_backtest_uses_only_prices_known_at_each_buy():
     tr = ks.bt_trades(data, prices, ks.DEFAULTS, [{"vol_mult": 0.6, "margin": 0.05}])[0]
     assert len(tr) == 1 and tr[0]["side"] == "yes" and tr[0]["won"] and tr[0]["r"] > 1   # bought at 30c, won
     assert ks.last_before(prices["^GSPC"], close - 2 * 3600) == 7612.0                  # the close isn't known before it
+
+
+def test_mayhem_research_ghosts_trade_mayhem_launches_and_get_a_real_price_check():
+    from bot import brain
+    from bot import launch_lab as ll
+
+    class Rec:
+        def __init__(self): self.calls = []
+        def lab_buy(self, mint, now, lab_tokens=None): self.calls.append(("buy", mint))
+        def lab_sell(self, mint, now, why=""): self.calls.append(("sell", mint))
+        def lab_result(self, mint, r): self.calls.append(("result", mint))
+    lab = ll.Lab(sol_usd=100.0)
+    rec = lab.checks["mayhem_hold"] = Rec()
+    ll.MAYHEM_SAMPLE, old = 1.0, ll.MAYHEM_SAMPLE
+    try:
+        t = {"kind": "trade", "mint": "MY", "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5, "buy": True,
+             "user": "u0", "fee": 0.0, "tok": 1e7, "mayhem": True}
+        sat = len(lab.brain_sat)
+        lab.event(1000.0, t)
+    finally:
+        ll.MAYHEM_SAMPLE = old
+    assert "MY" in lab.ghosts["mayhem_hold"].pending and "MY" in lab.ghosts["mayhem_flip"].pending
+    assert "MY" not in lab.ghosts["snipe"].pending                   # the real strategies still never buy them
+    assert rec.calls == [("buy", "MY")] and len(lab.brain_sat) == sat   # checked; not a brain candidate
+    assert "mayhem_hold" not in lab.accts                             # research ghost only, no money
+    assert not brain.usable({"k": "mayhem_hold", "t": 1, "mi": 1, "hr": 1, "r": 0.5})
+    bb = brain.BetBlocks(dict(brain.DEFAULTS))
+    bb.add({"k": "mayhem_hold", "t": 1_794_500_000, "mi": 1, "hr": 1, "r": 0.5})
+    assert "every signal" not in bb.raw and "mayhem_hold" in bb.raw

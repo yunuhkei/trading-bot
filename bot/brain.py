@@ -34,6 +34,7 @@ DEFAULTS = {
     "hour_groups": [[0, 6], [6, 12], [12, 18], [18, 24]],     # Milwaukee time: night, morning, afternoon, evening
 }
 SUPER_KEYS = ("timing", "streak", "brain")        # bots built on the others: never judged as strategies
+RESEARCH_KEYS = ("mayhem_hold", "mayhem_flip")    # research only (mayhem coins): never approved, not in "every signal"
 
 
 def config(path: Path = CONFIG) -> dict:
@@ -167,7 +168,8 @@ def window_label(w: str, cfg: dict) -> str:
 
 def usable(r: dict) -> bool:
     """A ghost bet that counts: not a super bot, not closed by a run ending, with the time of its signal."""
-    return not (r.get("e") or r.get("k") in SUPER_KEYS or "mi" not in r or "hr" not in r or r.get("r") is None)
+    return not (r.get("e") or r.get("k") in SUPER_KEYS or r.get("k") in RESEARCH_KEYS or "mi" not in r or "hr" not in r
+                or r.get("r") is None)
 
 
 def usable_bets(bets, cfg: dict) -> list[dict]:
@@ -197,7 +199,7 @@ class BetBlocks:
         if r.get("r") is not None and not r.get("e"):
             ret = r["r"] - self.cfg["extra_cost"]
             self.first.setdefault(k, r["t"])
-            for key in ((k, "every signal") if k not in SUPER_KEYS else (k,)):
+            for key in ((k, "every signal") if k not in SUPER_KEYS + RESEARCH_KEYS else (k,)):
                 s = self.raw.setdefault(key, [0, 0.0, 0, 0.0])
                 s[0] += 1
                 s[1] += ret

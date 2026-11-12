@@ -63,6 +63,11 @@ COOLED = 3                            # ...and it's dropped the moment its last 
 SIGN_EVERY = 300                      # the market-signs log: one row every 5 minutes, kept for KEEP_DAYS
 FAST_WATCH = "snipe"
 CHECKED = ("timing", "brain")    # super bots whose own trades get a real-price check (pump.fun test-runs, nothing sent)
+# RESEARCH ONLY: mayhem coins (pump.fun's own agent trades them). Their ghosts are checked at real prices (a random
+# 1 in 4 of their trades, to stay under the free network's limits); nothing copies them (no super bot, not the
+# brain) until real prices show the lab's numbers for them are honest
+MAYHEM = ("mayhem_hold", "mayhem_flip")
+MAYHEM_SAMPLE = 0.25
 # the learning records (every strategy's record by hour and day, the time-of-day splits, the signs log) start over at
 # the mayhem fix: before it the lab was blind to mayhem coins crashing (from Nov 8 5:37 pm) or had stuck bets (before),
 # so the super bot would have learned from fake wins
@@ -99,6 +104,10 @@ STRATEGIES = {
     "whale_follow": {"label": "Follow a 5+ SOL buy", "family": "whale", "min_sol": 5, "tp": 0.5, "sl": 0.25,
                      "max_s": 180},
     "random": {"label": "Random coins (luck baseline)", "family": "random", "tp": 0.5, "sl": 0.25, "max_s": 180},
+    "mayhem_hold": {"label": "Mayhem coins: buy at launch, hold 30 min (research)", "family": "mayhem", "max_s": 1800,
+                    "ghost_only": True, "max_open": 40},
+    "mayhem_flip": {"label": "Mayhem coins: buy at launch, +50%/-25%, 5 min (research)", "family": "mayhem",
+                    "tp": 0.5, "sl": 0.25, "max_s": 300, "ghost_only": True, "max_open": 40},
     # copies a strategy's buys only in the hours that strategy made money in on earlier days (see timing_on)
     "timing": {"label": "Super bot (each strategy only at its best hours)", "max_s": 900},
     # copies the strategies that are winning right now: made money in the last 30 minutes (see streak_on)
@@ -402,7 +411,8 @@ class Account:
                 "days": {k: [[b[0], b[1], round(b[2], 2)] for b in v] for k, v in self.days.items()}}
 
     def can_buy(self, mint: str) -> bool:
-        return (len(self.positions) + len(self.pending) < MAX_OPEN and self.cash >= self.per_trade
+        cap = STRATEGIES.get(self.key, {}).get("max_open", MAX_OPEN)
+        return (len(self.positions) + len(self.pending) < cap and self.cash >= self.per_trade
                 and mint not in self.positions and mint not in self.pending)
 
 
@@ -488,7 +498,7 @@ class Lab:
         if self._timing[0] != (day, h):
             on = []
             for k, a in self.ghosts.items():
-                if k == "random" or k in SUPER:
+                if k == "random" or k in SUPER or k in MAYHEM:
                     continue
                 rows = [a.days[d][h] for d in a.days if d < day and a.days[d][h][0]]
                 if (len(rows) >= SUPER_DAYS and sum(r[0] for r in rows) >= SUPER_TRADES and sum(r[2] for r in rows) > 0
@@ -521,7 +531,7 @@ class Lab:
         if now - self._streak[0] >= 60:
             hot = []
             for k, g in self.ghosts.items():
-                if k == "random" or k in SUPER:
+                if k == "random" or k in SUPER or k in MAYHEM:
                     continue
                 rec = [t["profit"] for t in g.trades[-400:] if now - (t["t"] + t["s"]) <= STREAK_S]
                 cooled = len(rec) >= COOLED and all(x <= 0 for x in rec[-COOLED:])
@@ -544,7 +554,7 @@ class Lab:
                 why3 = f"{STRATEGIES[key]['label']}: {why} (passed the strict test)"
                 self._buy(self.accts["brain"], mint, now, why3, via=key)
                 self._buy(self.ghosts["brain"], mint, now, why3, via=key)
-            else:
+            elif key not in MAYHEM:                     # research ghosts were never candidates
                 self.brain_sat.append(now)
                 self._sat_n += 1
             self._buy(self.ghosts[key], mint, now, why)
@@ -574,6 +584,12 @@ class Lab:
             why = f"the coin model's pick ({p:.0%} chance)"
             self._buy(self.accts["brain"], tr.mint, now, why, via="model")
             self._buy(self.ghosts["brain"], tr.mint, now, why, via="model")
+
+    def check_for(self, a: Account):
+        """The real-price checker following this account: a super bot's real account, or a mayhem research ghost."""
+        if a.key in MAYHEM:
+            return self.checks.get(a.key) if a.ghost else None
+        return None if a.ghost else self.checks.get(a.key)
 
     def check_lines(self, now: float, hourly: bool = True) -> list[str]:
         """Each checked super bot at real prices: the last hour and since the check started, next to the lab."""
@@ -625,8 +641,8 @@ class Lab:
         for sh in (self.fast, self.direct, self.sniper):
             if sh and a.ghost and a.key == FAST_WATCH:
                 sh.lab_buy(mint, now)
-        ck = None if a.ghost else self.checks.get(a.key)
-        if ck:
+        ck = self.check_for(a)
+        if ck and (a.key not in MAYHEM or self.rng.random() < MAYHEM_SAMPLE):
             ck.lab_buy(mint, now)
 
     def _sell(self, a: Account, mint: str, now: float, why: str):
@@ -635,7 +651,7 @@ class Lab:
             for sh in (self.fast, self.direct, self.sniper):
                 if sh and a.ghost and a.key == FAST_WATCH:
                     sh.lab_sell(mint, now, why)
-            ck = None if a.ghost else self.checks.get(a.key)
+            ck = self.check_for(a)
             if ck:
                 ck.lab_sell(mint, now, why)
 
@@ -675,7 +691,7 @@ class Lab:
         for sh in (self.fast, self.direct, self.sniper):
             if sh and a.ghost and a.key == FAST_WATCH:
                 sh.lab_result(coin.mint, profit / p["cost"])
-        ck = None if a.ghost else self.checks.get(a.key)
+        ck = self.check_for(a)
         if ck:
             ck.lab_result(coin.mint, profit / p["cost"])
         if a.ghost and a.key not in SUPER:                # the families' results, for the market-signs log
@@ -924,6 +940,8 @@ class Lab:
         self.fill(now, c)
         if not c.done and e["mint"] not in self.mayhem:     # mayhem coins are watched (exits still run), never bought
             self.on_trade(now, c, e)
+        elif not c.done and c.fresh and c.n_buys + c.n_sells == 1:     # ...except by the research ghosts
+            self.signal("mayhem", c.mint, now, "mayhem coin launch")
         self.exits(now, c)
         self.fill(now, c)
 
@@ -1083,7 +1101,7 @@ class Lab:
         # the strategies, and the ones that keep winning the same hour
         pnl = {}
         for k, gh in self.ghosts.items():
-            if k == "random" or k in SUPER:
+            if k == "random" or k in SUPER or k in MAYHEM:
                 continue
             rec = last_hour(gh)
             if rec:
@@ -1095,7 +1113,7 @@ class Lab:
                          f"{pnl[worst]:+,.0f}.")
         rep = []
         for k, gh in self.ghosts.items():
-            if k == "random" or k in SUPER:
+            if k == "random" or k in SUPER or k in MAYHEM:
                 continue
             for h in range(24):
                 rows = [gh.days[day][h] for day in gh.days if gh.days[day][h][0]]
@@ -1140,7 +1158,7 @@ class Lab:
                 n, w, pnl = g.slot(s, e)
                 if n:
                     parts.append(piece(shorts[key], n, w, pnl))
-                    if k != "random":                    # the luck baseline isn't a strategy
+                    if k != "random" and k not in MAYHEM:     # the luck baseline and research aren't strategies
                         t = total[key]
                         t[0], t[1], t[2] = t[0] + n, t[1] + w, t[2] + pnl
             if g.window["in"][0]:
@@ -1151,7 +1169,7 @@ class Lab:
             out = out[:top] + [f"• ...and {len(out) - top} more strategies (all of them: launch-lab-status)"]
         both = [piece(shorts[key], *total[key]) for key, *_ in SLOTS if total[key][0]]
         if both:
-            m = sum(k != "random" and k not in SUPER for k in self.ghosts)
+            m = sum(k != "random" and k not in SUPER and k not in MAYHEM for k in self.ghosts)
             out.insert(0, f"• All {m} strategies together (not random): " + " | ".join(both))
         return out
 
@@ -1369,8 +1387,9 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
     lab.direct = DirectBuyer(state.get("direct"), lab.sol_usd)
     lab.direct.fee = lambda mint: lab.coins[mint].fee if mint in lab.coins else None
     lab.direct.program_of = lab.token_programs.get
-    for k in CHECKED:                                   # the super bots' own trades, at real prices, at their $250
-        ck = lab.checks[k] = DirectBuyer((state.get("checks") or {}).get(k), lab.sol_usd, usd=PER_TRADE)
+    for k in CHECKED + MAYHEM:                          # at real prices: the super bots at their $250, mayhem at $50
+        ck = lab.checks[k] = DirectBuyer((state.get("checks") or {}).get(k), lab.sol_usd,
+                                         usd=PER_TRADE if k in CHECKED else 50.0)
         ck.fee, ck.program_of = lab.direct.fee, lab.token_programs.get
     from .sniper import Sniper, config as sniper_config
     from .solbot import KeyProblem, keypair
