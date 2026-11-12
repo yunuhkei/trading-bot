@@ -550,7 +550,7 @@ class Lab:
                     if sk != "timing" or self.plan["mode"] == "plan":    # in practice mode its money sits still
                         self._buy(self.accts[sk], mint, now, why2, via=key)
                     self._buy(self.ghosts[sk], mint, now, why2, via=key)
-            if self.brain_ok(key, now):
+            if self.brain_ok(key, now, mint):
                 why3 = f"{STRATEGIES[key]['label']}: {why} (passed the strict test)"
                 self._buy(self.accts["brain"], mint, now, why3, via=key)
                 self._buy(self.ghosts["brain"], mint, now, why3, via=key)
@@ -561,16 +561,17 @@ class Lab:
         if key in self.accts:
             self._buy(self.accts[key], mint, now, why)
 
-    def brain_ok(self, key: str, now: float) -> bool:
-        """Is this strategy approved right now (overall, in this 10-minute slot of the hour, or this group of hours)?"""
+    def brain_ok(self, key: str, now: float, mint: str | None = None) -> bool:
+        """Is this strategy approved right now (overall, in this 10-minute slot of the hour, this group of hours,
+        or on this kind of coin: named after the news, or riding a naming wave)?"""
         ap = self.brain["approved"]
         if not ap:
             return False
-        from .brain import DEFAULTS, hour_group
+        from .brain import DEFAULTS, windows_of
         cfg = self.brain.get("cfg") or DEFAULTS
         lt = local_time(now)
-        return any(f"{key}|{w}" in ap for w in ("all", f"slot{lt.minute * cfg['slots'] // 60}",
-                                                 f"hours{hour_group(lt.hour, cfg)}"))
+        tags = self.clog.tags(mint) if (self.clog is not None and mint) else {}
+        return any(f"{key}|{w}" in ap for w in windows_of({"mi": lt.minute, "hr": lt.hour, **(tags or {})}, cfg))
 
     def brain_coin(self, tr, now: float):
         """A coin's first minute is in: if the coin model passed the strict test and picks it, the brain buys."""
@@ -1240,6 +1241,9 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
     sol_task = (asyncio.create_task(lab.clog.poll_sol(fast_session, end))
                 if lab.clog is not None and fast_session else None)
     brain_task = asyncio.create_task(brain_loop(lab, end)) if lab.clog is not None else None
+    news_tasks = ([asyncio.create_task(lab.clog.poll_news(fast_session, end)),
+                   asyncio.create_task(lab.clog.poll_promos(fast_session, end))]
+                  if lab.clog is not None and fast_session else [])
     while time.time() < end:
         try:
             async with aiohttp.ClientSession() as s:
@@ -1294,7 +1298,7 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
         except Exception as e:
             log.warning("feed dropped (%s); reconnecting", e)
             await asyncio.sleep(3)
-    for t in (sol_task, brain_task):
+    for t in (sol_task, brain_task, *news_tasks):
         if t:
             t.cancel()
     shadows = [t for t in (fast_task, direct_task, *check_tasks) if t]

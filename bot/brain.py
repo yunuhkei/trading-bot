@@ -150,9 +150,18 @@ def hour_group(hr: int, cfg: dict) -> int:
     return next((i for i, (a, b) in enumerate(cfg["hour_groups"]) if a <= hr < b), 0)
 
 
+WAVE_MIN = 3                                       # 3+ launches sharing a name word in 30 minutes: a naming wave
+
+
 def windows_of(r: dict, cfg: dict) -> list[str]:
-    """The fixed windows a bet falls in: the strategy overall, its 10-minute slot of the hour, its group of hours."""
-    return ["all", f"slot{r['mi'] * cfg['slots'] // 60}", f"hours{hour_group(r['hr'], cfg)}"]
+    """The fixed windows a bet falls in: the strategy overall, its 10-minute slot of the hour, its group of hours,
+    and the kind of coin (named after the news; riding a naming wave on pump.fun)."""
+    w = ["all", f"slot{r['mi'] * cfg['slots'] // 60}", f"hours{hour_group(r['hr'], cfg)}"]
+    if r.get("tw"):
+        w.append("news")
+    if (r.get("wv") or 0) >= WAVE_MIN:
+        w.append("wave")
+    return w
 
 
 def window_label(w: str, cfg: dict) -> str:
@@ -163,6 +172,10 @@ def window_label(w: str, cfg: dict) -> str:
         a, b = cfg["hour_groups"][int(w[5:])]
         f = lambda h: f"{h % 12 or 12}{'am' if h < 12 or h == 24 else 'pm'}"
         return f"{f(a)}-{f(b)}"
+    if w == "news":
+        return "on coins named after a current headline or trend"
+    if w == "wave":
+        return f"on coins riding a naming wave ({WAVE_MIN}+ similar launches in 30 minutes)"
     return "any time"
 
 
@@ -210,13 +223,14 @@ class BetBlocks:
             return
         ret, day = r["r"] - self.cfg["extra_cost"], day_of(r["t"])
         slot = r["mi"] * self.cfg["slots"] // 60
-        x = self.b.setdefault((k, day, r["hr"], slot), [0, 0.0, 0, 0.0])
+        kind = (1 if r.get("tw") else 0, 1 if (r.get("wv") or 0) >= WAVE_MIN else 0)
+        x = self.b.setdefault((k, day, r["hr"], slot, kind), [0, 0.0, 0, 0.0])
         x[0] += 1
         x[1] += ret
         if ret > 0:
             x[2] += 1
             x[3] += ret
-        for w in ("all", f"slot{slot}", f"hours{hour_group(r['hr'], self.cfg)}"):
+        for w in windows_of(r, self.cfg):
             q = self.recent.get((k, w))
             if q is None:
                 q = self.recent[(k, w)] = deque(maxlen=self.cfg["drop_recent"])
@@ -228,9 +242,11 @@ class BetBlocks:
     def windows(self) -> dict:
         """(strategy, window) -> its blocks [(day, hour, trades, sum, wins, sum of wins)]."""
         out: dict = {}
-        for (k, day, hr, slot), (n, s, w, sw) in self.b.items():
+        for (k, day, hr, slot, (tw, wv)), (n, s, w, sw) in self.b.items():
             blk = (day, hr, n, s, w, sw)
-            for win in ("all", f"slot{slot}", f"hours{hour_group(hr, self.cfg)}"):
+            wins = ["all", f"slot{slot}", f"hours{hour_group(hr, self.cfg)}"] + (["news"] if tw else []) + (
+                ["wave"] if wv else [])
+            for win in wins:
                 out.setdefault((k, win), []).append(blk)
         return out
 
@@ -354,8 +370,9 @@ def timing_lines(tm: dict, cfg: dict, top: int = 5) -> list[str]:
 
 # ---- steps 6-7: the coin model and the rug filter ----
 F60 = ([("s60", k) for k in ("n", "nb", "ns", "bs", "ss", "mb", "u", "t5", "dv", "cs", "top", "pm")]
-       + [("s10", k) for k in ("n", "u", "bs", "pm")] + [(None, k) for k in ("hr", "lr", "cp", "cd", "cg", "st", "sv", "f0")])
-F0 = [(None, k) for k in ("cp", "cd", "cg", "f0", "lr", "hr")]     # known at launch (for the snipes)
+       + [("s10", k) for k in ("n", "u", "bs", "pm")]
+       + [(None, k) for k in ("hr", "lr", "cp", "cd", "cg", "st", "sv", "f0", "tw", "wv", "wv5")])
+F0 = [(None, k) for k in ("cp", "cd", "cg", "f0", "lr", "hr", "tw", "wv", "wv5")]     # known at launch (for the snipes)
 FEAT_DEFAULT = {"t5": 99.0, "pm": 1.0}
 
 
