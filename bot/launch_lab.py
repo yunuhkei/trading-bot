@@ -1404,6 +1404,9 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
             "super_trades": {k: lab.accts[k].trades for k in SUPER if k in lab.accts},
             "sniper": lab.sniper.to_state()}))
         print(lab.fast.line(), lab.direct.line(), lab.sniper.line(), sep="\n", flush=True)
+        ping = lab.simple()
+        print(f"PING SIZE: {len(ping.encode())} bytes, {len(ping.splitlines())} lines", flush=True)
+        print("PING TEXT START", ping, "PING TEXT END", sep="\n", flush=True)
         return
     from .coin_log import CoinLog
     lab.clog = CoinLog(state.get("clog"))
