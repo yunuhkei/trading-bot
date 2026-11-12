@@ -4514,3 +4514,23 @@ def test_kalshi_blend_learns_each_citys_models_from_past_days_only_and_bets_past
     assert t and t["ticker"] == "A" and t["side"] == "yes" and t["won"]   # 80% vs 50c: past fee + slip + margin
     assert bl.pick(snap, mix=0.0, margin=0.05) is None                   # trusting only the market: no edge
     assert bl.pick(snap, mix=1.0, margin=0.40) is None                   # the margin isn't met
+
+
+def test_kalshi_maker_bid_is_never_filled_by_a_trade_after_the_measurement_day_starts():
+    from datetime import datetime, timezone
+    from bot import kalshi as k
+    ev = {"event_ticker": "EV", "title": "Chicago high Nov 9?",
+          "markets": [{"ticker": "FAV", "yes_sub_title": "FAV", "yes_bid_dollars": "0.66", "yes_ask_dollars": "0.69"}]}
+    start = 1000.0
+    acct = {"cash": 100.0, "positions": {}}
+    rules, iso = k.STRATEGIES["M"]["rules"], lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat()
+    k.maker_step(acct, [(ev, {"tomorrow": True, "start": start})], rules, {}, lambda *a: None, 900.0, lambda t, s: [])
+    assert acct["resting"]["FAV"]["until"] == start
+    late = [{"created_time": iso(1100.0), "yes_price_dollars": "0.40"}]           # someone sold below us, too late
+    k.maker_step(acct, [(ev, {"tomorrow": False, "start": start})], rules, {}, lambda *a: None, 1200.0, lambda t, s: late)
+    assert not acct["positions"] and not acct["resting"]                          # not filled; cancelled
+    acct = {"cash": 100.0, "positions": {}}
+    k.maker_step(acct, [(ev, {"tomorrow": True, "start": start})], rules, {}, lambda *a: None, 900.0, lambda t, s: [])
+    early = [{"created_time": iso(950.0), "yes_price_dollars": "0.60"}]           # in time: filled
+    assert k.maker_step(acct, [(ev, {"tomorrow": False, "start": start})], rules, {}, lambda *a: None, 1200.0,
+                        lambda t, s: early) == 1 and "FAV" in acct["positions"]
