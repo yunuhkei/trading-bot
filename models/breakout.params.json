@@ -1,6 +1,6 @@
 {
  "strategy": "breakout",
- "tuned_at": "2026-11-11 10:28 UTC",
+ "tuned_at": "2026-11-12 10:34 UTC",
  "params": {
   "entry": 20,
   "exit": 10
