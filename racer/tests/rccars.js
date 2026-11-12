@@ -12,7 +12,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     for(let i=0;i<CAR_ROSTER.length;i++){const d=CAR_ROSTER[i];if(!d.cc)continue;RACER.carSelect(i);carPlace(sh.X[i0]-Math.cos(a)*3,sh.Z[i0]-Math.sin(a)*3,a,sh.Y[i0]+.5);IN.assist=false;IN.brk=0;IN.hand=0;C.steer=0;
       let t=0;IN.thr=1;while(C.speed<27.78&&t<20){carStep(1/120);t+=1/120}IN.thr=0;IN.brk=1;const x0=C.x,z0=C.z;let k=0;while(C.speed>.3&&k<1200){carStep(1/120);k++}IN.brk=0;
       out.roster.push({i,n:d.name,t100:+t.toFixed(2),stop:+Math.hypot(C.x-x0,C.z-z0).toFixed(1),ok:CARM.body&&CARM.body.n>0})}
-    RACER.carSelect(0);return out});
+    RACER.carSelect(carIndex('k1'));return out});
   for(const d of r.designs)ok(d.fin&&!d.bad&&d.tris>500&&d.tris<9000&&d.L>3.5&&d.L<11.5&&d.H>.8&&d.H<3.2&&d.low>-.12,d.k.padEnd(11)+' '+d.n.padEnd(18)+' '+d.tris+' triangles (with wheels), '+d.L+' x '+d.W+' x '+d.H+' m, built in '+d.ms+' ms'+(d.fin&&!d.bad?'':' NOT FINITE / BAD INDEX '+d.bad)+', lowest point '+d.low+' m');
   ok(r.roster.length==24,r.roster.length+' Close Call cars you can drive (roster '+r.roster[0].i+'-'+r.roster[r.roster.length-1].i+')');
   for(const c of r.roster)ok(c.ok&&c.t100>1.5&&c.t100<7&&c.stop>10&&c.stop<26,'#'+c.i+' '+c.n.padEnd(22)+' 0-100 km/h '+c.t100+' s, 100-0 '+c.stop+' m');

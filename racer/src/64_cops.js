@@ -6,9 +6,9 @@
 const COPD={
   /* top: the slowest a chaser's top speed can be; follow: chasers match your speed times this (up to 105 m/s) and get a rubber-band boost when they fall behind; accel: how hard they accelerate;
      loseT / loseD: you only lose them by being more than loseD metres from every chaser AND out of sight for loseT seconds; passV: speed at which blowing past a cop gets you chased (120 mph) */
-  forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,2,4,5,6,8],patrol:1,ramLevel:2,ramCd:4.2,ramV:10,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:14,loseD:230,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
-  medium:{name:'Medium',top:66,follow:1.15,accel:14,react:.7,chaseN:[0,3,5,6,7,9],patrol:1,ramLevel:2,ramCd:3,ramV:12,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:12,loseD:260,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
-  hard:{name:'Hard',top:76,follow:1.2,accel:16,react:.5,chaseN:[0,3,5,7,8,10],patrol:2,ramLevel:2,ramCd:2.2,ramV:15,blockLevel:3,bustT:2,bustSpd:8,bustN:2,loseT:10,loseD:300,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
+  forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,2,4,5,6,8],patrol:1,ramLevel:2,ramCd:4.2,ramV:10,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:10,loseD:170,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
+  medium:{name:'Medium',top:66,follow:1.15,accel:14,react:.7,chaseN:[0,3,5,6,7,9],patrol:1,ramLevel:2,ramCd:3,ramV:12,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:12,loseD:200,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
+  hard:{name:'Hard',top:76,follow:1.2,accel:16,react:.5,chaseN:[0,3,5,7,8,10],patrol:2,ramLevel:2,ramCd:2.2,ramV:15,blockLevel:3,bustT:2,bustSpd:8,bustN:2,loseT:14,loseD:240,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
 /* WHAT EACH STAR ADDS (batch 3; the difficulty presets above set the speeds, the number of chasers and how often they ram):
    1 a couple of patrol cars follow you, no contact; 2 more cars and they RAM you (interceptors join); 3 PIT manoeuvres (they aim at your rear quarter), bigger roadblocks (4 cars across, 5 at four stars, 6 at five; one fewer on Forgiving, which leaves a gap; fewer on a narrow road);
    4 a HELICOPTER with a spotlight follows you (it always knows where you are) and SPIKE STRIPS are laid on the road ahead; 5 SWAT trucks block, two or three helicopters, near-constant PIT
@@ -25,7 +25,9 @@ function copTrigger(level,why){
   if(COP.w<t[level]+1)COP.w=t[level]+1;else COP.w+=(t[Math.min(5,level+1)]-t[level])*.3;
   if(COP.w>t[5]*1.3)COP.w=t[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=0}
 /* how fast a chaser may go: it matches you (a little more), never less than the difficulty's top, and gets a boost the further behind it falls, so it keeps coming */
-function copTop(c){const D=COP.D;let t=Math.max(D.top,Math.min(105,C.speed*D.follow+6));if(c){const d=Math.hypot(c.x-C.x,c.z-C.z);t*=1+Math.min(.25,Math.max(0,d-110)/450)}return Math.min(115,t)}
+/* how fast a police car can go (batch 5): its own top speed, the difficulty's top (Forgiving 58 m/s, 130 mph) times its type (interceptor 1.25, SUV 0.95, SWAT truck 0.8). They no longer match your speed: a fast car
+   driven flat out pulls away, and out of sight you lose them. Within 45 m and in sight one may push a little past it to make a ram. */
+function copTop(c){const D=COP.D;let t=D.top*(c?(TTYPES[c.type]&&TTYPES[c.type].vtop)||1:1);if(c&&COP.sightT<1.5&&Math.hypot(c.x-C.x,c.z-C.z)<45)t=Math.max(t,Math.min(C.speed+6,t*1.12));return Math.min(115,t)}
 function heatAdd(p){if(!COP.on||GAME.state||!TR.on)return;COP.w+=p*COP.D.ev;if(COP.w>COP.D.thr[5]*1.3)COP.w=COP.D.thr[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=Math.min(COP.sightT,.2)}
 /* wipe the heat and send the chasers home (full: they disappear, as when you reach a garage) */
 function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;SPIKE.list.length=0;if(full)HELI.list.length=0;
@@ -41,16 +43,18 @@ function copLos(c){
 function copHorizon(c){const hs=c.hs=Math.min(10,Math.max(6,2+c.v*.33)),sx=Math.sin(c.yaw),sz=-Math.cos(c.yaw);for(let k=0;k<HN;k++){c.hx[k]=c.x+sx*k*hs;c.hz[k]=c.z+sz*k*hs;c.hv[k]=c.v}c.hn=HN;c.hend=0}
 const _ct={x:0,z:0,v:0};
 function copTarget(c){
-  const D=COP.D,ps=C.speed;let fx,fz;if(ps>3){fx=C.vx/ps;fz=C.vz/ps}else{fx=Math.sin(C.yaw);fz=-Math.cos(C.yaw)}const rx=-fz,rz=fx,slow=ps<14;let b=0,s=0;     /* b: metres behind the player, s: metres to the right */
+  /* out of sight (no cop and no helicopter has seen you for 2.5 s) they drive to the LAST PLACE they saw you, not to where you are: that is how you lose them */
+  const T=COP.sightT<2.5?{x:C.x,z:C.z,vx:C.vx,vz:C.vz,yaw:C.yaw}:{x:COP.lkx,z:COP.lkz,vx:0,vz:0,yaw:COP.lkyaw};
+  const D=COP.D,ps=Math.hypot(T.vx,T.vz);let fx,fz;if(ps>3){fx=T.vx/ps;fz=T.vz/ps}else{fx=Math.sin(T.yaw);fz=-Math.cos(T.yaw)}const rx=-fz,rz=fx,slow=ps<14;let b=0,s=0;     /* b: metres behind the player, s: metres to the right */
   switch(c.role){case 0:b=slow?7:6+ps*.1;break;case 1:b=slow?0:5;s=slow?-4.1:-3.8;break;case 2:b=slow?0:5;s=slow?4.1:3.8;break;case 3:if(slow){b=-7}else b=18;break;case 4:b=slow?10:18;break;case 5:b=9;s=-3.6;break;default:b=9;s=3.6}
-  let tx=C.x-fx*b+rx*s,tz=C.z-fz*b+rz*s,ram=false;
+  let tx=T.x-fx*b+rx*s,tz=T.z-fz*b+rz*s,ram=false;
   /* ramming / PIT: aim at the player's rear quarter, faster than the player, then back off for a while */
-  const dist=Math.hypot(C.x-c.x,C.z-c.z);
+  const dist=Math.hypot(T.x-c.x,T.z-c.z);
   const ST=STARS[COP.heat]||STARS[0];
-  if(D.ramLevel<=COP.heat&&c.role<=3&&c.ramCd<=0&&dist<85){ram=true;const sd=c.role==1?-1:c.role==2?1:((c.i&1)?1:-1);
+  if(D.ramLevel<=COP.heat&&c.role<=3&&c.ramCd<=0&&dist<85&&COP.sightT<1){ram=true;const sd=c.role==1?-1:c.role==2?1:((c.i&1)?1:-1);
     /* a ram goes for your back bumper; a PIT (from 3 stars) for the rear corner, from the side, so your tail is pushed round */
     if(ST.pit){tx=C.x-fx*1.9+rx*sd*1.25;tz=C.z-fz*1.9+rz*sd*1.25}else{tx=C.x-fx*1.7+rx*sd*.6;tz=C.z-fz*1.7+rz*sd*.6}}
-  else{/* lead the target: aim where you will be (up to 1.2 s ahead), so they cut corners instead of following your tail round them */const lt=Math.min(1.2,dist/60);tx+=C.vx*lt;tz+=C.vz*lt}
+  else{/* lead the target: aim where you will be (up to 1.2 s ahead), so they cut corners instead of following your tail round them */const lt=Math.min(1.2,dist/60);tx+=T.vx*lt;tz+=T.vz*lt}
   const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),dl=(tx-c.x)*sy+(tz-c.z)*cy,dd=Math.hypot(tx-c.x,tz-c.z);let tv=ps+Math.max(-12,Math.min(22,dl*.9));
   if(ram)tv=ps+D.ramV;else{const cl=Math.min(34,Math.sqrt(2*8*Math.max(0,dd-2)));tv=ps+(dl>=0?cl:-cl)}     /* come up to the slot at a speed it can still stop from */
   _ct.x=tx;_ct.z=tz;_ct.v=Math.max(0,Math.min(copTop(c),tv))}
@@ -82,13 +86,13 @@ function copPick(c,g,e){
   if(c.pickJ===g.id)return c.pickL;
   const L=g.links;let own=false;if(!g.through)for(let q=0;q<L.length;q++)if(L[q].from===e){own=true;break}
   /* the way to you: a real route on the lane graph (A*), recomputed every couple of seconds; it names the exit to take at this junction (or says go straight on) */
-  if(NAV.pl&&(!c.rt||COP.t-c.rtT>1.8)){const chain=navAStar(e,Math.min(e.n-1,c.u|0),{ri:NAV.pl.ri,i:NAV.pl.i,x:NAV.pl.x,z:NAV.pl.z},5000);c.rt=chain?navLinksOf(chain):null;c.rtT=COP.t}
+  const goal=COP.sightT<2.5?NAV.pl:COP.lkPl;if(goal&&(!c.rt||COP.t-c.rtT>1.8)){const chain=navAStar(e,Math.min(e.n-1,c.u|0),{ri:goal.ri,i:goal.i,x:goal.x,z:goal.z},5000);c.rt=chain?navLinksOf(chain):null;c.rtT=COP.t}
   if(c.rt){let want=null;for(const l of c.rt)if(l.from.ri===e.ri&&l.from.dir===e.dir&&L.indexOf(l)>=0){want=l;break}
     if(want){let pick=null;for(const l of L)if(l.to.ri===want.to.ri&&l.to.dir===want.to.dir&&(!own||l.from===e)){pick=l;break}c.pickJ=g.id;c.pickL=pick||want;return c.pickL}
     if(g.through){c.pickJ=g.id;c.pickL=null;return null}}
   let best=null,bd=1e18;
-  if(g.through){const ii=Math.min(e.n-1,Math.round(g.foot+10));bd=((e.X[ii]-C.x)**2+(e.Z[ii]-C.z)**2)*.8}
-  for(let q=0;q<L.length;q++){const l=L[q];if(own&&l.from!==e)continue;const k=l.n-1,tx=l.X[k]-l.X[k-1],tz=l.Z[k]-l.Z[k-1],ll=Math.hypot(tx,tz)||1,px=l.X[k]+tx/ll*45,pz=l.Z[k]+tz/ll*45;let d=(px-C.x)**2+(pz-C.z)**2;if(l.kind==3)d*=3;if(d<bd){bd=d;best=l}}
+  if(g.through){const ii=Math.min(e.n-1,Math.round(g.foot+10));const gx=COP.sightT<2.5?C.x:COP.lkx,gz=COP.sightT<2.5?C.z:COP.lkz;bd=((e.X[ii]-gx)**2+(e.Z[ii]-gz)**2)*.8}
+  for(let q=0;q<L.length;q++){const l=L[q];if(own&&l.from!==e)continue;const k=l.n-1,tx=l.X[k]-l.X[k-1],tz=l.Z[k]-l.Z[k-1],ll=Math.hypot(tx,tz)||1,px=l.X[k]+tx/ll*45,pz=l.Z[k]+tz/ll*45;const gx=COP.sightT<2.5?C.x:COP.lkx,gz=COP.sightT<2.5?C.z:COP.lkz;let d=(px-gx)**2+(pz-gz)**2;if(l.kind==3)d*=3;if(d<bd){bd=d;best=l}}
   c.pickJ=g.id;c.pickL=best;return best}
 /* which police vehicle: from the star table (patrols are patrol cars or SUVs) */
 function copType(chase){const T=chase?(STARS[COP.heat]||STARS[1]).types:[4,4,21];return T[Math.floor(TR.rng()*T.length)]}
@@ -103,12 +107,12 @@ function trSpawnCop(chase,far){
       let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
       const c=trPlace(e,u,copType(true),12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*1.0,Math.floor(rng()*1e9));if(!c)return null;c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;copAlert(c);return c}}
   for(let tries=0;tries<16;tries++){
-    const ahead=!chase&&rng()<.7,ang=chase?Math.atan2(-uz,-ux)+(rng()-.5)*2.2:(ahead?Math.atan2(uz,ux)+(rng()-.5)*1.3:rng()*TAU),r=chase?(far?265+rng()*80:120+rng()*100):(ahead?230+rng()*150:140+rng()*200),x=P.x+Math.cos(ang)*r,z=P.z+Math.sin(ang)*r;
+    const ahead=!chase&&rng()<.3,ang=chase?Math.atan2(-uz,-ux)+(rng()-.5)*2.2:(ahead?Math.atan2(uz,ux)+(rng()-.5)*1.3:rng()*TAU),r=chase?(far?265+rng()*80:120+rng()*100):(ahead?230+rng()*150:140+rng()*200),x=P.x+Math.cos(ang)*r,z=P.z+Math.sin(ang)*r;
     if(!trProbe(x,z))continue;
     const ri=TRP.ri,o=LG.ofRoad[ri],r0=ROADS[ri],i=TRP.i,j=i+1<r0.n?i+1:i,tx=r0.X[j]-r0.X[i],tz=r0.Z[j]-r0.Z[i];
     const toward=(P.x-x)*tx+(P.z-z)*tz,di=chase?(toward>0?0:1):(rng()<.5?0:1),k=Math.min(o[di].length-1,Math.floor(rng()*o[di].length)),e=o[di][k];
     let u=e.dir>0?i+(TRP.t>.5?1:0):r0.n-1-i-(TRP.t>.5?1:0);if(e.closed)u=((u%e.n)+e.n)%e.n;else if(u<6||u>e.n-8)continue;
-    trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||(trSeen(sx,sz)&&!(ahead&&d>=225)))continue;   /* a patrol 230 m or more ahead may appear in view: the haze hides it popping in, and you will meet it */
+    trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz))continue;   /* never pops up in view (batch 5: patrols used to appear 230 m ahead) */
     let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
     const c=trPlace(e,u,copType(chase),12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*(chase?1.0:.85),Math.floor(rng()*1e9));if(!c)return null;
     c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;if(chase)copAlert(c);return c}
@@ -139,13 +143,13 @@ function copTick(dt){
     const d=Math.hypot(c.x-C.x,c.z-C.z);if(c.cm==0)nP++;else{nC++;if(d<minChase)minChase=d}
     if(d<minD)minD=d;
     if(((TR.tk|0)+i)%15==0||c.los===null)c.los=d<300&&copLos(c);
-    if((c.los&&d<300)||(c.cm>=1&&d<D.loseD))seen=true;      /* in sight, or a chaser within loseD of you: you have not lost it */
-    if(c.cm>=1&&d>520){trKill(c,0);COP.farSpawn=1;continue}  /* a chaser that fell hopelessly behind is replaced by a fresh one 260-350 m behind you */
+    if((c.los&&d<300)||(c.cm>=1&&d<60))seen=true;      /* in sight, or a chaser right on you (it used to be anything within loseD, so they always knew where you were) */
+    if(c.cm>=1&&d>520){trKill(c,0);if(COP.sightT<2.5)COP.farSpawn=1;continue}  /* a chaser that fell hopelessly behind is replaced by a fresh one 260-350 m behind you */
     if(c.cm==0&&ps>=D.passV&&d<55&&COP.t-(c.clk||-99)>14){c.clk=COP.t;copTrigger(1,'speeding past a cop')}   /* you blow past a cop at 120 mph or more */
     if(c.cm>=1&&d<10)nNear++;
     if(c.state==3)nFree++;
     /* alert: a patrol within earshot joins the chase once the heat has been on for a moment */
-    if(COP.heat>0&&c.cm==0&&COP.heatT>D.react&&d<520)copAlert(c);
+    if(COP.heat>0&&c.cm==0&&COP.heatT>D.react&&(d<120||(c.los&&d<300)))copAlert(c);   /* a patrol joins when it sees you (it used to join from anywhere within 520 m, so a patrol ahead of you always turned into a chaser) */
     if(c.cm>=1){
       if(COP.heat==0||COP.sightT>D.loseT+2){copStandDown(c);continue}
       if(c.state==0){if((d<115&&c.los)||d<40)copDetach(c)}
@@ -155,20 +159,21 @@ function copTick(dt){
   if(nFree){let k=0;const free=[];for(let i=0;i<TRN;i++){const c=cars[i];if(c.alive&&c.kind===1&&c.state==3)free.push(c)}free.sort((a,b)=>Math.hypot(a.x-C.x,a.z-C.z)-Math.hypot(b.x-C.x,b.z-C.z));for(const c of free)c.role=k++}
   COP.snapT=(COP.snapT||0)-dt;if(COP.snapT<=0){COP.snapT=.35;NAV.pl=navSnap(C.x,C.z,70)}        /* where you are on the road network, for the chasers' routes and spawns */
   if(seen)COP.sightT=0;else COP.sightT+=dt;
+  if(COP.sightT<1||COP.lkx===undefined){COP.lkx=C.x;COP.lkz=C.z;COP.lkyaw=C.yaw;COP.lkPl=NAV.pl}   /* the last place they saw you */
   if(COP.heat>0&&COP.sightT>D.loseT&&minChase>40){COP.w=Math.max(0,COP.w-D.decay*dt);COP.heat=copLevelOf()}
   /* spawns */
   if(COP.spawnT<=0){
-    if(COP.heat>0){const want=D.chaseN[COP.heat];if(nC<want){if(trSpawnCop(true,COP.farSpawn)){COP.spawnT=1.4;COP.farSpawn=0}else COP.spawnT=.5}}
+    if(COP.heat>0){const want=D.chaseN[COP.heat];if(nC<want&&COP.sightT<2.5){if(trSpawnCop(true,COP.farSpawn)){COP.spawnT=1.4;COP.farSpawn=0}else COP.spawnT=.5}}
     else if(nP<D.patrol&&TR.nAlive<TRN-8&&COP.t-(COP.lastPatrol||-99)>50){if(trSpawnCop(false)){COP.spawnT=1.6;COP.lastPatrol=COP.t}else COP.spawnT=1}}   /* patrols are rare: one at a time (two on Hard), a new one at most every 50 s */
   /* roadblock */
-  if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>24&&COP.sightT<3&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<6)copRoadblock()}
+  if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>40&&COP.sightT<1.5&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<6)copRoadblock()}
   copHeliTick(dt);copSpikeTick(dt);
   /* boxed in: slow, with cops all round, for long enough */
   if(COP.heat>0&&ps<D.bustSpd&&nNear>=D.bustN)COP.bust+=dt;else COP.bust=Math.max(0,COP.bust-dt*1.5);
   if(COP.bust>=D.bustT){gameBusted();COP.bust=0}
   COP.sirenVol=COP.heat>0&&minChase<260?Math.pow(1-minChase/260,1.4):0}
 /* a ram or a collision with a cop: called from the player collision code */
-function copRammed(c,e,fault){c.ramCd=COP.D.ramCd*((STARS[COP.heat]||STARS[1]).ramMul||1);if(fault)copTrigger(c.cm>0?Math.max(2,COP.heat):2,'hit a cop');if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=1;c.wt=0;c.block=0;TR.stat.wrecks++;copTrigger(4,'wrecked a cop')}}   /* a cop that runs into you is not your crime */
+function copRammed(c,e,fault){c.ramCd=COP.D.ramCd*((STARS[COP.heat]||STARS[1]).ramMul||1);if(fault)copTrigger(c.cm>0?Math.max(2,COP.heat):2,'hit a cop');if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;copTrigger(4,'wrecked a cop')}}   /* a cop that runs into you is not your crime */
 /* ---- HUD: stars, the bust meter, the losing-them bar ---- */
 function copStar(c,x,y,r,fill,col){c.beginPath();for(let k=0;k<10;k++){const a=-PI/2+k*PI/5,rr=k&1?r*.45:r;k?c.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr):c.moveTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}c.closePath();if(fill){c.fillStyle=col;c.fill()}c.strokeStyle='rgba(255,255,255,.7)';c.lineWidth=1.4;c.stroke()}
 function copHud(c,W_,H_,u){

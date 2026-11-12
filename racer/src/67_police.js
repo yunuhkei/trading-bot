@@ -4,7 +4,7 @@
    follows you (a beam and a pool of light), and the chop of the rotor. It flies 32-45 m above the ground, holds a slot behind or beside you and keeps you in its light: while it is within
    220 m you cannot lose the police. It has fuel for 75 s, then it peels off; the next one comes 25 s later (that gap is your chance to escape). Drawn with the car program (one draw each).
    SPIKE STRIPS (from 4 stars): every 16-20 s a strip is laid across the road 150-230 m ahead of you (it lies there for 40 s). Driving over it bursts the tyres: a bang, sparks from the rims,
-   "TYRES BURST" and a short loss of grip (about 4 s: grip down by half, recovering over the last second). THIS IS A DELIBERATE EXCEPTION to "damage never changes how the car drives". */
+   "TYRES BURST" and a short loss of grip (7.8 s on the rims: grip down to 40 %, the car wanders and pulls to one side, top speed about 90 km/h, then the tyres reinflate; approved by the owner). THIS IS A DELIBERATE EXCEPTION to "damage never changes how the car drives". */
 const HELI={list:[],mesh:null,nextT:0,want:0,chop:0,near:1e9,made:0};
 const SPIKE={list:[],nextT:0,hits:0},HELI_PAINT=new Float32Array([.012,.03,.09]);
 /* the helicopter mesh, built at a third of its size (the car mesh format holds +-4 m) and drawn three times bigger */
@@ -58,10 +58,10 @@ function spikeFx(sprite,SRN){const on=Math.sin(R.time*14)>0;for(const s of SPIKE
 /* ---- spike strips ---- */
 function copSpikeTick(dt){if(COP.spikeWarn>0)COP.spikeWarn-=dt;
   const on=COP.heat>0&&(STARS[COP.heat]||{}).spikes;for(const s of SPIKE.list)s.life-=dt;SPIKE.list=SPIKE.list.filter(s=>s.life>0);
-  if(on&&C.speed>14){SPIKE.nextT-=dt;if(SPIKE.nextT<=0){SPIKE.nextT=16+TR.rng()*4;const ux=C.vx/C.speed,uz=C.vz/C.speed,dd=150+TR.rng()*80;
+  if(on&&C.speed>14&&COP.sightT<1.5){SPIKE.nextT-=dt;if(SPIKE.nextT<=0){SPIKE.nextT=16+TR.rng()*4;const ux=C.vx/C.speed,uz=C.vz/C.speed,dd=150+TR.rng()*80;
       if(copAhead(dd,ux,uz)){const r=ROADS[TRP.ri],i=TRP.i,t=_tan(r,i);SPIKE.list.push({x:r.X[i],z:r.Z[i],y:r.Y[i],nx:-t[1],nz:t[0],hw:r.hw+.6,life:40});COP.spikeWarn=3}}}
   else SPIKE.nextT=Math.min(SPIKE.nextT,5)}
 /* called every physics step from carStep: has a wheel crossed a strip? */
 function spikeCheck(){if(!SPIKE.list.length||!C.grounded)return;
   for(const s of SPIKE.list){const dx=C.x-s.x,dz=C.z-s.z,lat=dx*s.nx+dz*s.nz,al=-dx*s.nz+dz*s.nx;if(Math.abs(lat)<s.hw&&Math.abs(al)<1.6&&Math.abs(C.y-s.y)<2&&!(C.flatT>0)){
-      C.flatT=4;SPIKE.hits++;C.shake=Math.min(1,C.shake+.5);C.bob=-.06;safeToast('TYRES BURST',2.6);if(typeof sparkAt==='function')sparkAt(C.x,C.y+.3,C.z,0,0,18,6);if(typeof audioBang==='function')audioBang();s.life=Math.min(s.life,3)}}}
+      C.flatT=7.8;C.flatSide=Math.random()<.5?-1:1;SPIKE.hits++;C.shake=Math.min(1,C.shake+.5);C.bob=-.06;safeToast('TYRES BURST',2.6);if(typeof sparkAt==='function')sparkAt(C.x,C.y+.3,C.z,0,0,18,6);if(typeof audioBang==='function')audioBang();s.life=Math.min(s.life,3)}}}

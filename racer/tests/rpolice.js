@@ -71,15 +71,15 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     o.base=turn(0);o.flat=turn(4);
     /* drive over a strip laid 45 m ahead */
     P3.reset(.3,30);const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw);copAhead(45,fx,fz);const r=ROADS[TRP.ri],i=TRP.i,t=_tan(r,i);SPIKE.list.push({x:r.X[i],z:r.Z[i],y:r.Y[i],nx:-t[1],nz:t[0],hw:r.hw+.6,life:40});const hits0=SPIKE.hits;SAFE.msg='';
-    let tHit=-1,tEnd=-1,f0=0,msg='',hp0=DMG.hp;for(let s=0;s<120*8;s++){P3.drive();RACER.worldStep(1/120);if(tHit<0&&C.flatT>0){tHit=s/120;f0=C.flatT;msg=SAFE.msg}if(tHit>=0&&tEnd<0&&!(C.flatT>0))tEnd=s/120}
+    let tHit=-1,tEnd=-1,f0=0,msg='',hp0=DMG.hp;for(let s=0;s<120*12;s++){P3.drive();RACER.worldStep(1/120);if(tHit<0&&C.flatT>0){tHit=s/120;f0=C.flatT;msg=SAFE.msg}if(tHit>=0&&tEnd<0&&!(C.flatT>0))tEnd=s/120}
     o.tHit=tHit;o.f0=f0;o.msg=msg;o.dur=+(tEnd-tHit).toFixed(2);o.hits=SPIKE.hits-hits0;o.heat=COP.heat;o.left=SPIKE.list.length;
     const a0=Math.atan2(C.vx,-C.vz);o.after=turn(0);
     /* a strip is laid ahead of you ON the road during a 4 star chase */
     P3.reset(.3,34);P3.pin(4);let laid=null;for(let s=0;s<120*30&&!laid;s++){P3.pin(4);P3.drive();if(!(s%30))P3.noCivs();RACER.worldStep(1/120);if(SPIKE.list.length){const q=SPIKE.list[0],dx=q.x-C.x,dz=q.z-C.z,d=Math.hypot(dx,dz);roadAt(q.x,q.z);laid={d:Math.round(d),ahead:(dx*C.vx+dz*C.vz)>0,on:RQ.on?1:0,warn:COP.spikeWarn>0}}}
     o.laid=laid;P3.clear();return o});
   ok(K.tHit>0&&K.tHit<2.5&&K.hits==1&&/BURST/.test(K.msg),'5 driving over a strip bursts the tyres ("'+K.msg+'", after '+K.tHit.toFixed(2)+' s)');
-  ok(K.dur>3.6&&K.dur<4.4,'5 the loss of grip lasts '+K.dur+' s (about 4)');
-  ok(K.flat.turn<K.base.turn*.8,'5 with burst tyres the car turns less: '+(K.flat.turn*57.3).toFixed(1)+' deg in 1 s at 30 m/s against '+(K.base.turn*57.3).toFixed(1)+' deg ('+Math.round(K.flat.turn/K.base.turn*100)+' %)');
+  ok(K.dur>7.6&&K.dur<8.0,'5 the tyres stay flat for '+K.dur+' s (7.8), then reinflate');
+  ok(K.flat.turn<K.base.turn*.7,'5 with burst tyres the car turns less: '+(K.flat.turn*57.3).toFixed(1)+' deg in 1 s at 30 m/s against '+(K.base.turn*57.3).toFixed(1)+' deg ('+Math.round(K.flat.turn/K.base.turn*100)+' %)');
   ok(Math.abs(K.after.turn-K.base.turn)<K.base.turn*.05,'5 afterwards the grip is back to normal ('+(K.after.turn*57.3).toFixed(1)+' deg against '+(K.base.turn*57.3).toFixed(1)+')');
   ok(K.laid&&K.laid.ahead&&K.laid.on&&K.laid.d>120&&K.laid.d<260&&K.laid.warn,'5 in a 4 star chase a strip is laid on the road '+(K.laid?K.laid.d:'?')+' m ahead, with a warning on the HUD');
   /* ---- 6 the minimap shows police only ---- */
@@ -103,4 +103,14 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     o.samples=samples;o.ins=ins;o.maxC=maxC;o.nan=nan;P3.clear();return o});
   ok(B.wall>0&&B.rev>0&&B.move>3&&B.inside==0,'7 a police car nose-on to a wall backs out (reversing began after '+(B.tRev>=0?B.tRev.toFixed(1):'?')+' s, it got '+B.move+' m away) and was never inside the building');
   ok(B.samples>2000&&B.ins==0&&B.nan==0&&B.maxC>=3,'7 a minute of police converging on a car parked downtown: '+B.maxC+' cars, '+B.samples+' position samples, '+B.ins+' inside a building');
+  /* ---- 8 a real chance to lose them (batch 5): patrols never pop up in view and drive with their lights off; at one star, driving away fast on the ring and out of sight, the heat goes back to 0 ---- */
+  const E=await T.ev(()=>{const o={};P3.reset(.3,0);let inView=0,spawned=0,lightsOn=0;const seen0=new Set();
+    for(let s=0;s<120*120;s++){COP.lastPatrol=-99;RACER.worldStep(1/120);C.vx=C.vz=0;if(s%30==0)for(const c of TR.cars){if(!c.alive||c.kind!==1)continue;if(c.siren)lightsOn++;if(!seen0.has(c.seed)){seen0.add(c.seed);spawned++;if(Math.hypot(c.x-C.x,c.z-C.z)<TR.visMin*.7)inView++}}}
+    o.spawned=spawned;o.inView=inView;o.lightsOn=lightsOn;
+    const trig=copTrigger;P3.reset(.3,62);P3.spd=72;copTrigger(1,'test');window.copTrigger=function(){};let t0=-1,tLost=-1,maxC=0,lostAt=-1;
+    for(let s=0;s<120*150;s++){P3.drive();if(!(s%30))P3.noCivs();RACER.worldStep(1/120);const t=s/120;let n=0;for(const c of TR.cars)if(c.alive&&c.kind==1&&c.cm>0)n++;maxC=Math.max(maxC,n);if(COP.heat==0&&tLost<0){tLost=t;break}}
+    window.copTrigger=trig;o.tLost=+tLost.toFixed(1);o.maxC=maxC;o.loseT=COP.D.loseT;P3.clear();return o});
+  ok(E.spawned>=1&&E.inView==0,'8 '+E.spawned+' patrol cars in 2 minutes parked, none appeared within sight distance');
+  ok(E.lightsOn==0,'8 patrols drive with their light bar off (no siren or flashing samples: '+E.lightsOn+')');
+  ok(E.tLost>0&&E.tLost<120,'8 one star, driving away flat out (72 m/s) round the ring: the police lose you after '+E.tLost+' s ('+E.maxC+' chasers at most; out of sight for '+E.loseT+' s is enough)');
   console.log('errs',T.errs.length?T.errs.slice(0,3):0);await T.close();console.log(bad?bad+' FAILED':'all passed');process.exit(bad||T.errs.length?1:0)})().catch(e=>{console.error(e);process.exit(1)});

@@ -23,13 +23,13 @@ function dmgConsume(){
   if(IMP.n===DMG.cur)return;const q=IMP.q,k=Math.min(IMP.n-DMG.cur,q.length);
   for(let i=q.length-k;i<q.length;i++)dmgApply(q[i]);DMG.cur=IMP.n;dmgEffects()}
 function dmgApply(r){
-  let E=r.E*DMG.scale;if(r.src==2){if(r.vn<11)return;E=r.E*.55}else if((r.vn<3.5&&r.src!=4)||E<DMG.minE)return;   /* (src 4, a rail scrape, counts by its energy alone) */     /* scrapes do nothing; a landing only hurts above 11 m/s */
+  let E=r.E*DMG.scale;if(r.src==2){if(r.vn<11)return;E=r.E*.55}else if(r.src!=4){const k=r.src==3?sstep(3,10,r.vn):sstep(4.5,13,r.vn);E*=k*Math.sqrt(k);if(E<DMG.minE)return}else if(E<DMG.minE)return;   /* batch 5: a tap is not a crash. Into a wall or a post the damage fades in from 16 to 47 km/h (a car from 11 to 36 km/h): a 20 km/h nudge leaves almost nothing */   /* (src 4, a rail scrape, counts by its energy alone) */     /* scrapes do nothing; a landing only hurts above 11 m/s */
   const z=DMG.z;let zone=r.zone;
   if(r.src==2){/* the suspension bottoms out: the axles and the roof take it */z[0]+=E*.3/DZ_CAP[0];z[1]+=E*.3/DZ_CAP[1];z[4]+=E*.4/DZ_CAP[4];zone=4}
   else if(zone>=0){z[zone]+=E/DZ_CAP[zone];
     /* a hit also shakes the neighbours */const sp=E*.14;if(zone<2){z[2]+=sp/DZ_CAP[2];z[3]+=sp/DZ_CAP[3]}else{z[0]+=sp/DZ_CAP[0];z[1]+=sp/DZ_CAP[1]}}
   for(let i=0;i<5;i++)if(z[i]>1)z[i]=1;DMG.total+=E;DMG.lastHit=C.t;
-  DMG.pend.push(r);if(DMG.pend.length>12)DMG.pend.shift();partsHit(zone,E,r.src)}
+  r.Ed=E;DMG.pend.push(r);if(DMG.pend.length>12)DMG.pend.shift();partsHit(zone,E,r.src)}
 /* the dents are applied at once for a big hit and at most every 0.2 s for a run of small ones */
 function dmgDents(dt){if(!DMG.ready||!DMG.pend.length)return;DMG.pendT-=dt;let big=false;for(const r of DMG.pend)if(r.E>25000)big=true;if(!big&&DMG.pendT>0)return;DMG.pendT=.2;
   for(const r of DMG.pend)dentFromImpact(r);DMG.pend.length=0;dentUpload()}
@@ -41,9 +41,9 @@ function dentFromImpact(r){
     /* where: the point on the car's box in the direction the other body came from */
     let lf,lr;if(r.src==3){const px=r.x-C.x,pz=r.z-C.z;lf=px*sy+pz*-cy;lr=px*cy+pz*sy}else{lf=-(nf/l)*(CARM.hl||2.2)*1.4;lr=-(nr/l)*(CARM.hw||.95)*3}
     const k=Math.max(Math.abs(lr)/(CARM.hw||.95),Math.abs(lf)/(CARM.hl||2.2),1e-3);cx=lr/k;cz=-lf/k;cy2=.55}
-  dentApply(cx,cy2,cz,dx,dy,dz,Math.max(r.E*DMG.scale,12000))}
+  dentApply(cx,cy2,cz,dx,dy,dz,r.Ed||r.E*DMG.scale)}
 function dentApply(cx,cy,cz,dx,dy,dz,E){
-  const B=CARM.body,f=B.f16,i8=B.i8,u8=B.u8,pf=DMG.pf16,pn=DMG.pi8,nv=B.nv,sig=.32+.5*Math.min(1,Math.sqrt(E/220e3)),s2=2*sig*sig,R2=(2.4*sig)*(2.4*sig),depth=Math.min(.34,.07+.30*Math.sqrt(E/260e3)),hit=++DMG.dentN;
+  const B=CARM.body,f=B.f16,i8=B.i8,u8=B.u8,pf=DMG.pf16,pn=DMG.pi8,nv=B.nv,sig=.32+.5*Math.min(1,Math.sqrt(E/220e3)),s2=2*sig*sig,R2=(2.4*sig)*(2.4*sig),depth=Math.min(.36,.015+.33*Math.sqrt(E/260e3)),hit=++DMG.dentN;
   for(let v=0;v<nv;v++){const o=v*8,px=pf[o]/8192,py=pf[o+1]/8192,pz=pf[o+2]/8192,ex=px-cx,ey=py-cy,ez=pz-cz,d2=ex*ex+ey*ey+ez*ez;if(d2>R2)continue;
     const nb=v*16+8,w=Math.exp(-d2/s2),hv=trHash(((px*911+py*577)*128)|0,(((pz*733)*128)|0)+hit),amt=depth*w*(.75+.5*hv);   /* a function of the vertex POSITION, so the duplicate vertices of a flat-shaded edge move together and no crack opens */
     let x=f[o]/8192+dx*amt,y=f[o+1]/8192+dy*amt,z=f[o+2]/8192+dz*amt;

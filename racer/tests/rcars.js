@@ -20,8 +20,8 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
   ok(bodies.every(b=>b.ms<250),'each body is built in '+Math.max(...bodies.map(b=>b.ms)).toFixed(0)+' ms at most (the whole roster '+bodies.reduce((s,b)=>s+b.ms,0).toFixed(0)+' ms)');
   const sizes=new Set(bodies.map(b=>[b.L.toFixed(1),b.W.toFixed(1),b.H.toFixed(1)].join('x')));ok(sizes.size>=18,'the cars really differ in size ('+sizes.size+' distinct length x width x height combinations of 30)');
   /* installing a car: the first one is the Porsche-type starter, the GL buffers exist, the dent engine has its pristine copy */
-  const inst=await ev(()=>{const {CARM,DMG,G,CAR_ROSTER,CARSEL}=RACER;const out=[];const gl=G.gl;for(const i of[0,7,13,29]){RACER.carSelect(i);out.push({i,id:CARM.def.id,vb:!!CARM.body.vb,wheels:CARM.wheels.length,dmgReady:DMG.ready,nv:CARM.body.ab.byteLength/16,err:gl.getError(),paint:Array.from(CARM.paint).map(v=>+v.toFixed(2))})}RACER.carSelect(0);return{out,first:CAR_ROSTER[0].name,cur:CARSEL.cur}});
-  ok(inst.first=='Kestrel S'&&inst.out.every(o=>o.vb&&o.wheels==2&&o.dmgReady&&o.err==0),'carSelect installs body, wheels, materials, paint and the dent copy with no GL errors; the starter is the rear-engine coupe "'+inst.first+'"');
+  const inst=await ev(()=>{const {CARM,DMG,G,CAR_ROSTER,CARSEL}=RACER;const out=[];const gl=G.gl;for(const i of[0,7,13,29]){RACER.carSelect(i);out.push({i,id:CARM.def.id,vb:!!CARM.body.vb,wheels:CARM.wheels.length,dmgReady:DMG.ready,nv:CARM.body.ab.byteLength/16,err:gl.getError(),paint:Array.from(CARM.paint).map(v=>+v.toFixed(2))})}RACER.carSelect(carIndex('k1'));let sorted=true;for(let i=1;i<CAR_ROSTER.length;i++)if(CAR_ROSTER[i].real.top<CAR_ROSTER[i-1].real.top)sorted=false;return{out,first:CAR_ROSTER[0].name,last:CAR_ROSTER[CAR_ROSTER.length-1].name,sorted,starter:CAR_ROSTER[carIndex('k1')].name,def:carIndex('k1')}});
+  ok(inst.sorted&&inst.starter=='Kestrel S'&&inst.out.every(o=>o.vb&&o.wheels==2&&o.dmgReady&&o.err==0),'carSelect installs body, wheels, materials, paint and the dent copy with no GL errors; the menu runs from the slowest ("'+inst.first+'") to the fastest ("'+inst.last+'"), the starter is still the rear-engine coupe "'+inst.starter+'"');
 
   /* ---- 2 driving: measured on flat ground against the real figures ---- */
   if(!process.env.SKIPDRIVE){
@@ -55,30 +55,30 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
   }
 
   /* ---- 3 the car menu, owning and unlocking ---- */
-  const mn=await ev(()=>{const {MENU,CAROWN,CARSEL,HND,CARM,CAR_ROSTER}=RACER;const defAll=CAROWN.all,defOwned=CAR_ROSTER.filter((d,i)=>carOwned(i)).length,nAll=CAR_ROSTER.length;localStorage.removeItem('racer.cars');CAROWN.all=false;Object.keys(CAROWN.owned).forEach(k=>delete CAROWN.owned[k]);CAROWN.owned.k1=true;RACER.carSelect(0);
+  const mn=await ev(()=>{const {MENU,CAROWN,CARSEL,HND,CARM,CAR_ROSTER}=RACER;const defAll=CAROWN.all,defOwned=CAR_ROSTER.filter((d,i)=>carOwned(i)).length,nAll=CAR_ROSTER.length;localStorage.removeItem('racer.cars');CAROWN.all=false;Object.keys(CAROWN.owned).forEach(k=>delete CAROWN.owned[k]);CAROWN.owned.k1=true;RACER.carSelect(carIndex('k1'));
     const r={};r.owned=CAR_ROSTER.filter((d,i)=>carOwned(i)).length;const v0=HND.vmax,id0=CARM.def.id;
     menuOpen();r.open=MENU.open;menuPreview(12);r.expId=CAR_ROSTER[12].id;r.prevId=CARM.def.id;r.vmaxPrev=HND.vmax;r.curPrev=CARSEL.cur;                    /* looking is not choosing */
     menuChoose();r.lockedStill=CARSEL.cur;r.still=MENU.open;                                                                  /* a locked car cannot be chosen */
     menuClose();r.backId=CARM.def.id;r.open2=MENU.open;
     carUnlock('m1');menuOpen();menuPreview(CAR_ROSTER.findIndex(d=>d.id=='m1'));menuChoose();r.chosen=CARSEL.cur;r.chosenId=CARM.def.id;r.vmaxNew=HND.vmax;r.closed=!MENU.open;
-    const j=JSON.parse(localStorage.getItem('racer.cars')||'{}');r.saved=j.cur;r.savedOwned=Object.keys(j.owned||{});
-    CAROWN.all=true;menuOpen();menuPreview(29);menuChoose();r.allCur=CARSEL.cur;
+    const j=JSON.parse(localStorage.getItem('racer.cars')||'{}');r.saved=j.curId;r.savedOwned=Object.keys(j.owned||{});
+    CAROWN.all=true;menuOpen();menuPreview(CAR_ROSTER.length-1);menuChoose();r.allCur=CARSEL.cur;r.lastI=CAR_ROSTER.length-1;
     menuOpen();menuPaint(4);const pk=Array.from(CARM.paint);r.paint=pk;menuClose();
-    CAROWN.all=false;RACER.carSelect(0);return Object.assign(r,{v0,id0,defAll,defOwned,n:nAll})});
+    CAROWN.all=false;RACER.carSelect(carIndex('k1'));return Object.assign(r,{v0,id0,defAll,defOwned,n:nAll,k1:carIndex('k1')})});
   ok(mn.defAll&&mn.defOwned==mn.n,'for now every car is unlocked from the start ('+mn.defOwned+' of '+mn.n+' owned)');
   ok(mn.owned==1,'with the unlock-all switch off only the starter is owned (the earning rule will use this: '+mn.owned+' of 30)');
-  ok(mn.open==1&&mn.prevId==mn.expId&&mn.vmaxPrev===mn.v0&&mn.curPrev==0,'browsing the showroom only shows the car (preview "'+mn.prevId+'"), the handling and the chosen car stay the same');
-  ok(mn.lockedStill==0&&mn.still==1,'a locked car cannot be chosen (the menu says how to earn it is not decided yet)');
+  ok(mn.open==1&&mn.prevId==mn.expId&&mn.vmaxPrev===mn.v0&&mn.curPrev==mn.k1,'browsing the showroom only shows the car (preview "'+mn.prevId+'"), the handling and the chosen car stay the same');
+  ok(mn.lockedStill==mn.k1&&mn.still==1,'a locked car cannot be chosen (the menu says how to earn it is not decided yet)');
   ok(mn.backId==mn.id0&&mn.open2==0,'closing without choosing puts your own car back ('+mn.backId+')');
   ok(mn.chosen>0&&mn.chosenId=='m1'&&mn.closed&&mn.vmaxNew>mn.v0,'after the earning hook carUnlock("m1") the car can be chosen: it becomes the car, its handling comes with it (top speed number '+mn.v0.toFixed(0)+' -> '+mn.vmaxNew.toFixed(0)+')');
-  ok(mn.saved==mn.chosen&&mn.savedOwned.indexOf('m1')>=0&&mn.savedOwned.indexOf('k1')>=0,'what you own and drive is saved');
-  ok(mn.allCur==29,'"unlock all (testing)" lets you take any car (car 30)');
+  ok(mn.saved=='m1'&&mn.savedOwned.indexOf('m1')>=0&&mn.savedOwned.indexOf('k1')>=0,'what you own and drive is saved');
+  ok(mn.allCur==mn.lastI,'"unlock all (testing)" lets you take any car (the last, fastest one)');
   ok(mn.paint[2]>mn.paint[0],'the paint colour can be changed (blue: '+mn.paint.map(v=>v.toFixed(2)).join(',')+')');
 
   /* ---- 4 dents on the generated bodies ---- */
   const dn=await ev(()=>{const {CARM,DMG,C}=RACER;RACER.carSelect(5);dmgReset();const B=CARM.body;const f=B.f16,pf=DMG.pf16;let moved0=0;for(let i=0;i<f.length;i++)if(f[i]!==pf[i])moved0++;
     C.yaw=0;dentApply(0,.5,-CARM.hl,0,0,1,200000);let moved=0,maxd=0;for(let v=0;v<B.nv;v++)for(let a=0;a<3;a++){const d=Math.abs(f[v*8+a]-pf[v*8+a])/8192;if(d>0)moved++;if(d>maxd)maxd=d}
-    let nan=0;for(let i=0;i<f.length;i++)if(!isFinite(f[i]))nan++;dmgReset();let after=0;for(let i=0;i<f.length;i++)if(f[i]!==pf[i])after++;RACER.carSelect(0);return{moved0,moved,maxd,nan,after,nv:B.nv}});
+    let nan=0;for(let i=0;i<f.length;i++)if(!isFinite(f[i]))nan++;dmgReset();let after=0;for(let i=0;i<f.length;i++)if(f[i]!==pf[i])after++;RACER.carSelect(carIndex('k1'));return{moved0,moved,maxd,nan,after,nv:B.nv}});
   ok(dn.moved0==0&&dn.moved>200&&dn.maxd<=.51&&dn.nan==0,'a hit dents the generated body ('+dn.moved+' vertex coordinates moved, deepest '+dn.maxd.toFixed(2)+' m, none NaN)');
   ok(dn.after==0,'repair restores the generated body exactly');
 

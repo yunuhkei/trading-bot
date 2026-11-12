@@ -9,8 +9,8 @@ const CAR_PAINTS=[null,_PT([240,240,236],0),_PT([14,14,18],1),_PT([168,172,180],
 const CAR_ALL_DEFAULT=true;
 const CAROWN={owned:{k1:true},all:CAR_ALL_DEFAULT,color:{},key:'racer.cars'};
 const MENU={open:0,i:0,t:0,btns:[],pi:0};
-function carLoad(){try{const j=JSON.parse(localStorage.getItem(CAROWN.key)||'null');if(j){if(j.owned)Object.assign(CAROWN.owned,j.owned);CAROWN.all=CAR_ALL_DEFAULT;if(j.color)Object.assign(CAROWN.color,j.color);if(j.cur!=null&&j.cur>=0&&j.cur<CAR_ROSTER.length)CARSEL.cur=j.cur}}catch(e){}CAROWN.owned.k1=true}
-function carSave(){try{localStorage.setItem(CAROWN.key,JSON.stringify({owned:CAROWN.owned,all:CAROWN.all,color:CAROWN.color,cur:CARSEL.cur}))}catch(e){}}
+function carLoad(){try{const j=JSON.parse(localStorage.getItem(CAROWN.key)||'null');if(j){if(j.owned)Object.assign(CAROWN.owned,j.owned);CAROWN.all=CAR_ALL_DEFAULT;if(j.color)Object.assign(CAROWN.color,j.color);if(j.curId&&CAR_ROSTER.some(d=>d.id===j.curId))CARSEL.cur=carIndex(j.curId)}}catch(e){}CAROWN.owned.k1=true}
+function carSave(){try{localStorage.setItem(CAROWN.key,JSON.stringify({owned:CAROWN.owned,all:CAROWN.all,color:CAROWN.color,curId:(CAR_ROSTER[CARSEL.cur]||{}).id}))}catch(e){}}
 const carOwned=i=>CAROWN.all||!!CAROWN.owned[CAR_ROSTER[i].id];
 /* the hook for the earning system: call this when a car has been earned or bought */
 function carUnlock(id){if(CAR_ROSTER.some(d=>d.id==id)){CAROWN.owned[id]=true;carSave();if(ECON.onCarUnlock)ECON.onCarUnlock(id);return true}return false}

@@ -11,9 +11,9 @@ function uiInit(){
     if(UI.mapOpen){mapDown(id,x,y);UI.touches.set(id,{type:'map'});return}
     if(MENU.open){menuTap(x,y);UI.touches.set(id,{type:'none'});return}
     for(const b of UI.btn){const hit=b.circle?Math.hypot(x-b.cx,y-b.cy)<=b.circle:(x>=b.x-8&&x<=b.x+b.w+8&&y>=b.y-8&&y<=b.y+b.h+8);if(hit){UI.touches.set(id,{type:'btn',b});b.on=1;b.act&&b.act(1);return}}
-    if(x<UI.w*.55){const t={type:'stick',x0:x,y0:y,x:x,y:y};UI.touches.set(id,t);UI.stickT=t;return}
-    UI.touches.set(id,{type:'none'})};
-  const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&t.type=='stick'){t.x=x;t.y=y}else if(t&&t.type=='map')mapMove(id,x,y)};
+    if(x<UI.w*.55){const t={type:'stick',x0:x,y0:y,x:x,y:y,lx:x,ly:y};UI.touches.set(id,t);UI.stickT=t;return}
+    UI.touches.set(id,{type:'look',lx:x,ly:y})};   /* a drag on the free part of the right side looks around (when the car is stopped) */
+  const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&(t.type=='stick'||t.type=='look')){UI.lookDX=(UI.lookDX||0)+x-t.lx;UI.lookDY=(UI.lookDY||0)+y-t.ly;t.lx=x;t.ly=y}if(t&&t.type=='stick'){t.x=x;t.y=y}else if(t&&t.type=='map')mapMove(id,x,y)};
   const up=(id)=>{const t=UI.touches.get(id);if(t&&t.type=='map')mapUp(id);if(t&&t.type=='btn'){t.b.on=0;t.b.act&&t.b.act(0)}if(t&&t===UI.stickT)UI.stickT=null;UI.touches.delete(id)};
   const opt={passive:false};
   cv.addEventListener('wheel',e=>{if(UI.mapOpen){e.preventDefault();mapWheel(e.offsetX,e.offsetY,e.deltaY)}},opt);
@@ -74,7 +74,11 @@ function uiInputs(dt){
   if(K.Space)IN.hand=1;else if(!UI.bn.drift.on)IN.hand=0;
     if(brk)IN.brk=1;else if(!UI.bn.brake.on)IN.brk=0;
   IN.thr=(gas||UI.bn.gas.on)?1:0;
-  /* a held touch on the car's own button area does the rest */
+  /* LOOK AROUND (batch 5): with the car stopped, a drag (the steering thumb or anywhere free on the right) turns the camera round the car and up and down; it stays where you leave it and
+     swings back behind the car once you drive off */
+  const parked=C.speed<2.5&&!IN.thr,dx=UI.lookDX||0,dy=UI.lookDY||0;UI.lookDX=UI.lookDY=0;C.orbY=C.orbY||0;C.orbP=C.orbP||0;
+  if(parked&&!MENU.open&&!UI.mapOpen){C.orbY+=dx*.009;C.orbP=clamp(C.orbP+dy*.005,-.3,1.05);if(K.KeyQ)C.orbY-=dt*1.6;if(K.KeyE)C.orbY+=dt*1.6}
+  else if(C.speed>4||IN.thr){const k=Math.exp(-dt*2.2);C.orbY=angd(C.orbY,0)*k;C.orbP*=k}
 }
 /* ---------- minimap ---------- */
 function mapInit(){

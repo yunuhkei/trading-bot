@@ -128,4 +128,8 @@ for(const k of['coupe','n_cruiser','n_magnet','n_courier','n_bruiser','n_banker'
 /* the police vehicles (TTYPES 20-22, batch 3): an interceptor on the Surge Sport body, a police SUV on the Bruiser, and a SWAT truck (a black armoured box). All get the livery, a light bar and a push bar. */
 {const S1=ccBuild('n_nitro',{lo:1}).S,S2=ccBuild('n_bruiser',{lo:1}).S;
  TTYPES.push({n:'interceptor',cc:'n_nitro',cop:1,hl:S1.L/2-.05,hw:S1.W/2-.04,m:1700,far:0},{n:'police SUV',cc:'n_bruiser',cop:1,hl:S2.L/2-.05,hw:S2.W/2-.04,m:2600,far:2},{n:'SWAT truck',box:'swat',cop:1,hl:3.2,hw:1.2,m:9000,far:-1})}
-TTYPES[4].cop=1;TTYPES[4].cc='t_cop';   /* the patrol car: Close Call's police cruiser body (it used to be the plain sedan) */
+TTYPES[4].cop=1;TTYPES[4].cc='t_cop';TTYPES[4].vtop=1;TTYPES[20].vtop=1.25;TTYPES[21].vtop=.95;TTYPES[22].vtop=.8;   /* the patrol car: Close Call's police cruiser body (it used to be the plain sedan) */
+/* batch 5: the car menu runs from the slowest car to the fastest (top speed, then 0-100 km/h). Saves keep the car by its id, so a saved choice survives the new order; the default car is still the Kestrel S */
+CAR_ROSTER.sort((a,b)=>(a.real.top-b.real.top)||(b.real.t100-a.real.t100)||(a.real.hp-b.real.hp));
+function carIndex(id){const i=CAR_ROSTER.findIndex(d=>d.id===id);return i<0?0:i}
+CARSEL.cur=carIndex('k1');

@@ -15,8 +15,13 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 3: police overhaul (`64_cops.js` fault rule, `STARS`, `copAhead`, stuck recovery; `67_police.js` helicopters and spike strips; interceptor, SUV, SWAT truck; minimap police only), tests `rheat.js`, `rpolice.js`. **Waiting for approval: a spike strip halves the grip for 4 s (the one exception to "damage never affects driving").**
 - Batch 4: supercars and looks (`CAR_STYLE`, creases / end shapes in `cgBody`, new lamps, `cgPlate` block font, paint finishes `uPt`, shader seams `uSm`, test `rlooks.js`); traffic: walking-pace bumps are not wrecks.
 
-## Next
-- Feel-test on the iPhone SE (list in the final report). Decide: spike strips (grip loss), money / how cars are earned, the real names of the CC cars.
+- Batch 5: flat tyres 7.8 s, car order, look-around camera, police you can lose (last seen place, own top speeds, lights off on patrol), taps do no damage, more traffic.
+
+## Next (owner's list, in this order)
+6. Crashes: cars roll and flip (the player and traffic), heavy visible damage; headlights that do not float after a crash; lamp posts that can be knocked down.
+7. Drive-through repair shops.
+8. The map: towns and places along the empty highways, the cities connected properly.
+- Still not decided: money / how cars are earned, the real names of the CC cars.
 
 ## Known, not fixed
 - The road bot clips a lamp post on `sfnv1` after a long flight over a crest, and at 34 m/s a signal pole on `sfp` and `mojp` (one hit each).
