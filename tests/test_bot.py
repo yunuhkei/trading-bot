@@ -4427,3 +4427,30 @@ def test_kalshi_big_accounts_trade_100_dollars_at_real_fills_next_to_the_old_acc
     k.step({"mode": "practice", "practice_cash": 100, **settings}, lambda t, m: None, events=[ev])
     old = json.loads(Path("kalshi_state_practice.json").read_text())
     assert old["variants"]["F"]["start"] == 100 and old["variants"]["F"]["cash"] > 90
+
+
+def test_kalshi_real_money_gate_needs_enough_days_a_solid_low_end_and_a_good_last_week():
+    from bot import kalshi_big as kb
+
+    def results(days, per_day, gain, noise=0.30, bad_days=(), day_noise=0.05):
+        out = []
+        for d in range(days):
+            for j in range(per_day):
+                r = gain + (noise if j % 2 else -noise) + (day_noise if d % 2 else -day_noise) + (-0.6 if d in bad_days else 0.0)
+                out.append({"event": f"KXHIGHCHI-26OCT{d + 1:02d}", "t": 0, "cost": 100.0, "profit": 100.0 * r,
+                            "won": r > 0})
+        return out
+    good = results(20, 6, 0.08)                                     # 120 trades over 20 days, +8% a trade
+    g = kb.gate(good, tests=3)
+    assert g["passes"] and g["lcb"] > 0.01 and abs(g["rate"] - 0.08) < 1e-9
+    assert not kb.gate(good[:60], 3)["passes"] and "60/100 trades" in kb.gate(good[:60], 3)["missing"][0]
+    assert kb.gate(good, 50)["lcb"] < g["lcb"]                      # more things tested: a lower low end
+    late = results(20, 6, 0.08, bad_days=(15, 16, 17, 18, 19))      # the last week lost
+    assert not kb.gate(late, 3)["passes"] and not kb.gate(late, 3)["checks"]["last_week"][0]
+    choppy = results(20, 6, 0.02, day_noise=0.5)                    # +2% a trade, but days swing too much to be sure
+    assert not kb.gate(choppy, 3)["checks"]["lcb"][0]
+    cfg = {**kb.DEFAULTS, "strategies": ["F", "G"]}
+    state = {"F1000": {"cash": 1200.0, "positions": {}, "results": good}, "G1000": {"cash": 990.0, "positions": {}, "results": []}}
+    title, msg, passing = kb.report(state, cfg, 3)
+    assert passing == ["F1000"] and title.startswith("✅") and "F1000: $1,200.00" in msg and "none yet" in msg
+    assert "Nothing is switched on" in msg

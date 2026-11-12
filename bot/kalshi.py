@@ -974,7 +974,7 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
         try:                                              # the $1,000 accounts: same ideas, real order-book fills
             from .kalshi_big import big_step
 
-            big_step(settings, views, strats, cache, now, quiet, None if scan_all else (lambda t: {}))
+            big_step(settings, views, strats, cache, now, quiet, None if scan_all else (lambda t: {}), tell=tell)
         except Exception as e:
             log.warning("$1,000 accounts failed: %s", e)
         due = None

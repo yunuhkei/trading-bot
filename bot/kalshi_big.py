@@ -164,8 +164,9 @@ def big_trade(acct: dict, ideas: list[dict], rules: dict, cfg: dict, book_of, bo
 
 
 def big_step(settings: dict, views: list, strats: dict, cache: dict, now: float, quiet, book_of=None,
-             path: Path = STATE) -> dict | None:
-    """Settle and trade every $1,000 account (one check). Returns the saved state, or None if they're off."""
+             path: Path = STATE, tell=None) -> dict | None:
+    """Settle and trade every $1,000 account (one check), and send the daily report when it's due. Returns the saved
+    state, or None if they're off."""
     cfg = config(settings)
     if not cfg:
         return None
@@ -181,6 +182,16 @@ def big_step(settings: dict, views: list, strats: dict, cache: dict, now: float,
             ideas = k.ideas_from_views(views, rules)
             big_trade(account(state, key, cfg), ideas, rules, cfg, book_of, books, taken,
                       lambda t, m, n=name(key, cfg): quiet(f"[{n}] {t}", m), "PRACTICE ", now)
+        from .solbot import report_due
+
+        due = report_due(now, cfg["report_at"], settings.get("timezone", "America/Chicago"), state.get("report_day"))
+        if due:
+            state["report_day"] = due
+            title, msg, passing = report(state, cfg, tests_run(len(keys)))
+            (tell or quiet)(title, msg)
+            for n in passing:                            # remember when each account first passed
+                if not state.setdefault("passed", {}).get(n):
+                    state["passed"][n] = now
         return state
     finally:
         for key in keys:
@@ -189,6 +200,97 @@ def big_step(settings: dict, views: list, strats: dict, cache: dict, now: float,
                 a["results"] = a.get("results", [])[-3000:]
                 a["thin_seen"] = {e: t for e, t in (a.get("thin_seen") or {}).items() if now - t < 3 * 86400}
         path.write_text(json.dumps(state, indent=1, default=str))
+
+
+# ---- The real-money gate ----
+
+GATE = {"min_trades": 100, "min_days": 14, "min_lcb": 0.01, "alpha": 0.05, "min_good_days": 0.60}
+BRAIN = Path("models/kalshi_brain.json")
+
+
+def tests_run(n_accounts: int = 3, path: Path = BRAIN) -> int:
+    """How many things have been tested (for the multiple-testing correction): the accounts plus every slice the
+    Kalshi brain tested (models/kalshi_brain.json)."""
+    try:
+        return n_accounts + int(json.loads(path.read_text()).get("tests", 0))
+    except (OSError, ValueError, TypeError):
+        return n_accounts
+
+
+def trade_day(r: dict) -> str:
+    d = k.event_day(r.get("event") or "")
+    return d.isoformat() if d else time.strftime("%Y-%m-%d", time.gmtime(r["t"]))
+
+
+def lower_bound(results: list[dict], tests: int, alpha: float = 0.05) -> tuple[float, float]:
+    """(profit per dollar staked after fees, its one-sided lower confidence bound at alpha/tests). Trades on the same
+    day share the weather and the market's mood, so the error is measured with days as the units (cluster-robust)."""
+    from statistics import NormalDist
+
+    cost = sum(r["cost"] for r in results)
+    if not results or cost <= 0:
+        return 0.0, -math.inf
+    rate = sum(r["profit"] for r in results) / cost
+    days: dict[str, list[float]] = {}
+    for r in results:
+        d = days.setdefault(trade_day(r), [0.0, 0.0])
+        d[0] += r["profit"]
+        d[1] += r["cost"]
+    n = len(days)
+    if n < 2:
+        return rate, -math.inf
+    var = sum((p - rate * c) ** 2 for p, c in days.values()) / cost ** 2 * n / (n - 1)
+    z = NormalDist().inv_cdf(1 - alpha / max(1, tests))
+    return rate, rate - z * math.sqrt(var)
+
+
+def gate(results: list[dict], tests: int, rules: dict = GATE) -> dict:
+    """Whether an account qualifies for real money: 100+ settled trades on 14+ different days, a profit per dollar
+    after fees whose lower confidence bound (corrected for `tests` things tested) is above +1%, profitable on 60%+ of
+    days, and still positive over the most recent 7 days. It only says so; it never switches anything on."""
+    rate, lcb = lower_bound(results, tests, rules["alpha"])
+    by_day: dict[str, float] = {}
+    for r in results:
+        by_day[trade_day(r)] = by_day.get(trade_day(r), 0.0) + r["profit"]
+    days = sorted(by_day)
+    good = sum(v > 0 for v in by_day.values()) / len(days) if days else 0.0
+    last = None
+    if days:
+        from datetime import date, timedelta
+
+        since = (date.fromisoformat(days[-1]) - timedelta(days=6)).isoformat()
+        last = sum(v for d, v in by_day.items() if d >= since)
+    checks = {"trades": (len(results) >= rules["min_trades"], f"{len(results)}/{rules['min_trades']} trades"),
+              "days": (len(days) >= rules["min_days"], f"{len(days)}/{rules['min_days']} days"),
+              "lcb": (lcb > rules["min_lcb"], f"low end {lcb:+.1%}" if math.isfinite(lcb) else "low end unknown"),
+              "good_days": (good >= rules["min_good_days"], f"{good:.0%} of days up"),
+              "last_week": (last is not None and last > 0, f"last week {last:+,.2f}" if last is not None else "no last week")}
+    return {"passes": all(ok for ok, _ in checks.values()), "rate": rate, "lcb": lcb, "tests": tests,
+            "checks": checks, "missing": [why for ok, why in checks.values() if not ok]}
+
+
+def report(state: dict, cfg: dict, tests: int) -> tuple[str, str, list[str]]:
+    """(title, message, keys that pass the gate) for the daily report."""
+    lines, passing = [], []
+    for key in cfg["strategies"]:
+        n = name(key, cfg)
+        acct = state.get(n)
+        if not acct:
+            continue
+        res = acct.get("results", [])
+        wins = sum(r["won"] for r in res)
+        g = gate(res, tests)
+        per = sum(r["profit"] for r in res) / len(res) if res else 0.0
+        lines.append(f"{n}: {k.money(value(acct))} ({len(acct.get('positions', {}))} open), {len(res)} settled, "
+                     + (f"won {wins / len(res):.0%}, {per:+,.2f} a trade ({g['rate']:+.1%} after fees)" if res else "none yet")
+                     + (f", {acct.get('thin', 0)} skipped (thin book)" if acct.get("thin") else "")
+                     + (". PASSES the real-money test" if g["passes"] else f". Not yet: {', '.join(g['missing'])}"))
+        if g["passes"]:
+            passing.append(n)
+    head = "✅ Kalshi: an account PASSES the real-money test" if passing else "📊 Kalshi $1,000 accounts (practice)"
+    note = (f"Test: 100+ trades on 14+ days, low end of profit per $ above +1% (corrected for {tests} things tested), "
+            "60%+ of days up, last week up. Nothing is switched on; real money needs your Kalshi keys.")
+    return head, "\n".join(lines + [note]), passing
 
 
 def value(acct: dict) -> float:
