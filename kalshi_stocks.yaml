@@ -1,0 +1,24 @@
+# Kalshi stock bot (bot/kalshi_stocks.py): bets on where the S&P 500 (KXINX) and Nasdaq-100 (KXNASDAQ100) close today.
+# PRACTICE ONLY (pretend money, real prices, real order book, settled by Kalshi's real results). Checked every 10 min
+# in market hours by the "kalshi-stocks" workflow. Unproven: see the backtest note below.
+#
+# Backtest (Nov 12; 94 settled events, Sep 8 - Nov 11; Kalshi keeps no older market data): at 12:30 pm ET the model
+# with 0.6 x VIX/VXN predicted the brackets a bit better than the market (log loss 0.083 vs 0.087; at 1.0 x VIX it
+# was worse, 0.095: intraday swings are smaller than the VIX implies). But betting on it walk-forward: 58 trades,
+# -0.4% a trade after fees, low end -47%. Not proven; it practices to find out.
+mode: practice
+cash: 1000            # pretend money
+per_trade: 100        # dollars a bet, filled against the real order book
+margin: 0.05          # bet only where the bot's chance beats the ask by 5c after fee + slip
+vol_mult: 0.6         # the VIX / VXN times this = the expected swing to the close (the backtest's best calibration)
+slip: 0.01            # assumed cost of a fill past the best ask (the real fill is used for the record)
+max_slip: 0.03        # never pay more than the best ask + 3c
+min_fill: 10          # skip if the book has under $10 at acceptable prices
+min_price: 0.05
+max_price: 0.95
+max_trades_per_day: 6
+max_open: 6
+first_hour: 10.0      # bet between 10 am and 3:30 pm ET
+last_hour: 15.5
+report_at: "15:30"    # daily report, Milwaukee time (after the 4 pm ET close)
+timezone: America/Chicago

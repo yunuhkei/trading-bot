@@ -4534,3 +4534,85 @@ def test_kalshi_maker_bid_is_never_filled_by_a_trade_after_the_measurement_day_s
     early = [{"created_time": iso(950.0), "yes_price_dollars": "0.60"}]           # in time: filled
     assert k.maker_step(acct, [(ev, {"tomorrow": False, "start": start})], rules, {}, lambda *a: None, 1200.0,
                         lambda t, s: early) == 1 and "FAV" in acct["positions"]
+
+
+def _stock_event(level_now=7600.0, close=1_000_000.0):
+    """A pretend KXINX day: 25-point brackets around 7,600 plus the two tails."""
+    ms = [{"ticker": "T-LO", "strike_type": "less", "floor_strike": None, "cap_strike": 7500, "yes_sub_title": "below 7,500"}]
+    for lo in range(7500, 7700, 25):
+        ms.append({"ticker": f"T-B{lo}", "strike_type": "between", "floor_strike": lo, "cap_strike": lo + 24.99,
+                   "yes_sub_title": f"{lo:,} to {lo + 24.99:,.2f}"})
+    ms.append({"ticker": "T-HI", "strike_type": "greater", "floor_strike": 7699.99, "cap_strike": None, "yes_sub_title": "7,700 or above"})
+    return {"event_ticker": "KXINX-26NOV12H1600", "series": "KXINX", "markets": ms, "close": close}
+
+
+def test_kalshi_stocks_model_odds_and_best_side():
+    from bot import kalshi_stocks as ks
+    e = _stock_event()
+    total = sum(ks.chance(m, 7600, 0.18, 3.0) for m in e["markets"])
+    assert abs(total - 1) < 0.01                                                     # the brackets cover every close
+    near = next(m for m in e["markets"] if m["ticker"] == "T-B7600")
+    assert ks.chance(near, 7610, 0.18, 0.5) > ks.chance(near, 7610, 0.18, 5.0)        # less time left: surer
+    assert ks.chance(near, 7610, 0.18, 2.0, 0.6) > ks.chance(near, 7610, 0.18, 2.0)   # smaller swings: surer
+    cfg = {**ks.DEFAULTS, "vol_mult": 0.6}
+    quotes = {m["ticker"]: (0.30, 0.27) if m["ticker"] == "T-B7600" else (0.02, 0.01) for m in e["markets"]}
+    p = ks.chance(near, 7612, 0.18, 1.0, 0.6)
+    b = ks.best_side(e["markets"], 7612, 0.18, 1.0, cfg, quotes)
+    assert b["ticker"] == "T-B7600" and b["side"] == "yes" and abs(b["fair"] - p) < 1e-12 and b["edge"] > 0.05
+    assert ks.best_side(e["markets"], 7612, 0.18, 1.0, {**cfg, "margin": 0.9}, quotes) is None
+    book = ks.parse_book({"orderbook_fp": {"yes_dollars": [], "no_dollars": [["0.7000", "40"], ["0.6900", "500"]]}})
+    assert book["yes"] == [(0.3, 40), (0.31, 500)]
+    lim = ks.limit_price(b, cfg)
+    fill = ks.walk(book["yes"], 100, lim)
+    assert fill["cost"] <= 100 and fill["levels"][0] == [0.3, 40] and lim <= 0.33
+    g = ks.gate([{"day": f"2026-10-{d:02d}", "r": 0.1 + (0.02 if d % 2 else -0.02), "won": True}
+                 for d in range(1, 21) for _ in range(6)], tests=12)
+    assert g["passes"] and not ks.gate([], 12)["passes"]
+
+
+def test_kalshi_stocks_practice_bets_in_market_hours_with_book_fills_and_settles(tmp_path, monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from bot import kalshi as k
+    from bot import kalshi_stocks as ks
+    now = datetime(2026, 11, 12, 15, 0, tzinfo=ZoneInfo("America/New_York")).timestamp()    # an hour to the close
+    close = datetime(2026, 11, 12, 16, 0, tzinfo=ZoneInfo("America/New_York")).timestamp()
+    e = _stock_event(close=close)
+    for m in e["markets"]:
+        hot = m["ticker"] == "T-B7600"
+        m.update(yes_ask_dollars="0.30" if hot else "0.03", yes_bid_dollars="0.27" if hot else "0.01")
+    told = []
+    books = {"T-B7600": {"yes": [(0.30, 100), (0.31, 400)], "no": [(0.73, 100)]}}
+    cfg = {**ks.DEFAULTS, "vol_mult": 0.6}
+    path = tmp_path / "s.json"
+    levels = {"^GSPC": 7612.0, "^VIX": 18.0, "^NDX": 26000.0, "^VXN": 22.0}
+    out = ks.step(cfg, lambda t, m: told.append(t), now, [e], levels, lambda t: books[t], path)
+    acct = json.loads(path.read_text())["account"]
+    p = acct["positions"]["T-B7600"]
+    assert "bought 1" in out and p["side"] == "yes" and 95 < p["cost"] <= 100 and p["fill"]["levels"][0] == [0.30, 100]
+    assert abs(acct["cash"] + p["cost"] - 1000) < 1e-9 and any("PRACTICE Kalshi stocks" in t for t in told)
+    ks.step(cfg, lambda t, m: told.append(t), now + 600, [e], levels, lambda t: books[t], path)   # 3:10 pm
+    assert len(json.loads(path.read_text())["account"]["positions"]) == 1             # one bet per event
+    night = datetime(2026, 11, 12, 20, 0, tzinfo=ZoneInfo("America/New_York")).timestamp()
+    monkeypatch.setattr(k, "kget", lambda p, params=None: {"market": {"result": "yes", "status": "finalized"}})
+    ks.step(cfg, lambda t, m: told.append(t), night, [e], levels, lambda t: books[t], path)
+    acct = json.loads(path.read_text())["account"]
+    assert not acct["positions"] and acct["results"][0]["won"] and acct["results"][0]["fill"]["top"] == 0.30
+    assert any(t.startswith("📊 Kalshi stocks") for t in told)                       # the daily report (after 3:30 pm CT)
+    assert ks.status_text(path).count("RESULT ") == 1
+
+
+def test_kalshi_stocks_backtest_uses_only_prices_known_at_each_buy():
+    from bot import kalshi_stocks as ks
+    close = 2_000_000_000.0
+    e = _stock_event(close=close)
+    for m in e["markets"]:
+        m["result"] = "yes" if m["ticker"] == "T-B7600" else "no"
+    candles = {m["ticker"]: [[close - 8 * 3600, 0.30 if m["ticker"] == "T-B7600" else 0.03,
+                              0.27 if m["ticker"] == "T-B7600" else 0.01]] for m in e["markets"]}
+    data = {"KXINX-26NOV12H1600": {"series": "KXINX", "close": close, "markets": e["markets"], "candles": candles}}
+    prices = {"^GSPC": [(close - 5.5 * 3600, 7612.0), (close, 7999.0)], "^VIX": [(close - 6 * 3600, 18.0)],
+              "^NDX": [], "^VXN": []}
+    tr = ks.bt_trades(data, prices, ks.DEFAULTS, [{"vol_mult": 0.6, "margin": 0.05}])[0]
+    assert len(tr) == 1 and tr[0]["side"] == "yes" and tr[0]["won"] and tr[0]["r"] > 1   # bought at 30c, won
+    assert ks.last_before(prices["^GSPC"], close - 2 * 3600) == 7612.0                  # the close isn't known before it
