@@ -3,10 +3,14 @@
 name: launch-lab-status
 on:
   workflow_dispatch:
+    inputs:
+      replay:
+        description: "Type yes to also replay the super bots' trades at real on-chain prices (10-40 minutes)"
+        default: ""
 jobs:
   status:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,10 +30,17 @@ jobs:
           restore-keys: lab-data-
       - run: python -m bot launch-lab --status
       - run: python -m bot brain                # the super bot's brain report (reads the research log only)
+      - name: Replay the super bot's trades at real on-chain prices (reads the chain only)
+        if: ${{ inputs.replay == 'yes' }}
+        env:
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+        run: python tools/replay_super.py lab_status.json replay_super.json || true
       - uses: actions/upload-artifact@v4
         with:
           name: lab-status
           path: |
             lab_status.json
             brain_report.json
+            replay_super.json
+          if-no-files-found: ignore
           retention-days: 3

@@ -4324,3 +4324,33 @@ def test_brain_go_live_gate_only_reports_and_needs_all_its_numbers():
     assert "2.9 of 4 weeks" in short and "numbers are met" not in short          # not 4 weeks yet
     met = brain.gate_line({"brain": [320, 320 * 0.031, 90, 64.0]}, {"brain": 0}, cfg, now=30 * 86400)
     assert "numbers are met; real money still only if you say so" in met
+
+
+def test_super_bots_trades_get_a_real_price_check_next_to_the_lab():
+    from bot import launch_lab as ll
+    from bot import pump_direct as pd
+
+    class Rec:
+        def __init__(self):
+            self.calls = []
+        def lab_buy(self, mint, now, lab_tokens=None): self.calls.append(("buy", mint))
+        def lab_sell(self, mint, now, why=""): self.calls.append(("sell", mint))
+        def lab_result(self, mint, r): self.calls.append(("result", mint, round(r, 3)))
+    lab = ll.Lab(sol_usd=100.0)
+    rec = lab.checks["timing"] = Rec()
+    lab.event(1000.0, {"kind": "trade", "mint": "A", "vsol": 30.0, "vtok": 1.07e9, "real_sol": 0.0, "sol": 0.5,
+                       "buy": True, "user": "u0", "fee": 0.0125, "tok": 1e7})
+    assert rec.calls == []                                # a ghost's snipe: not the super bot's own trade
+    lab._buy(lab.accts["timing"], "A", 1001.0, "test", via="snipe")
+    lab._buy(lab.ghosts["timing"], "A", 1001.0, "test", via="snipe")
+    assert rec.calls == [("buy", "A")]                     # the real account only, once
+    lab.event(1003.0, {"kind": "trade", "mint": "A", "vsol": 31.0, "vtok": 1.06e9, "real_sol": 1.0, "sol": 0.5,
+                       "buy": True, "user": "u1", "fee": 0.0125, "tok": 1e7})
+    lab.close(lab.accts["timing"], lab.coins["A"], 1010.0, "test exit")
+    assert rec.calls[-1][0] == "result" and rec.calls[-1][1] == "A"
+    ck = lab.checks["timing"] = pd.DirectBuyer(sol_usd=100.0, usd=250.0)
+    ck.stats["signals"] = 3
+    ck.trades = [{"mint": "A", "in": 100, "out": 110, "sell_ok": True, "sold": 5000, "lab_ret": 0.2},
+                 {"mint": "B", "in": 100, "out": 90, "sell_ok": True, "sold": 5000, "lab_ret": 0.0}]
+    line = lab.check_lines(5100.0)[0]
+    assert line.startswith("• Super bot at real prices") and "+0.0% a trade vs the lab's +10.0% on the same trades" in line
