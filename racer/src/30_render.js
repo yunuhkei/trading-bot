@@ -127,7 +127,7 @@ function renderFrame(w,h,sky){
   for(let i=0;i<R.props.length;i++){const p=R.props[i],dist=R.drawProp[p.cat];const dx=p.cx-cx,dz=p.cz-cz;if(dx*dx+dz*dz>(dist+p.rad)*(dist+p.rad)||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
     gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,28,12);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,28,16);gl.vertexAttribPointer(3,2,gl.FLOAT,false,28,20);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}
   /* the player's car (+ rivals later) */
-  if(R.carDraw)R.carDraw();if(R.trDraw)R.trDraw();heliDraw();
+  if(R.carDraw)R.carDraw();if(R.trDraw)R.trDraw();heliDraw();evGhostDraw();
   /* sky: only where nothing else was drawn */
   P=G.P.sky;gl.useProgram(P.p);setEnvU(P);gl.disable(gl.CULL_FACE);bindTex(0,R.tex.nz);gl.uniform1i(P.u.uNz,0);
   const th=Math.tan(R.fov/2);gl.uniform3fv(P.u.uFw,R.fw);gl.uniform3fv(P.u.uRt,R.rt);gl.uniform3fv(P.u.uUp,R.up);gl.uniform2f(P.u.uTan,th*w/h,th);gl.bindBuffer(gl.ARRAY_BUFFER,R.skyB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);gl.drawArrays(gl.TRIANGLES,0,3);R.draws++;

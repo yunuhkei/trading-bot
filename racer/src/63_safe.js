@@ -2,13 +2,17 @@
 /* ===== safe houses, the economy hooks (a stub), and what happens when you are wrecked or busted ===== */
 /* THE MONEY SYSTEM IS NOT DECIDED. Nothing here invents a price or a payout: ECON is a set of hooks that do nothing yet, SAFE.price is null (unknown) for every house but the free first one, and
    repairs cost nothing. Once there are numbers, fill in SAFE.price[id], ECON.money, ECON.buy and ECON.repairCost; the game already calls them at the right moments. */
-const ECON={money:0,
-  price(id){const p=SAFE.price[id];return p==null?null:p},       /* null = not decided yet */
-  canBuy(id){return false},                                       /* no economy yet: a locked garage cannot be bought */
-  buy(id){return false},                                          /* hook: pay, then call safeUnlock(id) */
-  repairCost(dmgTotal){return 0},                                 /* repairs are free for now */
-  carPrice(id){return null},onCarUnlock(id){},                  /* cars: what a car costs / is earned by is not decided either */
-  onBusted(){},onWrecked(){},onRepair(cost){},onUnlock(id){}};    /* hooks called by the game */
+/* MONEY (batch 10): you start with 5,000. Events pay (68_events.js); cars cost money in the car menu (a price from the car's top speed: 1,500 + 6 x (top - 240 km/h)^2, the Kestrel S is free);
+   garages other than the first cost 15,000 (stop on the pad of a locked one); repairs are free; BUSTED costs 8 % of your money (at most 10,000). Saved in localStorage. */
+const ECON={money:5000,key:'racer.money',
+  load(){try{const v=parseFloat(localStorage.getItem(this.key));if(isFinite(v))this.money=v}catch(e){}},save(){try{localStorage.setItem(this.key,String(Math.round(this.money)))}catch(e){}},
+  add(n){this.money=Math.max(0,this.money+n);this.save()},
+  price(id){const p=SAFE.price[id];return p==null?null:p},canBuy(id){const p=this.price(id);return p!=null&&this.money>=p},
+  buy(id){const p=this.price(id);if(p==null||this.money<p||SAFE.owned[id])return false;this.add(-p);safeUnlock(id);return true},
+  repairCost(dmgTotal){return 0},
+  carPrice(id){const d=CAR_ROSTER.find(q=>q.id==id);if(!d||id=='k1')return 0;const t=Math.max(0,d.real.top-240);return Math.round((1500+6*t*t)/500)*500},
+  buyCar(id){const p=this.carPrice(id);if(this.money<p)return false;this.add(-p);carUnlock(id);return true},
+  onCarUnlock(id){},onBusted(){const f=Math.min(10000,Math.round(this.money*.08));if(f>0){this.add(-f);GAME.fine=f}},onWrecked(){GAME.fine=0},onRepair(cost){},onUnlock(id){}};
 const SAFE={owned:{},price:{},pads:[],t:0,svc:0,at:null,msg:'',msgT:0,last:'home',visit:null,key:'racer.save'};
 /* the pad in front of each garage door: centre, half sizes, and the heading that leaves the garage towards the road */
 function safeInit(){
@@ -17,7 +21,7 @@ function safeInit(){
     /* pad axes: along the door direction (dd) and along the wall (t) */
     s.dd=[dx,dz];s.t=[s.cs,s.sn];s.pad={x:cx,z:cz,hl,hw};s.yaw=Math.atan2(dx,-dz);
     s.y=terrainH(cx,cz);for(const[a,b]of[[1,1],[1,-1],[-1,1],[-1,-1]])s.y=Math.max(s.y,terrainH(cx+dx*hl*a+s.cs*hw*b,cz+dz*hl*a+s.sn*hw*b));s.y+=.08;
-    SAFE.pads.push(s);if(!(s.id in SAFE.owned))SAFE.owned[s.id]=s.id=='home';if(!(s.id in SAFE.price))SAFE.price[s.id]=s.id=='home'?0:null}
+    SAFE.pads.push(s);if(!(s.id in SAFE.owned))SAFE.owned[s.id]=s.id=='home';if(!(s.id in SAFE.price))SAFE.price[s.id]=s.id=='home'?0:15000}
   safeLoad()}
 function safeLoad(){try{const j=JSON.parse(localStorage.getItem(SAFE.key)||'null');if(j&&j.owned)for(const k in j.owned)if(k in SAFE.owned)SAFE.owned[k]=!!j.owned[k];if(j&&j.last)SAFE.last=j.last}catch(e){}SAFE.owned.home=true}
 function safeSave(){try{localStorage.setItem(SAFE.key,JSON.stringify({owned:SAFE.owned,last:SAFE.last}))}catch(e){}}
@@ -44,7 +48,7 @@ function safeStep(dt){
     if(SAFE.svc>=1.5&&SAFE.visit!==on.id){SAFE.visit=on.id;SAFE.svc=0;
       if(SAFE.owned[on.id]){const dmg=DMG.total>0||DMG.z.some(v=>v>0),cost=ECON.repairCost(DMG.total);dmgReset();SAFE.last=on.id;safeSave();if(dmg)ECON.onRepair(cost);copClear(true);
         C.safeX=C.x;C.safeZ=C.z;C.safeY=C.y;C.safeYaw=C.yaw;safeToast(dmg?'REPAIRED & SAVED':'SAVED',2.6)}
-      else{const p=ECON.price(on.id);safeToast('GARAGE LOCKED'+(p==null?'  (price not set yet)':'  ('+p+')'),3)}}}
+      else{const p=ECON.price(on.id);if(ECON.buy(on.id)){safeToast('GARAGE BOUGHT  -'+evMoney(p),3);SAFE.visit=null}else safeToast('GARAGE FOR SALE  '+evMoney(p)+'  (you have '+evMoney(ECON.money)+')',3)}}}
   else SAFE.svc=Math.max(0,SAFE.svc-dt)}
 /* ---------------- wrecked / busted ---------------- */
 const GAME={state:0,t:0,msg:'',why:'',lock:0};      /* state 0 playing, 1 wrecked, 2 busted */
@@ -76,5 +80,5 @@ function safeHud(c,W_,H_,u){
   if(SAFE.msgT>0){c.save();c.globalAlpha=Math.min(1,SAFE.msgT*1.5);c.textAlign='center';c.font='800 '+Math.round(u*.5)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#7dffb0';c.shadowColor='rgba(0,0,0,.75)';c.shadowBlur=6;c.fillText(SAFE.msg,W_*.5,H_*.44);c.restore()}
   /* wrecked / busted screen */
   if(GAME.state){const k=Math.min(1,GAME.t/1.2),f=GAME.t>2.6?Math.min(1,(GAME.t-2.6)/.7):0;c.save();c.fillStyle='rgba(0,0,0,'+(.35*k+.65*f)+')';c.fillRect(0,0,W_,H_);c.globalAlpha=k;c.textAlign='center';c.font='900 '+Math.round(u*1.1)+'px -apple-system,Roboto,sans-serif';
-    c.fillStyle=GAME.state==2?'#7fb4ff':'#ff6a4a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=10;c.fillText(GAME.msg,W_*.5,H_*.5);
+    c.fillStyle=GAME.state==2?'#7fb4ff':'#ff6a4a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=10;c.fillText(GAME.msg,W_*.5,H_*.5);if(GAME.state==2&&GAME.fine>0){c.font='800 '+Math.round(u*.32)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffb0a0';c.fillText('FINE  -'+evMoney(GAME.fine),W_*.5,H_*.5+u*.6)}
     c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.85)';c.fillText(GAME.state==2?'The cops got you.':'The car is finished.',W_*.5,H_*.5+u*.55);c.restore()}}

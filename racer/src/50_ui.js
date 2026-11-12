@@ -10,6 +10,7 @@ function uiInit(){
     if(UI.paused){UI.paused=false;UI.touches.set(id,{type:'none'});return}
     if(UI.mapOpen){mapDown(id,x,y);UI.touches.set(id,{type:'map'});return}
     if(MENU.open){menuTap(x,y);UI.touches.set(id,{type:'none'});return}
+    if(evTap(x,y)){UI.touches.set(id,{type:'none'});return}
     for(const b of UI.btn){const hit=b.circle?Math.hypot(x-b.cx,y-b.cy)<=b.circle:(x>=b.x-8&&x<=b.x+b.w+8&&y>=b.y-8&&y<=b.y+b.h+8);if(hit){UI.touches.set(id,{type:'btn',b});b.on=1;b.act&&b.act(1);return}}
     if(x<UI.w*.55){const t={type:'stick',x0:x,y0:y,x:x,y:y,lx:x,ly:y};UI.touches.set(id,t);UI.stickT=t;return}
     UI.touches.set(id,{type:'look',lx:x,ly:y})};   /* a drag on the free part of the right side looks around (when the car is stopped) */
@@ -92,7 +93,7 @@ function mapInit(){
   UI.mapSc=sc}
 /* safe houses (green = yours, grey = locked) and cops, drawn on top of the baked map */
 function mapOverlay(ctx,pxm,s){
-  for(const p of REPAIRS){const px=(p.x+W.half)*pxm,pz=(p.z+W.half)*pxm,r=6;ctx.fillStyle='#2a6be0';ctx.beginPath();ctx.arc(px,pz,r,0,TAU);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(px-r*.62,pz-r*.18,r*1.24,r*.36);ctx.fillRect(px-r*.18,pz-r*.62,r*.36,r*1.24)}   /* repair shops: a white cross on blue */
+  evMapIcons(ctx,v=>(v+W.half)*pxm,v=>(v+W.half)*pxm,5/s);for(const p of REPAIRS){const px=(p.x+W.half)*pxm,pz=(p.z+W.half)*pxm,r=6;ctx.fillStyle='#2a6be0';ctx.beginPath();ctx.arc(px,pz,r,0,TAU);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(px-r*.62,pz-r*.18,r*1.24,r*.36);ctx.fillRect(px-r*.18,pz-r*.62,r*.36,r*1.24)}   /* repair shops: a white cross on blue */
   const rs=6.8;ctx.lineWidth=1.7;for(const h of SAFEHOUSES){const px=(h.x+W.half)*pxm,pz=(h.z+W.half)*pxm,own=SAFE.owned[h.id];ctx.beginPath();ctx.arc(px,pz,rs,0,TAU);ctx.fillStyle=own?'#3cf08c':'#8d97a3';ctx.fill();ctx.strokeStyle=own?'#05301a':'#222a33';ctx.stroke()}
   if(TR.on){const r=4.2/s,f=((C.t*4)|0)%2;for(const c of TR.cars){if(!c.alive||c.kind!==1||(c.cm==0&&!c.siren))continue;ctx.fillStyle=f?'#ff4a3a':'#4a7aff';ctx.fillRect((c.x+W.half)*pxm-r,(c.z+W.half)*pxm-r,r*2,r*2)}}
   navMapOverlay(ctx,pxm,s)}
@@ -151,7 +152,7 @@ function hudDraw(){
   /* stats */
   if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px ui-monospace,Menlo,monospace';c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'gfx '+GFX.cur.name+' ('+GFX.mode+')  work '+GFX.work.toFixed(1)+' ms  fxaa'+(GFX.cur.blur?' blur':'')+(GFX.cur.bloom?' bloom':'')+(GFX.shadowOn?' shadow'+GFX.cur.shadow:''),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
   if(PHYS.classic&&!window.__shot){c.save();c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,164,58,.9)';c.fillText('CLASSIC HANDLING',W_*.5,H_-u*.12);c.restore()}   /* the old handling is on (?hnd=classic or the switch in the car menu) */
-  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);
+  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);evHud(c,W_,H_,u);
   if(UI.paused&&!window.__shot){c.fillStyle='rgba(0,0,0,.55)';c.fillRect(0,0,W_,H_);c.fillStyle='#fff';c.textAlign='center';c.font='800 28px sans-serif';c.fillText('PAUSED - tap to resume',W_/2,H_/2)}
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}
   if(UI.mapOpen)drawWorldMap(c,W_,H_,u)

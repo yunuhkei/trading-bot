@@ -13,8 +13,8 @@ const L=require('./rlib.js');
   ok(G.length==20,'20 safe houses have pads (17 + Las Vegas, Sacramento, San Jose)');
   for(const g of G)if(g.gap<1||g.gap>28||g.slope>4||g.face<.4)ok(false,'pad of '+g.id+' (road '+g.road+'): '+g.gap+' m off the shoulder, '+g.slope+' m height change over the pad, door faces the road '+g.face);
   ok(G.every(g=>g.gap>=1&&g.gap<=28&&g.slope<=4&&g.face>=.4),'every pad is 1-28 m from the road edge, within 4 m of level, and the door faces the road (worst: '+Math.max(...G.map(g=>g.gap))+' m away, '+Math.max(...G.map(g=>g.slope))+' m of height change, door '+Math.min(...G.map(g=>g.face))+')');
-  ok(G.filter(g=>g.owned).length==1&&G.find(g=>g.id=='home').owned&&G.find(g=>g.id=='home').price===0,'only the Home Garage is owned (price 0); the other 16 are locked with price unset (null)');
-  ok(G.filter(g=>!g.owned).every(g=>g.price===null),'locked garages have no price yet (null): nothing was invented');
+  ok(G.filter(g=>g.owned).length==1&&G.find(g=>g.id=='home').owned&&G.find(g=>g.id=='home').price===0,'only the Home Garage is owned (price 0); the others are locked');
+  ok(G.filter(g=>!g.owned).every(g=>g.price===15000),'every other garage costs 15,000 (batch 10)');
   /* drive onto every pad from the road */
   const R=await T.ev(()=>{const {C,IN,UI}=RACER;UI.paused=true;IN.assist=false;IN.auto=false;const out=[];
     for(const s of SAFE.pads){SAFE.owned[s.id]=true;                       /* try them all as owned */
@@ -31,11 +31,11 @@ const L=require('./rlib.js');
   for(const r of R)if(!r.done||!r.repaired)ok(false,'could not service at '+r.id+': '+JSON.stringify(r));
   ok(R.every(r=>r.done&&r.repaired),'driving from the road onto each of the pads repairs and saves ('+R.filter(r=>r.done&&r.repaired).length+'/17, slowest '+Math.max(...R.map(r=>r.t))+' s)');
   /* locked garage and the economy hooks */
-  const K=await T.ev(()=>{const {C,IN}=RACER;const s=SAFE.pads.find(q=>q.id=='pines');SAFE.owned.pines=false;carPlace(s.pad.x,s.pad.z,s.yaw,s.y+.4);C.vx=C.vz=0;dmgReset();DMG.z[0]=.5;dmgEffects();SAFE.visit=null;SAFE.svc=0;
+  const K=await T.ev(()=>{const {C,IN}=RACER;const s=SAFE.pads.find(q=>q.id=='pines');SAFE.owned.pines=false;ECON.money=5000;carPlace(s.pad.x,s.pad.z,s.yaw,s.y+.4);C.vx=C.vz=0;dmgReset();DMG.z[0]=.5;dmgEffects();SAFE.visit=null;SAFE.svc=0;
     for(let k=0;k<120*3;k++){IN.thr=0;IN.brk=1;RACER.worldStep(1/120)}
     return{msg:SAFE.msg,front:DMG.z[0],buy:ECON.buy('pines'),can:ECON.canBuy('pines'),price:ECON.price('pines'),cost:ECON.repairCost(1e6),still:SAFE.owned.pines}});
-  ok(/LOCKED/.test(K.msg)&&K.front===.5,'a locked garage says "'+K.msg+'" and does not repair');
-  ok(K.buy===false&&K.can===false&&K.price===null&&K.cost===0,'economy hooks are stubs: buy '+K.buy+', canBuy '+K.can+', price '+K.price+', repair cost '+K.cost);
+  ok(/FOR SALE/.test(K.msg)&&K.front===.5,'a locked garage you cannot afford says "'+K.msg+'" and does not repair');
+  ok(K.buy===false&&K.can===false&&K.price===15000&&K.cost===0&&!K.still,'with 5,000 you cannot buy it: buy '+K.buy+', canBuy '+K.can+', price '+K.price+', repairs free ('+K.cost+')');
   /* respawn: nearest owned */
   const N=await T.ev(()=>{const {C}=RACER;const out={};safeUnlock('pacifica');const p=SAFE.pads.find(q=>q.id=='pacifica'),h=SAFE.pads.find(q=>q.id=='home');
     const near=(x,z)=>{RACER.carPlace(x,z,0,terrainH(x,z)+1);dmgReset();DMG.z[0]=1;DMG.total=DMG_POOL;dmgEffects();gameStep(.01);for(let s=0;s<120*4;s++)RACER.worldStep(1/120);return Math.hypot(C.x-p.pad.x,C.z-p.pad.z)<8?'pacifica':Math.hypot(C.x-h.pad.x,C.z-h.pad.z)<8?'home':'?'};

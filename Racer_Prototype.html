@@ -1904,7 +1904,7 @@ function renderFrame(w,h,sky){
   for(let i=0;i<R.props.length;i++){const p=R.props[i],dist=R.drawProp[p.cat];const dx=p.cx-cx,dz=p.cz-cz;if(dx*dx+dz*dz>(dist+p.rad)*(dist+p.rad)||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
     gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,28,12);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,28,16);gl.vertexAttribPointer(3,2,gl.FLOAT,false,28,20);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}
   /* the player's car (+ rivals later) */
-  if(R.carDraw)R.carDraw();if(R.trDraw)R.trDraw();heliDraw();
+  if(R.carDraw)R.carDraw();if(R.trDraw)R.trDraw();heliDraw();evGhostDraw();
   /* sky: only where nothing else was drawn */
   P=G.P.sky;gl.useProgram(P.p);setEnvU(P);gl.disable(gl.CULL_FACE);bindTex(0,R.tex.nz);gl.uniform1i(P.u.uNz,0);
   const th=Math.tan(R.fov/2);gl.uniform3fv(P.u.uFw,R.fw);gl.uniform3fv(P.u.uRt,R.rt);gl.uniform3fv(P.u.uUp,R.up);gl.uniform2f(P.u.uTan,th*w/h,th);gl.bindBuffer(gl.ARRAY_BUFFER,R.skyB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);gl.drawArrays(gl.TRIANGLES,0,3);R.draws++;
@@ -2460,7 +2460,7 @@ function fxDraw(){
   const lampK=Math.max(T.glow,T.pool),nl=gfxNearLamps(x,z,300,lampK,fwx,fwz);
   const nPool=Math.min(nl,T.pool);
   for(let i=0;i<nPool;i++){const j=_lampPick[i],lx=LAMPS[j],ly=LAMPS[j+1]-6.95,lz=LAMPS[j+2];flat(lx,ly+.03,lz,7.5,7.5,1,.78,.45,.34*dayK)}
-  heliFx(quad,flat,5);
+  heliFx(quad,flat,5);evFx(quad,flat,sprite,5);
   /* red and blue wash on the road round a police car with its siren on */
   if(TR.on)for(const c of TR.cars){if(!c.alive||!c.siren)continue;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz;if(dx*dx+dz*dz>40000)continue;const ph=Math.sin(R.time*12)>0;flat(px,lerp(c.py,c.y,a)+.05,pz,11,11,ph?1:.12,ph?.1:.32,ph?.08:1,.42)}
   if(C.boostK>.04){const hx=sy,hz=-cy;flat(x-hx*3.4,C.gs+.04,z-hz*3.4,3+2*C.boostK,3+2*C.boostK,1,.62,.28,.5*C.boostK*(.4+.6*(1-dayK)))}
@@ -2482,7 +2482,7 @@ function fxDraw(){
   /* neon */
   for(let i=0;i<NEONS.length&&ng<gMax+24;i+=7){const nx=NEONS[i]-gcx,nz=NEONS[i+2]-gcz,d2=nx*nx+nz*nz;if(d2>56000)continue;if(nx*R.fw[0]+nz*R.fw[2]<-3)continue;const d=Math.sqrt(d2),fl=.82+.18*Math.sin(R.time*(3+(i%5))+i),al=Math.min(.95,1.15-d/240)*fl;
     sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al*(.35+.65*dayK));ng++}
-  navBeacon(sprite);spikeFx(sprite,SRN);
+  navBeacon(sprite);spikeFx(sprite,SRN);evFx(quad,flat,sprite,4);
   /* the car's own lights */
   /* batch 6: the glows sit ON the lamps: model points put through the very matrix the car was drawn with (so they pitch, roll and tumble with it and are never a physics step behind), moved with the dents */
   {const M=CARM.mf,D=DMG.lampD,P=(bx,by,bz)=>{_lp[0]=M[0]*bx+M[4]*by+M[8]*bz+M[12];_lp[1]=M[1]*bx+M[5]*by+M[9]*bz+M[13];_lp[2]=M[2]*bx+M[6]*by+M[10]*bz+M[14];return _lp};
@@ -2656,6 +2656,7 @@ function uiInit(){
     if(UI.paused){UI.paused=false;UI.touches.set(id,{type:'none'});return}
     if(UI.mapOpen){mapDown(id,x,y);UI.touches.set(id,{type:'map'});return}
     if(MENU.open){menuTap(x,y);UI.touches.set(id,{type:'none'});return}
+    if(evTap(x,y)){UI.touches.set(id,{type:'none'});return}
     for(const b of UI.btn){const hit=b.circle?Math.hypot(x-b.cx,y-b.cy)<=b.circle:(x>=b.x-8&&x<=b.x+b.w+8&&y>=b.y-8&&y<=b.y+b.h+8);if(hit){UI.touches.set(id,{type:'btn',b});b.on=1;b.act&&b.act(1);return}}
     if(x<UI.w*.55){const t={type:'stick',x0:x,y0:y,x:x,y:y,lx:x,ly:y};UI.touches.set(id,t);UI.stickT=t;return}
     UI.touches.set(id,{type:'look',lx:x,ly:y})};   /* a drag on the free part of the right side looks around (when the car is stopped) */
@@ -2738,7 +2739,7 @@ function mapInit(){
   UI.mapSc=sc}
 /* safe houses (green = yours, grey = locked) and cops, drawn on top of the baked map */
 function mapOverlay(ctx,pxm,s){
-  for(const p of REPAIRS){const px=(p.x+W.half)*pxm,pz=(p.z+W.half)*pxm,r=6;ctx.fillStyle='#2a6be0';ctx.beginPath();ctx.arc(px,pz,r,0,TAU);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(px-r*.62,pz-r*.18,r*1.24,r*.36);ctx.fillRect(px-r*.18,pz-r*.62,r*.36,r*1.24)}   /* repair shops: a white cross on blue */
+  evMapIcons(ctx,v=>(v+W.half)*pxm,v=>(v+W.half)*pxm,5/s);for(const p of REPAIRS){const px=(p.x+W.half)*pxm,pz=(p.z+W.half)*pxm,r=6;ctx.fillStyle='#2a6be0';ctx.beginPath();ctx.arc(px,pz,r,0,TAU);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(px-r*.62,pz-r*.18,r*1.24,r*.36);ctx.fillRect(px-r*.18,pz-r*.62,r*.36,r*1.24)}   /* repair shops: a white cross on blue */
   const rs=6.8;ctx.lineWidth=1.7;for(const h of SAFEHOUSES){const px=(h.x+W.half)*pxm,pz=(h.z+W.half)*pxm,own=SAFE.owned[h.id];ctx.beginPath();ctx.arc(px,pz,rs,0,TAU);ctx.fillStyle=own?'#3cf08c':'#8d97a3';ctx.fill();ctx.strokeStyle=own?'#05301a':'#222a33';ctx.stroke()}
   if(TR.on){const r=4.2/s,f=((C.t*4)|0)%2;for(const c of TR.cars){if(!c.alive||c.kind!==1||(c.cm==0&&!c.siren))continue;ctx.fillStyle=f?'#ff4a3a':'#4a7aff';ctx.fillRect((c.x+W.half)*pxm-r,(c.z+W.half)*pxm-r,r*2,r*2)}}
   navMapOverlay(ctx,pxm,s)}
@@ -2797,7 +2798,7 @@ function hudDraw(){
   /* stats */
   if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px ui-monospace,Menlo,monospace';c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'gfx '+GFX.cur.name+' ('+GFX.mode+')  work '+GFX.work.toFixed(1)+' ms  fxaa'+(GFX.cur.blur?' blur':'')+(GFX.cur.bloom?' bloom':'')+(GFX.shadowOn?' shadow'+GFX.cur.shadow:''),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
   if(PHYS.classic&&!window.__shot){c.save();c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,164,58,.9)';c.fillText('CLASSIC HANDLING',W_*.5,H_-u*.12);c.restore()}   /* the old handling is on (?hnd=classic or the switch in the car menu) */
-  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);
+  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);evHud(c,W_,H_,u);
   if(UI.paused&&!window.__shot){c.fillStyle='rgba(0,0,0,.55)';c.fillRect(0,0,W_,H_);c.fillStyle='#fff';c.textAlign='center';c.font='800 28px sans-serif';c.fillText('PAUSED - tap to resume',W_/2,H_/2)}
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}
   if(UI.mapOpen)drawWorldMap(c,W_,H_,u)
@@ -2838,11 +2839,11 @@ function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.s
 const _PT=(c,fin,p2)=>Object.assign(c,{fin:fin|0,p2:p2||null});
 const CAR_PAINTS=[null,_PT([240,240,236],0),_PT([14,14,18],1),_PT([168,172,180],1),_PT([24,52,150],1),_PT([250,196,8],0),_PT([240,104,16],2,[255,40,90]),_PT([22,96,58],1),_PT([196,22,32],0),_PT([236,238,244],2,[130,180,255]),_PT([64,66,70],3)];
 /* FOR NOW EVERY CAR IS UNLOCKED (CAR_ALL_DEFAULT): the game starts with all 30 open. The earning system will switch this off and call carUnlock(id) as cars are earned. */
-const CAR_ALL_DEFAULT=true;
+const CAR_ALL_DEFAULT=false;   /* batch 10: cars are bought with money; the switch in the menu still opens them all, for testing */
 const CAROWN={owned:{k1:true},all:CAR_ALL_DEFAULT,color:{},key:'racer.cars'};
 const MENU={open:0,i:0,t:0,btns:[],pi:0};
-function carLoad(){try{const j=JSON.parse(localStorage.getItem(CAROWN.key)||'null');if(j){if(j.owned)Object.assign(CAROWN.owned,j.owned);CAROWN.all=CAR_ALL_DEFAULT;if(j.color)Object.assign(CAROWN.color,j.color);if(j.curId&&CAR_ROSTER.some(d=>d.id===j.curId))CARSEL.cur=carIndex(j.curId)}}catch(e){}CAROWN.owned.k1=true}
-function carSave(){try{localStorage.setItem(CAROWN.key,JSON.stringify({owned:CAROWN.owned,all:CAROWN.all,color:CAROWN.color,curId:(CAR_ROSTER[CARSEL.cur]||{}).id}))}catch(e){}}
+function carLoad(){try{const j=JSON.parse(localStorage.getItem(CAROWN.key)||'null');if(j){if(j.owned)Object.assign(CAROWN.owned,j.owned);CAROWN.all=('allv2' in j)?!!j.allv2:CAR_ALL_DEFAULT;if(j.color)Object.assign(CAROWN.color,j.color);if(j.curId&&CAR_ROSTER.some(d=>d.id===j.curId))CARSEL.cur=carIndex(j.curId)}}catch(e){}CAROWN.owned.k1=true}
+function carSave(){try{localStorage.setItem(CAROWN.key,JSON.stringify({owned:CAROWN.owned,all:CAROWN.all,color:CAROWN.color,allv2:CAROWN.all,curId:(CAR_ROSTER[CARSEL.cur]||{}).id}))}catch(e){}}
 const carOwned=i=>CAROWN.all||!!CAROWN.owned[CAR_ROSTER[i].id];
 /* the hook for the earning system: call this when a car has been earned or bought */
 function carUnlock(id){if(CAR_ROSTER.some(d=>d.id==id)){CAROWN.owned[id]=true;carSave();if(ECON.onCarUnlock)ECON.onCarUnlock(id);return true}return false}
@@ -2853,7 +2854,7 @@ const DRV={RR:'rear-engine RWD',MR:'mid-engine RWD',FR:'front-engine RWD',AWD:'A
 function menuOpen(){if(MENU.open)return;MENU.open=1;MENU.prevEnv=ENV.name;envApply('studio');MENU.i=CARSEL.cur;MENU.t=0;MENU.pi=CARSEL.cur;UI.stickT=null;IN.thr=IN.brk=IN.hand=IN.nitro=0}
 function menuPreview(i){MENU.i=_cl(i,0,CAR_ROSTER.length-1);if(MENU.i!=CARM.idx){carInstall(CAR_ROSTER[MENU.i],carPaintOf(MENU.i));CARM.idx=MENU.i}}
 function menuClose(){if(!MENU.open)return;MENU.open=0;if(MENU.prevEnv)envApply(MENU.prevEnv);if(CARM.idx!=CARSEL.cur){carInstall(CAR_ROSTER[CARSEL.cur],carPaintOf(CARSEL.cur));CARM.idx=CARSEL.cur}}
-function menuChoose(){const i=MENU.i;if(!carOwned(i)){safeToast('LOCKED  (how to earn it is not set yet)',2.6);return}carSelect(i);CARM.idx=i;carInstall(CAR_ROSTER[i],carPaintOf(i));carSave();safeToast(CAR_ROSTER[i].name+' selected',2);menuClose()}
+function menuChoose(){const i=MENU.i;if(!carOwned(i)){const id=CAR_ROSTER[i].id,p=ECON.carPrice(id);if(ECON.buyCar(id))safeToast('BOUGHT  -'+evMoney(p),2.6);else{safeToast('NEED '+evMoney(p)+'  (you have '+evMoney(ECON.money)+')',2.6);return}}carSelect(i);CARM.idx=i;carInstall(CAR_ROSTER[i],carPaintOf(i));carSave();safeToast(CAR_ROSTER[i].name+' selected',2);menuClose()}
 function menuPaint(k){const id=CAR_ROSTER[MENU.i].id;CAROWN.color[id]=k;carInstall(CAR_ROSTER[MENU.i],carPaintOf(MENU.i));CARM.idx=MENU.i;carSave()}
 function menuUnlockAll(){CAROWN.all=!CAROWN.all;carSave()}
 /* the camera: round the car, a little above */
@@ -2872,7 +2873,7 @@ function menuDraw(c,W_,H_,u){
   c.save();c.fillStyle='rgba(8,10,16,.86)';rr(c,L.px,L.py,L.pw,L.ph,u*.2);c.fill();c.textAlign='left';
   const x0=L.x0,fs=(f,w)=>(w||700)+' '+Math.round(u*f)+'px -apple-system,Roboto,sans-serif';
   c.fillStyle='#fff';c.font=fs(.5,800);{const wmax=L.iw-u*1.5,wn=c.measureText(d.name).width;if(wn>wmax)c.font=fs(.5*wmax/wn,800)}c.fillText(d.name,x0,L.py+u*.62);   /* a long name shrinks so it never runs into the OWNED label */c.fillStyle='rgba(255,255,255,.65)';c.font=fs(.21);c.fillText(d.cls,x0,L.py+u*.9);c.fillText((MENU.i+1)+' / '+CAR_ROSTER.length+'   ·   '+Math.round(d.real.hp)+' hp  ·  '+DRV[d.real.drive],x0,L.py+u*1.16);
-  c.textAlign='right';c.fillStyle=own?(cur?'#7dffb0':'#9cc8ff'):'#ff9a4a';c.font=fs(.26,800);c.fillText(own?(cur?'YOUR CAR':'OWNED'):'LOCKED',L.px+L.pw-L.m,L.py+u*.62);c.textAlign='left';
+  c.textAlign='right';c.fillStyle=own?(cur?'#7dffb0':'#9cc8ff'):'#ff9a4a';c.font=fs(.26,800);c.fillText(own?(cur?'YOUR CAR':'OWNED'):evMoney(ECON.carPrice(d.id)),L.px+L.pw-L.m,L.py+u*.62);c.textAlign='left';
   /* the figures */
   const st=carStats(d),bx=x0+L.iw*.3,bw=L.iw*.3,tx=x0+L.iw*.64;let y=L.stats+u*.14;
   for(const[n,v,t]of st){c.fillStyle='rgba(255,255,255,.7)';c.font=fs(.19);c.fillText(n,x0,y);c.fillStyle='rgba(255,255,255,.12)';rr(c,bx,y-u*.16,bw,u*.15,u*.05);c.fill();c.fillStyle='#ffa43a';rr(c,bx,y-u*.16,Math.max(u*.1,bw*v),u*.15,u*.05);c.fill();c.fillStyle='rgba(255,255,255,.85)';c.font=fs(.18);c.fillText(t,tx,y);y+=u*.3}
@@ -2882,8 +2883,8 @@ function menuDraw(c,W_,H_,u){
   for(let k=0;k<CAR_PAINTS.length;k++){const bt=L.b.find(q=>q.id=='paint'+k),pc=CAR_PAINTS[k]||d.paint,sel=(CAROWN.color[d.id]|0)==k;c.fillStyle='rgb('+pc[0]+','+pc[1]+','+pc[2]+')';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,bt.w/2,0,TAU);c.fill();c.strokeStyle=sel?'#fff':'rgba(255,255,255,.35)';c.lineWidth=sel?2.5:1;c.stroke()}
   const sb=L.b.find(q=>q.id=='all');c.fillStyle=CAROWN.all?'#4be07a':'rgba(255,255,255,.18)';rr(c,sb.x,sb.y,sb.w,sb.h,u*.1);c.fill();c.fillStyle=CAROWN.all?'#102016':'rgba(255,255,255,.85)';c.font=fs(.19,700);c.textAlign='center';c.fillText(CAROWN.all?'ALL CARS UNLOCKED':'UNLOCK ALL CARS',sb.x+sb.w/2,sb.y+sb.h*.68);
   {const hb=L.b.find(q=>q.id=='hnd');c.fillStyle=PHYS.classic?'#ffa43a':'rgba(255,255,255,.18)';rr(c,hb.x,hb.y,hb.w,hb.h,u*.1);c.fill();c.fillStyle=PHYS.classic?'#201408':'rgba(255,255,255,.85)';c.fillText('HANDLING: '+(PHYS.classic?'CLASSIC':'NEW'),hb.x+hb.w/2,hb.y+hb.h*.68)}
-  for(const id of['select','close']){const bt=L.b.find(q=>q.id==id),sel=id=='select';c.fillStyle=sel&&own?'#ff7a1a':'rgba(255,255,255,.18)';rr(c,bt.x,bt.y,bt.w,bt.h,u*.14);c.fill();c.fillStyle=sel&&own?'#111':'#fff';c.font=fs(.26,800);c.fillText(sel?(own?(cur?'DRIVE IT':'DRIVE THIS'):'LOCKED'):'BACK',bt.x+bt.w/2,bt.y+bt.h*.66)}
-  if(!own){c.fillStyle='#ff9a4a';c.font=fs(.18);c.fillText('How to earn this car is not decided yet',L.px+L.pw/2,L.by+u*.66)}
+  for(const id of['select','close']){const bt=L.b.find(q=>q.id==id),sel=id=='select';c.fillStyle=sel&&(own||ECON.money>=ECON.carPrice(d.id))?'#ff7a1a':'rgba(255,255,255,.18)';rr(c,bt.x,bt.y,bt.w,bt.h,u*.14);c.fill();c.fillStyle=sel&&(own||ECON.money>=ECON.carPrice(d.id))?'#111':'#fff';c.font=fs(.26,800);c.fillText(sel?(own?(cur?'DRIVE IT':'DRIVE THIS'):(ECON.money>=ECON.carPrice(d.id)?'BUY':'LOCKED')):'BACK',bt.x+bt.w/2,bt.y+bt.h*.66)}
+  if(!own){c.fillStyle='#ff9a4a';c.font=fs(.18);c.fillText('You have '+evMoney(ECON.money)+'  -  win events to earn more',L.px+L.pw/2,L.by+u*.66)}
   /* the arrows next to the car */
   c.textAlign='center';for(const id of['prev','next']){const bt=L.b.find(q=>q.id==id);c.fillStyle='rgba(8,10,16,.55)';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,bt.w/2,0,TAU);c.fill();c.fillStyle='#fff';c.font=fs(.55,800);c.fillText(id=='prev'?'‹':'›',bt.x+bt.w/2,bt.y+bt.h*.72)}
   c.restore()}
@@ -3316,7 +3317,7 @@ function trTick(dt){
   copTick(dt);
   if(TR.prof){const ms=performance.now()-t0;TR.ms+=(ms-TR.ms)*.03;TR.stat.msSum+=ms;TR.stat.ticks++;if(ms>TR.stat.msMax)TR.stat.msMax=ms}}
 /* the fixed-step world: the player at 120 Hz (collisions with traffic included), traffic at 60 Hz */
-function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);if(TR.on&&TR.nAlive)trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);if(!(++TR.sub&1))trTick(dt*2)}
+function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);if(TR.on&&TR.nAlive)trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);evTick(dt);if(!(++TR.sub&1))trTick(dt*2)}
 
 'use strict';
 /* ===== traffic rendering: four low-poly body types built in code (about 200 triangles each), drawn instanced (one draw per type; if the GPU has no instancing, one draw per car) ===== */
@@ -3558,13 +3559,17 @@ function dmgHud(c,x,y,w,u){
 /* ===== safe houses, the economy hooks (a stub), and what happens when you are wrecked or busted ===== */
 /* THE MONEY SYSTEM IS NOT DECIDED. Nothing here invents a price or a payout: ECON is a set of hooks that do nothing yet, SAFE.price is null (unknown) for every house but the free first one, and
    repairs cost nothing. Once there are numbers, fill in SAFE.price[id], ECON.money, ECON.buy and ECON.repairCost; the game already calls them at the right moments. */
-const ECON={money:0,
-  price(id){const p=SAFE.price[id];return p==null?null:p},       /* null = not decided yet */
-  canBuy(id){return false},                                       /* no economy yet: a locked garage cannot be bought */
-  buy(id){return false},                                          /* hook: pay, then call safeUnlock(id) */
-  repairCost(dmgTotal){return 0},                                 /* repairs are free for now */
-  carPrice(id){return null},onCarUnlock(id){},                  /* cars: what a car costs / is earned by is not decided either */
-  onBusted(){},onWrecked(){},onRepair(cost){},onUnlock(id){}};    /* hooks called by the game */
+/* MONEY (batch 10): you start with 5,000. Events pay (68_events.js); cars cost money in the car menu (a price from the car's top speed: 1,500 + 6 x (top - 240 km/h)^2, the Kestrel S is free);
+   garages other than the first cost 15,000 (stop on the pad of a locked one); repairs are free; BUSTED costs 8 % of your money (at most 10,000). Saved in localStorage. */
+const ECON={money:5000,key:'racer.money',
+  load(){try{const v=parseFloat(localStorage.getItem(this.key));if(isFinite(v))this.money=v}catch(e){}},save(){try{localStorage.setItem(this.key,String(Math.round(this.money)))}catch(e){}},
+  add(n){this.money=Math.max(0,this.money+n);this.save()},
+  price(id){const p=SAFE.price[id];return p==null?null:p},canBuy(id){const p=this.price(id);return p!=null&&this.money>=p},
+  buy(id){const p=this.price(id);if(p==null||this.money<p||SAFE.owned[id])return false;this.add(-p);safeUnlock(id);return true},
+  repairCost(dmgTotal){return 0},
+  carPrice(id){const d=CAR_ROSTER.find(q=>q.id==id);if(!d||id=='k1')return 0;const t=Math.max(0,d.real.top-240);return Math.round((1500+6*t*t)/500)*500},
+  buyCar(id){const p=this.carPrice(id);if(this.money<p)return false;this.add(-p);carUnlock(id);return true},
+  onCarUnlock(id){},onBusted(){const f=Math.min(10000,Math.round(this.money*.08));if(f>0){this.add(-f);GAME.fine=f}},onWrecked(){GAME.fine=0},onRepair(cost){},onUnlock(id){}};
 const SAFE={owned:{},price:{},pads:[],t:0,svc:0,at:null,msg:'',msgT:0,last:'home',visit:null,key:'racer.save'};
 /* the pad in front of each garage door: centre, half sizes, and the heading that leaves the garage towards the road */
 function safeInit(){
@@ -3573,7 +3578,7 @@ function safeInit(){
     /* pad axes: along the door direction (dd) and along the wall (t) */
     s.dd=[dx,dz];s.t=[s.cs,s.sn];s.pad={x:cx,z:cz,hl,hw};s.yaw=Math.atan2(dx,-dz);
     s.y=terrainH(cx,cz);for(const[a,b]of[[1,1],[1,-1],[-1,1],[-1,-1]])s.y=Math.max(s.y,terrainH(cx+dx*hl*a+s.cs*hw*b,cz+dz*hl*a+s.sn*hw*b));s.y+=.08;
-    SAFE.pads.push(s);if(!(s.id in SAFE.owned))SAFE.owned[s.id]=s.id=='home';if(!(s.id in SAFE.price))SAFE.price[s.id]=s.id=='home'?0:null}
+    SAFE.pads.push(s);if(!(s.id in SAFE.owned))SAFE.owned[s.id]=s.id=='home';if(!(s.id in SAFE.price))SAFE.price[s.id]=s.id=='home'?0:15000}
   safeLoad()}
 function safeLoad(){try{const j=JSON.parse(localStorage.getItem(SAFE.key)||'null');if(j&&j.owned)for(const k in j.owned)if(k in SAFE.owned)SAFE.owned[k]=!!j.owned[k];if(j&&j.last)SAFE.last=j.last}catch(e){}SAFE.owned.home=true}
 function safeSave(){try{localStorage.setItem(SAFE.key,JSON.stringify({owned:SAFE.owned,last:SAFE.last}))}catch(e){}}
@@ -3600,7 +3605,7 @@ function safeStep(dt){
     if(SAFE.svc>=1.5&&SAFE.visit!==on.id){SAFE.visit=on.id;SAFE.svc=0;
       if(SAFE.owned[on.id]){const dmg=DMG.total>0||DMG.z.some(v=>v>0),cost=ECON.repairCost(DMG.total);dmgReset();SAFE.last=on.id;safeSave();if(dmg)ECON.onRepair(cost);copClear(true);
         C.safeX=C.x;C.safeZ=C.z;C.safeY=C.y;C.safeYaw=C.yaw;safeToast(dmg?'REPAIRED & SAVED':'SAVED',2.6)}
-      else{const p=ECON.price(on.id);safeToast('GARAGE LOCKED'+(p==null?'  (price not set yet)':'  ('+p+')'),3)}}}
+      else{const p=ECON.price(on.id);if(ECON.buy(on.id)){safeToast('GARAGE BOUGHT  -'+evMoney(p),3);SAFE.visit=null}else safeToast('GARAGE FOR SALE  '+evMoney(p)+'  (you have '+evMoney(ECON.money)+')',3)}}}
   else SAFE.svc=Math.max(0,SAFE.svc-dt)}
 /* ---------------- wrecked / busted ---------------- */
 const GAME={state:0,t:0,msg:'',why:'',lock:0};      /* state 0 playing, 1 wrecked, 2 busted */
@@ -3632,7 +3637,7 @@ function safeHud(c,W_,H_,u){
   if(SAFE.msgT>0){c.save();c.globalAlpha=Math.min(1,SAFE.msgT*1.5);c.textAlign='center';c.font='800 '+Math.round(u*.5)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#7dffb0';c.shadowColor='rgba(0,0,0,.75)';c.shadowBlur=6;c.fillText(SAFE.msg,W_*.5,H_*.44);c.restore()}
   /* wrecked / busted screen */
   if(GAME.state){const k=Math.min(1,GAME.t/1.2),f=GAME.t>2.6?Math.min(1,(GAME.t-2.6)/.7):0;c.save();c.fillStyle='rgba(0,0,0,'+(.35*k+.65*f)+')';c.fillRect(0,0,W_,H_);c.globalAlpha=k;c.textAlign='center';c.font='900 '+Math.round(u*1.1)+'px -apple-system,Roboto,sans-serif';
-    c.fillStyle=GAME.state==2?'#7fb4ff':'#ff6a4a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=10;c.fillText(GAME.msg,W_*.5,H_*.5);
+    c.fillStyle=GAME.state==2?'#7fb4ff':'#ff6a4a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=10;c.fillText(GAME.msg,W_*.5,H_*.5);if(GAME.state==2&&GAME.fine>0){c.font='800 '+Math.round(u*.32)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffb0a0';c.fillText('FINE  -'+evMoney(GAME.fine),W_*.5,H_*.5+u*.6)}
     c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.85)';c.fillText(GAME.state==2?'The cops got you.':'The car is finished.',W_*.5,H_*.5+u*.55);c.restore()}}
 
 'use strict';
@@ -3940,6 +3945,7 @@ function drawWorldMap(c,W_,H_,u){
   const sc=1/k;c.textAlign='center';c.font='800 '+Math.max(9,Math.round(u*.24))+'px -apple-system,Roboto,sans-serif';c.lineJoin='round';
   const wpx=x=>(x+W.half)*pxm,wpz=z=>(z+W.half)*pxm;
   for(const L of MAPLBL.concat(JUMPZ.map(j=>['JUMPS',j[0],j[1]-75,1]))){c.save();c.translate(wpx(L[1]),wpz(L[2]));c.scale(sc,sc);c.textAlign=L[4]=='r'?'right':'center';c.strokeStyle='rgba(0,0,0,.85)';c.lineWidth=3.5;c.strokeText(L[0],0,0);c.fillStyle=L[3]?'#fff':'#8fb8e0';c.fillText(L[0],0,0);c.restore()}
+  evMapIcons(c,wpx,wpz,Math.max(3,u*.13)*sc);
   for(const p of REPAIRS){const r=Math.max(3,u*.12)*sc,x=wpx(p.x),z=wpz(p.z);c.beginPath();c.arc(x,z,r,0,TAU);c.fillStyle='#2a6be0';c.fill();c.fillStyle='#fff';c.fillRect(x-r*.62,z-r*.18,r*1.24,r*.36);c.fillRect(x-r*.18,z-r*.62,r*.36,r*1.24)}
   for(const h of SAFEHOUSES){c.beginPath();c.arc(wpx(h.x),wpz(h.z),Math.max(3,u*.11)*sc,0,TAU);c.fillStyle=SAFE.owned[h.id]?'#3cf08c':'#8d97a3';c.fill();c.lineWidth=1.5*sc;c.strokeStyle='#071018';c.stroke()}
   navMapOverlay(c,pxm,k);
@@ -4136,6 +4142,139 @@ function copSpikeCar(r,i,side){const e=LG.ofRoad[ROADS.indexOf(r)]&&LG.ofRoad[RO
 function spikeCheck(){if(!SPIKE.list.length||!C.grounded)return;
   for(const s of SPIKE.list){const dx=C.x-s.x,dz=C.z-s.z,lat=dx*s.nx+dz*s.nz,al=-dx*s.nz+dz*s.nx;if(Math.abs(lat)<s.hw&&Math.abs(al)<1.6&&Math.abs(C.y-s.y)<2&&!(C.flatT>0)){
       C.flatT=7.8;C.flatSide=Math.random()<.5?-1:1;SPIKE.hits++;C.shake=Math.min(1,C.shake+.5);C.bob=-.06;safeToast('TYRES BURST',2.6);if(typeof sparkAt==='function')sparkAt(C.x,C.y+.3,C.z,0,0,18,6);if(typeof audioBang==='function')audioBang();s.life=Math.min(s.life,3)}}}
+
+'use strict';
+/* ===== batch 10: events, records and money =====
+   EVENTS start from markers on the map (drive into one and stop: a card offers it) or from a garage (park on your garage's pad: the card lists every event; choosing one takes you to its start).
+   TIME TRIALS: a route between two places along the roads, checkpoints every 300 m (gates of light), the route drawn on the road and the minimap, a 3-2-1 start, bronze / silver / gold times,
+     the ghost of your best run (the same car only), no police while it runs.
+   ESCAPE THE COPS: you start with 2 to 5 stars and a clock; lose them (heat back to 0) before it runs out. Busted, wrecked or out of time: failed.
+   MONEY (ECON in 63_safe.js): events pay (a medal pays its full prize the first time it is won, then the difference when you beat it, and a tenth of the prize for a repeat), it buys cars (the car menu) and
+   garages (park on a locked garage's pad), and BUSTED costs 8 % of it (at most 10,000). Records (best times, medals, the ghost) are saved in localStorage. */
+const EV={list:[],run:null,card:null,btns:[],dismiss:null,rec:{},key:'racer.events',t:0,res:null,pending:null};
+const EV_DEF=[
+ {id:'t_ring',type:'trial',name:'Ring Sprint',from:['ring',.30],to:['ring',.62]},
+ {id:'t_desert',type:'trial',name:'Desert Dash',from:['eh',.08],to:['barp',.5]},
+ {id:'t_canyon',type:'trial',name:'Canyon Climb',from:['cyr',.04],to:['rim',.5]},
+ {id:'t_north',type:'trial',name:'Northern Line',from:['nt1',.06],to:['nt2',.94]},
+ {id:'t_coast',type:'trial',name:'Coast Highway',from:['cr',.08],to:['btp',.5]},
+ {id:'t_pass',type:'trial',name:'Mountain Pass',from:['nh1',.08],to:['bigp',.5]},
+ {id:'t_vegas',type:'trial',name:'Vegas Run',from:['vg1',.12],to:['vegp',.6]},
+ {id:'t_south',type:'trial',name:'Southern Cross',from:['sh',.12],to:['sh',.88]},
+ {id:'e_2',type:'escape',name:'Hot Pursuit',stars:2,secs:100,from:['ring',.55]},
+ {id:'e_3',type:'escape',name:'Roadblocks',stars:3,secs:130,from:['bv',.5]},
+ {id:'e_4',type:'escape',name:'Eye in the Sky',stars:4,secs:160,from:['eh',.55]},
+ {id:'e_5',type:'escape',name:'Most Wanted',stars:5,secs:200,from:['sfp',.3]}];
+const EV_ESC_PAY=[0,0,4000,8000,15000,25000],EV_MEDAL=['','BRONZE','SILVER','GOLD'],EV_MCOL=['#aaa','#d08a4a','#cfd6e0','#ffd23a'];
+function evLoad(){try{EV.rec=JSON.parse(localStorage.getItem(EV.key)||'{}')||{}}catch(e){EV.rec={}}}
+function evSave(){try{localStorage.setItem(EV.key,JSON.stringify(EV.rec))}catch(e){}}
+const evFmt=t=>{t=Math.max(0,t);const m=Math.floor(t/60),s=t-m*60;return m+':'+(s<10?'0':'')+s.toFixed(2)};
+const evMoney=n=>'$'+Math.round(n).toLocaleString('en-US');
+/* a point on a road (fraction f along it), the heading along it, a little to the right of the centre (the lane you drive in) */
+function evAt(id,f){const r=ROADS.find(q=>q.id==id);if(!r)return null;const i=Math.max(2,Math.min(r.n-3,Math.round(f*(r.closed?r.n:r.n-1)))),t=_tan(r,i),yaw=Math.atan2(t[0],-t[1]),o=r.style==1||r.style==4?r.hw*.55:r.hw*.4;
+  return{x:r.X[i]+Math.cos(yaw)*o,z:r.Z[i]+Math.sin(yaw)*o,y:r.Y[i],yaw,ri:ROADS.indexOf(r),i}}
+/* a route along the roads from a start (position and heading) to a point */
+function evRoute(s,gx,gz){const sn=navSnap(s.x,s.z,40);if(!sn)return null;const la=navLane(sn,s.x,s.z,Math.sin(s.yaw),-Math.cos(s.yaw));if(!la)return null;const g=navSnap(gx,gz,80);if(!g)return null;
+  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),ch=navAStar(e,u0,{ri:g.ri,i:g.i,x:g.x,z:g.z},60000);return ch?navPolyline(ch):null}
+/* the medal times come from the route itself: the time of a good driver who takes every bend at 9.5 m/s2 of grip, never goes over 72 m/s, pulls away at 6 m/s2 and brakes at 11 */
+function evRefTime(R){const n=R.n,p=R.pts,v=new Float32Array(n);for(let i=0;i<n;i++){const a=Math.max(0,i-4),b=Math.min(n-1,i+4),c=Math.min(n-1,i+8);const h1=Math.atan2(p[b*3]-p[a*3],p[b*3+2]-p[a*3+2]),h2=Math.atan2(p[c*3]-p[b*3],p[c*3+2]-p[b*3+2]),ds=Math.max(1,R.S[c]-R.S[a]),k=Math.abs(angd(h2,h1))/ds;v[i]=Math.min(72,k>1e-4?Math.sqrt(9.5/k):72)}
+  v[0]=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];v[i]=Math.min(v[i],Math.sqrt(v[i-1]*v[i-1]+2*6*ds))}for(let i=n-2;i>=0;i--){const ds=R.S[i+1]-R.S[i];v[i]=Math.min(v[i],Math.sqrt(v[i+1]*v[i+1]+2*11*ds))}
+  let t=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];t+=ds/Math.max(2,(v[i]+v[i-1])/2)}return t}
+function evInit(){EV.list.length=0;evLoad();
+  for(const d of EV_DEF){const s=evAt(d.from[0],d.from[1]);if(!s)continue;const ev=Object.assign({},d,{s});
+    if(d.type=='trial'){const t=evAt(d.to[0],d.to[1]);if(!t)continue;const R=evRoute(s,t.x,t.z);if(!R||R.len<500)continue;ev.len=R.len;ev.cps=[];
+      const n=Math.max(2,Math.round(R.len/300));for(let k=1;k<=n;k++){const S=R.len*k/n;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const a=Math.min(R.n-2,j),x=R.pts[a*3],y=R.pts[a*3+1],z=R.pts[a*3+2],dx=R.pts[a*3+3]-x,dz=R.pts[a*3+5]-z,l=Math.hypot(dx,dz)||1;
+        ev.cps.push({x,y,z,nx:-dz/l,nz:dx/l})}
+      ev.ref=evRefTime(R);ev.gold=ev.ref*1.06+2;ev.silver=ev.ref*1.2+3;ev.bronze=ev.ref*1.4+4;ev.prize=Math.max(1500,Math.round(ev.len/1000*2600/100)*100)}
+    else ev.prize=EV_ESC_PAY[d.stars];
+    EV.list.push(ev)}}
+const evMedal=(ev,t)=>t<=ev.gold?3:t<=ev.silver?2:t<=ev.bronze?1:0;
+/* ---- start, run, finish ---- */
+function evStart(ev){EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=0;
+  const s=ev.s;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-s.x,c.z-s.z)<40&&c.kind!==1)trKill(c,0);copClear(true);for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);
+  carPlace(s.x,s.z,s.yaw,s.y+.5);C.camYaw=s.yaw;camStep(0,true);dmgReset();C.nos=1;
+  EV.run={ev,t:-3,cp:0,ghost:[],gt:0,copsWas:COP.on,best:(EV.rec[ev.id]||{}).t,lastBeep:4};
+  if(ev.type=='trial'){COP.on=false;navSetPt(ev.cps[0])}else{COP.on=true}
+  evBeep(440,.12)}
+function navSetPt(p){navSet(p.x,p.z)}
+function evQuit(){const r=EV.run;if(!r)return;COP.on=r.copsWas;navClear();EV.run=null;safeToast('EVENT ABANDONED',2)}
+function evTick(dt){EV.t+=dt;const r=EV.run;
+  if(!r){if(EV.pending&&!GAME.state){EV.card=EV.pending;EV.pending=null}evMarkers();return}
+  if(GAME.state){/* busted or wrecked: the event is lost */COP.on=r.copsWas;navClear();EV.run=null;EV.pending=evResultCard(r.ev,false,GAME.state==2?'BUSTED':'WRECKED');return}
+  const ev=r.ev;
+  if(r.t<0){r.t+=dt;C.vx=C.vz=0;C.x=C.px=ev.s.x;C.z=C.pz=ev.s.z;C.yaw=C.pyaw=ev.s.yaw;C.wyaw=0;const k=Math.ceil(-r.t);if(k<r.lastBeep&&k>0){r.lastBeep=k;evBeep(440,.12)}
+    if(r.t>=0){evBeep(880,.25);if(ev.type=='escape'){const t=COP.D.thr,L=ev.stars;COP.w=t[L]+(L<5?(t[L+1]-t[L])*.3:20);COP.heat=L;COP.heatT=99;COP.sightT=0;(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:'event',level:L})}}return}
+  r.t+=dt;
+  if(ev.type=='trial'){r.gt+=dt;if(r.gt>=.1){r.gt-=.1;r.ghost.push(+C.x.toFixed(1),+C.y.toFixed(2),+C.z.toFixed(1),+C.yaw.toFixed(3))}
+    const p=ev.cps[r.cp],R=Math.max(14,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+5);if(Math.hypot(C.x-p.x,C.z-p.z)<R&&Math.abs(C.y-p.y)<6){r.cp++;
+      if(r.cp>=ev.cps.length){evFinish(true);return}evBeep(660,.08);navSetPt(ev.cps[r.cp])}
+    if(r.t>Math.max(ev.bronze*2.2,ev.bronze+120))evFinishFail('TOO SLOW')}
+  else{if(COP.heat==0&&r.t>1){evFinish(true);return}if(r.t>=ev.secs)evFinishFail('OUT OF TIME')}}
+function evFinishFail(why){const r=EV.run;COP.on=r.copsWas;navClear();EV.run=null;copClear(true);EV.card=evResultCard(r.ev,false,why)}
+function evFinish(ok){const r=EV.run,ev=r.ev;COP.on=r.copsWas;navClear();EV.run=null;const rec=EV.rec[ev.id]||(EV.rec[ev.id]={});let pay=0,medal=0,best=false;
+  if(ev.type=='trial'){medal=evMedal(ev,r.t);const was=rec.m|0,val=m=>m==3?ev.prize:m==2?ev.prize*.6:m==1?ev.prize*.35:0;pay=Math.round(Math.max(val(medal)-val(was),medal?val(medal)*.1:0)/50)*50;
+    if(!rec.t||r.t<rec.t){best=!!rec.t;rec.t=r.t;rec.ghost={car:CARM.def.id,s:r.ghost}}if(medal>was)rec.m=medal}
+  else{medal=3;pay=rec.done?Math.round(ev.prize*.25/50)*50:ev.prize;rec.done=(rec.done|0)+1;if(!rec.t||r.t<rec.t){best=!!rec.t;rec.t=r.t}copClear(true)}
+  rec.n=(rec.n|0)+1;evSave();if(pay>0)ECON.add(pay);evBeep(990,.3);EV.card=evResultCard(ev,true,null,{t:r.t,medal,pay,best})}
+function evResultCard(ev,ok,why,o){const lines=[];o=o||{};
+  if(ok&&ev.type=='trial'){lines.push(['TIME '+evFmt(o.t)+(o.best?'   NEW BEST':''),'#fff']);lines.push([o.medal?EV_MEDAL[o.medal]+' MEDAL':'NO MEDAL  (bronze '+evFmt(ev.bronze)+')',EV_MCOL[o.medal]])}
+  else if(ok){lines.push(['LOST THEM IN '+evFmt(o.t),'#fff'])}
+  else lines.push([why,'#ff7a5a']);
+  if(ok)lines.push([o.pay>0?'+'+evMoney(o.pay):'no prize this time','#7dffb0']);
+  return{title:ok?(ev.type=='trial'?'FINISHED':'ESCAPED'):'FAILED',sub:ev.name,lines,btns:[{label:'RETRY',col:'#ff7a1a',act:()=>evStart(ev)},{label:'OK',col:'#8a94a6',act:()=>{EV.card=null}}]}}
+/* ---- markers on the map: stop in one and a card offers the event ---- */
+function evMarkers(){if(GAME.state||MENU.open)return;let near=null;for(const ev of EV.list){const d=Math.hypot(C.x-ev.s.x,C.z-ev.s.z);if(d<10&&Math.abs(C.y-ev.s.y)<5){near=ev;break}}
+  if(EV.dismiss&&(!near||near!==EV.dismiss))EV.dismiss=null;
+  if(near&&C.speed<6&&!EV.card&&EV.dismiss!==near)EV.card=evOfferCard(near,false);
+  if(EV.card&&EV.card.offer&&!near&&!EV.card.garage)EV.card=null;
+  /* a garage you own: the list of every event */
+  if(!EV.card&&SAFE.at&&SAFE.owned[SAFE.at.id]&&SAFE.visit===SAFE.at.id&&C.speed<2&&EV.dismiss!==SAFE.at)EV.card=evListCard();
+  if(EV.card&&EV.card.garage&&!SAFE.at)EV.card=null}
+function evInfo(ev){const rec=EV.rec[ev.id]||{};if(ev.type=='trial')return[(ev.len/1000).toFixed(1)+' km  ·  gold '+evFmt(ev.gold)+'  ·  prize '+evMoney(ev.prize),rec.t?'best '+evFmt(rec.t)+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not run yet'];
+  return[ev.stars+' stars  ·  lose them within '+evFmt(ev.secs).replace(/\.00$/,'')+'  ·  prize '+evMoney(ev.prize),rec.done?'escaped '+rec.done+'x, best '+evFmt(rec.t):'not done yet']}
+function evOfferCard(ev,fromGarage){const inf=evInfo(ev);return{offer:1,title:ev.type=='trial'?'TIME TRIAL':'ESCAPE THE COPS',sub:ev.name,lines:[[inf[0],'#fff'],[inf[1],'#9cc8ff']],
+  btns:[{label:'START',col:'#ff7a1a',act:()=>evStart(ev)},{label:fromGarage?'BACK':'NOT NOW',col:'#8a94a6',act:()=>{if(fromGarage)EV.card=evListCard();else{EV.card=null;EV.dismiss=ev}}}]}}
+function evListCard(){const b=EV.list.map(ev=>{const rec=EV.rec[ev.id]||{};return{label:ev.name+(ev.type=='trial'?(rec.m?'  '+'★'.repeat(rec.m):''):'  '+ev.stars+'★'),col:ev.type=='trial'?'#d9a020':'#d04848',act:()=>{EV.card=Object.assign(evOfferCard(ev,true),{garage:1})},small:1}});
+  b.push({label:'CLOSE',col:'#8a94a6',act:()=>{EV.card=null;EV.dismiss=SAFE.at},small:1});return{garage:1,title:'EVENTS',sub:'your money: '+evMoney(ECON.money),lines:[],btns:b,grid:1}}
+/* ---- the card and the event HUD ---- */
+function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px -apple-system,Roboto,sans-serif';c.save();
+  /* money, under the minimap */
+  if(!MENU.open){c.textAlign='left';c.font=fs(.3,800);c.fillStyle='#7dffb0';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;c.fillText(evMoney(ECON.money),UI.mm.cx-UI.mm.r,UI.mm.cy+UI.mm.r+u*.62);c.shadowBlur=0}
+  EV.btns.length=0;const r=EV.run;
+  if(r){const ev=r.ev;c.textAlign='center';c.shadowColor='rgba(0,0,0,.75)';c.shadowBlur=6;
+    if(r.t<0){c.font=fs(1.6,900);c.fillStyle='#fff';c.fillText(String(Math.ceil(-r.t)),W_/2,H_*.42)}
+    else if(r.t<.8){c.font=fs(1.3,900);c.fillStyle='#7dffb0';c.fillText('GO!',W_/2,H_*.42)}
+    c.font=fs(.55,800);c.fillStyle='#fff';
+    if(ev.type=='trial'){c.fillText(evFmt(Math.max(0,r.t)),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(r.best?'  ·  best '+evFmt(r.best):''),W_/2,u*1.7);
+      const m=evMedal(ev,Math.max(0,r.t));c.fillStyle=EV_MCOL[m];c.fillText(m?EV_MEDAL[m]+' PACE':'NO MEDAL PACE',W_/2,u*2.0)}
+    else{const left=ev.secs-Math.max(0,r.t);c.fillStyle=left<20?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  lose the police before the clock runs out',W_/2,u*1.7)}
+    c.shadowBlur=0;const bw=u*1.2,bh=u*.42,bx=W_/2-bw/2,by=u*2.25;c.fillStyle='rgba(20,24,32,.6)';rr(c,bx,by,bw,bh,u*.1);c.fill();c.fillStyle='#fff';c.font=fs(.2,800);c.fillText('QUIT EVENT',W_/2,by+bh*.66);EV.btns.push({x:bx,y:by,w:bw,h:bh,act:evQuit})}
+  const k=EV.card;if(k&&!GAME.state){const cw=Math.min(W_*.62,u*9.5),nb=k.btns.length,rows=k.grid?Math.ceil(nb/2):1,ch=u*(1.35+k.lines.length*.42+(k.grid?rows*.62:.8)),cx=W_/2-cw/2,cy=Math.max(u*.6,H_*.5-ch/2);
+    c.fillStyle='rgba(12,16,24,.88)';rr(c,cx,cy,cw,ch,u*.2);c.fill();c.textAlign='left';c.fillStyle='#ffd23a';c.font=fs(.22,800);c.fillText(k.title,cx+u*.35,cy+u*.45);c.fillStyle='#fff';c.font=fs(.42,900);c.fillText(k.sub,cx+u*.35,cy+u*.95);
+    let y=cy+u*1.38;for(const [t,col] of k.lines){c.fillStyle=col;c.font=fs(.24,700);c.fillText(t,cx+u*.35,y);y+=u*.42}y+=u*.05;
+    if(k.grid){const bw=(cw-u*.9)/2,bh=u*.5;k.btns.forEach((b,i)=>{const bx=cx+u*.35+(i%2)*(bw+u*.2),by=y+Math.floor(i/2)*u*.62;c.fillStyle=b.col;c.globalAlpha=.9;rr(c,bx,by,bw,bh,u*.1);c.fill();c.globalAlpha=1;c.fillStyle='#111';c.font=fs(.21,800);c.textAlign='center';c.fillText(b.label,bx+bw/2,by+bh*.66);c.textAlign='left';EV.btns.push({x:bx,y:by,w:bw,h:bh,act:b.act})})}
+    else{const bw=(cw-u*.9-u*.2*(nb-1))/nb,bh=u*.55;k.btns.forEach((b,i)=>{const bx=cx+u*.35+i*(bw+u*.2);c.fillStyle=b.col;rr(c,bx,y,bw,bh,u*.12);c.fill();c.fillStyle='#111';c.font=fs(.26,900);c.textAlign='center';c.fillText(b.label,bx+bw/2,y+bh*.66);c.textAlign='left';EV.btns.push({x:bx,y,w:bw,h:bh,act:b.act})})}}
+  c.restore()}
+function evTap(x,y){for(const b of EV.btns)if(x>=b.x-6&&x<=b.x+b.w+6&&y>=b.y-6&&y<=b.y+b.h+6){b.act();return true}return false}
+/* ---- in the world: the start markers (a glowing ring and a tall beam), the checkpoint gates ---- */
+function evFx(quad,flat,sprite,stage){const r=EV.run;
+  if(stage==5){if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>700)continue;const tr=ev.type=='trial';flat(ev.s.x,ev.s.y+.06,ev.s.z,6,6,tr?1:1,tr?.75:.2,tr?.2:.2,.8)}
+    else if(r.ev.type=='trial'&&r.t>=0){const p=r.ev.cps[r.cp];if(p)flat(p.x,p.y+.06,p.z,9,9,.3,1,.6,.7)}}
+  else if(stage==4){const pulse=.75+.25*Math.sin(EV.t*4);
+    if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>900)continue;const tr=ev.type=='trial';for(let k=0;k<10;k++)sprite(ev.s.x,ev.s.y+1.5+k*3.4,ev.s.z,1.8+d*.008,tr?1:1,tr?.78:.25,tr?.25:.2,(.9-k*.06)*pulse)}
+    else if(r.ev.type=='trial'){for(let q=r.cp;q<Math.min(r.cp+2,r.ev.cps.length);q++){const p=r.ev.cps[q],last=q==r.ev.cps.length-1,w=Math.max(9,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+2.5),d=Math.hypot(p.x-C.x,p.z-C.z),al=q==r.cp?pulse:.35;
+      for(const sd of[-1,1])for(let k=0;k<5;k++)sprite(p.x+p.nx*w*sd,p.y+1+k*1.4,p.z+p.nz*w*sd,.7+d*.004,last?1:.3,last?.85:1,last?.3:.6,al)}}}}
+/* the ghost of your best run (the same car only), drawn see-through */
+const _gm=new Float32Array(16);
+function evGhostDraw(){const r=EV.run;if(!r||r.ev.type!='trial'||r.t<0||!CARM.body)return;const g=(EV.rec[r.ev.id]||{}).ghost;if(!g||g.car!==CARM.def.id||!g.s.length)return;
+  const f=r.t*10,i=Math.min(Math.floor(f),g.s.length/4-2);if(i<0)return;const a=f-i,o=i*4,x=lerp(g.s[o],g.s[o+4],a),y=lerp(g.s[o+1],g.s[o+5],a),z=lerp(g.s[o+2],g.s[o+6],a),yaw=g.s[o+3]+angd(g.s[o+7],g.s[o+3])*a;
+  if(Math.hypot(x-C.x,z-C.z)<2.5)return;const gl=G.gl,P=G.P.car,S=1/8192;gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,0);carPaintU(P,CARM.paint,CARM.paint2,CARM.fin,CARM.seam);attrs(3);
+  gl.uniform3f(P.u.uBr,0,y,0);gl.uniform1f(P.u.uAlpha,.3);gl.uniform3f(P.u.uWh,0,1,0);gl.uniform4f(P.u.uArch,0,0,0,0);gl.uniform4f(P.u.uDm,0,0,0,0);gl.uniform4f(P.u.uCr,0,0,0,0);gl.uniform1f(P.u.uZc,0);
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);M4.trs(_gm,x,y,z,-yaw,0,0,S,S,S);drawCarMesh(CARM.body,_gm,CARM.body.gf);gl.depthMask(true);gl.disable(gl.BLEND)}
+function evBeep(f,d){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime,o=x.createOscillator(),g=x.createGain();o.frequency.value=f;o.type='square';g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(AU.master);o.start(t);o.stop(t+d+.02)}
+/* the map: a chequered flag (trials) or a siren (escapes) at each start */
+function evMapIcons(ctx,px,pz,r){for(const ev of EV.list){const x=px(ev.s.x),z=pz(ev.s.z);ctx.fillStyle=ev.type=='trial'?'#ffb000':'#e03030';ctx.beginPath();ctx.arc(x,z,r,0,TAU);ctx.fill();ctx.fillStyle='#111';ctx.fillRect(x-r*.45,z-r*.45,r*.45,r*.45);ctx.fillRect(x,z,r*.45,r*.45)}
+  const run=EV.run;if(run&&run.ev.type=='trial'){const p=run.ev.cps[run.cp];if(p){ctx.strokeStyle='#4dffa0';ctx.lineWidth=Math.max(2,r*.4);ctx.beginPath();ctx.arc(px(p.x),pz(p.z),r*1.3,0,TAU);ctx.stroke()}}}
 
 'use strict';
 /* ===== procedural car bodies: smooth lofted bodywork, wheel wells, real wheels, lights, intakes, wings, exhausts, mirrors =====
@@ -4851,7 +4990,7 @@ async function boot(){
     if(QS.has('start')){const q=QS.get('start').split(',').map(Number);sx=q[0];sz=q[1];a=(q[2]||0)}
     else{/* start on the ring, in the right-hand carriageway */const nx=-Math.cos(a+0),nz=Math.sin(a);sx+=Math.cos(a)*5.6;sz+=Math.sin(a)*5.6}
     carPlace(sx,sz,a,sp.Y[i0]+.5);camStep(0,true);
-    TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.base=TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();safeInit();
+    TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.base=TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();safeInit();ECON.load();evInit();
     if(QS.has('cops')){const q=QS.get('cops');if(q=='off')COP.on=false;else copSetDiff(q)}if(QS.get('safe')=='all')for(const k in SAFE.owned)SAFE.owned[k]=true;
     if(QS.get('cars')=='all')CAROWN.all=true;if(QS.has('car')){const n=parseInt(QS.get('car'));if(n>=0&&n<CAR_ROSTER.length){CAROWN.all=true;carSelect(n)}}
     BOOT.genMs=performance.now()-t0;

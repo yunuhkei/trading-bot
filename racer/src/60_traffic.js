@@ -424,4 +424,4 @@ function trTick(dt){
   copTick(dt);
   if(TR.prof){const ms=performance.now()-t0;TR.ms+=(ms-TR.ms)*.03;TR.stat.msSum+=ms;TR.stat.ticks++;if(ms>TR.stat.msMax)TR.stat.msMax=ms}}
 /* the fixed-step world: the player at 120 Hz (collisions with traffic included), traffic at 60 Hz */
-function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);if(TR.on&&TR.nAlive)trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);if(!(++TR.sub&1))trTick(dt*2)}
+function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);if(TR.on&&TR.nAlive)trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);evTick(dt);if(!(++TR.sub&1))trTick(dt*2)}

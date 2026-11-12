@@ -65,8 +65,8 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
     CAROWN.all=true;menuOpen();menuPreview(CAR_ROSTER.length-1);menuChoose();r.allCur=CARSEL.cur;r.lastI=CAR_ROSTER.length-1;
     menuOpen();menuPaint(4);const pk=Array.from(CARM.paint);r.paint=pk;menuClose();
     CAROWN.all=false;RACER.carSelect(carIndex('k1'));return Object.assign(r,{v0,id0,defAll,defOwned,n:nAll,k1:carIndex('k1')})});
-  ok(mn.defAll&&mn.defOwned==mn.n,'for now every car is unlocked from the start ('+mn.defOwned+' of '+mn.n+' owned)');
-  ok(mn.owned==1,'with the unlock-all switch off only the starter is owned (the earning rule will use this: '+mn.owned+' of 30)');
+  ok(!mn.defAll&&mn.defOwned==1,'cars are bought with money (batch 10): at the start you own only the starter ('+mn.defOwned+' of '+mn.n+')');
+  ok(mn.owned==1,'with the unlock-all switch off only the starter is owned ('+mn.owned+')');
   ok(mn.open==1&&mn.prevId==mn.expId&&mn.vmaxPrev===mn.v0&&mn.curPrev==mn.k1,'browsing the showroom only shows the car (preview "'+mn.prevId+'"), the handling and the chosen car stay the same');
   ok(mn.lockedStill==mn.k1&&mn.still==1,'a locked car cannot be chosen (the menu says how to earn it is not decided yet)');
   ok(mn.backId==mn.id0&&mn.open2==0,'closing without choosing puts your own car back ('+mn.backId+')');
