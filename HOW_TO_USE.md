@@ -403,7 +403,11 @@ trades), G -1.1% (587), C -13.5% (821). Best slice: G buying 9-11 pm the day bef
 
 **The blend (`kalshi-backtest` with blend: yes; `bot/kalshi_blend.py`).** Market price + weather models, each city
 learning how much to trust each model from past days only, betting only where it beats the price by fees + a margin.
-It becomes a practice strategy only if it passes the same walk-forward test.
+It becomes a practice strategy only if it passes the same walk-forward test. **Result (Nov 12, 22 cities, 1,305
+city-days, each model's two-day-ahead forecasts from Open-Meteo): it doesn't pass, so it isn't added.** The market's
+own price predicted better than any mix with the models (log loss 0.320 for the market alone, 0.343 half-and-half,
+0.395 models alone). Blends that give the models weight lost about 23-25% a trade. The walk-forward kept picking
+"market only", which found 29 trades (+36%, but the low end is -37%: far too few to mean anything).
 
 **M's fills (Nov 12).** A maker bid counts as filled only if someone traded below it after it was placed (sound for
 its place in line). But until Nov 12 a trade after the measurement day began could fill it, when a real bid would have
