@@ -36,7 +36,7 @@ const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
    E = energy lost in the crash in joules (1/2 m v^2 style: for a wall 1/2 m_player (1-e^2) vn^2, for a car 1/2 mu (1-e^2) vn^2 with mu the reduced mass), zone 0 front 1 rear 2 left 3 right (-1 unknown/underside) */
 const IMP={q:[],n:0,total:0,last:null,max:24};
 function impactAdd(src,vn,E,mass,x,z,nx,nz){if(C.shield>0)return;   /* (the spawn shield: no damage) */
-  if(E<=0)E=.5*1400*(1-.22*.22)*vn*vn;crashImpact(E,src);
+  if(E<=0)E=.5*1400*(1-.22*.22)*vn*vn;if(src!=2)crashImpact(E,src);
   const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),dx=src==3?x-C.x:-nx,dz=src==3?z-C.z:-nz,lz=dx*fx+dz*fz,lx=dx*Math.cos(C.yaw)+dz*Math.sin(C.yaw);
   const zone=src==2?-1:(Math.abs(lz)/2.2>Math.abs(lx)/.95?(lz>0?0:1):(lx>0?3:2));
   const r={t:C.t,src,vn,E,mass,x,z,nx,nz,zone};IMP.last=r;IMP.n++;IMP.total+=E;IMP.q.push(r);if(IMP.q.length>IMP.max)IMP.q.shift()}

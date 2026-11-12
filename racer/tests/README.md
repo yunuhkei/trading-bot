@@ -239,3 +239,5 @@ Small differences from rounding are fine; a change of more than about 10 percent
 
 * `rcrashcam`: a hard roll at 100 km/h starts the cinematic after 0.25 s (slow motion x0.3, the camera stays at its spot); 1.2 s of world time later the car is back on the road 35 m back, upright, at 24 m/s, shield 3 s; the shield blocks damage and tumbles and blinks the car; a 40 m/s head-on hit starts it; a slow roll onto the side does not; `CC.enabled=false` keeps the old behaviour. Added to `run_quick.sh`.
 * `rcrash` runs with `CC.enabled=false` (it measures the tumble physics itself).
+
+* Batch 18: `rdamage` 2 and 3 now check that a hard landing (16 m/s) does no damage and moves no vertex.

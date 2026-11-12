@@ -26,7 +26,7 @@ function dmgConsume(){
   if(IMP.n===DMG.cur)return;const q=IMP.q,k=Math.min(IMP.n-DMG.cur,q.length);
   for(let i=q.length-k;i<q.length;i++)dmgApply(q[i]);DMG.cur=IMP.n;dmgEffects()}
 function dmgApply(r){
-  let E=r.E*DMG.scale;if(r.src==2){if(r.vn<11)return;E=r.E*.55}else if(r.src!=4){const k=r.src==5?sstep(2.5,7,r.vn):r.src==3?sstep(3,10,r.vn):sstep(4.5,13,r.vn);E*=k*Math.sqrt(k);if(E<DMG.minE)return}else if(E<DMG.minE)return;   /* batch 5: a tap is not a crash. Into a wall or a post the damage fades in from 16 to 47 km/h (a car from 11 to 36 km/h): a 20 km/h nudge leaves almost nothing */   /* (src 4, a rail scrape, counts by its energy alone) */     /* scrapes do nothing; a landing only hurts above 11 m/s */
+  let E=r.E*DMG.scale;if(r.src==2)return;   /* (batch 18: landing a jump, however big, does no damage; landing on the roof or a side is a tumble, src 5) */else if(r.src!=4){const k=r.src==5?sstep(2.5,7,r.vn):r.src==3?sstep(3,10,r.vn):sstep(4.5,13,r.vn);E*=k*Math.sqrt(k);if(E<DMG.minE)return}else if(E<DMG.minE)return;   /* batch 5: a tap is not a crash. Into a wall or a post the damage fades in from 16 to 47 km/h (a car from 11 to 36 km/h): a 20 km/h nudge leaves almost nothing */   /* (src 4, a rail scrape, counts by its energy alone) */     /* scrapes do nothing; a landing only hurts above 11 m/s */
   const z=DMG.z;let zone=r.zone;
   if(r.src==2){/* the suspension bottoms out: the axles and the roof take it */z[0]+=E*.3/DZ_CAP[0];z[1]+=E*.3/DZ_CAP[1];z[4]+=E*.4/DZ_CAP[4];zone=4}
   else if(zone>=0){z[zone]+=E/DZ_CAP[zone];

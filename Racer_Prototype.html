@@ -2420,7 +2420,7 @@ const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
    E = energy lost in the crash in joules (1/2 m v^2 style: for a wall 1/2 m_player (1-e^2) vn^2, for a car 1/2 mu (1-e^2) vn^2 with mu the reduced mass), zone 0 front 1 rear 2 left 3 right (-1 unknown/underside) */
 const IMP={q:[],n:0,total:0,last:null,max:24};
 function impactAdd(src,vn,E,mass,x,z,nx,nz){if(C.shield>0)return;   /* (the spawn shield: no damage) */
-  if(E<=0)E=.5*1400*(1-.22*.22)*vn*vn;crashImpact(E,src);
+  if(E<=0)E=.5*1400*(1-.22*.22)*vn*vn;if(src!=2)crashImpact(E,src);
   const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),dx=src==3?x-C.x:-nx,dz=src==3?z-C.z:-nz,lz=dx*fx+dz*fz,lx=dx*Math.cos(C.yaw)+dz*Math.sin(C.yaw);
   const zone=src==2?-1:(Math.abs(lz)/2.2>Math.abs(lx)/.95?(lz>0?0:1):(lx>0?3:2));
   const r={t:C.t,src,vn,E,mass,x,z,nx,nz,zone};IMP.last=r;IMP.n++;IMP.total+=E;IMP.q.push(r);if(IMP.q.length>IMP.max)IMP.q.shift()}
@@ -3829,7 +3829,7 @@ function dmgConsume(){
   if(IMP.n===DMG.cur)return;const q=IMP.q,k=Math.min(IMP.n-DMG.cur,q.length);
   for(let i=q.length-k;i<q.length;i++)dmgApply(q[i]);DMG.cur=IMP.n;dmgEffects()}
 function dmgApply(r){
-  let E=r.E*DMG.scale;if(r.src==2){if(r.vn<11)return;E=r.E*.55}else if(r.src!=4){const k=r.src==5?sstep(2.5,7,r.vn):r.src==3?sstep(3,10,r.vn):sstep(4.5,13,r.vn);E*=k*Math.sqrt(k);if(E<DMG.minE)return}else if(E<DMG.minE)return;   /* batch 5: a tap is not a crash. Into a wall or a post the damage fades in from 16 to 47 km/h (a car from 11 to 36 km/h): a 20 km/h nudge leaves almost nothing */   /* (src 4, a rail scrape, counts by its energy alone) */     /* scrapes do nothing; a landing only hurts above 11 m/s */
+  let E=r.E*DMG.scale;if(r.src==2)return;   /* (batch 18: landing a jump, however big, does no damage; landing on the roof or a side is a tumble, src 5) */else if(r.src!=4){const k=r.src==5?sstep(2.5,7,r.vn):r.src==3?sstep(3,10,r.vn):sstep(4.5,13,r.vn);E*=k*Math.sqrt(k);if(E<DMG.minE)return}else if(E<DMG.minE)return;   /* batch 5: a tap is not a crash. Into a wall or a post the damage fades in from 16 to 47 km/h (a car from 11 to 36 km/h): a 20 km/h nudge leaves almost nothing */   /* (src 4, a rail scrape, counts by its energy alone) */     /* scrapes do nothing; a landing only hurts above 11 m/s */
   const z=DMG.z;let zone=r.zone;
   if(r.src==2){/* the suspension bottoms out: the axles and the roof take it */z[0]+=E*.3/DZ_CAP[0];z[1]+=E*.3/DZ_CAP[1];z[4]+=E*.4/DZ_CAP[4];zone=4}
   else if(zone>=0){z[zone]+=E/DZ_CAP[zone];

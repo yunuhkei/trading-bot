@@ -18,7 +18,7 @@ const L=require('./rlib.js');
   ok(Z.rear[1]>Z.rear[0]&&Z.rear[1]>.3,'2 a hit from behind: rear '+Z.rear[1]);
   ok(Z.left[2]>Z.left[3]&&Z.left[2]>.3,'2 a hit on the left: left '+Z.left[2]+' (right '+Z.left[3]+')');
   ok(Z.right[3]>Z.right[2]&&Z.right[3]>.3,'2 a hit on the right: right '+Z.right[3]+' (left '+Z.right[2]+')');
-  ok(Z.landing[4]>0&&Z.landing[0]>0,'2 a hard landing (16 m/s) hurts the axles and the roof: '+Z.landing.join(', '));
+  ok(Z.landing.every(v=>v==0),'2 a hard landing (16 m/s) does no damage at all (batch 18): '+Z.landing.join(', '));
   ok(Z.scrape.every(v=>v===0),'2 a 2 m/s scrape does nothing');
   /* 3. dents */
   const D=await T.ev(()=>{const out={};const B=CARM.body;const cmp=()=>{const f=new Int16Array(B.ab),p=DMG.pf16;let n=0,mx=0,sx=0,sz=0,nan=0,sy=0,topP=-9,topC=-9,mxx=0,mxz=0;for(let v=0;v<B.nv;v++){if(Math.abs(p[v*8]/8192)<.45&&Math.abs(p[v*8+2]/8192)<.6){if(p[v*8+1]/8192>topP)topP=p[v*8+1]/8192;if(f[v*8+1]/8192>topC)topC=f[v*8+1]/8192}const dx=(f[v*8]-p[v*8])/8192,dy=(f[v*8+1]-p[v*8+1])/8192,dz=(f[v*8+2]-p[v*8+2])/8192,d=Math.hypot(dx,dy,dz);if(d>.003){n++;sx+=p[v*8]/8192;sz+=p[v*8+2]/8192;sy+=p[v*8+1]/8192;if(d>mx){mx=d;mxx=p[v*8]/8192;mxz=p[v*8+2]/8192}}if(!isFinite(d))nan++}return{mxx:+mxx.toFixed(2),mxz:+mxz.toFixed(2),moved:n,topDrop:+(topP-topC).toFixed(3),max:+mx.toFixed(3),cx:n?+(sx/n).toFixed(2):0,cz:n?+(sz/n).toFixed(2):0,cy:n?+(sy/n).toFixed(2):0,nan}};
@@ -32,7 +32,7 @@ const L=require('./rlib.js');
   ok(D.front.moved>40&&D.front.max<=.5,'3 a front hit dents '+D.front.moved+' vertices, deepest '+D.front.max+' m (limit 0.5), no NaN '+D.front.nan);
   ok(D.front.mxz<-1.2,'3 the deepest point of a front dent is at the front of the model (z '+D.front.mxz+', front is negative z)');
   ok(D.right.moved>20&&D.right.mxx>.5,'3 the deepest point of a right-side dent is on the right side (x '+D.right.mxx+')');
-  ok(D.roof.moved>20&&D.roof.topDrop>.08,'3 a hard landing buckles the roof: the middle of the roof drops '+D.roof.topDrop+' m ('+D.roof.moved+' vertices moved)');
+  ok(D.roof.moved==0,'3 a hard landing leaves the body as it was (batch 18): '+D.roof.moved+' vertices moved');
   ok(D.many.max<=.5&&D.many.nan===0,'3 twelve hits in a row stay within 0.5 m ('+D.many.max+') and finite');
   ok(D.afterRepair.moved===0&&D.repairExact,'3 repair puts the pristine mesh back byte for byte');
   /* 4. effects on driving */
