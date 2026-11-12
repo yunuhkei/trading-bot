@@ -1,0 +1,51 @@
+# Kalshi stock bot (bot/kalshi_stocks.py, kalshi_stocks.yaml): every 10 minutes on weekdays around market hours,
+# settle finished bets and look for today's S&P 500 / Nasdaq-100 close bets. PRACTICE ONLY (pretend money).
+# Run it by hand with status: yes to print the saved record (reads only).
+name: kalshi-stocks
+on:
+  schedule:
+    - cron: "*/10 13-21 * * 1-5"    # 13:00-21:59 UTC = market hours ET in summer and winter
+    - cron: "17 12 * * 2-6"         # each morning: settle yesterday's bets
+  workflow_dispatch:
+    inputs:
+      status:
+        description: "Only print the saved record: yes / no"
+        default: "no"
+      backtest:
+        description: "Run the backtest instead: yes / no"
+        default: "no"
+concurrency:
+  group: kalshi-stocks
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: kalshi_stocks_state.json
+          key: kalshi-stocks-${{ github.run_id }}
+          restore-keys: kalshi-stocks-
+      - name: Check Kalshi stocks
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+        run: |
+          if [ "${{ inputs.status }}" = "yes" ]; then
+            python -m bot kalshi-stocks --status
+          elif [ "${{ inputs.backtest }}" = "yes" ]; then
+            python -m bot kalshi-stocks --backtest
+          else
+            python -m bot kalshi-stocks
+          fi
+      - uses: actions/cache/save@v4
+        if: always() && inputs.status != 'yes' && inputs.backtest != 'yes'
+        with:
+          path: kalshi_stocks_state.json
+          key: kalshi-stocks-${{ github.run_id }}
