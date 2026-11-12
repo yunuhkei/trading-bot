@@ -24,6 +24,7 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Still not decided: money / how cars are earned, the real names of the CC cars.
 
 ## Known, not fixed
+- East highway: with the default traffic seed one car waits over 25 s to turn left into Hesperia's `hs2` across the busy divided highway (other seeds fine). The road bot at 34 m/s clips the signal pole on the Mojave Works boulevard and rolls.
 - The far north band (snow mountains), the east mesa and the map edges are still empty country (the play area is the middle); the house roofs at roadside stops sit a little off-centre. High tier triangles downtown are within 1k of the limit.
 - A fallen lamp post's sun shadow (High tier) still stands; traffic drives through a fallen post. Only street lamp posts fall (not signal or power poles).
 - The road bot clips a lamp post on `sfnv1` after a long flight over a crest, and at 34 m/s a signal pole on `sfp` and `mojp` (one hit each).

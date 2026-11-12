@@ -83,7 +83,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(Math.abs(K.after.turn-K.base.turn)<K.base.turn*.05,'5 afterwards the grip is back to normal ('+(K.after.turn*57.3).toFixed(1)+' deg against '+(K.base.turn*57.3).toFixed(1)+')');
   ok(K.laid&&K.laid.ahead&&K.laid.on&&K.laid.d>120&&K.laid.d<260&&K.laid.warn,'5 in a 4 star chase a strip is laid on the road '+(K.laid?K.laid.d:'?')+' m ahead, with a warning on the HUD');
   /* ---- 6 the minimap shows police only ---- */
-  const M=await T.ev(()=>{P3.reset(.3,0);const rec=()=>{let n=0;const ctx=new Proxy({},{get:(t,k)=>k=='fillRect'?(x,y,w,h)=>{if(Math.abs(w)<40)n++}:k=='canvas'?UI.mapCv:(typeof k=='string'?()=>{}:undefined),set:()=>true});drawMap(ctx,60,60,50,180,0);return n};
+  const M=await T.ev(()=>{P3.reset(.3,0);const rec=()=>{let n=0;const ctx=new Proxy({},{get:(t,k)=>k=='fillRect'?(x,y,w,h)=>{if(Math.abs(w)<40)n++}:k=='canvas'?UI.mapCv:(typeof k=='string'?()=>{}:undefined),set:()=>true});const rp=REPAIRS.splice(0);drawMap(ctx,60,60,50,180,0);REPAIRS.push(...rp);return n};   /* (the repair shop crosses are not traffic) */
     for(let k=1;k<=6;k++)P3.mk(10*k,0,0);const civOnly=rec();const p=P3.mk(-12,1,0);p.state=0;const withPatrol=rec();const q=P3.mk(-22,1,0);q.state=0;q.cm=1;q.siren=1;const withChaser=rec();
     const o={civOnly,withPatrol,withChaser,civs:TR.cars.filter(c=>c.alive&&c.kind==0).length};P3.clear();return o});
   ok(M.civs>=6&&M.civOnly==0&&M.withPatrol==1&&M.withChaser>=2,'6 minimap: '+M.civs+' civilian cars round you draw '+M.civOnly+' blips, a patrol 1, a patrol and a chaser '+M.withChaser);

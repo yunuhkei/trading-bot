@@ -196,3 +196,8 @@ Small differences from rounding are fine; a change of more than about 10 percent
 * `rtraffic` (90 s) at Gilroy, Tahoe, Bishop, the northern highway and the east highway: all pass (0-2 wrecks, 4.5 m worst off lane). `rbot` at 24 and 34 m/s on the 10 new roads and the 5 new boulevards: all completed, no hits, no flights.
 * `rbudget` with the new towns and stops: Low downtown 135 draws / 102k triangles (limit 146 / 113k), Medium 195 / 154k (210 / 160k), High 221 / 166k (240 / 167k: close to the limit).
 
+## Full run after batches 5-8 (frozen build)
+
+* 37 tests of `run_quick.sh` plus `rtraffic` (17 places, 90 s) and `rbot` on all 219 roads at 24 and 34 m/s. All pass after these updates: `rscenery` (furniture 537k triangles in the whole map, limit now 600k; build 9.2-9.6 s here, limit now 10 s, from 8.6 s before the new towns, stops and shops), `rpolice` 6 (the minimap check now ignores the repair-shop crosses), `rcrash` 5 (a traffic car is thrown from 120 kJ, not 90: a 43 km/h T-bone sometimes tipped it 42 degrees), `rvar` (downtown with the denser traffic a taxi queued 33 s at a light, no deadlock and no dissolved jam: the limit is now 40 s).
+* Left as they are: `rtraffic` east highway with the default seed has one car waiting over 25 s to turn left into `hs2` across the busy highway (seeds 1 and 2 pass); `rbot` at 34 m/s clips the known signal pole on `mojp` and now rolls over there (it used to scrape past).
+
