@@ -28,8 +28,13 @@ function safeToast(t,sec){SAFE.msg=t;SAFE.msgT=sec||2.6}
 /* is the car on the pad, and slow enough? */
 function safeOnPad(s){const dx=C.x-s.pad.x,dz=C.z-s.pad.z,a=dx*s.dd[0]+dz*s.dd[1],b=dx*s.t[0]+dz*s.t[1];return Math.abs(a)<s.pad.hl-.4&&Math.abs(b)<s.pad.hw-.4&&Math.abs(C.y-s.y)<2.5}
 /* called every fixed step: servicing while parked on a pad */
+/* drive-through repair (batch 7): inside the bay of a repair shop the car is fixed at once (body, dents, parts, lamps, tyres), at any speed; once per pass */
+function repairStep(dt){if(GAME.state||TUM.on)return;for(const p of REPAIRS){const dx=C.x-p.x,dz=C.z-p.z;if(dx*dx+dz*dz>400){if(SAFE.rpIn===p)SAFE.rpIn=null;continue}
+    const a=dx*p.cs+dz*p.sn,b=-dx*p.sn+dz*p.cs,inside=Math.abs(a)<p.L/2-.8&&Math.abs(b)<p.W/2-.2;if(!inside){if(SAFE.rpIn===p&&Math.abs(a)>p.L/2+2)SAFE.rpIn=null;continue}
+    if(SAFE.rpIn===p)continue;SAFE.rpIn=p;const hurt=DMG.total>0||DMG.z.some(v=>v>0)||C.flatT>0;dmgReset();C.flatT=0;SAFE.rpT=1.2;SAFE.repairs=(SAFE.repairs||0)+1;
+    safeToast(hurt?'REPAIRED':'ALL GOOD',2);if(hurt&&typeof sparkAt==='function')for(let k=0;k<3;k++)sparkAt(C.x,C.y+1,C.z,0,0,8,3)}}
 function safeStep(dt){
-  SAFE.t+=dt;if(SAFE.msgT>0)SAFE.msgT-=dt;
+  SAFE.t+=dt;if(SAFE.msgT>0)SAFE.msgT-=dt;repairStep(dt);if(SAFE.rpT>0)SAFE.rpT-=dt;
   let on=null;const s0=safeNear(C.x,C.z,false);if(s0&&(s0.x-C.x)**2+(s0.z-C.z)**2<30*30&&safeOnPad(s0))on=s0;
   if(!on||GAME.state){if(SAFE.svc>0)SAFE.svc=Math.max(0,SAFE.svc-dt*2);if(!on)SAFE.visit=null;SAFE.at=on;return}
   SAFE.at=on;

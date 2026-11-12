@@ -34,11 +34,26 @@ async function carveRoads(prog){
   const D8=W.D8=new Uint8Array(N*N);for(let k=0;k<N*N;k++)D8[k]=D[k]>250?250:D[k]<0?0:D[k]+.5|0;
   return D}
 /* guardrails: continuous on the divided highways (except around junctions), wherever the ground falls away steeply beside a road, and always on bridges */
+/* DRIVE-THROUGH REPAIR SHOPS (batch 7): a roofed bay open at both ends, beside a main road out of town, parallel to it: leave the road, drive through, and the car is fixed.
+   Picked here (the terrain and the roads are known): every 600 m along the wide roads outside the towns, on whichever side the ground is level with the road for the whole bay and its two
+   approaches, away from junctions (120 m), garages (150 m), water, bridges and other asphalt; at least 1.1 km apart. */
+function pickRepairs(){REPAIRS.length=0;const L=17,W2=7.5;
+  const far=(x,z,d)=>REPAIRS.every(p=>Math.hypot(p.x-x,p.z-z)>d)&&SAFEHOUSES.every(s=>Math.hypot(s.x-x,s.z-z)>150)&&JUNC.every(J=>Math.hypot(J.x-x,J.z-z)>120);
+  const built=(x,z)=>inBox(x,z,CITY,80)||inBox(x,z,VALLEY,80)||inBox(x,z,BEACH,80)||inBox(x,z,RESORT,80)||ZONES.some(zn=>inBox(x,z,zn.b,80))||FIELDS.some(f=>inBox(x,z,f.b,20));
+  for(const r of ROADS){if(r.city||r.hw<7||r.n*r.ds<900)continue;const st=Math.round(600/r.ds),m=Math.round(60/r.ds);
+    for(let i=m;i<r.n-m;i+=st){if(r.br[i]||r.br[Math.max(0,i-8)]||r.br[Math.min(r.n-1,i+8)])continue;const t=_tan(r,i),nx=-t[1],nz=t[0],y=r.Y[i];
+      for(const sd of[1,-1]){const off=r.hw+RSH+6.5,cx=r.X[i]+nx*sd*off,cz=r.Z[i]+nz*sd*off;if(built(cx,cz)||!far(cx,cz,1100))continue;let okk=true;
+        for(let a=-1.6;a<=1.6&&okk;a+=.4)for(const b of[-1,-.3,.3,1]){const px=cx+t[0]*a*L+nx*sd*b*W2*.5,pz=cz+t[1]*a*L+nz*sd*b*W2*.5,h=terrainH(px,pz);if(h<2||Math.abs(h-y)>1.3){okk=false;break}}
+        /* the way in and out: level from the road's edge to each opening (no drop off an embankment) */
+        for(const e of[-1,1])for(let f=0;f<=1&&okk;f+=.1){const a=e*(L*.5+3+12*(1-f)),b=-(off-r.hw-RSH)*(1-f)-W2*.2*f,px=cx+t[0]*a+nx*sd*b,pz=cz+t[1]*a+nz*sd*b,h=terrainH(px,pz);if(Math.abs(h-y)>.9)okk=false}
+        if(!okk)continue;for(let a=-1;a<=1&&okk;a+=.25)if(otherAsphalt(cx+t[0]*a*L,cz+t[1]*a*L,r,y,4))okk=false;if(!okk)continue;
+        REPAIRS.push({id:'rp'+REPAIRS.length,x:cx,z:cz,cs:t[0],sn:t[1],side:sd,road:r.id,y,L,W:W2});break}}}}
 function railPass(){
+  pickRepairs();
   if(!RAILS){for(const r of ROADS)r.rail.fill(0);return}
   /* junctions: where a road starts or ends on another road */
   /* rails open at every junction (JUNC: where a road end sits on another road, both roads) and in front of every garage */
-  const jz=[];for(const J of JUNC)jz.push(J.x,J.z,J.rad+62);for(const s of SAFEHOUSES)jz.push(s.x,s.z,46);
+  const jz=[];for(const J of JUNC)jz.push(J.x,J.z,J.rad+62);for(const s of SAFEHOUSES)jz.push(s.x,s.z,46);for(const p of REPAIRS)jz.push(p.x,p.z,66);
   const nearJ=(x,z)=>{for(let q=0;q<jz.length;q+=3){if((jz[q]-x)**2+(jz[q+1]-z)**2<jz[q+2]*jz[q+2])return true}return false};
   for(const r of ROADS){const n=r.n,raw=new Uint8Array(n);
     for(let i=0;i<n;i++){const a=(i+1<n?i+1:i),b=(i>0?i-1:i);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;const nx=-tz,nz=tx,off=r.hw+RSH+7;let m=0;

@@ -35,7 +35,7 @@ const TERRACES=[[-190,-3125,380,85]];                   /* flattened sites: x,z,
 const ZONES=[{b:TOWN_PAC,c:[.30,.27,.22]},{b:TOWN_FRE,c:[.26,.24,.19]},{b:TOWN_BAR,c:[.33,.27,.19]},{b:TOWN_BIG,c:[.2,.2,.19]},{b:IND_HAR,c:[.2,.2,.2]},{b:IND_MOJ,c:[.25,.23,.2]},{b:CITY_VEG,c:[.3,.25,.19],d:.85},{b:CITY_SAC,c:[.19,.2,.17],d:.8},{b:CITY_SJ,c:[.2,.22,.2],d:.8}];   /* ground colour (linear) inside each */
 const FIELDS=[];                                        /* farm fields: {b,c:[[r,g,b],[r,g,b]]} (filled in with the farm roads) */
 const FARMS=[];                                         /* {x,z,cs,sn}: a barn, silo, house and shed */
-const SAFEHOUSES=[];                                    /* {id,name,x,z,yaw} filled in by defineWorld */
+const SAFEHOUSES=[],REPAIRS=[];   /* REPAIRS: the drive-through repair shops (batch 7), picked beside the main roads by pickRepairs() */                                    /* {id,name,x,z,yaw} filled in by defineWorld */
 const inBox=(x,z,B,m)=>x>B.x0-m&&x<B.x1+m&&z>B.z0-m&&z<B.z1+m;
 function baseH(x,z){
   let h=9+(fbm(x*.0011,z*.0011,3,4)-.5)*15;

@@ -358,7 +358,7 @@ const TERRACES=[[-190,-3125,380,85]];                   /* flattened sites: x,z,
 const ZONES=[{b:TOWN_PAC,c:[.30,.27,.22]},{b:TOWN_FRE,c:[.26,.24,.19]},{b:TOWN_BAR,c:[.33,.27,.19]},{b:TOWN_BIG,c:[.2,.2,.19]},{b:IND_HAR,c:[.2,.2,.2]},{b:IND_MOJ,c:[.25,.23,.2]},{b:CITY_VEG,c:[.3,.25,.19],d:.85},{b:CITY_SAC,c:[.19,.2,.17],d:.8},{b:CITY_SJ,c:[.2,.22,.2],d:.8}];   /* ground colour (linear) inside each */
 const FIELDS=[];                                        /* farm fields: {b,c:[[r,g,b],[r,g,b]]} (filled in with the farm roads) */
 const FARMS=[];                                         /* {x,z,cs,sn}: a barn, silo, house and shed */
-const SAFEHOUSES=[];                                    /* {id,name,x,z,yaw} filled in by defineWorld */
+const SAFEHOUSES=[],REPAIRS=[];   /* REPAIRS: the drive-through repair shops (batch 7), picked beside the main roads by pickRepairs() */                                    /* {id,name,x,z,yaw} filled in by defineWorld */
 const inBox=(x,z,B,m)=>x>B.x0-m&&x<B.x1+m&&z>B.z0-m&&z<B.z1+m;
 function baseH(x,z){
   let h=9+(fbm(x*.0011,z*.0011,3,4)-.5)*15;
@@ -813,11 +813,26 @@ async function carveRoads(prog){
   const D8=W.D8=new Uint8Array(N*N);for(let k=0;k<N*N;k++)D8[k]=D[k]>250?250:D[k]<0?0:D[k]+.5|0;
   return D}
 /* guardrails: continuous on the divided highways (except around junctions), wherever the ground falls away steeply beside a road, and always on bridges */
+/* DRIVE-THROUGH REPAIR SHOPS (batch 7): a roofed bay open at both ends, beside a main road out of town, parallel to it: leave the road, drive through, and the car is fixed.
+   Picked here (the terrain and the roads are known): every 600 m along the wide roads outside the towns, on whichever side the ground is level with the road for the whole bay and its two
+   approaches, away from junctions (120 m), garages (150 m), water, bridges and other asphalt; at least 1.1 km apart. */
+function pickRepairs(){REPAIRS.length=0;const L=17,W2=7.5;
+  const far=(x,z,d)=>REPAIRS.every(p=>Math.hypot(p.x-x,p.z-z)>d)&&SAFEHOUSES.every(s=>Math.hypot(s.x-x,s.z-z)>150)&&JUNC.every(J=>Math.hypot(J.x-x,J.z-z)>120);
+  const built=(x,z)=>inBox(x,z,CITY,80)||inBox(x,z,VALLEY,80)||inBox(x,z,BEACH,80)||inBox(x,z,RESORT,80)||ZONES.some(zn=>inBox(x,z,zn.b,80))||FIELDS.some(f=>inBox(x,z,f.b,20));
+  for(const r of ROADS){if(r.city||r.hw<7||r.n*r.ds<900)continue;const st=Math.round(600/r.ds),m=Math.round(60/r.ds);
+    for(let i=m;i<r.n-m;i+=st){if(r.br[i]||r.br[Math.max(0,i-8)]||r.br[Math.min(r.n-1,i+8)])continue;const t=_tan(r,i),nx=-t[1],nz=t[0],y=r.Y[i];
+      for(const sd of[1,-1]){const off=r.hw+RSH+6.5,cx=r.X[i]+nx*sd*off,cz=r.Z[i]+nz*sd*off;if(built(cx,cz)||!far(cx,cz,1100))continue;let okk=true;
+        for(let a=-1.6;a<=1.6&&okk;a+=.4)for(const b of[-1,-.3,.3,1]){const px=cx+t[0]*a*L+nx*sd*b*W2*.5,pz=cz+t[1]*a*L+nz*sd*b*W2*.5,h=terrainH(px,pz);if(h<2||Math.abs(h-y)>1.3){okk=false;break}}
+        /* the way in and out: level from the road's edge to each opening (no drop off an embankment) */
+        for(const e of[-1,1])for(let f=0;f<=1&&okk;f+=.1){const a=e*(L*.5+3+12*(1-f)),b=-(off-r.hw-RSH)*(1-f)-W2*.2*f,px=cx+t[0]*a+nx*sd*b,pz=cz+t[1]*a+nz*sd*b,h=terrainH(px,pz);if(Math.abs(h-y)>.9)okk=false}
+        if(!okk)continue;for(let a=-1;a<=1&&okk;a+=.25)if(otherAsphalt(cx+t[0]*a*L,cz+t[1]*a*L,r,y,4))okk=false;if(!okk)continue;
+        REPAIRS.push({id:'rp'+REPAIRS.length,x:cx,z:cz,cs:t[0],sn:t[1],side:sd,road:r.id,y,L,W:W2});break}}}}
 function railPass(){
+  pickRepairs();
   if(!RAILS){for(const r of ROADS)r.rail.fill(0);return}
   /* junctions: where a road starts or ends on another road */
   /* rails open at every junction (JUNC: where a road end sits on another road, both roads) and in front of every garage */
-  const jz=[];for(const J of JUNC)jz.push(J.x,J.z,J.rad+62);for(const s of SAFEHOUSES)jz.push(s.x,s.z,46);
+  const jz=[];for(const J of JUNC)jz.push(J.x,J.z,J.rad+62);for(const s of SAFEHOUSES)jz.push(s.x,s.z,46);for(const p of REPAIRS)jz.push(p.x,p.z,66);
   const nearJ=(x,z)=>{for(let q=0;q<jz.length;q+=3){if((jz[q]-x)**2+(jz[q+1]-z)**2<jz[q+2]*jz[q+2])return true}return false};
   for(const r of ROADS){const n=r.n,raw=new Uint8Array(n);
     for(let i=0;i<n;i++){const a=(i+1<n?i+1:i),b=(i>0?i-1:i);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;const nx=-tz,nz=tx,off=r.hw+RSH+7;let m=0;
@@ -1041,7 +1056,7 @@ function buildFurniture(){
     const step=r.city?15:(r.style==1?16:12),off=r.hw+(r.sw?.75:RSH+(r.city?.8:1.4));let cnt2=0;
     for(let i=2;i<n-2;i+=step){if(r.br[i]||r.mk[i]<.5||r.wk[i]<.9)continue;const j=Math.min(n-1,i+1),dx=r.X[j]-r.X[i-1],dz=r.Z[j]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=((cnt2++)&1)?1:-1;
       if(r.style==1&&!r.city&&(cnt2&1))continue;
-      const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-(r.city?.1:.35);if(roadAt(px,pz,gy+.6)&&Math.abs(RQ.lat)<RQ.hw+.25)continue;   /* never a lamp post on asphalt: on a hairpin street the post of one leg stood in the lane of the next (the road bot got stuck on Lombard) */
+      const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-(r.city?.1:.35);if(nearRepair(px,pz,6))continue;if(roadAt(px,pz,gy+.6)&&Math.abs(RQ.lat)<RQ.hw+.25)continue;   /* never a lamp post on asphalt: on a hairpin street the post of one leg stood in the lane of the next (the road bot got stuck on Lombard) */
       const lid=LAMPS.length/3;PROP_TAG=10000+lid;pbox(0,px,gy,pz,.13,gy+7.2,.13,92,94,98,0,.7);
       pbox(0,px-nx*sd*1.1,gy+7.1,pz-nz*sd*1.1,.9*Math.abs(nx)+.1,gy+7.3,.9*Math.abs(nz)+.1,92,94,98,0,1);pbox(0,px-nx*sd*1.9,gy+6.95,pz-nz*sd*1.9,.35*Math.abs(nx)+.25,gy+7.12,.35*Math.abs(nz)+.25,255,236,180,2,1);PROP_TAG=0;LPOST[lid]=[px,pz,gy,COLC.length/5];LPOSTC[COLC.length/5]=lid;COLC.push(px,pz,.45,gy-.5,gy+7.2);LAMPS.push(px-nx*sd*1.9,gy+6.9,pz-nz*sd*1.9)}}
 }
@@ -1296,6 +1311,21 @@ function buildCity(){
   for(const s of SAFEHOUSES){const cs=s.cs,sn=s.sn,gy=bld(s.x,s.z,8,6,cs,sn,4.2,[196,198,204],false);pboxR(1,s.x,s.z,8.6,6.6,cs,sn,gy+4.2,gy+4.8,40,200,120,false,1);
     pboxR(1,s.x+(s.side||-1)*sn*6.1,s.z-(s.side||-1)*cs*6.1,4.5,.2,cs,sn,gy,gy+3.4,60,66,76,false,1);          /* the roller door, on the side that faces the road */
     const px=s.x+cs*11,pz=s.z+sn*11,y=terrainH(px,pz);pbox(1,px,y-.4,pz,.3,y+13,.3,200,200,206,false,.8);pbox(1,px,y+10,pz,2.4,y+14,.45,60,235,130,false,1);COLC.push(px,pz,.5,y-.5,y+13)}
+  /* drive-through repair shops (batch 7): two long walls and a roof over a bay you drive straight through, a blue and white striped front, a big glowing white cross on a blue sign, a dark floor */
+  for(const p of REPAIRS){const cs=p.cs,sn=p.sn,nx=-sn,nz=cs,hl=p.L/2,hw=p.W/2,Wd=(a,b)=>[p.x+cs*a+nx*b,p.z+sn*a+nz*b];let gy=1e9;for(const a of[-hl,0,hl])for(const b of[-hw,hw]){const q=Wd(a,b);gy=Math.min(gy,terrainH(q[0],q[1]))}
+    for(const sd of[-1,1]){const q=Wd(0,sd*(hw+.25));pboxR(1,q[0],q[1],hl,.25,cs,sn,gy-1.5,gy+4.6,226,230,236,false,.7);COLO.push(q[0],q[1],hl,.3,cs,sn,gy+4.6);
+      for(let k=-2;k<=2;k++){const s2=Wd(k*hl*.4,sd*(hw+.52));pboxR(1,s2[0],s2[1],hl*.16,.03,cs,sn,gy+1.2,gy+2.0,30,90,220,false,1)}}         /* blue bands on the walls */
+    pboxR(1,p.x,p.z,hl+.4,hw+.6,cs,sn,gy+4.6,gy+5.1,40,90,210,false,1);                                                                   /* the roof, blue */
+    for(const e of[-1,1]){const q=Wd(e*(hl+.3),0);pboxR(1,q[0],q[1],.15,hw+.6,cs,sn,gy+4.0,gy+4.6,250,250,252,false,1);                   /* a white lintel over each opening */
+      for(let k=-3;k<=3;k++){const s3=Wd(e*(hl-1.5),k*hw/3.5);pboxR(1,s3[0],s3[1],.08,.32,cs,sn,gy+4.1,gy+4.18,255,244,214,2,1)}}          /* lights inside */
+    for(let a=-hl+1;a<hl;a+=2.4){const q=Wd(a,0);pboxR(1,q[0],q[1],1.25,hw-.4,cs,sn,terrainH(q[0],q[1])+.02,terrainH(q[0],q[1])+.05,46,50,58,false,1)}   /* the floor */
+    /* two gravel aprons: from the road shoulder to each opening */
+    for(const e of[-1,1])for(let k=0;k<6;k++){const f=k/5,a=e*(hl+2+f*9),b=-p.side*(hw+3)*f*0+(-p.side)*(f*(hw+5.5)),q=Wd(a,b);pboxR(1,q[0],q[1],1.6,2.4,cs,sn,terrainH(q[0],q[1])+.015,terrainH(q[0],q[1])+.04,88,86,80,false,1)}
+    /* the sign: a blue board on a post by the road with a white cross that glows */
+    {const q=Wd(0,-p.side*(hw+3.5)),y=terrainH(q[0],q[1]);pbox(1,q[0],y-.4,q[1],.2,y+7.5,.2,200,200,206,false,.8);COLC.push(q[0],q[1],.35,y-.5,y+7.5);
+     pboxR(1,q[0],q[1],2.2,.18,cs,sn,y+6,y+9.2,30,90,220,false,1);const f=[nx*-p.side*.2,nz*-p.side*.2];pboxR(1,q[0]+f[0],q[1]+f[1],1.3,.1,cs,sn,y+7.35,y+7.85,250,252,255,2,1);pboxR(1,q[0]+f[0],q[1]+f[1],.25,.1,cs,sn,y+6.4,y+8.8,250,252,255,2,1);
+     NEONS.push(q[0],y+7.6,q[1],.7,.85,1,4)}
+    p.gy=gy}
   /* Golden Gate Park: dense trees round a lake, kept clear of the drive */
   {const pr=mulberry(909),lk=LAKES[0];let np=0;for(let x=PARK.x0+4;x<PARK.x1-4;x+=8)for(let z=PARK.z0+4;z<PARK.z1-4;z+=8){const px=x+(pr()-.5)*7,pz=z+(pr()-.5)*7;if(Math.hypot(px-lk[0],pz-lk[1])<lk[2]+5)continue;
     const gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(W.D8[gj*W.N+gi]<5||pr()<.25||nearRoadXZ(px,pz,8))continue;ptree(px,pz,pr,terrainH(px,pz),true);COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);np++}}
@@ -1329,7 +1359,7 @@ function buildScenery(){
   ROADS.forEach((r,ri)=>{if(!r.city||r.style==4)return;const n=r.n,rg=mulberry(8800+ri);let d=rg()*20;
     for(let i=1;i<n-1;i++){d+=Math.hypot(r.X[i]-r.X[i-1],r.Z[i]-r.Z[i-1]);if(d<24)continue;d=0;if(r.br[i]||r.mk[i]<.9||r.wk[i]<.9||rg()<.45)continue;
       const dx=r.X[i+1]-r.X[i-1],dz=r.Z[i+1]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=rg()<.5?-1:1,o=r.hw*r.wk[i]+(r.sw?1.3:RSH+.55),px=r.X[i]+nx*sd*o,pz=r.Z[i]+nz*sd*o,ty=terrainH(px,pz);
-      if(ty<3||Math.abs(ty-r.Y[i])>2.5||otherAsphalt(px,pz,r,r.Y[i],RSH+.4)||(r.sw&&!swOn(r,sd>0?1:0,r.S[i])))continue;let c0=0;const q=mulberry((px*7+pz*3)|0),fr=()=>c0++==0?.8:q();ptree(px,pz,fr,ty,true);COLC.push(px,pz,.5,ty-.5,ty+8);St.street++}});
+      if(ty<3||Math.abs(ty-r.Y[i])>2.5||nearRepair(px,pz,4)||otherAsphalt(px,pz,r,r.Y[i],RSH+.4)||(r.sw&&!swOn(r,sd>0?1:0,r.S[i])))continue;let c0=0;const q=mulberry((px*7+pz*3)|0),fr=()=>c0++==0?.8:q();ptree(px,pz,fr,ty,true);COLC.push(px,pz,.5,ty-.5,ty+8);St.street++}});
   ROADS.forEach((r,ri)=>{if(r.city)return;const n=r.n,hwy=r.style==1,poleSide=((ri*5+3)&1)?1:-1;
     const nx_={pole:sr()*40,del:sr()*40,gan:250+sr()*700,bill:300+sr()*800,sign:150+sr()*400,grove:0,turb:500+sr()*700,gas:700+sr()*1500,home:600+sr()*1200,hv:300+sr()*2000,hvn:0};
     let d=0,pp=null,lastChev=-1e9;const fence=[{n:0},{n:0}],hv={n:0,sd:1,p:null};
@@ -1447,7 +1477,8 @@ function buildRoadHash(){
     const c0=Math.max(0,Math.floor((x0+W.half)/cs)),c1=Math.min(nc-1,Math.floor((x1+W.half)/cs)),d0=Math.max(0,Math.floor((z0+W.half)/cs)),d1=Math.min(nc-1,Math.floor((z1+W.half)/cs));for(let b=d0;b<=d1;b++)for(let a=c0;a<=c1;a++)fn(b*nc+a,s)}};
   each(c=>cnt[c+1]++);for(let k=0;k<nc*nc;k++)cnt[k+1]+=cnt[k];QH.st=cnt;QH.li=new Int32Array(cnt[nc*nc]);const fill=cnt.slice(0,nc*nc);each((c,s)=>{QH.li[fill[c]++]=s})}
 /* is this spot on or right beside any road (any height, bridges included)? used to keep trees and houses off roads and their ramps */
-function nearRoadXZ(x,z,m){const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)/cs),cz=Math.floor((z+W.half)/cs);if(!QH.st||cx<0||cz<0||cx>=nc||cz>=nc)return false;const c=cz*nc+cx;
+function nearRepair(x,z,m){for(const p of REPAIRS){const dx=x-p.x,dz=z-p.z,a=dx*p.cs+dz*p.sn,b=-dx*p.sn+dz*p.cs;if(Math.abs(a)<p.L*1.7+m&&Math.abs(b)<p.W+m+4)return true}return false}
+function nearRoadXZ(x,z,m){if(REPAIRS.length&&nearRepair(x,z,m))return true;const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)/cs),cz=Math.floor((z+W.half)/cs);if(!QH.st||cx<0||cz<0||cx>=nc||cz>=nc)return false;const c=cz*nc+cx;
   for(let q=QH.st[c];q<QH.st[c+1];q++){const s=QH.li[q],r=ROADS[QH.segR[s]],i=QH.segI[s],j=i+1<r.n?i+1:0,ax=r.X[i],az=r.Z[i],dx=r.X[j]-ax,dz=r.Z[j]-az,l2=dx*dx+dz*dz||1;let t=((x-ax)*dx+(z-az)*dz)/l2;t=t<0?0:t>1?1:t;if(Math.hypot(x-ax-dx*t,z-az-dz*t)<r.hw*Math.min(r.wk[i],r.wk[j])+RSH+m)return true}return false}
 function buildQueries(){
   if(!QH.st)buildRoadHash();const cs=QH.cs;
@@ -2635,6 +2666,7 @@ function mapInit(){
   UI.mapSc=sc}
 /* safe houses (green = yours, grey = locked) and cops, drawn on top of the baked map */
 function mapOverlay(ctx,pxm,s){
+  for(const p of REPAIRS){const px=(p.x+W.half)*pxm,pz=(p.z+W.half)*pxm,r=6;ctx.fillStyle='#2a6be0';ctx.beginPath();ctx.arc(px,pz,r,0,TAU);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(px-r*.62,pz-r*.18,r*1.24,r*.36);ctx.fillRect(px-r*.18,pz-r*.62,r*.36,r*1.24)}   /* repair shops: a white cross on blue */
   const rs=6.8;ctx.lineWidth=1.7;for(const h of SAFEHOUSES){const px=(h.x+W.half)*pxm,pz=(h.z+W.half)*pxm,own=SAFE.owned[h.id];ctx.beginPath();ctx.arc(px,pz,rs,0,TAU);ctx.fillStyle=own?'#3cf08c':'#8d97a3';ctx.fill();ctx.strokeStyle=own?'#05301a':'#222a33';ctx.stroke()}
   if(TR.on){const r=4.2/s,f=((C.t*4)|0)%2;for(const c of TR.cars){if(!c.alive||c.kind!==1||(c.cm==0&&!c.siren))continue;ctx.fillStyle=f?'#ff4a3a':'#4a7aff';ctx.fillRect((c.x+W.half)*pxm-r,(c.z+W.half)*pxm-r,r*2,r*2)}}
   navMapOverlay(ctx,pxm,s)}
@@ -3480,8 +3512,13 @@ function safeToast(t,sec){SAFE.msg=t;SAFE.msgT=sec||2.6}
 /* is the car on the pad, and slow enough? */
 function safeOnPad(s){const dx=C.x-s.pad.x,dz=C.z-s.pad.z,a=dx*s.dd[0]+dz*s.dd[1],b=dx*s.t[0]+dz*s.t[1];return Math.abs(a)<s.pad.hl-.4&&Math.abs(b)<s.pad.hw-.4&&Math.abs(C.y-s.y)<2.5}
 /* called every fixed step: servicing while parked on a pad */
+/* drive-through repair (batch 7): inside the bay of a repair shop the car is fixed at once (body, dents, parts, lamps, tyres), at any speed; once per pass */
+function repairStep(dt){if(GAME.state||TUM.on)return;for(const p of REPAIRS){const dx=C.x-p.x,dz=C.z-p.z;if(dx*dx+dz*dz>400){if(SAFE.rpIn===p)SAFE.rpIn=null;continue}
+    const a=dx*p.cs+dz*p.sn,b=-dx*p.sn+dz*p.cs,inside=Math.abs(a)<p.L/2-.8&&Math.abs(b)<p.W/2-.2;if(!inside){if(SAFE.rpIn===p&&Math.abs(a)>p.L/2+2)SAFE.rpIn=null;continue}
+    if(SAFE.rpIn===p)continue;SAFE.rpIn=p;const hurt=DMG.total>0||DMG.z.some(v=>v>0)||C.flatT>0;dmgReset();C.flatT=0;SAFE.rpT=1.2;SAFE.repairs=(SAFE.repairs||0)+1;
+    safeToast(hurt?'REPAIRED':'ALL GOOD',2);if(hurt&&typeof sparkAt==='function')for(let k=0;k<3;k++)sparkAt(C.x,C.y+1,C.z,0,0,8,3)}}
 function safeStep(dt){
-  SAFE.t+=dt;if(SAFE.msgT>0)SAFE.msgT-=dt;
+  SAFE.t+=dt;if(SAFE.msgT>0)SAFE.msgT-=dt;repairStep(dt);if(SAFE.rpT>0)SAFE.rpT-=dt;
   let on=null;const s0=safeNear(C.x,C.z,false);if(s0&&(s0.x-C.x)**2+(s0.z-C.z)**2<30*30&&safeOnPad(s0))on=s0;
   if(!on||GAME.state){if(SAFE.svc>0)SAFE.svc=Math.max(0,SAFE.svc-dt*2);if(!on)SAFE.visit=null;SAFE.at=on;return}
   SAFE.at=on;
@@ -3831,6 +3868,7 @@ function drawWorldMap(c,W_,H_,u){
   const sc=1/k;c.textAlign='center';c.font='800 '+Math.max(9,Math.round(u*.24))+'px -apple-system,Roboto,sans-serif';c.lineJoin='round';
   const wpx=x=>(x+W.half)*pxm,wpz=z=>(z+W.half)*pxm;
   for(const L of MAPLBL.concat(JUMPZ.map(j=>['JUMPS',j[0],j[1]-75,1]))){c.save();c.translate(wpx(L[1]),wpz(L[2]));c.scale(sc,sc);c.textAlign=L[4]=='r'?'right':'center';c.strokeStyle='rgba(0,0,0,.85)';c.lineWidth=3.5;c.strokeText(L[0],0,0);c.fillStyle=L[3]?'#fff':'#8fb8e0';c.fillText(L[0],0,0);c.restore()}
+  for(const p of REPAIRS){const r=Math.max(3,u*.12)*sc,x=wpx(p.x),z=wpz(p.z);c.beginPath();c.arc(x,z,r,0,TAU);c.fillStyle='#2a6be0';c.fill();c.fillStyle='#fff';c.fillRect(x-r*.62,z-r*.18,r*1.24,r*.36);c.fillRect(x-r*.18,z-r*.62,r*.36,r*1.24)}
   for(const h of SAFEHOUSES){c.beginPath();c.arc(wpx(h.x),wpz(h.z),Math.max(3,u*.11)*sc,0,TAU);c.fillStyle=SAFE.owned[h.id]?'#3cf08c':'#8d97a3';c.fill();c.lineWidth=1.5*sc;c.strokeStyle='#071018';c.stroke()}
   navMapOverlay(c,pxm,k);
   /* you */
