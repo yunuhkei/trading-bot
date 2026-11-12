@@ -212,25 +212,41 @@ const SH={
  /* ---- car: baked garage mesh, procedural environment reflections, per-vertex material classes ---- */
  carV:'attribute vec4 aP;attribute vec4 aN;attribute vec4 aC;uniform mat4 uVP;uniform mat4 uM;uniform vec4 uMat['+40+'];varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;varying vec3 vL;varying vec3 vMn;'+
   'void main(){vec4 w=uM*vec4(aP.xyz,1.);vMn=aN.xyz;vL=aP.xyz*(1./8192.);vW=w.xyz;vN=mat3(uM[0].xyz,uM[1].xyz,uM[2].xyz)*aN.xyz;vC=pow(aC.rgb,vec3(2.2));vM=uMat[int(aN.w*127.+.5)];gl_Position=uVP*w;}',
- carF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;varying vec3 vL;varying vec3 vMn;uniform float uGl,uAlpha,uZc;uniform vec3 uBr,uPaint,uWh;uniform vec4 uDm,uCr,uArch;\n'+ENVSRC+
+ carF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec4 vM;varying vec3 vL;varying vec3 vMn;uniform float uGl,uAlpha,uZc;uniform vec3 uBr,uPaint,uPaint2,uWh;uniform vec4 uDm,uCr,uArch,uPt,uSm,uSm2,uSm3;\n'+ENVSRC+
  /* a fake environment to reflect: dark wet ground, bright hazy horizon, overcast dome, a soft bright patch where the sun is behind the cloud, and a long overhead softbox for the clear-coat highlight line */
  'vec3 cenv(vec3 r,float rg){vec3 c=envl(r,rg);float sd=max(dot(r,uSun),0.);c+=uSunC*pow(sd,mix(240.,12.,rg))*mix(2.4,.14,rg)*step(.0,uSun.y);c+=vec3(.95,.98,1.05)*smoothstep(.16,.02,abs(r.z*.6+r.x*.15))*smoothstep(.5,.85,r.y)*(1.-rg)*.35;return c;}\n'+
  'float h3(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}\n'+
- 'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float metal=vM.x,rg=vM.y,emis=vM.z,coat=vM.w;vec3 alb=vC;if(coat>.99){alb*=uPaint;alb=min(mix(vec3(dot(alb,vec3(.3,.59,.11))),alb,1.15)*.9,vec3(.44));}'+
+ 'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float metal=vM.x,rg=vM.y,emis=vM.z,coat=vM.w;vec3 alb=vC;float pnt=step(.99,coat)*(1.-step(.5,uWh.x)),dC=length(uCam-vW);'+
+  /* THE PAINT (batch 4). uPt = (metallic, pearl, matte, flake): a SOLID paint is a deep, saturated colour under a glossy clear coat (it used to be half metal for every car, which washed every colour out to a pastel
+     and left white and silver flat); METALLIC has a bright face and a darker flank, sparkle and a tinted reflection; PEARL shifts to a second colour at a glancing angle; MATTE has no clear coat. */
+  'if(pnt>.5){alb*=uPaint;alb=min(mix(vec3(dot(alb,vec3(.3,.59,.11))),alb,1.18)*.9,vec3(.33));metal=uPt.x*.62;rg=mix(.24,.6,uPt.z);coat=1.-uPt.z;\n'+
+  /* SHUT LINES drawn per pixel (doors, bonnet, engine lid): a line as wide as a pixel at any distance that fades out before it is thinner than one, so it never breaks into dots.
+     uSm = door front z, door rear z, bottom y, top y; uSm2 = bonnet front z, rear z, half width at the front, at the rear; uSm3 = lid z, lid half width */
+  ' float w=max(.0045,dC*uSm3.z*1.25),kk=min(1.,.011/w),sm=0.,ax=abs(vL.x);vec3 mn=normalize(vMn);\n'+
+  ' if(abs(mn.x)>.5&&vL.y>uSm.z&&vL.y<uSm.w){sm=1.-smoothstep(w*.45,w,min(abs(vL.z-uSm.x),abs(vL.z-uSm.y)));sm=max(sm,(1.-smoothstep(w*.45,w,abs(vL.y-uSm.z-.004)))*step(uSm.x,vL.z)*step(vL.z,uSm.y));}\n'+
+  ' if(mn.y>.45){float tt=clamp((vL.z-uSm2.x)/max(uSm2.y-uSm2.x,.01),0.,1.),xh=mix(uSm2.z,uSm2.w,tt);if(uSm2.y>uSm2.x+.05&&vL.z>uSm2.x-w&&vL.z<uSm2.y){sm=max(sm,1.-smoothstep(w*.45,w,abs(ax-xh)));sm=max(sm,(1.-smoothstep(w*.45,w,abs(vL.z-uSm2.x)))*step(ax,xh));}\n'+
+  '  sm=max(sm,(1.-smoothstep(w*.45,w,abs(vL.z-uSm3.x)))*step(ax,uSm3.y)*step(.01,uSm3.y));}\n'+
+  ' alb*=1.-sm*kk*.88;coat*=1.-sm*kk;metal*=1.-sm*kk;}\n'+
+  /* the ink of a number plate: black up close, fading into the plate before the strokes are thinner than a pixel */
+  'if(abs(vM.y-.722)<.004&&vM.w<.01){alb=mix(vec3(.012),vec3(.74,.74,.72),smoothstep(.009,.03,dC*uSm3.z));}'+
   /* damage: a dead head or tail light goes dark (the side from the model x, the kind from the colour) */
   'float isG=step(.8,vM.x)*step(vM.y,.12),sdx=step(0.,vL.x),tl0=step(.8,alb.r)*step(alb.g,.3);float dead=mix(mix(uDm.x,uDm.y,sdx),mix(uDm.z,uDm.w,sdx),tl0)*step(.5,emis);emis*=1.-dead;alb=mix(alb,vec3(.02),dead*.85);'+
   /* grilles and vents: a diamond mesh of bright wires over darkness (the material with roughness 1), fading to its average at a distance so it does not shimmer */
-  'if(uWh.x>.5){\n  /* wheels: lettering on the tyre wall, and the spokes smear into a dark disc as the car speeds up */\n  float rr=length(vL.yz)/uWh.y;if(abs(vM.y-.804)<.012){float an=atan(vL.z,vL.y),bd=1.-smoothstep(.015,.03,abs(rr-.835)),dsh=step(.42,fract(an*12.7))*step(.22,fract(an*2.9+.3)),rb2=1.-smoothstep(.008,.016,abs(rr-.74));alb=mix(alb,vec3(.20,.20,.21),clamp(bd*dsh*.85+rb2*.5,0.,1.));}\n  if(abs(vM.x-.588)<.03&&abs(vM.y-.235)<.02){alb=mix(alb,vec3(.08),uWh.z*.65);metal*=1.-uWh.z*.5;}}\n  /* carbon fibre: a twill weave (the material with roughness .31 and clear coat .63), laid out on the plane the panel lies in, fading out with distance */\n  if(abs(vM.y-.31)<.02&&abs(vM.w-.627)<.01){vec3 an=abs(normalize(vMn));vec2 q=an.y>.6?vL.xz:(an.x>.6?vL.zy:vL.xy);q*=105.;float tw=step(.5,fract(q.x+q.y))*step(.5,fract(q.x-q.y)*1.),wv=mix(.55+.9*step(.5,fract(q.x*.5))*step(.5,fract(q.y*.5))*.0+.9*abs(sin(q.x*3.14159))*abs(sin(q.y*3.14159)),.9,smoothstep(3.,10.,length(uCam-vW)));alb*=mix(.35,1.5,wv)*.9+.1;metal=.6;}\n  /* the wheel arches: a crisp black circle round each wheel on the flank (drawn per pixel, so the edge is a clean curve and not a row of mesh teeth) */\n  if(uWh.x<.5&&abs(vL.x)>.3&&vM.x<.7){vec2 d1=vec2(vL.z-uArch.x,vL.y-uArch.y),d2=vec2(vL.z-uArch.z,vL.y-uArch.w);float ar=1.-smoothstep(0.,.01,min(length(d1)-(uArch.y+.056),length(d2)-(uArch.w+.056)));alb=mix(alb,vec3(.008),ar*.98);metal*=1.-ar;coat*=1.-ar;emis*=1.-ar;}\n  float grl=step(.98,vM.y);if(grl>.5){float a1=fract((vL.x+vL.y)*44.),a2=fract((vL.x-vL.y)*44.);float mshw=mix(step(.2,a1)*step(.2,a2),.55,smoothstep(7.,18.,length(uCam-vW)));alb=mix(vec3(.34,.35,.37),vec3(.004),mshw);metal=.85*(1.-mshw);rg=mix(.25,1.,mshw);}'+
+  'if(uWh.x>.5){\n  /* wheels: lettering on the tyre wall, and the spokes smear into a dark disc as the car speeds up */\n  float rr=length(vL.yz)/uWh.y;if(abs(vM.y-.804)<.012){float an=atan(vL.z,vL.y),bd=1.-smoothstep(.015,.03,abs(rr-.835)),dsh=step(.42,fract(an*12.7))*step(.22,fract(an*2.9+.3)),rb2=1.-smoothstep(.008,.016,abs(rr-.74));alb=mix(alb,vec3(.20,.20,.21),clamp(bd*dsh*.85+rb2*.5,0.,1.));}\n  if(abs(vM.x-.588)<.03&&abs(vM.y-.235)<.02){alb=mix(alb,vec3(.08),uWh.z*.65);metal*=1.-uWh.z*.5;}}\n  /* carbon fibre: a twill weave (the material with roughness .31 and clear coat .63), laid out on the plane the panel lies in, fading out with distance */\n  if(abs(vM.y-.31)<.02&&abs(vM.w-.627)<.01){vec3 an=abs(normalize(vMn));vec2 q=an.y>.6?vL.xz:(an.x>.6?vL.zy:vL.xy);q*=105.;float tw=step(.5,fract(q.x+q.y))*step(.5,fract(q.x-q.y)*1.),wv=mix(.55+.9*step(.5,fract(q.x*.5))*step(.5,fract(q.y*.5))*.0+.9*abs(sin(q.x*3.14159))*abs(sin(q.y*3.14159)),.9,smoothstep(3.,10.,length(uCam-vW)));alb*=mix(.35,1.5,wv)*.9+.1;metal=.6;}\n  /* the wheel arches: a crisp black circle round each wheel on the flank (drawn per pixel, so the edge is a clean curve and not a row of mesh teeth) */\n  if(uWh.x<.5&&abs(vL.x)>.3&&vM.x<.7&&normalize(vMn).y<.45){vec2 d1=vec2(vL.z-uArch.x,vL.y-uArch.y),d2=vec2(vL.z-uArch.z,vL.y-uArch.w);float ar=1.-smoothstep(0.,.01,min(length(d1)-(uArch.y+.056),length(d2)-(uArch.w+.056)));alb=mix(alb,vec3(.008),ar*.98);metal*=1.-ar;coat*=1.-ar;emis*=1.-ar;}\n  float grl=step(.98,vM.y);if(grl>.5){float a1=fract((vL.x+vL.y)*44.),a2=fract((vL.x-vL.y)*44.);float mshw=mix(step(.2,a1)*step(.2,a2),.55,smoothstep(7.,18.,length(uCam-vW)));alb=mix(vec3(.34,.35,.37),vec3(.004),mshw);metal=.85*(1.-mshw);rg=mix(.25,1.,mshw);}'+
   /* metallic flakes in the paint: a tiny, view-dependent sparkle from a hash of the position */
-  'vec3 fq=floor(vW*140.);n=normalize(n+(vec3(h3(fq),h3(fq+3.1),h3(fq+7.7))-.5)*.016*coat);'+
+  'vec3 fq=floor(vL*(pnt>.5?520.:140.));n=normalize(n+(vec3(h3(fq),h3(fq+3.1),h3(fq+7.7))-.5)*(pnt>.5?(.003+.045*uPt.w)*clamp(.004/(dC*uSm3.z+1e-5),0.,1.):.016*coat));'+
   'float ndv=max(dot(n,V),0.);vec3 R=reflect(-V,n);'+
+  /* pearl: the colour travels to the second colour as the surface turns away; metallic: bright where you look straight at it, darker on the turn */
+  'if(pnt>.5){alb=mix(alb,uPaint2,uPt.y*pow(1.-ndv,2.)*.7);alb*=1.+uPt.x*(.45*ndv*ndv-.3);}'+
   'float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl*.42;float ao=.35+.65*smoothstep(0.,.45,vW.y-uBr.y);'+
   /* road dirt and spray thrown up the lower body */
   'float dirt=smoothstep(.62,.12,vW.y-uBr.y);alb*=1.-dirt*.38*(1.-emis);'+
   'vec3 F0=mix(vec3(.04),alb,metal);vec3 fr=F0+(1.-F0)*pow(1.-ndv,5.);vec3 col=alb*(1.-metal)*irr*ao;'+
   'col+=cenv(R,max(rg,.35))*fr*ao*mix(.35,1.,metal);'+
   /* clear coat: a second, sharper reflection over the paint */
-  'col+=cenv(R,.05)*(.09+.91*pow(1.-ndv,5.))*coat*1.3*(1.-dirt*.5);'+
+  'float cfr=.05+.95*pow(1.-ndv,5.);col+=cenv(R,.05)*cfr*coat*1.3*(1.-dirt*.5);'+
+  /* the horizon in the paint: a bright band where the reflection looks level, dark road below it: this is what gives a flank its depth */
+  'float hzb=exp(-R.y*R.y*26.)*pnt;col+=(uHor*1.25+uSunC*.04)*hzb*(.035+.965*pow(1.-ndv,3.))*coat*(1.-dirt*.6);col*=1.-pnt*coat*.22*smoothstep(.05,-.5,R.y)*(1.-ndv);'+
   /* glass: a clear reflection of the sky, strong at a glancing angle */
   'col+=isG*envl(R,.04)*(.09+.91*pow(1.-ndv,3.))*.95;'+
   /* lights: the emissive material is the head and tail lights (red ones glow harder on the brakes) */
@@ -1747,7 +1763,7 @@ function renderInit(){
 function setEnvU(P){const gl=G.gl,u=P.u,E=ENV;gl.uniform3f(u.uCam,R.cx,R.cy,R.cz);if(u.uSun!=null){gl.uniform3fv(u.uSun,E.sun);gl.uniform3fv(u.uSunC,E.sunC);gl.uniform3fv(u.uAmbT,E.ambT);gl.uniform3fv(u.uAmbB,E.ambB);gl.uniform3fv(u.uHor,E.hor);gl.uniform3fv(u.uZen,E.zen);gl.uniform4f(u.uFogP,E.fog,E.fogY,E.fogSun,R.time);gl.uniform4fv(u.uGr,E.gr);if(u.uEnv!=null&&R.cube){gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_CUBE_MAP,R.cube.tex);gl.uniform1i(u.uEnv,5)}if(u.uSk!=null)gl.uniform4fv(u.uSk,E.sk);if(u.uStu!=null)gl.uniform1f(u.uStu,E.stu);if(u.uClA!=null){gl.uniform3fv(u.uClA,E.clA);gl.uniform3fv(u.uClB,E.clB);gl.uniform4fv(u.uSd,E.sd)}}}
 function setMapU(P){const gl=G.gl,u=P.u;gl.uniform4f(u.uMap,W.half,.5/W.N,W.hrange,W.hmin)}
 /* camera + frame */
-function viewSet(cx,cy,cz,tx,ty,tz,fov,w,h){R.cx=cx;R.cy=cy;R.cz=cz;R.fov=fov;M4.look(R.V,cx,cy,cz,tx,ty,tz);M4.persp(R.Pm,fov,w/h,.8,12000);M4.mul(R.VP,R.Pm,R.V);M4.planes(R.PL,R.VP);
+function viewSet(cx,cy,cz,tx,ty,tz,fov,w,h){R.cx=cx;R.cy=cy;R.cz=cz;R.fov=fov;R.pxm=2*Math.tan(fov/2)/Math.max(1,h);   /* the size of a pixel, in metres per metre of distance (for lines that must stay a pixel wide) */M4.look(R.V,cx,cy,cz,tx,ty,tz);M4.persp(R.Pm,fov,w/h,.8,12000);M4.mul(R.VP,R.Pm,R.V);M4.planes(R.PL,R.VP);
   /* camera basis for the sky: forward, right = f x worldUp, up = right x f */
   let fx=tx-cx,fy=ty-cy,fz=tz-cz;const l=Math.hypot(fx,fy,fz)||1;fx/=l;fy/=l;fz/=l;let rx=-fz,rz=fx;const rl=Math.hypot(rx,rz)||1;rx/=rl;rz/=rl;
   R.fw[0]=fx;R.fw[1]=fy;R.fw[2]=fz;R.rt[0]=rx;R.rt[1]=0;R.rt[2]=rz;R.up[0]=-rz*fy;R.up[1]=rz*fx-rx*fz;R.up[2]=rx*fy}
@@ -2007,7 +2023,7 @@ function drawCarMesh(m,M,count,from){const gl=G.gl,P=G.P.car,n=count==null?m.n:c
   gl.vertexAttribPointer(0,4,gl.SHORT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,8);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,16,12);gl.drawElements(gl.TRIANGLES,n,gl.UNSIGNED_SHORT,(from||0)*2);R.draws++;R.tris+=n/3}
 function carDraw(){
   if(!CARM.body)return;const gl=G.gl,P=G.P.car,a=R.alpha,q=CARS_RENDER;
-  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);gl.uniform3fv(P.u.uPaint,CARM.paint);attrs(3);gl.disable(gl.CULL_FACE);
+  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);carPaintU(P,CARM.paint,CARM.paint2,CARM.fin,CARM.seam);attrs(3);gl.disable(gl.CULL_FACE);
   /* the model is stored in 1/8192 m units */const S=1/8192;
   const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a);
   gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);
@@ -2022,7 +2038,7 @@ function carDraw(){
 /* the tinted glass, drawn after the sky with blending (so the seats, the wheel and the dash show through it) */
 function carGlassDraw(){
   const B=CARM.body;if(!B||B.gf>=B.n)return;const gl=G.gl,P=G.P.car,a=R.alpha;
-  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);gl.uniform3fv(P.u.uPaint,CARM.paint);attrs(3);gl.disable(gl.CULL_FACE);
+  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);carPaintU(P,CARM.paint,CARM.paint2,CARM.fin,CARM.seam);attrs(3);gl.disable(gl.CULL_FACE);
   const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a),S=1/8192;
   gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);gl.uniform1f(P.u.uAlpha,.66);gl.uniform3f(P.u.uWh,0,1,0);gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
   if(B.gpr){M4.trs(_mf,x,y+C.bob,z,-yaw,pit,rol,1,1,1);partsDrawCar(_mf,S,true)}else{M4.trs(_mb,x,y+C.bob,z,-yaw,pit,rol,S,S,S);drawCarMesh(B,_mb,B.n-B.gf,B.gf)}gl.uniform1f(P.u.uAlpha,1)}
@@ -2573,7 +2589,9 @@ function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.s
 /* ===== the car menu: a showroom (the world stands still, the camera circles the car), the 30 cars, what each is like, and which are yours ===== */
 /* HOW CARS ARE EARNED IS NOT DECIDED (like the money system): CAROWN says which cars you own, carUnlock(id) is the hook the game will call, ECON.carPrice(id) is null (not set), and the menu says so
    plainly. "UNLOCK ALL (testing)" in the menu lets you try every car now. Only the first car is owned. */
-const CAR_PAINTS=[null,[236,236,232],[20,20,24],[176,180,186],[30,60,150],[250,200,10],[240,110,20],[40,140,80],[200,30,40]];
+/* the paints of the car menu: the car's own, then colours that each come with a finish (fin: 0 solid, 1 metallic, 2 pearl with a second colour p2, 3 matte) */
+const _PT=(c,fin,p2)=>Object.assign(c,{fin:fin|0,p2:p2||null});
+const CAR_PAINTS=[null,_PT([240,240,236],0),_PT([14,14,18],1),_PT([168,172,180],1),_PT([24,52,150],1),_PT([250,196,8],0),_PT([240,104,16],2,[255,40,90]),_PT([22,96,58],1),_PT([196,22,32],0),_PT([236,238,244],2,[130,180,255]),_PT([64,66,70],3)];
 /* FOR NOW EVERY CAR IS UNLOCKED (CAR_ALL_DEFAULT): the game starts with all 30 open. The earning system will switch this off and call carUnlock(id) as cars are earned. */
 const CAR_ALL_DEFAULT=true;
 const CAROWN={owned:{k1:true},all:CAR_ALL_DEFAULT,color:{},key:'racer.cars'};
@@ -2601,21 +2619,21 @@ function menuLayout(W_,H_,u){
   add('prev',m,H_*.5-u*.45,u*.9,u*.9,()=>menuPreview(MENU.i-1));add('next',W_-pw-m*2-u*.9,H_*.5-u*.45,u*.9,u*.9,()=>menuPreview(MENU.i+1));
   const x0=px+m,iw=pw-m*2;let y=py+u*1.2;const L={px,py,pw,ph,m,x0,iw};
   L.stats=y;y+=u*.3*5+u*.34;L.dotsLabel=y;y+=u*.1;const gs=u*.3,gap=(iw-15*gs)/14;L.gy=y;for(let k=0;k<CAR_ROSTER.length;k++)add('dot'+k,x0+(k%15)*(gs+gap),y+((k/15)|0)*(gs+u*.06),gs,gs,()=>menuPreview(k));L.gs=gs;y+=Math.ceil(CAR_ROSTER.length/15)*(gs+u*.06)+u*.2;
-  L.paintLabel=y;y+=u*.08;L.sy=y;for(let k=0;k<CAR_PAINTS.length;k++)add('paint'+k,x0+k*(u*.46),y,u*.4,u*.4,()=>menuPaint(k));y+=u*.5;
+  L.paintLabel=y;y+=u*.08;L.sy=y;for(let k=0;k<CAR_PAINTS.length;k++)add('paint'+k,x0+k*(u*.385),y,u*.34,u*.34,()=>menuPaint(k));y+=u*.5;
   {const hw2=(iw-m)/2;add('all',x0,y,hw2,u*.34,()=>menuUnlockAll());add('hnd',x0+hw2+m,y,hw2,u*.34,()=>{physSetClassic(!PHYS.classic);safeToast('Handling: '+(PHYS.classic?'CLASSIC (the old one)':'NEW'),2.5)})}y+=u*.42;L.by=y;const bw=(iw-m)/2;add('select',x0,y,bw,u*.5,()=>menuChoose());add('close',x0+bw+m,y,bw,u*.5,()=>menuClose());
   L.b=b;return L}
 function menuDraw(c,W_,H_,u){
   const L=menuLayout(W_,H_,u),d=CAR_ROSTER[MENU.i],own=carOwned(MENU.i),cur=MENU.i==CARSEL.cur;MENU.btns=L.b;
   c.save();c.fillStyle='rgba(8,10,16,.86)';rr(c,L.px,L.py,L.pw,L.ph,u*.2);c.fill();c.textAlign='left';
   const x0=L.x0,fs=(f,w)=>(w||700)+' '+Math.round(u*f)+'px -apple-system,Roboto,sans-serif';
-  c.fillStyle='#fff';c.font=fs(.5,800);{const wmax=L.iw-u*1.5,wn=c.measureText(d.name).width;if(wn>wmax)c.font=fs(.5*wmax/wn,800)}c.fillText(d.name,x0,L.py+u*.62);   /* a long name shrinks so it never runs into the OWNED label */c.fillStyle='rgba(255,255,255,.65)';c.font=fs(.24);c.fillText(d.cls,x0,L.py+u*.92);c.fillText((MENU.i+1)+' / '+CAR_ROSTER.length+'   ·   '+Math.round(d.real.hp)+' hp  ·  '+DRV[d.real.drive],x0,L.py+u*1.16);
+  c.fillStyle='#fff';c.font=fs(.5,800);{const wmax=L.iw-u*1.5,wn=c.measureText(d.name).width;if(wn>wmax)c.font=fs(.5*wmax/wn,800)}c.fillText(d.name,x0,L.py+u*.62);   /* a long name shrinks so it never runs into the OWNED label */c.fillStyle='rgba(255,255,255,.65)';c.font=fs(.21);c.fillText(d.cls,x0,L.py+u*.9);c.fillText((MENU.i+1)+' / '+CAR_ROSTER.length+'   ·   '+Math.round(d.real.hp)+' hp  ·  '+DRV[d.real.drive],x0,L.py+u*1.16);
   c.textAlign='right';c.fillStyle=own?(cur?'#7dffb0':'#9cc8ff'):'#ff9a4a';c.font=fs(.26,800);c.fillText(own?(cur?'YOUR CAR':'OWNED'):'LOCKED',L.px+L.pw-L.m,L.py+u*.62);c.textAlign='left';
   /* the figures */
   const st=carStats(d),bx=x0+L.iw*.3,bw=L.iw*.3,tx=x0+L.iw*.64;let y=L.stats+u*.14;
   for(const[n,v,t]of st){c.fillStyle='rgba(255,255,255,.7)';c.font=fs(.19);c.fillText(n,x0,y);c.fillStyle='rgba(255,255,255,.12)';rr(c,bx,y-u*.16,bw,u*.15,u*.05);c.fill();c.fillStyle='#ffa43a';rr(c,bx,y-u*.16,Math.max(u*.1,bw*v),u*.15,u*.05);c.fill();c.fillStyle='rgba(255,255,255,.85)';c.font=fs(.18);c.fillText(t,tx,y);y+=u*.3}
   c.fillStyle='rgba(255,255,255,.5)';c.font=fs(.18);c.fillText('CARS  (green = yours)',x0,L.dotsLabel);
   for(let k=0;k<CAR_ROSTER.length;k++){const bt=L.b.find(q=>q.id=='dot'+k),o=carOwned(k);c.fillStyle=k==MENU.i?'#fff':o?'#4be07a':'rgba(255,255,255,.25)';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,k==MENU.i?bt.w*.55:bt.w*.38,0,TAU);c.fill()}
-  c.fillStyle='rgba(255,255,255,.5)';c.font=fs(.18);c.fillText('PAINT',x0,L.paintLabel);
+  c.fillStyle='rgba(255,255,255,.5)';c.font=fs(.18);{const kk=CAROWN.color[d.id]|0,fn=CAR_FIN_NAME[kk>0?(CAR_PAINTS[kk].fin|0):(d.fin|0)]||'SOLID';c.fillText('PAINT  \u00b7  '+fn,x0,L.paintLabel)}
   for(let k=0;k<CAR_PAINTS.length;k++){const bt=L.b.find(q=>q.id=='paint'+k),pc=CAR_PAINTS[k]||d.paint,sel=(CAROWN.color[d.id]|0)==k;c.fillStyle='rgb('+pc[0]+','+pc[1]+','+pc[2]+')';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,bt.w/2,0,TAU);c.fill();c.strokeStyle=sel?'#fff':'rgba(255,255,255,.35)';c.lineWidth=sel?2.5:1;c.stroke()}
   const sb=L.b.find(q=>q.id=='all');c.fillStyle=CAROWN.all?'#4be07a':'rgba(255,255,255,.18)';rr(c,sb.x,sb.y,sb.w,sb.h,u*.1);c.fill();c.fillStyle=CAROWN.all?'#102016':'rgba(255,255,255,.85)';c.font=fs(.19,700);c.textAlign='center';c.fillText(CAROWN.all?'ALL CARS UNLOCKED':'UNLOCK ALL CARS',sb.x+sb.w/2,sb.y+sb.h*.68);
   {const hb=L.b.find(q=>q.id=='hnd');c.fillStyle=PHYS.classic?'#ffa43a':'rgba(255,255,255,.18)';rr(c,hb.x,hb.y,hb.w,hb.h,u*.1);c.fill();c.fillStyle=PHYS.classic?'#201408':'rgba(255,255,255,.85)';c.fillText('HANDLING: '+(PHYS.classic?'CLASSIC':'NEW'),hb.x+hb.w/2,hb.y+hb.h*.68)}
@@ -2956,7 +2974,11 @@ function trCarCollide(){
         const dx=b.x-a.x,dz=b.z-a.z;if(dx*dx+dz*dz>40||Math.abs(a.y-b.y)>2.2)continue;
         trBody(BA,a);trBody(BB,b);if(!trObb(BA,BB))continue;
         if(a.state==0&&b.state==0&&(TR.t-a.crT>1.5||TR.t-b.crT>1.5)){a.crT=b.crT=TR.t;TR.stat.aiCrash++;if(TR.onCrash)TR.onCrash(a,b)}
-        const e=trResolve(BA,BB,.25,.3);if(HIT.vn>0){trBack(BA,a,e);trBack(BB,b,e);if(e>2500){a.hitT=b.hitT=TR.t}}else{a.x=BA.x;a.z=BA.z;b.x=BB.x;b.z=BB.z}}}}}
+        const e=trResolve(BA,BB,.25,.3);
+        /* a bump at walking pace between two cars that are both driving (one creeping out of a side road into one waiting on the main road): they are eased apart, slow to the speed the bump leaves them and carry on.
+           It used to count as a wreck whenever a van or a bus was involved (the rule went by energy, and a heavy vehicle has a lot of it at 2 m/s) */
+        if(HIT.vn>0&&HIT.vn<4&&a.state==0&&b.state==0&&a.kind==0&&b.kind==0){for(const[c,B]of[[a,BA],[b,BB]]){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,Math.min(c.v,B.vx*hx+B.vz*hz))}}
+        else if(HIT.vn>0){trBack(BA,a,e);trBack(BB,b,e);if(e>2500){a.hitT=b.hitT=TR.t}}else{a.x=BA.x;a.z=BA.z;b.x=BB.x;b.z=BB.z}}}}}
 /* ---------------- spawning ---------------- */
 const TRP={ri:-1,i:0,t:0,d:0};
 /* nearest road segment to a point (uses the road hash of 22_build.js) */
@@ -3111,7 +3133,7 @@ const TRGEN=[
  {L:4.75,W:1.92,H:1.76,wb:2.85,fo:.95,nose:.86,hood:1.06,cowl:1.34,roofF:2.12,roofR:3.62,rearS:4.12,deck:1.16,tail:1.1,hw0:.84,hwMax:.95,hwMaxS:2.5,hwTail:.9,crown:.06,tum:.07,rf:.37,rr:.37,wf:.25,wr:.25,rimF:.24,rimR:.24,tf:.8,tr:.8,sill:.27,gw:.86,gt:.78,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.3,grille:'wide',roofRails:1,cladding:.33,exh:1,exhOff:.6},     /* SUV */
  {L:5.2,W:1.98,H:2.06,wb:3.2,fo:.88,nose:1.0,hood:1.08,cowl:1.05,roofF:1.45,roofR:4.2,rearS:5.0,deck:1.5,tail:1.5,hw0:.88,hwMax:.96,hwMaxS:2.5,hwTail:.94,crown:.05,tum:.05,rf:.36,rr:.36,wf:.23,wr:.23,rimF:.22,rimR:.22,tf:.82,tr:.82,sill:.28,gw:.9,gt:.88,head:'oval',tail_:'bar',intake:'mid',wing:'none',exh:0,diff:0,splitter:0,sideIntake:0,mirror:1,capR:.25,grille:'wide',cladding:.22},       /* van */
  null];                                                                                                                                                                                                                                                                               /* police: the sedan with a dark lower body */
-const TRMATMAP=[0,1,2,2,5,3,4,6,5,2,2,12,0,6,2,6,5,13,6,2];      /* generator material -> traffic material (11 plate -> white, 17 amber, 18 grille -> dark) */
+const TRMATMAP=[0,1,2,2,5,3,4,6,5,2,2,12,0,6,2,6,5,13,6,2,2];      /* generator material -> traffic material (11 plate -> white, 17 amber, 18 grille -> dark) */
 /* the working vehicles (generator frame: metres, front at -z): a refuse truck, a box van, a pickup. A cab, a body, lamps, plates, the game's wheels. */
 function trBoxVehicle(kind){
   const b=new CGB(),M=CGM,box=(x,y,z,hx,hy,hz,m)=>cgBox(b,x,y,z,hx,hy,hz,m,0);let S;
@@ -3787,7 +3809,7 @@ function partsDrawCar(mf,sc,glass){
    SPIKE STRIPS (from 4 stars): every 16-20 s a strip is laid across the road 150-230 m ahead of you (it lies there for 40 s). Driving over it bursts the tyres: a bang, sparks from the rims,
    "TYRES BURST" and a short loss of grip (about 4 s: grip down by half, recovering over the last second). THIS IS A DELIBERATE EXCEPTION to "damage never changes how the car drives". */
 const HELI={list:[],mesh:null,nextT:0,want:0,chop:0,near:1e9,made:0};
-const SPIKE={list:[],nextT:0,hits:0};
+const SPIKE={list:[],nextT:0,hits:0},HELI_PAINT=new Float32Array([.012,.03,.09]);
 /* the helicopter mesh, built at a third of its size (the car mesh format holds +-4 m) and drawn three times bigger */
 function heliMesh(){const b=new CGB(),M=CGM,k=1/3,box=(x,y,z,hx,hy,hz,m)=>cgBox(b,x*k,y*k,z*k,hx*k,hy*k,hz*k,m,0);
   box(0,1.7,-.4,.95,.85,1.9,M.paint);box(0,1.55,-2.55,.8,.7,.45,M.glass);box(0,2.05,-1.7,.85,.42,.55,M.glass);box(0,1.55,-1.0,.97,.45,1.05,M.plate);   /* cabin, nose glass, windscreen, white band */
@@ -3817,7 +3839,7 @@ function copHeliTick(dt){
   HELI.list=HELI.list.filter(h=>!(h.leave&&Math.hypot(h.x-C.x,h.z-C.z)>700));HELI.near=near;if(COP.heat==0&&!HELI.list.length)HELI.nextT=0}
 function heliDraw(){
   if(!HELI.list.length||!HELI.mesh)return;const gl=G.gl,P=G.P.car,a=R.alpha,S=3/8192,M=new Float32Array(16);
-  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,0);gl.uniform3f(P.u.uPaint,.012,.03,.09);attrs(3);gl.disable(gl.CULL_FACE);
+  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,0);carPaintU(P,HELI_PAINT);attrs(3);gl.disable(gl.CULL_FACE);
   gl.uniform3f(P.u.uBr,0,0,0);gl.uniform1f(P.u.uAlpha,1);gl.uniform3f(P.u.uWh,0,1,0);gl.uniform4f(P.u.uArch,0,0,0,0);gl.uniform4f(P.u.uDm,0,0,0,0);gl.uniform4f(P.u.uCr,0,0,0,0);gl.uniform1f(P.u.uZc,0);
   for(const h of HELI.list){const x=lerp(h.px,h.x,a),y=lerp(h.py,h.y,a),z=lerp(h.pz,h.z,a),yaw=h.pyaw+angd(h.yaw,h.pyaw)*a;M4.trs(M,x,y,z,-yaw,h.pitch||0,h.roll||0,S,S,S);drawCarMesh(HELI.mesh,M)}}
 /* rotor discs (in the dark blob batch), the spotlight beam and its pool (additive), called from fxDraw */
@@ -3851,10 +3873,10 @@ function spikeCheck(){if(!SPIKE.list.length||!C.grounded)return;
 /* ===== procedural car bodies: smooth lofted bodywork, wheel wells, real wheels, lights, intakes, wings, exhausts, mirrors =====
    Nothing here is a real car: every body is made from numbers (a spec) by the same code, in the style of the cars it takes its inspiration from.
    Model axes: x to the right, y up, z BACKWARDS (the nose is at -L/2), metres, origin on the ground under the middle of the wheelbase's centre of the body (z = 0 half way along). */
-const CGM={paint:0,glass:1,trim:2,carbon:3,chrome:4,head:5,tail:6,rubber:7,rim:8,caliper:9,exh:10,plate:11,stripe:12,under:13,disc:14,inter:15,steel:16,amber:17,grille:18,gloss:19};
+const CGM={paint:0,glass:1,trim:2,carbon:3,chrome:4,head:5,tail:6,rubber:7,rim:8,caliper:9,exh:10,plate:11,stripe:12,under:13,disc:14,inter:15,steel:16,amber:17,grille:18,gloss:19,ink:20};
 /* per material: colour (sRGB bytes) and [metal, roughness, emissive, clear coat] / 255 for the car shader */
-const CGCOL=[[255,255,255],[8,10,14],[20,20,22],[34,35,40],[205,210,216],[255,244,190],[255,34,24],[14,14,15],[226,229,235],[205,28,28],[178,182,188],[230,230,224],[240,240,240],[18,18,20],[150,152,158],[34,34,38],[160,164,170],[255,150,24],[30,30,32],[12,12,14]];
-const CGMAT=[[140,66,0,255],[215,22,0,0],[0,170,0,0],[70,80,0,160],[235,60,0,0],[0,40,255,60],[0,40,255,60],[0,205,0,0],[150,60,0,60],[70,90,0,140],[240,70,0,0],[0,150,0,0],[120,70,0,230],[0,200,0,0],[200,110,0,0],[0,150,0,40],[225,90,0,0],[0,60,150,0],[110,255,0,0],[40,26,0,230]];
+const CGCOL=[[255,255,255],[8,10,14],[20,20,22],[34,35,40],[205,210,216],[255,244,190],[255,34,24],[14,14,15],[226,229,235],[205,28,28],[178,182,188],[230,230,224],[240,240,240],[18,18,20],[150,152,158],[34,34,38],[160,164,170],[255,150,24],[30,30,32],[12,12,14],[10,10,12]];
+const CGMAT=[[140,66,0,255],[215,22,0,0],[0,170,0,0],[70,80,0,160],[235,60,0,0],[0,40,255,60],[0,40,255,60],[0,205,0,0],[150,60,0,60],[70,90,0,140],[240,70,0,0],[0,150,0,0],[120,70,0,230],[0,200,0,0],[200,110,0,0],[0,150,0,40],[225,90,0,0],[0,60,150,0],[110,255,0,0],[40,26,0,230],[0,184,0,0]];
 class CGB{constructor(){this.P=[];this.N=[];this.M=[];this.I=[];this.S=[];this.Pt=[];this.cur=0}
   v(x,y,z,nx,ny,nz,m,sh){this.P.push(x,y,z);this.N.push(nx,ny,nz);this.M.push(m);this.S.push(sh==null?1:sh);this.Pt.push(this.cur);return this.M.length-1}
   t(a,b,c){this.I.push(a,b,c)}q(a,b,c,d){this.t(a,b,c);this.t(a,c,d)}
@@ -3878,7 +3900,7 @@ function cgGridNormals(P,ni,nj,wrap,ctr){const N=new Float32Array(ni*nj*3);
 function cgSpec(o){
   const S=Object.assign({L:4.5,W:1.86,H:1.28,wb:2.45,fo:.92,nose:.56,hood:.80,cowl:1.62,roofF:2.12,roofR:3.0,rearS:3.5,deck:.97,tail:.80,hw0:.80,hwMax:.93,hwMaxS:3.0,hwTail:.82,crown:.09,tum:.09,dip:.012,flare:.035,flareR:.075,crest:.032,crestR:.05,tuck:.03,
     rf:.335,rr:.345,wf:.255,wr:.305,rimF:.235,rimR:.245,tf:.775,tr:.80,sill:.095,gw:.72,gt:.6,
-    glassRoof:0,rearGlass:1,bpillar:0,spoke:5,wheelStyle:'spoke',head:'round',tail_:'bar',intake:'mid',wing:'none',duct:0,exh:2,exhS:'twin',louvres:0,stripe:0,mirror:1,diff:1,splitter:1,sideIntake:0,quad:1,grille:'none',drl:0,gills:0,buttress:0,scoop:0,canards:0,shark:0,plates:1,seat:'two',chromeTrim:0,tread:1,lhd:1},o||{});
+    glassRoof:0,rearGlass:1,bpillar:0,spoke:5,wheelStyle:'spoke',head:'round',tail_:'bar',intake:'mid',wing:'none',duct:0,exh:2,exhS:'twin',louvres:0,stripe:0,mirror:1,diff:1,splitter:1,sideIntake:0,quad:1,grille:'none',drl:0,gills:0,buttress:0,scoop:0,canards:0,shark:0,plates:1,seat:'two',chromeTrim:0,tread:1,lhd:1,sq:5.2,hard:.8,noseP:3.2,tailP:3.4,noseDrop:.3,tailDrop:.3,spine:0},o||{});
   S.fz=-S.L/2+S.fo;S.rz=S.fz+S.wb;                        /* axle positions along z (front is negative) */
   S.zs=s=>s-S.L/2;                                         /* s measured from the nose -> z */
   S.hwF=S.W/2;return S}
@@ -3897,7 +3919,7 @@ function cgTubRing(S,s,K){K=K||S.K||16;
   for(let k=0;k<=K;k++){const t=k/K,rid=cf*(.012*Math.exp(-Math.pow((t-.68)/.07,2))-.008*Math.exp(-Math.pow((t-.37)/.06,2))),
       bar=1-S.tuck*Math.pow(Math.max(0,1-t/tw),2)-tum*Math.pow(Math.max(0,(t-tw)/(1-tw)),2),sc=scD*Math.exp(-Math.pow((t-.5)/.19,2));
     pts.push([hw*bar+rid-sc,y0+hs*t+cr*t*t*t])}      /* a barrel section (widest at the hip line), a shoulder crease and a groove above the sill, the crest rising over the wheels, the intake scoop */
-  const xs=pts[pts.length-1][0],n=K>8?5.2:3.15;          /* a tighter shoulder radius on the detailed bodies: a flatter top and a crisper edge, like pressed metal */for(let k=1;k<=5;k++){const a=k/5*Math.PI/2,c=Math.cos(a),sn=Math.sin(a),tt=k/5;pts.push([xs*Math.pow(c,2/n),ys+(yt-ys)*Math.pow(sn,2/n)+cr*(1-tt)*(1-tt)-S.dip*cab*tt*tt*(gF+gR>.05?1:0)])}
+  const xs=pts[pts.length-1][0],n=K>8?(S.sq||5.2):3.15,spn=K>8&&S.spine?S.spine*sstep(.25,.7,s)*(1-sstep(S.cowl-.35,S.cowl-.05,s)):0;          /* a tighter shoulder radius on the detailed bodies: a flatter top and a crisper edge, like pressed metal */for(let k=1;k<=5;k++){const a=k/5*Math.PI/2,c=Math.cos(a),sn=Math.sin(a),tt=k/5;pts.push([xs*Math.pow(c,2/n),ys+(yt-ys)*Math.pow(sn,2/n)+cr*(1-tt)*(1-tt)-S.dip*cab*tt*tt*(gF+gR>.05?1:0)+(k==5?spn:0)])}
   return pts}
 function cgBodyCurves(S){
   const L=S.L,top=[[0,S.nose*.8],[.18,S.nose*.97],[.5,S.nose+.025],[S.cowl*.5,(S.nose+S.hood)/2+.01],[S.cowl,S.hood],[(S.cowl+S.rearS)/2,(S.hood+S.deck)/2+.02],[S.rearS,S.deck],[L-.4,S.deck-.025],[L,S.tail]];
@@ -3912,9 +3934,9 @@ function cgBody(S,mb,opt){
   const set=[];const stp=opt.lo?(opt.mid?.21:.3):.1;for(let s=.01;s<L;s+=stp)set.push(s);for(const e of(opt.lo?[.01,.08,.18,L-.01,L-.08,L-.18]:[.006,.02,.045,.09,.16,L-.006,L-.02,L-.045,L-.09,L-.16]))set.push(e);
   for(const ax of[S.fo,S.fo+S.wb]){const r=(ax==S.fo?S.rf:S.rr)+.12;for(let s=ax-r;s<=ax+r+1e-6;s+=opt.lo?(opt.mid?.09:.13):.04)set.push(s)}
   set.sort((a,b)=>a-b);const ss=[];for(const s of set){if(s<=0||s>=L)continue;if(!ss.length||s-ss[ss.length-1]>.018)ss.push(s)}
-  const ni=ss.length,rings=[],capF=(S.capF||.34)*.88,capR=(S.capR||.5)*.62;
-  for(const s of ss){const r=cgTubRing(S,s,K);let sc=1;const d0=s,d1=L-s;if(d0<capF)sc=Math.pow(1-Math.pow((capF-d0)/capF,3.2),1/3.2);else if(d1<capR)sc=Math.pow(1-Math.pow((capR-d1)/capR,3.4),1/3.4);
-    const yb=r[0][1],yt=r[r.length-1][1];const cy=(yb+yt)/2;if(sc<1){const hs=.3+.7*sc;for(const p of r){p[0]*=sc;p[1]=cy+(p[1]-cy)*hs}}rings.push(r)}
+  const ni=ss.length,rings=[],scA=[],capF=(S.capF||.34)*.88,capR=(S.capR||.5)*.62;
+  for(const s of ss){const r=cgTubRing(S,s,K);let sc=1;const d0=s,d1=L-s;let dr=S.noseDrop;if(d0<capF)sc=Math.pow(1-Math.pow((capF-d0)/capF,S.noseP),1/S.noseP);else if(d1<capR){sc=Math.pow(1-Math.pow((capR-d1)/capR,S.tailP),1/S.tailP);dr=S.tailDrop}
+    const yb=r[0][1],yt=r[r.length-1][1];const cy=(yb+yt)/2;if(sc<1){const hs=dr+(1-dr)*sc;for(const p of r){p[0]*=sc;p[1]=cy+(p[1]-cy)*hs}}rings.push(r);scA.push(sc)}
   const M=rings[0].length,nj=2*M-2;
   const P=new Float32Array(ni*nj*3),ctr=new Float32Array(ni*3),flag=new Uint8Array(ni*nj),dark=new Float32Array(ni*nj);
   for(let i=0;i<ni;i++){const r=rings[i],z=S.zs(ss[i]);let cy=0;
@@ -3929,13 +3951,21 @@ function cgBody(S,mb,opt){
     /* a livery with a dark lower body (police cars) */
     if(S.lowerDark&&Math.abs(P[k])>.3){const t=_cl((S.lowerDark-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.96)}
     /* dark lower valances at the nose and the tail */
-    if(!S.noSkirt){const sN=z+L/2,t=Math.max(_cl((S.sill+.30-y)/.02,0,1)*_cl((.75-sN)/.12,0,1),_cl((S.sill+.44-y)/.022,0,1)*_cl((sN-(L-.7))/.12,0,1));if(t>0)dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}
+    if(!S.noSkirt){const sN=z+L/2,t=Math.max(_cl((S.sill+Math.min(.30,(S.nose-S.sill)*.55)-y)/.02,0,1)*_cl((.75-sN)/.12,0,1),_cl((S.sill+.44-y)/.022,0,1)*_cl((sN-(L-.7))/.12,0,1));if(t>0)dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}
     if(S.cladding){const t=_cl((S.sill+S.cladding-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.93)}
     /* black side skirts: a ramp up the lower side */
     if(!S.noSkirt&&Math.abs(P[k])>.35){const t=_cl((S.sill+.2-y)/.035,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}}
   const Nn=cgGridNormals(P,ni,nj,true,ctr);
   /* vertices per (grid point, material) so that materials can change across a cell without breaking the smooth shading */
-  const map=new Map();const vtx=(i,j,m)=>{const key=(i*nj+j)*16+m;let v=map.get(key);if(v===undefined){const k=(i*nj+j)*3;v=mb.v(P[k],P[k+1],P[k+2],Nn[k],Nn[k+1],Nn[k+2],m,1-.93*dark[i*nj+j]);map.set(key,v)}return v};
+  /* HARD CREASES (batch 4): along a few rows of the grid (the top edge of the wings, the character line on the flank, a spine down the bonnet) the two sides of the row do not share a normal:
+     each is shaded from its own side only, so the row reads as a pressed edge instead of a soft roll. S.hard (0-1) is how much of the one-sided normal is used. */
+  const hard=opt.lo?0:S.hard,isCr=new Uint8Array(nj),FN=new Float32Array(Math.max(1,(ni-1)*nj*3));
+  if(hard>0){const rows=[6+K,4+Math.round(K*.68)];if(S.spine)rows.push(M-1);for(const r of rows){isCr[r]=1;isCr[(2*M-2-r)%nj]=1}
+    for(let i=0;i<ni-1;i++)for(let j=0;j<nj;j++){const j1=(j+1)%nj,a=(i*nj+j)*3,b=(i*nj+j1)*3,c=((i+1)*nj+j1)*3,d=((i+1)*nj+j)*3,e1x=P[c]-P[a],e1y=P[c+1]-P[a+1],e1z=P[c+2]-P[a+2],e2x=P[d]-P[b],e2y=P[d+1]-P[b+1],e2z=P[d+2]-P[b+2];
+      let nx=e1y*e2z-e1z*e2y,ny=e1z*e2x-e1x*e2z,nz=e1x*e2y-e1y*e2x;const l=Math.hypot(nx,ny,nz)||1,mx=(P[a]+P[c])/2-ctr[i*3],my=(P[a+1]+P[c+1])/2-ctr[i*3+1],sg=(nx*mx+ny*my)<0?-1:1,o=(i*nj+j)*3;FN[o]=nx/l*sg;FN[o+1]=ny/l*sg;FN[o+2]=nz/l*sg}}
+  const map=new Map();const vtx=(i,j,m,c)=>{const cr=isCr[j],key=((i*nj+j)*32+m)*2+(cr&&c==j?1:0);let v=map.get(key);if(v===undefined){const k=(i*nj+j)*3;let nx=Nn[k],ny=Nn[k+1],nz=Nn[k+2];
+      if(cr){let fx=0,fy=0,fz=0;for(const ii of[i-1,i]){if(ii<0||ii>ni-2)continue;const o=(ii*nj+c)*3;fx+=FN[o];fy+=FN[o+1];fz+=FN[o+2]}const fl=Math.hypot(fx,fy,fz);if(fl>1e-6){nx=nx*(1-hard)+fx/fl*hard;ny=ny*(1-hard)+fy/fl*hard;nz=nz*(1-hard)+fz/fl*hard;const l=Math.hypot(nx,ny,nz)||1;nx/=l;ny/=l;nz/=l}}
+      v=mb.v(P[k],P[k+1],P[k+2],nx,ny,nz,m,1-.93*dark[i*nj+j]);map.set(key,v)}return v};
   const sw=S.stripe?S.stripe:0;
   for(let i=0;i<ni-1;i++){for(let j=0;j<nj;j++){const j1=(j+1)%nj,k0=(i*nj+j)*3,k1=(i*nj+j1)*3,k2=((i+1)*nj+j1)*3,k3=((i+1)*nj+j)*3;
       const cx=(P[k0]+P[k1]+P[k2]+P[k3])/4,cy=(P[k0+1]+P[k1+1]+P[k2+1]+P[k3+1])/4,cz=(P[k0+2]+P[k1+2]+P[k2+2]+P[k3+2])/4;
@@ -3944,10 +3974,11 @@ function cgBody(S,mb,opt){
       else if(jj<=3&&cy<S.sill+.1)m=CGM.under;
       else if(S.splitter&&cz<-L/2+.55&&cy<S.sill+.075)m=CGM.carbon;                          /* front splitter lip */
       else if(sw&&jj>=M-4&&sd<sw&&cz>-L/2+.5&&cz<L/2-.25)m=CGM.stripe;
-      const a=vtx(i,j,m),b=vtx(i,j1,m),c=vtx(i+1,j1,m),d=vtx(i+1,j,m);mb.q(a,b,c,d)}}
+      const a=vtx(i,j,m,j),b=vtx(i,j1,m,j),c=vtx(i+1,j1,m,j),d=vtx(i+1,j,m,j);mb.q(a,b,c,d)}}
   /* end caps: a fan to a point in front of / behind the first and last ring */
   for(const[i,dir]of[[0,-1],[ni-1,1]]){const cx=ctr[i*3],cy=ctr[i*3+1],cz=ctr[i*3+2]+dir*.004;const cm=mb.v(cx,cy,cz,0,0,dir,CGM.paint);
-    for(let j=0;j<nj;j++){const j1=(j+1)%nj;const k=(i*nj+j)*3;const a=mb.v(P[k],P[k+1],P[k+2],Nn[k],Nn[k+1],Nn[k+2],CGM.paint),k1=(i*nj+j1)*3,b=mb.v(P[k1],P[k1+1],P[k1+2],Nn[k1],Nn[k1+1],Nn[k1+2],CGM.paint);mb.t(a,b,cm)}}
+    /* a blunt end (a cut-off tail, a brick nose) is a flat face: its fan is shaded flat, not rounded over like a pillow */const fl=opt.lo?0:_cl(scA[i]*1.6-.5,0,1),cn=k=>{const x=Nn[k]*(1-fl),y=Nn[k+1]*(1-fl),z=Nn[k+2]*(1-fl)+dir*fl,l=Math.hypot(x,y,z)||1;return[x/l,y/l,z/l]};
+    for(let j=0;j<nj;j++){const j1=(j+1)%nj;const k=(i*nj+j)*3,na=cn(k);const a=mb.v(P[k],P[k+1],P[k+2],na[0],na[1],na[2],CGM.paint,1-.93*dark[i*nj+j]),k1=(i*nj+j1)*3,nb=cn(k1),b=mb.v(P[k1],P[k1+1],P[k1+2],nb[0],nb[1],nb[2],CGM.paint,1-.93*dark[i*nj+j1]);mb.t(a,b,cm)}}
   S._tub={P,Nn,ni,nj,M,ss,ctr};
   /* surface lookup: the vertex nearest to a point (used to place the lights and vents on the body) */
   S.near=(x,y,z)=>{let b=-1,bd=1e9;for(let i=0;i<ni;i++){const dz=P[i*nj*3+2]-z;if(dz*dz>bd)continue;for(let j=0;j<nj;j++){const k=(i*nj+j)*3,dx=P[k]-x,dy=P[k+1]-y,d=dx*dx+dy*dy+dz*dz;if(d<bd){bd=d;b=k}}}
@@ -4020,11 +4051,18 @@ function cgLamp(mb,p,rx,ry,rot,m,kind){
 /* a flat quad on a plane of constant z (a character on a plate) */
 function cgQuadZ(mb,x0,y0,x1,y1,z,dir,m){const a=mb.v(x0,y0,z,0,0,dir,m),b=mb.v(x1,y0,z,0,0,dir,m),c=mb.v(x1,y1,z,0,0,dir,m),d=mb.v(x0,y1,z,0,0,dir,m);mb.q(a,b,c,d)}
 /* a number plate with six characters (blocky seven-segment letters picked by a seeded generator) and a blue strip; dir -1 faces the front, +1 the rear */
-function cgPlate(mb,cx,cy,cz,dir,seed){
-  cgBox(mb,cx,cy,cz,.25,.062,.006,CGM.plate,0);const z=cz+dir*.0072,rg=mulberry((seed*7919+13)|0),sx=dir>0?1:-1;
-  for(let g=0;g<6;g++){const gx=cx+sx*(-.19+g*.075),w=.026,h=.05,t=.0085;let mask=0;while(mask==0||mask==127)mask=(rg()*127)|0;
-    const S7=[[-w,h-t,w,h],[w-t,0,w,h],[w-t,-h,w,0],[-w,-h,w,-h+t],[-w,-h,-w+t,0],[-w,0,-w+t,h],[-w,-t/2,w,t/2]];
-    for(let k=0;k<7;k++)if(mask&(1<<k)){const q=S7[k];cgQuadZ(mb,gx+sx*q[0],cy+q[1],gx+sx*q[2],cy+q[3],z,dir,CGM.carbon)}}}
+/* a rectangle lying on the surface at p (half sizes hx, hy), turned by rot */
+function cgRect(mb,p,hx,hy,m,off,rot){const[ux,uy,uz,vx,vy,vz]=cgBasis(p.nx,p.ny,p.nz),e=(off==null?.006:off)+.003,cx=p.x+p.nx*e,cy=p.y+p.ny*e,cz=p.z+p.nz*e,cr=Math.cos(rot||0),sr=Math.sin(rot||0),V=[];
+  for(const[a,b]of[[-1,-1],[1,-1],[1,1],[-1,1]]){const qx=a*hx*cr-b*hy*sr,qy=a*hx*sr+b*hy*cr;V.push(mb.v(cx+ux*qx+vx*qy,cy+uy*qx+vy*qy,cz+uz*qx+vz*qy,p.nx,p.ny,p.nz,m))}mb.q(V[0],V[1],V[2],V[3])}
+/* NUMBER PLATES you can read (batch 4): three letters and three digits in a 3 x 5 block font (runs of blocks are merged into one quad), black ink on a white plate with a dark frame.
+   The ink has its own material: the shader fades it into the plate at a distance, before the strokes get thinner than a pixel. */
+const CGFONT={0:31599,1:11415,2:25255,3:25230,4:23497,5:31118,6:14831,7:29330,8:31727,9:31694,A:11245,B:27566,C:14627,D:27502,E:31143,F:31140,G:14699,H:23533,I:29847,J:4714,K:23469,L:18727,M:24557,N:27501,O:11114,P:27556,Q:11123,R:27565,S:14478,T:29842,U:23407,V:23402,W:23549,X:23213,Y:23186,Z:29351};
+function cgPlateText(o){if(o.plate)return String(o.plate).toUpperCase();const nm=String(o._name||'RCR').toUpperCase().replace(/[^A-Z]/g,''),cons=nm.replace(/[AEIOU]/g,''),l=(cons.length>=3?cons:nm+'XXX').slice(0,3),h=Math.round((o.L||4.5)*1000+(o.W||1.9)*777+(o.H||1.2)*313)%900+100;return l+' '+h}
+function cgPlate(mb,cx,cy,cz,dir,txt){
+  cgBox(mb,cx,cy,cz,.265,.076,.006,CGM.trim,0);cgBox(mb,cx,cy,cz+dir*.0012,.255,.066,.006,CGM.plate,0);const z=cz+dir*.0078,sx=dir>0?1:-1,pw=.0185,ph=.021,adv=.071,n=txt.length,x0=-(n*adv-.0155)/2;
+  for(let g=0;g<n;g++){const bits=CGFONT[txt[g]];if(!bits)continue;const gx=x0+g*adv;
+    for(let r=0;r<5;r++){let c=0;while(c<3){if(!(bits>>(14-(r*3+c))&1)){c++;continue}let c1=c;while(c1<2&&(bits>>(14-(r*3+c1+1))&1))c1++;
+        const xa=gx+c*pw,xb=gx+(c1+1)*pw,ya=cy+(2.5-r)*ph,yb=ya-ph;cgQuadZ(mb,cx+sx*xa,yb,cx+sx*xb,ya,z,dir,CGM.ink);c=c1+1}}}}
 function cgDetails(S,mb,opt){
   const L=S.L,hw=S.W/2,lights={};
   /* ---- front lights ---- */
@@ -4034,6 +4072,10 @@ function cgDetails(S,mb,opt){
     else if(S.head=='oval'){const p=S.near(sg*hx*.95,hy+.01,S.zs(.2));cgLamp(mb,p,.15,.075,sg*.25,CGM.head,0)}
     else if(S.head=='slit'){const p=S.near(sg*hx*.95,hy+.03,S.zs(.22));cgLamp(mb,p,.24,.05,sg*.32,CGM.head,1)}
     else if(S.head=='led'){const p=S.near(sg*hx*.9,hy+.04,S.zs(.22));cgLamp(mb,p,.2,.06,sg*.28,CGM.head,1);const p2=S.near(sg*hx*.9,hy-.02,S.zs(.22));cgDisc(mb,p2,.12,.015,CGM.head,12,.009,sg*.28)}
+    else if(S.head=='twin'){for(const dx of[-.085,.115]){const p=S.near(sg*(hx*.95+dx),hy+.02,S.zs(.2));cgLamp(mb,p,.07,.07,0,CGM.head,0)}}                                    /* two round lamps a side */
+    else if(S.head=='blade'){const pts=[];for(let k=0;k<6;k++)pts.push(S.near(sg*(hx-.22+.085*k),hy+.012+.016*k,S.zs(.2+.035*k)));cgStrip(mb,pts,.04,CGM.trim,.005);cgStrip(mb,pts,.02,CGM.head,.0075);cgLamp(mb,S.near(sg*hx*.78,hy-.055,S.zs(.15)),.045,.045,0,CGM.head,0)}   /* a thin light blade sweeping up and back, a small projector under it */
+    else if(S.head=='tri'){for(let k=0;k<3;k++){const p=S.near(sg*(hx-.14+.135*k),hy+.012+.012*k,S.zs(.2+.03*k));cgRect(mb,p,.058,.04,CGM.trim,.004,sg*.2);cgRect(mb,p,.046,.028,CGM.head,.0065,sg*.2)}}   /* three square lamps in a row */
+    else if(S.head=='box'){const p=S.near(sg*hx*.95,hy+.02,S.zs(.18));cgRect(mb,p,.18,.075,CGM.chrome,.004,0);cgRect(mb,p,.165,.062,CGM.grille,.0055,0);for(const dx of[-.08,.08])cgLamp(mb,S.near(sg*(hx*.95+dx),hy+.02,S.zs(.18)),.052,.052,0,CGM.head,0)}   /* a rectangular housing with two lamps */
     else if(S.head=='pop'){const p=S.near(sg*hx*.8,S.hood*.88,S.zs(S.cowl*.34));cgLamp(mb,p,.12,.06,0,CGM.head,0)}
     /* an amber indicator at the outer corner */
     {const p3=S.head!='pop'?S.near(sg*(hx+.16),hy-.012,S.zs(.17)):S.near(sg*(hx+.12),S.nose*.55,S.zs(.1));cgDisc(mb,p3,.05,.013,CGM.amber,10,.0085,sg*.45)}}
@@ -4045,7 +4087,7 @@ function cgDetails(S,mb,opt){
   /* ---- side intakes behind the doors (mid-engine cars) ---- */
   if(S.sideIntake){for(const sg of[-1,1]){const s=S.roofR+.1,y=cgTopAt(S,s,hw*.85)-.18,p=S.near(sg*hw*.97,y,S.zs(s));cgDisc(mb,p,S.sideIntake*.55,.045,CGM.grille,12,.005,-.3*sg)}}
   /* ---- door lines ---- */
-  for(const sg of[-1,1]){const x0=S.near(sg*hw*.96,S.sill+.4,S.zs(S.cowl+.05)),pts=[];for(let k=0;k<=18;k++){const y=S.sill+.2+k*.03,s=S.cowl+.05+k*.0033;pts.push(cgSide(S,s,y,sg))}cgStrip(mb,pts,.011,CGM.trim,.007);void x0}
+  if(opt.lo)for(const sg of[-1,1]){const x0=S.near(sg*hw*.96,S.sill+.4,S.zs(S.cowl+.05)),pts=[];for(let k=0;k<=18;k++){const y=S.sill+.2+k*.03,s=S.cowl+.05+k*.0033;pts.push(cgSide(S,s,y,sg))}cgStrip(mb,pts,.011,CGM.trim,.007);void x0}
   /* ---- rear lights ---- */
   const tz=S.zs(L-.08),ty=S.deck-.06;
   const chips=(pts,r)=>{for(const q of pts)cgDisc(mb,q,r,r,CGM.chrome,8,.0095)};            /* the LED chips of a light bar */
@@ -4054,6 +4096,12 @@ function cgDetails(S,mb,opt){
   else if(S.tail_=='quad'){for(const sg of[-1,1])for(const dx of[.5,.78]){const p=S.near(sg*S.hwTail*dx,ty-.02,tz);cgLamp(mb,p,.062,.062,0,CGM.tail,2)}}
   else if(S.tail_=='slit'){for(const sg of[-1,1]){const p=S.near(sg*S.hwTail*.62,ty,tz);cgLamp(mb,p,.22,.035,sg*-.12,CGM.tail,1);const pp=[-.6,-.2,.2,.6].map(f=>S.near(sg*S.hwTail*.62+f*.2*sg*-1,ty,tz));chips(pp,.008)}}
   else if(S.tail_=='wide'){const pts=cgRowAt(S,L-.1,ty+.02,S.hwTail*.9,11);cgStrip(mb,pts,.09,CGM.trim,.004);cgStrip(mb,pts,.07,CGM.tail,.0062);chips(pts,.01);cgStrip(mb,cgRowAt(S,L-.1,ty-.07,S.hwTail*.88,11),.016,CGM.tail,.005)}
+  else if(S.tail_=='ring'){for(const sg of[-1,1])for(const dx of[.42,.74]){const p=S.near(sg*S.hwTail*dx,ty-.01,tz);cgDisc(mb,p,.082,.082,CGM.trim,16,.004);cgDisc(mb,p,.072,.072,CGM.tail,16,.0058);cgDisc(mb,p,.048,.048,CGM.trim,14,.0072);cgDisc(mb,p,.02,.02,CGM.tail,8,.0086)}}   /* afterburner rings: two hollow circles a side */
+  else if(S.tail_=='vert'){for(const sg of[-1,1]){const pts=[];for(let k=0;k<5;k++)pts.push(S.near(sg*S.hwTail*.86,ty+.05-.055*k,tz));cgStrip(mb,pts,.07,CGM.trim,.004);cgStrip(mb,pts,.045,CGM.tail,.0062);chips(pts,.008)}}   /* upright blades at the corners */
+  else if(S.tail_=='dots'){for(const sg of[-1,1])for(let k=0;k<4;k++){const p=S.near(sg*S.hwTail*(.3+.18*k),ty,tz);cgDisc(mb,p,.047,.047,CGM.trim,12,.004);cgDisc(mb,p,.037,.037,CGM.tail,12,.006);cgDisc(mb,p,.012,.012,CGM.chrome,6,.008)}}   /* a row of four small round lamps a side */
+  else if(S.tail_=='slim'){const pts=cgRowAt(S,L-.1,ty+.03,S.hwTail*.93,13);cgStrip(mb,pts,.034,CGM.trim,.004);cgStrip(mb,pts,.018,CGM.tail,.0062);for(const sg of[-1,1])cgRect(mb,S.near(sg*S.hwTail*.8,ty-.06,tz),.07,.022,CGM.tail,.006,0)}   /* one hair-thin blade right across, a small block under each end */
+  else if(S.tail_=='slash'){for(const sg of[-1,1])for(let k=0;k<3;k++){const p=S.near(sg*S.hwTail*(.4+.2*k),ty-.005,tz);cgRect(mb,p,.03,.075,CGM.trim,.004,sg*-.5);cgRect(mb,p,.019,.062,CGM.tail,.0062,sg*-.5)}}   /* three slanted slashes a side */
+  else if(S.tail_=='block'){for(const sg of[-1,1]){const p=S.near(sg*S.hwTail*.66,ty-.01,tz);cgRect(mb,p,.17,.07,CGM.trim,.004,0);cgRect(mb,p,.155,.056,CGM.tail,.0062,0);cgRect(mb,p,.155,.006,CGM.trim,.0075,0);cgRect(mb,S.near(sg*S.hwTail*.4,ty-.01,tz),.04,.056,CGM.amber,.0064,0)}}   /* big rectangular clusters, split by a bar, an amber block inboard */
   lights.tx=S.hwTail*.64;lights.ty=ty;lights.tz=L/2-.08;
   /* ---- engine cover louvres ---- */
   if(S.louvres){for(let k=0;k<S.louvres;k++){const s=S.roofR+.08+k*.13,pts=[];for(let q=0;q<7;q++){const x=-hw*.4+hw*.8*q/6;pts.push(S.near(x,cgTopAt(S,s,x),S.zs(s)))}cgStrip(mb,pts,.028,CGM.grille,.004)}}
@@ -4097,12 +4145,14 @@ function cgInterior(S,mb){
 function cgDetails2(S,mb,opt){
   const hw=S.W/2,L=S.L,cs=S.curves;
   /* bonnet and engine-lid shut lines */
-  {const hx=s=>cs.half(s)*.72,s0=S.cowl-.04,s1=.4,left=[],right=[],front=[];for(let k=0;k<=8;k++){const s=s0-(s0-s1)*k/8;left.push(cgSurf(S,s,-hx(s)));right.push(cgSurf(S,s,hx(s)))}
+  {const hx=s=>cs.half(s)*.72,s0=S.cowl-.04,s1=.4,sl0=S.rearS+.2;S._seam=[0,0,0,0,S.zs(s1),S.zs(s0),hx(s1),hx(s0),S.zs(sl0),cs.half(sl0)*.7,0,0]}
+  if(opt.lo){const hx=s=>cs.half(s)*.72,s0=S.cowl-.04,s1=.4,left=[],right=[],front=[];for(let k=0;k<=8;k++){const s=s0-(s0-s1)*k/8;left.push(cgSurf(S,s,-hx(s)));right.push(cgSurf(S,s,hx(s)))}
     for(let k=0;k<=6;k++)front.push(cgSurf(S,s1,-hx(s1)+2*hx(s1)*k/6));cgStrip(mb,left,.012,CGM.trim,.008);cgStrip(mb,right,.012,CGM.trim,.008);cgStrip(mb,front,.012,CGM.trim,.008);
     const sl=S.rearS+.2,h2=s=>cs.half(s)*.7,lid=[];for(let k=0;k<=6;k++)lid.push(cgSurf(S,sl,-h2(sl)+2*h2(sl)*k/6));cgStrip(mb,lid,.012,CGM.trim,.008)}
   /* doors: the cut lines, the handle */
   const sCab=(S.cowl+S.roofR)/2,yB=cgTopAt(S,sCab,cs.half(sCab)*S.gw)-.03,doorF=S.cowl+.16,doorR=S.roofR+.12,y0=S.sill+.2;
-  for(const sg of[-1,1]){const line=pts=>cgStrip(mb,pts,.019,CGM.trim,.017);
+  S._seam[0]=S.zs(doorF);S._seam[1]=S.zs(doorR);S._seam[2]=y0;S._seam[3]=yB;
+  for(const sg of[-1,1]){const line=pts=>{if(opt.lo)cgStrip(mb,pts,.019,CGM.trim,.017)};
     const NL=Array.from({length:25},(_,k)=>k/24);          /* dense samples: a few points straight across the shoulder crease would sink into it and the line would be dashed */
     line(NL.map(k=>cgSide(S,doorF,y0+(yB-y0)*k,sg)));line(NL.map(k=>cgSide(S,doorR,y0+(yB-y0)*k,sg)));line(NL.map(k=>cgSide(S,doorF+(doorR-doorF)*k,y0,sg)));
     cgStrip(mb,[cgSide(S,doorR-.3,yB-.09,sg),cgSide(S,doorR-.12,yB-.09,sg)],.028,S.chromeTrim?CGM.chrome:CGM.trim,.004);
@@ -4115,7 +4165,7 @@ function cgDetails2(S,mb,opt){
     cgDisc(mb,cgSide(S,L-.95,yB-.12,sg),.065,.065,CGM.trim,10,.004);                                    /* the fuel flap */}
   /* badges and plates */
   cgDisc(mb,S.near(0,S.nose+.02,S.zs(.14)),.035,.035,CGM.chrome,10,.006);cgDisc(mb,S.near(0,S.deck-.1,S.zs(L-.1)),.035,.035,CGM.chrome,10,.006);
-  if(S.plates){const pf=S.near(0,S.sill+.2,S.zs(.12)),pr=S.near(0,S.sill+.43,S.zs(L-.08));cgPlate(mb,pf.x,pf.y,pf.z-.01,-1,(S.L*100)|0);cgPlate(mb,pr.x,pr.y,pr.z+.01,1,((S.L+S.W)*100)|0)}
+  if(S.plates){/* the front plate stands on the nose tip (a pointed nose is narrower than the plate, it used to sink into it); the rear one on the tail face */const pn=S.near(0,S.sill+.2,S.zs(.02)),pf={x:0,y:Math.max(S.sill+.1,Math.min(pn.y,S.sill+.2)),z:Math.min(pn.z,S.zs(.03))-.012},pr=S.near(0,S.sill+.43,S.zs(L-.08));const txt=cgPlateText(S);S._plate=txt;cgPlate(mb,pf.x,pf.y,pf.z-.01,-1,txt);cgPlate(mb,pr.x,pr.y,pr.z+.01,1,txt)}
   /* the grille */
   const ny=S.nose-.2;
   if(S.grille=='wide'){const p=S.near(0,S.sill+.2,S.zs(.12));cgDisc(mb,p,hw*.46,.1,CGM.grille,18,.005);for(const k of[-1,0,1])cgStrip(mb,[-3,-2,-1,0,1,2,3].map(q=>S.near(q*hw*.13,S.sill+.2+k*.04,S.zs(.12))),.012,CGM.chrome,.007)}
@@ -4238,6 +4288,10 @@ function _mkMesh(gl,B,colFor,keepAb){
   const idx=new Uint16Array(B.I.length);for(let i=0;i<idx.length;i++)idx[i]=B.I[i];
   return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,idx),n:idx.length,gf:(B.glassFrom!=null?B.glassFrom:idx.length),pr:B.pr,gpr:B.gpr,ab}}
 /* build the mesh of a car definition and make it THE car: body, wheels, materials, paint, light positions, dimensions, wheel contact points */
+const CAR_FIN=[[0,0,0,.05],[1,0,0,1],[.3,1,0,.45],[0,0,1,0]],CAR_FIN_NAME=['SOLID','METALLIC','PEARL','MATTE'];
+/* the paint uniforms of the car program (the player's car; the helicopter passes its own) */
+function carPaintU(P,paint,paint2,fin,seam){const gl=G.gl;gl.uniform3fv(P.u.uPaint,paint);gl.uniform3fv(P.u.uPaint2,paint2||paint);gl.uniform4fv(P.u.uPt,fin||CAR_FIN0);const s=seam||CAR_SEAM0;gl.uniform4f(P.u.uSm,s[0],s[1],s[2],s[3]);gl.uniform4f(P.u.uSm2,s[4],s[5],s[6],s[7]);gl.uniform4f(P.u.uSm3,s[8],s[9],R.pxm||.002,0)}
+const CAR_FIN0=new Float32Array(4),CAR_SEAM0=new Float32Array(12);
 function carInstall(def,paint){
   const gl=G.gl,B=def.cc?ccBuild(def.cc):cgBuild(def.spec),S=B.S;   /* a Close Call car (73_ccars.js) or a generated supercar */
   for(const m of[CARM.body,...(CARM.wheels||[])])if(m&&m.vb){gl.deleteBuffer(m.vb);gl.deleteBuffer(m.ib)}
@@ -4247,6 +4301,9 @@ function carInstall(def,paint){
   CARM.wheels=[Object.assign(_mkMesh(gl,B.wheelF,col),{x:S.fz,R:S.rf,lat:S.tf}),Object.assign(_mkMesh(gl,B.wheelR,col),{x:S.rz,R:S.rr,lat:S.tr})];
   const mat=new Float32Array(160);CGMAT.forEach((m,i)=>{for(let k=0;k<4;k++)mat[i*4+k]=m[k]/255});CARM.mat=mat;
   const pc=paint||def.paint||[200,30,30];CARM.paint=new Float32Array([Math.pow(pc[0]/255,2.2),Math.pow(pc[1]/255,2.2),Math.pow(pc[2]/255,2.2)]);
+  /* the paint finish (0 solid, 1 metallic, 2 pearl, 3 matte) and its second colour; the shut lines the shader draws */
+  const fin=paint?(paint.fin|0):(def.fin|0),p2=(paint&&paint.p2)||(!paint&&def.paint2)||pc.map(v=>Math.min(255,v*.55+70));CARM.fin=new Float32Array(CAR_FIN[fin]||CAR_FIN[0]);CARM.paint2=new Float32Array([Math.pow(p2[0]/255,2.2),Math.pow(p2[1]/255,2.2),Math.pow(p2[2]/255,2.2)]);
+  CARM.seam=new Float32Array(def.cc||!S._seam?12:S._seam);
   CARM.def=def;CARM.hw=S.W/2;CARM.hl=S.L/2;CARM.R=[S.rf,S.rr];
   const L=S._lights;CARL.hx=L.hx;CARL.hy=L.hy;CARL.hz=L.hz;CARL.tx=L.tx;CARL.ty=L.ty;CARL.tz=L.tz;
   const wk=(def.cc?S.wb:def.spec.wb)/2.45;CD.fo=1.38*wk;CD.ro=1.33*wk;CD.hw=.68*(S.tf/.775);
@@ -4331,7 +4388,23 @@ const CAR_EXTRA={
  l1:{gills:1,grille:'slit',int:[40,40,44]},l2:{drl:1,grille:'slit',int:[34,28,26]},l3:{canards:1,int:[26,26,28]},
  j1:{scoop:1,grille:'wide',shark:1,int:[26,26,30]},j2:{drl:1,grille:'slit',gills:1,int:[30,30,34]},j3:{grille:'wide',gills:2,int:[44,34,28]},
  h1:{canards:1,gills:2,chromeTrim:1,int:[84,62,44]},h2:{grille:'horseshoe',chromeTrim:1,shark:1,gills:1,int:[34,28,24]},h3:{drl:1,canards:1,buttress:1,int:[22,22,24]}};
-for(const d of CAR_ROSTER){const e=CAR_EXTRA[d.id]||{};Object.assign(d.spec,e);if(e.int)d.interior=e.int;delete d.spec.int}
+/* BATCH 4: A FACE AND A TAIL OF ITS OWN FOR EVERY CAR. No two cars share the pair (head lamps, tail lamps), and each has its own nose and tail SHAPE and its own amount of crease:
+   h head lamps (round, oval, slit, led, pop, twin, blade, tri, box), t tail lamps (bar, round, quad, slit, wide, ring, vert, dots, slim, slash, block),
+   n = [noseP, capF, noseDrop]: how the nose closes in plan (1.3 a pointed wedge ... 8 a blunt brick), how far back the closing starts, how thin the tip is; r = the same three for the tail (a big tailP with a short cap is a
+   cut-off Kamm tail), q the shoulder (4.5 soft and round ... 11 a box section), k how hard the creases are shaded (0-1), c the depth of the character line on the flank, sp a spine down the bonnet (m),
+   f the paint finish (0 solid, 1 metallic, 2 pearl, 3 matte) and p2 the second colour of a pearl. */
+const CAR_STYLE={
+ k1:{h:'round',t:'slim',n:[2.8,.42,.3],r:[2.6,.7,.3],q:4.6,k:.5,c:.6,f:0},k2:{h:'oval',t:'bar',n:[3.0,.4,.34],r:[2.8,.66,.32],q:4.8,k:.55,c:.8,f:1},k3:{h:'twin',t:'dots',n:[2.6,.45,.28],r:[3.2,.55,.4],q:5,k:.6,c:1,f:0},
+ c1:{h:'blade',t:'ring',n:[2.0,.55,.22],r:[4,.4,.4],q:5.5,k:.75,c:1.4,f:0},c2:{h:'led',t:'round',n:[2.4,.6,.28],r:[3,.5,.32],q:5,k:.6,c:1,f:1},c3:{h:'slit',t:'wide',n:[1.7,.7,.18],r:[5,.35,.45],q:6,k:.9,c:1.8,sp:.025,f:2,p2:[255,120,40]},c4:{h:'box',t:'quad',n:[4.5,.5,.45],r:[9,.22,.7],q:9,k:1,c:2.2,f:0},
+ t1:{h:'tri',t:'slash',n:[1.5,.7,.2],r:[6,.3,.5],q:8,k:1,c:2.4,sp:.03,f:2,p2:[255,140,10]},t2:{h:'blade',t:'vert',n:[1.4,.8,.15],r:[7,.28,.55],q:9,k:1,c:2.6,sp:.04,f:2,p2:[255,50,90]},t3:{h:'pop',t:'block',n:[1.25,.9,.12],r:[10,.18,.8],q:11,k:1,c:2.8,f:0},t4:{h:'tri',t:'slim',n:[2.6,.5,.3],r:[8,.24,.7],q:7.5,k:1,c:2.2,sp:.03,f:1},
+ s1:{h:'oval',t:'slit',n:[3.4,.4,.4],r:[2.6,.6,.3],q:4.4,k:.45,c:.7,f:1},s2:{h:'led',t:'vert',n:[2.8,.5,.3],r:[3.6,.45,.36],q:5,k:.6,c:1.2,f:1},
+ u1:{h:'oval',t:'ring',n:[2.2,.55,.22],r:[8,.22,.7],q:6,k:.8,c:1.6,f:1},u2:{h:'slit',t:'round',n:[3,.5,.35],r:[4,.4,.4],q:5,k:.6,c:1,sp:.02,f:1},u3:{h:'tri',t:'quad',n:[2,.6,.24],r:[6,.3,.55],q:7,k:.9,c:2,sp:.035,f:0},u4:{h:'blade',t:'block',n:[1.8,.6,.22],r:[6,.3,.5],q:7,k:.9,c:1.9,f:2,p2:[255,210,60]},u5:{h:'twin',t:'wide',n:[8,.22,.75],r:[8,.22,.75],q:7.5,k:.85,c:1.5,f:3},
+ m1:{h:'oval',t:'slim',n:[2.1,.6,.2],r:[3.2,.5,.3],q:5,k:.65,c:1.2,f:0},m2:{h:'slit',t:'dots',n:[1.9,.65,.18],r:[3,.55,.25],q:5.5,k:.8,c:1.6,f:2,p2:[140,190,255]},m3:{h:'twin',t:'round',n:[2.6,.5,.3],r:[3.6,.4,.36],q:4.8,k:.5,c:.8,f:1},
+ l1:{h:'round',t:'quad',n:[2.4,.45,.3],r:[5,.3,.5],q:5.5,k:.7,c:1.3,f:0},l2:{h:'led',t:'ring',n:[3,.4,.35],r:[3,.45,.32],q:4.6,k:.5,c:.9,f:1},l3:{h:'round',t:'dots',n:[1.8,.5,.24],r:[4,.35,.4],q:6,k:.8,c:1.5,f:3},
+ j1:{h:'box',t:'ring',n:[5.5,.3,.6],r:[8,.24,.75],q:8.5,k:1,c:2,f:1},j2:{h:'tri',t:'bar',n:[2,.6,.24],r:[5,.32,.45],q:6.5,k:.9,c:1.8,f:2,p2:[120,40,200]},j3:{h:'blade',t:'slash',n:[2.3,.55,.26],r:[6,.3,.6],q:6,k:.85,c:1.7,sp:.02,f:2,p2:[255,190,215]},
+ h1:{h:'twin',t:'quad',n:[2.2,.6,.2],r:[3,.5,.3],q:5,k:.6,c:1.1,f:1},h2:{h:'box',t:'wide',n:[3.6,.4,.4],r:[2.8,.55,.32],q:4.6,k:.5,c:.8,f:1},h3:{h:'led',t:'slit',n:[2,.6,.2],r:[4.5,.35,.42],q:5.5,k:.75,c:1.4,f:3}};
+for(const d of CAR_ROSTER){const e=CAR_EXTRA[d.id]||{};Object.assign(d.spec,e);if(e.int)d.interior=e.int;delete d.spec.int;d.spec._name=d.name;
+  const y=CAR_STYLE[d.id];if(y){Object.assign(d.spec,{head:y.h,tail_:y.t,noseP:y.n[0],capF:y.n[1],noseDrop:y.n[2],tailP:y.r[0],capR:y.r[1],tailDrop:y.r[2],sq:y.q,hard:y.k,crease:y.c,spine:y.sp||0});d.fin=y.f|0;if(y.p2)d.paint2=y.p2}}
 /* ---------------- handling from the real figures ---------------- */
 /* Everything is measured against the first car, so it keeps exactly the old numbers. Top speed, acceleration, grip, braking and agility come from the figures; the drive layout changes how the tail behaves:
    all-wheel drive grips more and slides less, front-engine rear-drive cars light up the rear tyres under power (the more power for the weight, the more), mid-engine cars turn in sharply and let go suddenly. */

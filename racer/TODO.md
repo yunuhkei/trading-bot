@@ -13,14 +13,14 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - World logic 1e: metal guard rails (`RAILS`, `RAIL_IN`, rail block in `carStep`, sparks `41_fx`, scrape sound `50_ui`, damage src 4).
 - Batch 2: Close Call cars (`73_ccars.js`, 24 drivable, names marked CC to be picked), traffic variety (bus + bus stops, refuse truck, delivery van, taxi, pickup, 10 CC civilians), paint glint; tests `rccars.js`, `rvar.js`.
 - Batch 3: police overhaul (`64_cops.js` fault rule, `STARS`, `copAhead`, stuck recovery; `67_police.js` helicopters and spike strips; interceptor, SUV, SWAT truck; minimap police only), tests `rheat.js`, `rpolice.js`. **Waiting for approval: a spike strip halves the grip for 4 s (the one exception to "damage never affects driving").**
+- Batch 4: supercars and looks (`CAR_STYLE`, creases / end shapes in `cgBody`, new lamps, `cgPlate` block font, paint finishes `uPt`, shader seams `uSm`, test `rlooks.js`); traffic: walking-pace bumps are not wrecks.
 
-## Next (in this order, one commit each)
-4. Supercars and looks (creases, distinct nose / tail, paint types, plates, seams).
-5. Full suite on a frozen build, READMEs, final report.
+## Next
+- Feel-test on the iPhone SE (list in the final report). Decide: spike strips (grip loss), money / how cars are earned, the real names of the CC cars.
 
 ## Known, not fixed
-- Ring / `sc2` junction: an occasional queue on the side road (dissolved by the jam rule) and low-speed bumps between a car turning in and one on the ring. `rtraffic` (150 s a place) is not clean since batch 2: valley, ring and San Jose show a car 6.1-6.4 m off its lane (limit 6; long vehicles in a turn) and, depending on the run, 2-13 low-speed wrecks at such merges. Not caused by the police work (same on the batch 2 build).
+- Ring / `sc2` junction: an occasional queue on the side road (dissolved by the jam rule).
 - The CC cars have no opening panels (bonnet, doors) and the cabin is Close Call's tall glass box.
-- `rcars.js`: two checks fail and already failed before this work ("every body is made of finite numbers ..." and "every body is the length, width and height of its spec"). To look at in batch 4.
+- The supercars still share one cabin and one basic loft: noses, tails, lamps, creases and paint now differ, the glasshouse does not.
 - The helicopter is built from boxes (reads fine at 30-45 m, plain close up); a burst tyre is not shown on the wheel itself (sparks only).
 - Brakes and cornering do not share the tyre (arcade, left as it is).

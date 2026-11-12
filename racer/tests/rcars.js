@@ -11,7 +11,7 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
   /* ---- 1 the bodies ---- */
   const bodies=await ev(()=>{const {CAR_ROSTER}=RACER;const out=[];for(let i=0;i<CAR_ROSTER.length;i++){const d=CAR_ROSTER[i];if(d.cc)continue;const t0=performance.now(),B=cgBuild(d.spec,{}),ms=performance.now()-t0,b=B.body;let mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9],nan=0,mat=0;
       for(let k=0;k<b.P.length;k+=3)for(let a=0;a<3;a++){const v=b.P[k+a];if(!isFinite(v))nan++;mn[a]=Math.min(mn[a],v);mx[a]=Math.max(mx[a],v)}
-      for(const m of b.M)if(m>=17)mat++;let badIdx=0;for(const k of b.I)if(k<0||k>=b.nv)badIdx++;let badN=0;for(let k=0;k<b.N.length;k+=3){const l=Math.hypot(b.N[k],b.N[k+1],b.N[k+2]);if(!(l>.9&&l<1.1))badN++}
+      for(const m of b.M)if(!(m>=0&&m<CGMAT.length))mat++;let badIdx=0;for(const k of b.I)if(k<0||k>=b.nv)badIdx++;let badN=0;for(let k=0;k<b.N.length;k+=3){const l=Math.hypot(b.N[k],b.N[k+1],b.N[k+2]);if(!(l>.9&&l<1.1))badN++}
       out.push({id:d.id,name:d.name,nv:b.nv,tris:b.I.length/3,ms,nan,mat,badIdx,badN,L:mx[2]-mn[2],W:mx[0]-mn[0],H:mx[1],sL:d.spec.L,sW:d.spec.W,sH:d.spec.H,wv:B.wheelF.nv})}return out});
   ok(bodies.length==30,'30 cars in the roster: '+bodies.map(b=>b.name).join(', '));
   ok(bodies.every(b=>b.nan==0&&b.mat==0&&b.badIdx==0&&b.badN==0),'every body is made of finite numbers, valid materials and indexes, unit normals');

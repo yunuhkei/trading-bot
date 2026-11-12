@@ -9,6 +9,10 @@ function _mkMesh(gl,B,colFor,keepAb){
   const idx=new Uint16Array(B.I.length);for(let i=0;i<idx.length;i++)idx[i]=B.I[i];
   return{vb:mkBuf(gl.ARRAY_BUFFER,ab,gl.DYNAMIC_DRAW),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,idx),n:idx.length,gf:(B.glassFrom!=null?B.glassFrom:idx.length),pr:B.pr,gpr:B.gpr,ab}}
 /* build the mesh of a car definition and make it THE car: body, wheels, materials, paint, light positions, dimensions, wheel contact points */
+const CAR_FIN=[[0,0,0,.05],[1,0,0,1],[.3,1,0,.45],[0,0,1,0]],CAR_FIN_NAME=['SOLID','METALLIC','PEARL','MATTE'];
+/* the paint uniforms of the car program (the player's car; the helicopter passes its own) */
+function carPaintU(P,paint,paint2,fin,seam){const gl=G.gl;gl.uniform3fv(P.u.uPaint,paint);gl.uniform3fv(P.u.uPaint2,paint2||paint);gl.uniform4fv(P.u.uPt,fin||CAR_FIN0);const s=seam||CAR_SEAM0;gl.uniform4f(P.u.uSm,s[0],s[1],s[2],s[3]);gl.uniform4f(P.u.uSm2,s[4],s[5],s[6],s[7]);gl.uniform4f(P.u.uSm3,s[8],s[9],R.pxm||.002,0)}
+const CAR_FIN0=new Float32Array(4),CAR_SEAM0=new Float32Array(12);
 function carInstall(def,paint){
   const gl=G.gl,B=def.cc?ccBuild(def.cc):cgBuild(def.spec),S=B.S;   /* a Close Call car (73_ccars.js) or a generated supercar */
   for(const m of[CARM.body,...(CARM.wheels||[])])if(m&&m.vb){gl.deleteBuffer(m.vb);gl.deleteBuffer(m.ib)}
@@ -18,6 +22,9 @@ function carInstall(def,paint){
   CARM.wheels=[Object.assign(_mkMesh(gl,B.wheelF,col),{x:S.fz,R:S.rf,lat:S.tf}),Object.assign(_mkMesh(gl,B.wheelR,col),{x:S.rz,R:S.rr,lat:S.tr})];
   const mat=new Float32Array(160);CGMAT.forEach((m,i)=>{for(let k=0;k<4;k++)mat[i*4+k]=m[k]/255});CARM.mat=mat;
   const pc=paint||def.paint||[200,30,30];CARM.paint=new Float32Array([Math.pow(pc[0]/255,2.2),Math.pow(pc[1]/255,2.2),Math.pow(pc[2]/255,2.2)]);
+  /* the paint finish (0 solid, 1 metallic, 2 pearl, 3 matte) and its second colour; the shut lines the shader draws */
+  const fin=paint?(paint.fin|0):(def.fin|0),p2=(paint&&paint.p2)||(!paint&&def.paint2)||pc.map(v=>Math.min(255,v*.55+70));CARM.fin=new Float32Array(CAR_FIN[fin]||CAR_FIN[0]);CARM.paint2=new Float32Array([Math.pow(p2[0]/255,2.2),Math.pow(p2[1]/255,2.2),Math.pow(p2[2]/255,2.2)]);
+  CARM.seam=new Float32Array(def.cc||!S._seam?12:S._seam);
   CARM.def=def;CARM.hw=S.W/2;CARM.hl=S.L/2;CARM.R=[S.rf,S.rr];
   const L=S._lights;CARL.hx=L.hx;CARL.hy=L.hy;CARL.hz=L.hz;CARL.tx=L.tx;CARL.ty=L.ty;CARL.tz=L.tz;
   const wk=(def.cc?S.wb:def.spec.wb)/2.45;CD.fo=1.38*wk;CD.ro=1.33*wk;CD.hw=.68*(S.tf/.775);

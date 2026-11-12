@@ -77,7 +77,23 @@ const CAR_EXTRA={
  l1:{gills:1,grille:'slit',int:[40,40,44]},l2:{drl:1,grille:'slit',int:[34,28,26]},l3:{canards:1,int:[26,26,28]},
  j1:{scoop:1,grille:'wide',shark:1,int:[26,26,30]},j2:{drl:1,grille:'slit',gills:1,int:[30,30,34]},j3:{grille:'wide',gills:2,int:[44,34,28]},
  h1:{canards:1,gills:2,chromeTrim:1,int:[84,62,44]},h2:{grille:'horseshoe',chromeTrim:1,shark:1,gills:1,int:[34,28,24]},h3:{drl:1,canards:1,buttress:1,int:[22,22,24]}};
-for(const d of CAR_ROSTER){const e=CAR_EXTRA[d.id]||{};Object.assign(d.spec,e);if(e.int)d.interior=e.int;delete d.spec.int}
+/* BATCH 4: A FACE AND A TAIL OF ITS OWN FOR EVERY CAR. No two cars share the pair (head lamps, tail lamps), and each has its own nose and tail SHAPE and its own amount of crease:
+   h head lamps (round, oval, slit, led, pop, twin, blade, tri, box), t tail lamps (bar, round, quad, slit, wide, ring, vert, dots, slim, slash, block),
+   n = [noseP, capF, noseDrop]: how the nose closes in plan (1.3 a pointed wedge ... 8 a blunt brick), how far back the closing starts, how thin the tip is; r = the same three for the tail (a big tailP with a short cap is a
+   cut-off Kamm tail), q the shoulder (4.5 soft and round ... 11 a box section), k how hard the creases are shaded (0-1), c the depth of the character line on the flank, sp a spine down the bonnet (m),
+   f the paint finish (0 solid, 1 metallic, 2 pearl, 3 matte) and p2 the second colour of a pearl. */
+const CAR_STYLE={
+ k1:{h:'round',t:'slim',n:[2.8,.42,.3],r:[2.6,.7,.3],q:4.6,k:.5,c:.6,f:0},k2:{h:'oval',t:'bar',n:[3.0,.4,.34],r:[2.8,.66,.32],q:4.8,k:.55,c:.8,f:1},k3:{h:'twin',t:'dots',n:[2.6,.45,.28],r:[3.2,.55,.4],q:5,k:.6,c:1,f:0},
+ c1:{h:'blade',t:'ring',n:[2.0,.55,.22],r:[4,.4,.4],q:5.5,k:.75,c:1.4,f:0},c2:{h:'led',t:'round',n:[2.4,.6,.28],r:[3,.5,.32],q:5,k:.6,c:1,f:1},c3:{h:'slit',t:'wide',n:[1.7,.7,.18],r:[5,.35,.45],q:6,k:.9,c:1.8,sp:.025,f:2,p2:[255,120,40]},c4:{h:'box',t:'quad',n:[4.5,.5,.45],r:[9,.22,.7],q:9,k:1,c:2.2,f:0},
+ t1:{h:'tri',t:'slash',n:[1.5,.7,.2],r:[6,.3,.5],q:8,k:1,c:2.4,sp:.03,f:2,p2:[255,140,10]},t2:{h:'blade',t:'vert',n:[1.4,.8,.15],r:[7,.28,.55],q:9,k:1,c:2.6,sp:.04,f:2,p2:[255,50,90]},t3:{h:'pop',t:'block',n:[1.25,.9,.12],r:[10,.18,.8],q:11,k:1,c:2.8,f:0},t4:{h:'tri',t:'slim',n:[2.6,.5,.3],r:[8,.24,.7],q:7.5,k:1,c:2.2,sp:.03,f:1},
+ s1:{h:'oval',t:'slit',n:[3.4,.4,.4],r:[2.6,.6,.3],q:4.4,k:.45,c:.7,f:1},s2:{h:'led',t:'vert',n:[2.8,.5,.3],r:[3.6,.45,.36],q:5,k:.6,c:1.2,f:1},
+ u1:{h:'oval',t:'ring',n:[2.2,.55,.22],r:[8,.22,.7],q:6,k:.8,c:1.6,f:1},u2:{h:'slit',t:'round',n:[3,.5,.35],r:[4,.4,.4],q:5,k:.6,c:1,sp:.02,f:1},u3:{h:'tri',t:'quad',n:[2,.6,.24],r:[6,.3,.55],q:7,k:.9,c:2,sp:.035,f:0},u4:{h:'blade',t:'block',n:[1.8,.6,.22],r:[6,.3,.5],q:7,k:.9,c:1.9,f:2,p2:[255,210,60]},u5:{h:'twin',t:'wide',n:[8,.22,.75],r:[8,.22,.75],q:7.5,k:.85,c:1.5,f:3},
+ m1:{h:'oval',t:'slim',n:[2.1,.6,.2],r:[3.2,.5,.3],q:5,k:.65,c:1.2,f:0},m2:{h:'slit',t:'dots',n:[1.9,.65,.18],r:[3,.55,.25],q:5.5,k:.8,c:1.6,f:2,p2:[140,190,255]},m3:{h:'twin',t:'round',n:[2.6,.5,.3],r:[3.6,.4,.36],q:4.8,k:.5,c:.8,f:1},
+ l1:{h:'round',t:'quad',n:[2.4,.45,.3],r:[5,.3,.5],q:5.5,k:.7,c:1.3,f:0},l2:{h:'led',t:'ring',n:[3,.4,.35],r:[3,.45,.32],q:4.6,k:.5,c:.9,f:1},l3:{h:'round',t:'dots',n:[1.8,.5,.24],r:[4,.35,.4],q:6,k:.8,c:1.5,f:3},
+ j1:{h:'box',t:'ring',n:[5.5,.3,.6],r:[8,.24,.75],q:8.5,k:1,c:2,f:1},j2:{h:'tri',t:'bar',n:[2,.6,.24],r:[5,.32,.45],q:6.5,k:.9,c:1.8,f:2,p2:[120,40,200]},j3:{h:'blade',t:'slash',n:[2.3,.55,.26],r:[6,.3,.6],q:6,k:.85,c:1.7,sp:.02,f:2,p2:[255,190,215]},
+ h1:{h:'twin',t:'quad',n:[2.2,.6,.2],r:[3,.5,.3],q:5,k:.6,c:1.1,f:1},h2:{h:'box',t:'wide',n:[3.6,.4,.4],r:[2.8,.55,.32],q:4.6,k:.5,c:.8,f:1},h3:{h:'led',t:'slit',n:[2,.6,.2],r:[4.5,.35,.42],q:5.5,k:.75,c:1.4,f:3}};
+for(const d of CAR_ROSTER){const e=CAR_EXTRA[d.id]||{};Object.assign(d.spec,e);if(e.int)d.interior=e.int;delete d.spec.int;d.spec._name=d.name;
+  const y=CAR_STYLE[d.id];if(y){Object.assign(d.spec,{head:y.h,tail_:y.t,noseP:y.n[0],capF:y.n[1],noseDrop:y.n[2],tailP:y.r[0],capR:y.r[1],tailDrop:y.r[2],sq:y.q,hard:y.k,crease:y.c,spine:y.sp||0});d.fin=y.f|0;if(y.p2)d.paint2=y.p2}}
 /* ---------------- handling from the real figures ---------------- */
 /* Everything is measured against the first car, so it keeps exactly the old numbers. Top speed, acceleration, grip, braking and agility come from the figures; the drive layout changes how the tail behaves:
    all-wheel drive grips more and slides less, front-engine rear-drive cars light up the rear tyres under power (the more power for the weight, the more), mid-engine cars turn in sharply and let go suddenly. */

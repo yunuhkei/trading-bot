@@ -327,7 +327,11 @@ function trCarCollide(){
         const dx=b.x-a.x,dz=b.z-a.z;if(dx*dx+dz*dz>40||Math.abs(a.y-b.y)>2.2)continue;
         trBody(BA,a);trBody(BB,b);if(!trObb(BA,BB))continue;
         if(a.state==0&&b.state==0&&(TR.t-a.crT>1.5||TR.t-b.crT>1.5)){a.crT=b.crT=TR.t;TR.stat.aiCrash++;if(TR.onCrash)TR.onCrash(a,b)}
-        const e=trResolve(BA,BB,.25,.3);if(HIT.vn>0){trBack(BA,a,e);trBack(BB,b,e);if(e>2500){a.hitT=b.hitT=TR.t}}else{a.x=BA.x;a.z=BA.z;b.x=BB.x;b.z=BB.z}}}}}
+        const e=trResolve(BA,BB,.25,.3);
+        /* a bump at walking pace between two cars that are both driving (one creeping out of a side road into one waiting on the main road): they are eased apart, slow to the speed the bump leaves them and carry on.
+           It used to count as a wreck whenever a van or a bus was involved (the rule went by energy, and a heavy vehicle has a lot of it at 2 m/s) */
+        if(HIT.vn>0&&HIT.vn<4&&a.state==0&&b.state==0&&a.kind==0&&b.kind==0){for(const[c,B]of[[a,BA],[b,BB]]){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,Math.min(c.v,B.vx*hx+B.vz*hz))}}
+        else if(HIT.vn>0){trBack(BA,a,e);trBack(BB,b,e);if(e>2500){a.hitT=b.hitT=TR.t}}else{a.x=BA.x;a.z=BA.z;b.x=BB.x;b.z=BB.z}}}}}
 /* ---------------- spawning ---------------- */
 const TRP={ri:-1,i:0,t:0,d:0};
 /* nearest road segment to a point (uses the road hash of 22_build.js) */
