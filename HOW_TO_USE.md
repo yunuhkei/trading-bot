@@ -382,6 +382,33 @@ Kalshi's real results). Honest take: the edge found is small and from 3 weeks of
 weeks before real money. Live mode later: a verified Kalshi account (check it works in Wisconsin), an API key from
 Kalshi's settings saved as the GitHub secrets `KALSHI_KEY_ID` and `KALSHI_PRIVATE_KEY`, and `mode: live`.
 
+**$1,000 accounts with realistic fills (Nov 12).** F, G and C also each have their own pretend **$1,000 with $100
+trades** (`big_accounts` in `kalshi.yaml`, `bot/kalshi_big.py`), next to the $100 / $5 ones (untouched). A $100 order is
+filled against Kalshi's **real order book** at that moment: from the cheapest ask up, never above the best ask + 3¢ or
+the strategy's own limits, Kalshi's fee at every price level; if the book has under $10 at acceptable prices it skips
+("thin"). The three share one book per check. A short report goes out **every day at 3 pm**: balance, trades, win
+rate, profit per trade after fees, and whether the account passes the **real-money test**:
+- 100+ settled trades on 14+ different days,
+- profit per dollar after fees whose lower confidence bound is above +1% (corrected for the 3 accounts plus every
+  slice the Kalshi brain tested),
+- up on 60%+ of days, and still up over the last 7 days.
+It only says so. Nothing switches to real money; that needs your Kalshi keys and your OK.
+
+**The Kalshi brain (`kalshi-brain` workflow, Sundays; `bot/kalshi_brain.py`).** The same kind of strict test as the
+memecoin brain, on F, G, C and every slice (price band, city, days ahead, entry hour): the history (Sep 7 - Nov 5)
+bought with only what was known then (two-day-ahead forecasts, city corrections from days already over, ask + fee +
+1¢), plus the live practice results. First run (Nov 12, 100 tested): **nothing qualifies**. F -1.7% a trade (295
+trades), G -1.1% (587), C -13.5% (821). Best slice: G buying 9-11 pm the day before, +4.3% on 317, but its low end is
+-9%: not proven.
+
+**The blend (`kalshi-backtest` with blend: yes; `bot/kalshi_blend.py`).** Market price + weather models, each city
+learning how much to trust each model from past days only, betting only where it beats the price by fees + a margin.
+It becomes a practice strategy only if it passes the same walk-forward test.
+
+**M's fills (Nov 12).** A maker bid counts as filled only if someone traded below it after it was placed (sound for
+its place in line). But until Nov 12 a trade after the measurement day began could fill it, when a real bid would have
+been cancelled: 5 of M's first 41 fills (4 won). Fixed. On the other 36 M won 58% at ~66¢, -13% a trade (small sample).
+
 ## Check a chart screenshot (PC)
 
 Take a screenshot of a coin or stock in any app (Fomo, Coinbase, Robinhood...) and the bot tells you
