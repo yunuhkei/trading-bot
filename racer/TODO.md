@@ -15,6 +15,7 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 3: police overhaul (`64_cops.js` fault rule, `STARS`, `copAhead`, stuck recovery; `67_police.js` helicopters and spike strips; interceptor, SUV, SWAT truck; minimap police only), tests `rheat.js`, `rpolice.js`. **Waiting for approval: a spike strip halves the grip for 4 s (the one exception to "damage never affects driving").**
 - Batch 4: supercars and looks (`CAR_STYLE`, creases / end shapes in `cgBody`, new lamps, `cgPlate` block font, paint finishes `uPt`, shader seams `uSm`, test `rlooks.js`); traffic: walking-pace bumps are not wrecks.
 
+- Batch 11: road rage (3 events), 8 speed traps, 4 jump spots, 5 drift zones (`69_spots.js`).
 - Batch 10: events (8 time trials, 4 escapes) from map markers and garages, records and ghosts, money that buys cars and garages (`68_events.js`, `revents.js`).
 - Batch 9: patrols only near towns (one per 110 s), one-lane spike strips with a cop beside them.
 - Batch 8: five new towns joined at two points each, the northern highway (no more dead-end canyon), 18 roadside stops.
@@ -23,7 +24,6 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 5: flat tyres 7.8 s, car order, look-around camera, police you can lose (last seen place, own top speeds, lights off on patrol), taps do no damage, more traffic.
 
 ## Next (agreed with the owner, in this order)
-11. Road rage (timed takedowns of traffic) and the cheap extras: speed traps, jump spots, drift zones.
 12. Racer AI, then races, death races (points for wrecking the AI racers) and rare street racers on the map you can challenge.
 13. Natural cities: irregular outlines, main roads into an old centre, neighbourhoods at their own angles, curving streets, outskirts that thin out; small towns first, then the big cities.
 - Later: online multiplayer (an update or a part 2).

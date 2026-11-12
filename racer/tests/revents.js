@@ -12,8 +12,8 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
       const h0=Math.atan2(p[k1*3]-C.x,-(p[k1*3+2]-C.z)),h2=Math.atan2(p[k3*3]-p[k2*3],-(p[k3*3+2]-p[k2*3+2])),h1=Math.atan2(p[k2*3]-p[k1*3],-(p[k2*3+2]-p[k1*3+2])),bend=Math.abs(angd(h2,h1));
       const vt=Math.min(vmax,bend>.05?Math.sqrt(9*45/bend):vmax);C.steer=clamp(angd(h0,C.yaw)*1.8,-1,1);IN.thr=C.speed<vt?1:0;IN.brk=C.speed>vt+3?1:0}});
   /* 1 the list */
-  const A=await T.ev(()=>({n:EV.list.length,tr:EV.list.filter(e=>e.type=='trial').map(e=>[e.id,Math.round(e.len),e.cps.length]),es:EV.list.filter(e=>e.type=='escape').length,onRoad:EV.list.every(e=>roadAt(e.s.x,e.s.z,e.s.y+1))}));
-  ok(A.n==12&&A.tr.length==8&&A.es==4&&A.tr.every(t=>t[1]>1000&&t[2]>=4)&&A.onRoad,'1 12 events: 8 time trials ('+A.tr.map(t=>t[0]+' '+(t[1]/1000).toFixed(1)+' km').join(', ')+') and 4 escapes, every start on a road');
+  const A=await T.ev(()=>({n:EV.list.length,tr:EV.list.filter(e=>e.type=='trial').map(e=>[e.id,Math.round(e.len),e.cps.length]),es:EV.list.filter(e=>e.type=='escape').length,rg:EV.list.filter(e=>e.type=='rage').length,onRoad:EV.list.every(e=>roadAt(e.s.x,e.s.z,e.s.y+1))}));
+  ok(A.n==15&&A.tr.length==8&&A.es==4&&A.rg==3&&A.tr.every(t=>t[1]>1000&&t[2]>=4)&&A.onRoad,'1 15 events: 8 time trials ('+A.tr.map(t=>t[0]+' '+(t[1]/1000).toFixed(1)+' km').join(', ')+') 4 escapes and 3 road rages, every start on a road');
   /* 2 the marker card */
   const B=await T.ev(()=>{const ev=EV.list[0];RACER.carPlace(ev.s.x,ev.s.z,ev.s.yaw,ev.s.y+.5);for(let s=0;s<30;s++)RACER.worldStep(1/120);const o={title:EV.card&&EV.card.title,sub:EV.card&&EV.card.sub};EV.card.btns[1].act();for(let s=0;s<30;s++)RACER.worldStep(1/120);o.after=!!EV.card;return o});
   ok(B.title=='TIME TRIAL'&&B.sub=='Ring Sprint'&&!B.after,'2 stopping on a marker offers the event ("'+B.title+': '+B.sub+'"); NOT NOW puts it away');
@@ -51,5 +51,27 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(G.poor&&G.bought,'6 a car costs money: the Mac Seven-Twenty is '+G.price+' (one short: still locked; with enough: bought, 500 left)');
   ok(G.free==0&&G.cheap<G.dear,'6 prices follow speed: the starter is free, the slowest car '+G.cheap+', the fastest '+G.dear);
   ok(G.garage&&G.left==5000,'6 stopping on a locked garage with 20,000 buys it for 15,000');
-  console.log(JSON.stringify(G.dbg));ok(G.list=='EVENTS'&&G.items==13,'6 parked in your garage, the card lists all 12 events (and CLOSE)');
+  console.log(JSON.stringify(G.dbg));ok(G.list=='EVENTS'&&G.items==16,'6 parked in your garage, the card lists all 15 events (and CLOSE)');
+  /* 7 road rage: a row of parked cars down the ring; every wreck counts and adds 4 s */
+  const H=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='r_ring');const m0=ECON.money;evStart(ev);for(let s=0;s<120*3.2;s++)RACER.worldStep(1/120);const r=ROADS.find(q=>q.id=='ring'),e=LG.ofRoad[ROADS.indexOf(r)][0][0];const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw);
+    const sn=navSnap(C.x,C.z,30),la=navLane(sn,C.x,C.z,fx,fz);for(let k=0;k<8;k++){const c=trPlace(la.e,Math.min(la.e.n-2,(la.u+10+k*11)%la.e.n),0,1,0,900+k);if(c){c.v0f=0;c.v=0}}   /* standing cars in your lane */
+    const row=TR.cars.filter(c=>c.alive&&c.seed>=900&&c.seed<908);const w0=EV.run.wrecks;for(let s=0;s<120*25&&EV.run;s++){const tg=row.find(c=>c.state==0&&((c.x-C.x)*Math.sin(C.yaw)-(c.z-C.z)*Math.cos(C.yaw))>-2);if(tg)C.steer=clamp(angd(Math.atan2(tg.x-C.x,-(tg.z-C.z)),C.yaw)*2,-1,1);IN.thr=C.speed<17?1:0;RACER.worldStep(1/120)}const o={wrecks:EV.run?EV.run.wrecks:-1,bonus:EV.run?EV.run.bonus:-1,cops:COP.on};
+    for(let s=0;s<120*120&&EV.run;s++){IN.thr=0;RACER.worldStep(1/120)}IN.thr=0;o.card=EV.card&&EV.card.title;o.lines=EV.card&&EV.card.lines.map(l=>l[0]);o.paid=ECON.money-m0;o.copsAfter=COP.on;return o});
+  console.log('     '+JSON.stringify(H));
+  ok(H.wrecks>=3&&H.bonus==H.wrecks*4&&!H.cops,'7 road rage: driving down a row of cars wrecks '+H.wrecks+' (+'+H.bonus+' s on the clock), no police');
+  ok(H.card=='TIME UP'&&H.copsAfter,'7 at the end: '+(H.lines||[]).join(', ')+', the police are back');
+  /* 8 speed trap, jump spot, drift zone */
+  const K=await T.ev(()=>{const o={};EV.card=null;for(const sp of SPOTS.list)delete EV.rec[sp.id];const m0=ECON.money;
+    const tr=SPOTS.list.find(s=>s.type=='trap');const yaw=Math.atan2(tr.t[0],-tr.t[1]);RACER.carPlace(tr.x-tr.t[0]*120,tr.z-tr.t[1]*120,yaw,tr.y+.5);C.vx=tr.t[0]*50;C.vz=tr.t[1]*50;
+    for(let s=0;s<120*4;s++){C.steer=0;IN.thr=1;RACER.worldStep(1/120)}IN.thr=0;o.trap=(EV.rec[tr.id]||{}).v;o.trapMsg=SAFE.msg;
+    const jp=SPOTS.list.find(s=>s.type=='jump'),sn=navSnap(jp.x,jp.z,40),r=ROADS[sn.ri];let k0=sn.i-Math.round(260/r.ds);const t0=_tan(r,k0),a0=Math.atan2(t0[0],-t0[1]);RACER.carPlace(r.X[k0]+Math.cos(a0)*5,r.Z[k0]+Math.sin(a0)*5,a0,r.Y[k0]+.5);C.vx=t0[0]*45;C.vz=t0[1]*45;
+    for(let s=0;s<120*8;s++){const sn2=navSnap(C.x,C.z,30);if(sn2){const i=Math.min(r.n-1,sn2.i+Math.round(25/r.ds));C.steer=clamp(angd(Math.atan2(r.X[i]+Math.cos(a0)*5-C.x,-(r.Z[i]+Math.sin(a0)*5-C.z)),C.yaw)*1.5,-1,1)}IN.thr=C.speed<45?1:0;RACER.worldStep(1/120)}IN.thr=0;o.jump=(EV.rec[jp.id]||{}).v;o.jumpMsg=SAFE.msg;
+    const dz=SPOTS.list.find(s=>s.type=='drift'),R=ROADS[dz.ri];const i0=Math.max(2,dz.i0-8),t2=_tan(R,i0);RACER.carPlace(R.X[i0],R.Z[i0],Math.atan2(t2[0],-t2[1]),R.Y[i0]+.5);
+    for(let s=0;s<120*60;s++){const sn3=navSnap(C.x,C.z,30);if(sn3){const i=Math.min(R.n-1,sn3.i+Math.round(14/R.ds));C.steer=clamp(angd(Math.atan2(R.X[i]-C.x,-(R.Z[i]-C.z)),C.yaw)*1.8,-1,1)}IN.thr=C.speed<16?1:0;C.driftScore=(C.driftScore||0)+.5;RACER.worldStep(1/120);if((EV.rec[dz.id]||{}).v!=null)break}
+    IN.thr=0;o.drift=(EV.rec[dz.id]||{}).v;o.driftMsg=SAFE.msg;o.paid=ECON.money-m0;return o});
+  console.log('     '+JSON.stringify(K));
+  ok(K.trap>150,'8 a speed trap records '+K.trap+' km/h ("'+K.trapMsg+'")');
+  ok(K.jump>15,'8 a jump spot records a '+K.jump+' m jump ("'+K.jumpMsg+'")');
+  ok(K.drift>100,'8 a drift zone adds up the drift points between its gates: '+K.drift+' ("'+K.driftMsg+'")');
+  ok(K.paid==1500,'8 each first record pays 500 ('+K.paid+')');
   console.log('errs',T.errs.length?T.errs.slice(0,3):0);await T.close();console.log(bad?bad+' FAILED':'all passed');process.exit(bad||T.errs.length?1:0)})().catch(e=>{console.error(e);process.exit(1)});
