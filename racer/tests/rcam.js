@@ -34,6 +34,8 @@ let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
     lift:'(k,C,IN)=>{if(k==30)IN.thr=0;if(k==60)IN.thr=1}'};
   const out={};
   for(const [name,src] of Object.entries(scen)){
+    /* the two long slides cross the whole road: with the guard rails of world 1e they would end scraping along a rail, and this test is about the camera in a clean slide, so the ring's rails are lifted for them */
+    if(/^drift/.test(name))await T.ev(()=>{const r=ROADS.find(q=>q.id=='ring');window.__rail=r.rail.slice();r.rail.fill(0)});
     out[name]=await T.ev(([name,src])=>{
       const {C,IN,ROADS,UI,CAM,R,GFX}=RACER;UI.paused=true;GFX.fixed=true;IN.assist=true;IN.auto=false;const script=eval(src);
       const r=ROADS.find(q=>q.id=='ring'),i0=Math.round(r.n*.3),a=Math.atan2(r.X[i0+1]-r.X[i0],-(r.Z[i0+1]-r.Z[i0]));
@@ -47,6 +49,7 @@ let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
       let jA=0,jS=0,jF=0,jY=0,jD=0;for(let k=2;k<rec.length;k++){const d2=i=>Math.abs(rec[k][i]-2*rec[k-1][i]+rec[k-2][i]);jA=Math.max(jA,d2(0));jS=Math.max(jS,d2(1));jF=Math.max(jF,d2(2));jD=Math.max(jD,d2(4));
         let dy=rec[k][3]-2*rec[k-1][3]+rec[k-2][3];dy=Math.abs(Math.atan2(Math.sin(dy),Math.cos(dy)));jY=Math.max(jY,dy)}
       return{jA,jS,jF,jY,jD,v1:rec[rec.length-1][5]}},[name,src]);
+    if(/^drift/.test(name))await T.ev(()=>{ROADS.find(q=>q.id=='ring').rail.set(window.__rail)});
     const o=out[name];console.log(name.padEnd(10),`car-in-view jerk: along ${o.jA.toFixed(3)} m, sideways ${o.jS.toFixed(3)} m, distance ${o.jD.toFixed(3)} m; camera yaw ${(o.jY*57.3).toFixed(2)} deg, fov ${(o.jF*57.3).toFixed(2)} deg; end speed ${o.v1.toFixed(0)} m/s`)}
   const lim={A:+(process.env.LIMA||.1),S:+(process.env.LIMS||.05),Y:+(process.env.LIMY||.004),F:+(process.env.LIMF||.014)};
   for(const [n,o] of Object.entries(out))ok(o.jA<lim.A&&o.jS<lim.S&&o.jD<lim.A&&o.jY<lim.Y&&o.jF<lim.F,`${n}: the car stays steady in the picture (jerk along ${o.jA.toFixed(3)} / side ${o.jS.toFixed(3)} m, yaw ${(o.jY*57.3).toFixed(2)} deg, fov ${(o.jF*57.3).toFixed(2)} deg)`);

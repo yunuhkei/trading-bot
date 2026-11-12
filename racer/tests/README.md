@@ -165,3 +165,10 @@ Small differences from rounding are fine; a change of more than about 10 percent
 * `rlooks`: 30 lamp pairs (9 head kinds, 11 tail kinds), closest two noses 2.1 cm apart at their worst station and closest two tails 1.6 cm, never both under 2.5 cm; 8 solid, 12 metallic, 7 pearl, 3 matte; bodies 11,196-14,186 triangles.
 * Flank pixels in the day preset: white mean 211 / 255 with 0.5 % burnt out (spread 41), silver mean 176 (spread 29, from 10 to 255), solid red 191 / 12 / 40, matte grey spread 11.
 * `rcars` passes completely (its material check was stale: it allowed 17 materials, there are 21). `rtraffic`: a car in a shared turn may be 7.5 m from the line (6 on a straight); after the walking-pace bump rule: 0-2 wrecks per place, all 13 places pass.
+
+## Full run at the end of the four batches (frozen build)
+
+* All 34 tests of `run_quick.sh` pass, plus `rtraffic` (13 places, 90 s each: 0 failures) and `rbot` on all 169 roads at 24 and 34 m/s (every road completed).
+* Three things the full run found, and what was done: `rscenery` 5 (the furniture limit was older than the guard rails, traffic lights and bus shelters: 485k triangles in the whole map, limit now 520k; the per-frame cost is `rbudget`'s job and is unchanged); `rcam` drift / driftHold (a 3 s slide on the ring now ends against a guard rail, so the test lifts the ring's rails for those two scenarios: the camera itself was not touched and gives its old numbers again); `rbot` Lombard (a lamp post of one hairpin leg stood in the lane of the next since the sidewalks of 1b: lamp posts are now never put on asphalt, Lombard is clean at both speeds).
+* Left as they are: `rbot` clips one post on `sfnv1` (after a 1.5 s flight over a San Francisco crest), and at 34 m/s one signal pole on `sfp` and on `mojp`. `rtops.js` is a picture tool (it needs a list of places), not a test.
+

@@ -182,7 +182,8 @@ function buildFurniture(){
     const step=r.city?15:(r.style==1?16:12),off=r.hw+(r.sw?.75:RSH+(r.city?.8:1.4));let cnt2=0;
     for(let i=2;i<n-2;i+=step){if(r.br[i]||r.mk[i]<.5||r.wk[i]<.9)continue;const j=Math.min(n-1,i+1),dx=r.X[j]-r.X[i-1],dz=r.Z[j]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=((cnt2++)&1)?1:-1;
       if(r.style==1&&!r.city&&(cnt2&1))continue;
-      const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-(r.city?.1:.35);pbox(0,px,gy,pz,.13,gy+7.2,.13,92,94,98,0,.7);
+      const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-(r.city?.1:.35);if(roadAt(px,pz,gy+.6)&&Math.abs(RQ.lat)<RQ.hw+.25)continue;   /* never a lamp post on asphalt: on a hairpin street the post of one leg stood in the lane of the next (the road bot got stuck on Lombard) */
+      pbox(0,px,gy,pz,.13,gy+7.2,.13,92,94,98,0,.7);
       pbox(0,px-nx*sd*1.1,gy+7.1,pz-nz*sd*1.1,.9*Math.abs(nx)+.1,gy+7.3,.9*Math.abs(nz)+.1,92,94,98,0,1);pbox(0,px-nx*sd*1.9,gy+6.95,pz-nz*sd*1.9,.35*Math.abs(nx)+.25,gy+7.12,.35*Math.abs(nz)+.25,255,236,180,2,1);COLC.push(px,pz,.45,gy-.5,gy+7.2);LAMPS.push(px-nx*sd*1.9,gy+6.9,pz-nz*sd*1.9)}}
 }
 /* ---------- districts: San Francisco style downtown + hills, Golden Gate Park, the LA style Valley, countryside ---------- */

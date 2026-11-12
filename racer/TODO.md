@@ -19,6 +19,8 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Feel-test on the iPhone SE (list in the final report). Decide: spike strips (grip loss), money / how cars are earned, the real names of the CC cars.
 
 ## Known, not fixed
+- The road bot clips a lamp post on `sfnv1` after a long flight over a crest, and at 34 m/s a signal pole on `sfp` and `mojp` (one hit each).
+- The whole map now holds 485k furniture triangles (rails, lights, shelters; it was under 200k). Only near cells are drawn and the frame budget is unchanged, but it is about 20 MB more buffer memory: watch the iPhone SE for reloads.
 - Ring / `sc2` junction: an occasional queue on the side road (dissolved by the jam rule).
 - The CC cars have no opening panels (bonnet, doors) and the cabin is Close Call's tall glass box.
 - The supercars still share one cabin and one basic loft: noses, tails, lamps, creases and paint now differ, the glasshouse does not.
