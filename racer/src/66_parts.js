@@ -51,7 +51,7 @@ function partsHit(zone,E,src){
 /* a part comes off: it keeps the car's motion (a little less), gets thrown, spins */
 function partDetach(k){
   const P=PP[k];if(!P||!P.d||P.off)return;P.off=1;
-  M4.trs(_pq,C.x,C.y+C.bob,C.z,-C.yaw,C.pitch,C.roll,1,1,1);partHinge(_ph,k,P.a,Math.abs(P.a)*(k>=5&&k<=6?.1:0));M4.mul(_pr,_pq,_ph);
+  carPose(_pq,1,1);partHinge(_ph,k,P.a,Math.abs(P.a)*(k>=5&&k<=6?.1:0));M4.mul(_pr,_pq,_ph);
   const c=P.d.c,wx=_pr[0]*c[0]+_pr[4]*c[1]+_pr[8]*c[2]+_pr[12],wy=_pr[1]*c[0]+_pr[5]*c[1]+_pr[9]*c[2]+_pr[13],wz=_pr[2]*c[0]+_pr[6]*c[1]+_pr[10]*c[2]+_pr[14];
   const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),rn=()=>_prn(k*11+(PDM.n++))*2-1;let ux=0,uy=3,uz=0,kk=.6;
   if(k==1){uy=6+3*Math.abs(rn());ux=-fx*3+rx*rn()*3;uz=-fz*3+rz*rn()*3;kk=.5}                                       /* the bonnet: up and back over the roof */

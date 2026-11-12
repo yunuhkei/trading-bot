@@ -46,8 +46,8 @@ function shdPass(){
   let P=G.P.shc;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);attrs(1);
   const yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a),S=1/8192,mb=SHD._mb,mw=SHD._mw,mf=SHD._mf;
   const mesh=(m,M)=>{gl.uniformMatrix4fv(P.u.uM,false,M);gl.bindBuffer(gl.ARRAY_BUFFER,m.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib);gl.vertexAttribPointer(0,4,gl.SHORT,false,16,0);gl.drawElements(gl.TRIANGLES,m.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=m.n/3};
-  if(CARM.body){M4.trs(mb,x,y+C.bob,z,-yaw,pit,rol,S,S,S);mesh(CARM.body,mb);
-    for(let w=0;w<CARM.wheels.length;w++){const wh=CARM.wheels[w];for(const sd of[-1,1]){const st=w==0?C.steerVis:0;M4.trs(mw,sd*wh.lat,wh.R,wh.x,st,-C.spin,0,sd*S,S,S);M4.trs(mf,x,y+C.bob,z,-yaw,pit,rol,1,1,1);M4.mul(mb,mf,mw);mesh(wh,mb)}}}
+  if(CARM.body){carPose(mb,a,S);mesh(CARM.body,mb);
+    for(let w=0;w<CARM.wheels.length;w++){const wh=CARM.wheels[w];for(const sd of[-1,1]){const st=w==0?C.steerVis:0;M4.trs(mw,sd*wh.lat,wh.R,wh.x,st,-C.spin,0,sd*S,S,S);carPose(mf,a,1);M4.mul(mb,mf,mw);mesh(wh,mb)}}}
   /* traffic */
   if(TRM.nv){P=G.P.sht;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);trIssue()}
   /* buildings, trees and lamp posts near the car (High only) */

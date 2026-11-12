@@ -119,7 +119,11 @@ const SH={
  /* ---- generic lit props: vertex colour + optional window texture (buildings), baked ambient occlusion in colour ---- */
  prV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aC;attribute vec2 aU;uniform mat4 uVP;uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;'+
   /* wind: foliage (flag .5) sways by the weight kept in the colour alpha */
-  'void main(){vec3 p=aP;float sw=aC.a*step(.3,aN.w)*step(aN.w,.7);p.x+=(sin(uT*1.9+aP.x*.31+aP.z*.17)*.11+sin(uT*3.7+aP.z*.9)*.03)*sw;p.z+=cos(uT*1.6+aP.z*.27+aP.x*.1)*.09*sw;p.y+=sin(uT*2.3+aP.x*.5)*.025*sw;vW=p;vN=aN.xyz;vC=aC.rgb*aC.rgb;vU=aU;vE=aN.w;gl_Position=uVP*vec4(p,1.);}',
+  /* knocked-down lamp posts (batch 6): a vertex tagged 10000 + lamp turns about the post's foot when that lamp is in the list (uKO: lamp, foot x, foot z, -; uKO2: direction, angle, foot y, -) */
+  'uniform vec4 uKO[8],uKO2[8];'+
+  'void main(){vec3 p=aP;vec3 nn=aN.xyz;if(aU.x>9999.){float id=aU.x-10000.;for(int i=0;i<8;i++){if(abs(uKO[i].x-id)<.5){vec3 b=vec3(uKO[i].y,uKO2[i].z,uKO[i].z),q=p-b;vec2 d=vec2(cos(uKO2[i].x),sin(uKO2[i].x));float a=uKO2[i].y,c=cos(a),s=sin(a);'+
+  'float h=dot(q.xz,d),h2=h*c+q.y*s;q.y=-h*s+q.y*c;q.xz+=d*(h2-h);p=b+q;float nh=dot(nn.xz,d),nh2=nh*c+nn.y*s;nn.y=-nh*s+nn.y*c;nn.xz+=d*(nh2-nh);}}}'+
+  'float sw=aC.a*step(.3,aN.w)*step(aN.w,.7);p.x+=(sin(uT*1.9+aP.x*.31+aP.z*.17)*.11+sin(uT*3.7+aP.z*.9)*.03)*sw;p.z+=cos(uT*1.6+aP.z*.27+aP.x*.1)*.09*sw;p.y+=sin(uT*2.3+aP.x*.5)*.025*sw;vW=p;vN=nn;vC=aC.rgb*aC.rgb;vU=aU;vE=aN.w;gl_Position=uVP*vec4(p,1.);}',
  prF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;uniform sampler2D uWin,uFol;uniform float uNight;\n'+ENVSRC+
  'void main(){vec3 n=normalize(vN);float isw=step(.8,vE),em=step(vE,-.5),fol=step(.3,vE)*step(vE,.7);vec4 w=texture2D(uWin,vU);vec3 alb=vC*mix(vec3(1.),w.rgb,isw);\n'+
   /* foliage: the leaf atlas, cut out; lit like a ball (wrapped), glowing a little when the sun is behind it */

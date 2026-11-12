@@ -7,7 +7,7 @@ const SMOKE=[];for(let i=0;i<160;i++)SMOKE.push({x:0,y:0,z:0,vx:0,vy:0,vz:0,age:
 const SPARK=[];for(let i=0;i<96;i++)SPARK.push({x:0,y:0,z:0,vx:0,vy:0,vz:0,age:9,life:1});let sparkHead=0,_spCur=0;
 const lastSk=[[0,0,0,0],[0,0,0,0]];let skCool=0,spCool=0;
 /* where the lights are on the car model (read from the baked mesh: the emissive material): x right, y up, z backwards, metres */
-const CARL={hx:.34,hy:.25,hz:-2.16,tx:.43,ty:.35,tz:2.18};
+const CARL={hx:.34,hy:.25,hz:-2.16,tx:.43,ty:.35,tz:2.18},_lp=[0,0,0];
 function sparkAt(x,y,z,nx,nz,n,sp){for(let i=0;i<n;i++){const s=SPARK[sparkHead++%SPARK.length],a=Math.random()*6.283,u=Math.random();s.x=x;s.y=y;s.z=z;const v=(sp||6)*(.35+u);
     s.vx=nx*v*.6+Math.cos(a)*v*.7;s.vz=nz*v*.6+Math.sin(a)*v*.7;s.vy=1.5+Math.random()*4;s.age=0;s.life=.25+Math.random()*.4}}
 function fxUpdate(dt){
@@ -76,7 +76,7 @@ function fxDraw(){
   batch(6);
   /* the car's headlights: a pool of light on the road ahead, wider the further it goes (uv runs across, then along: mode 6 is the beam shape) */
   {const hx=sy,hz=-cy,rxc=cy,rzc=sy,gy2=C.gs+.05,x0=x+hx*2.0,z0=z+hz*2.0,len=26;
-   const lk=1-.5*(PDM.head[0]+PDM.head[1]);if(lk>0)quad(x0-rxc*1.0,gy2,z0-rzc*1.0,x0+rxc*1.0,gy2,z0+rzc*1.0,x0+hx*len+rxc*6.5,gy2,z0+hz*len+rzc*6.5,x0+hx*len-rxc*6.5,gy2,z0+hz*len-rzc*6.5,1,.92,.7,.5*lk*dayK)}
+   const lk=(1-.5*(PDM.head[0]+PDM.head[1]))*(TUM.on?0:1);if(lk>0)quad(x0-rxc*1.0,gy2,z0-rzc*1.0,x0+rxc*1.0,gy2,z0+rzc*1.0,x0+hx*len+rxc*6.5,gy2,z0+hz*len+rzc*6.5,x0+hx*len-rxc*6.5,gy2,z0+hz*len-rzc*6.5,1,.92,.7,.5*lk*dayK)}
   heliFx(quad,flat,6);
   /* beams of the cars that come at us */
   if(TR.on&&T.glow>30){let k=0;for(const c of TR.cars){if(!c.alive||k>=10)continue;const dx=c.x-x,dz=c.z-z,d2=dx*dx+dz*dz;if(d2>14400||d2<100)continue;const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);
@@ -93,14 +93,16 @@ function fxDraw(){
     sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al*(.35+.65*dayK));ng++}
   navBeacon(sprite);spikeFx(sprite,SRN);
   /* the car's own lights */
-  {const hx=sy,hz=-cy,rr=cy,rs=sy,yy=C.y+C.bob;
-   for(const sd of[-1,1]){const si=sd<0?0:1;if(!PDM.head[si])sprite(x+hx*-CARL.hz+rr*sd*CARL.hx,yy+CARL.hy+.12,z+hz*-CARL.hz+rs*sd*CARL.hx,.36,1,.95,.75,.5*dayK);
-     if(!PDM.tail[si])sprite(x-hx*CARL.tz+rr*sd*CARL.tx,yy+CARL.ty+.12,z-hz*CARL.tz+rs*sd*CARL.tx,C.braking?.9:.45,1,.12,.07,C.braking?.9:.4)}
+  /* batch 6: the glows sit ON the lamps: model points put through the very matrix the car was drawn with (so they pitch, roll and tumble with it and are never a physics step behind), moved with the dents */
+  {const M=CARM.mf,D=DMG.lampD,P=(bx,by,bz)=>{_lp[0]=M[0]*bx+M[4]*by+M[8]*bz+M[12];_lp[1]=M[1]*bx+M[5]*by+M[9]*bz+M[13];_lp[2]=M[2]*bx+M[6]*by+M[10]*bz+M[14];return _lp};
+   for(const sd of[-1,1]){const si=sd<0?0:1;
+     if(!PDM.head[si]){const q=P(sd*CARL.hx+D[si*3],CARL.hy+.05+D[si*3+1],CARL.hz-.02+D[si*3+2]);sprite(q[0],q[1],q[2],.36,1,.95,.75,.5*dayK)}
+     if(!PDM.tail[si]){const q=P(sd*CARL.tx+D[6+si*3],CARL.ty+.05+D[7+si*3],CARL.tz+.02+D[8+si*3]);sprite(q[0],q[1],q[2],C.braking?.9:.45,1,.12,.07,C.braking?.9:.4)}}
    /* nitro: a jet of flame from each exhaust, a blue-white core fading through yellow to orange, flickering, longer the harder the boost */
    if(C.boostK>.04){const bk=C.boostK;for(const sd of[-1,1]){for(let i=0;i<10;i++){const fl=.78+.22*Math.sin(R.time*83+i*1.9+sd*2.3)+.1*Math.sin(R.time*131+i*3.1),d=(.1+i*.32)*(.6+.4*bk)*fl,sz=(.52-i*.043)*bk*(.85+.15*fl),t=i/9;
-       sprite(x-hx*(CARL.tz+d)+rr*sd*.46,yy+.33,z-hz*(CARL.tz+d)+rs*sd*.46,Math.max(.05,sz),.42+.58*Math.min(1,t*1.8),.62-.3*t,1-1.05*t,(.8-.07*i)*Math.min(1,bk*1.4))}}}}
+       const q=P(sd*.46,.33,CARL.tz+d);sprite(q[0],q[1],q[2],Math.max(.05,sz),.42+.58*Math.min(1,t*1.8),.62-.3*t,1-1.05*t,(.8-.07*i)*Math.min(1,bk*1.4))}}}}
   /* traffic: tail lights, headlights, the siren on a police car */
-  if(TR.on){const fx=R.fw;for(const c of TR.cars){if(!c.alive)continue;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz,d2=dx*dx+dz*dz;if(d2>62500||dx*fx[0]+dz*fx[2]<-6)continue;
+  if(TR.on){const fx=R.fw;for(const c of TR.cars){if(!c.alive)continue;if(c.air||Math.abs(c.roll)>.6||Math.abs(c.pitch)>.6)continue;   /* a car on its side or roof: its lights are not where an upright car's would be (and are mostly smashed) */const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz,d2=dx*dx+dz*dz;if(d2>62500||dx*fx[0]+dz*fx[2]<-6)continue;
       const d=Math.sqrt(d2),py=lerp(c.py,c.y,a),yaw=c.pyaw+angd(c.yaw,c.pyaw)*a,hx=Math.sin(yaw),hz=-Math.cos(yaw),rr=Math.cos(yaw),rs=Math.sin(yaw),k=1-d/250;if(k<=.02)continue;
       for(const sd of[-1,1]){const w=sd*c.hw*.68;
         sprite(px-hx*(c.hl-.12)+rr*w,py+.66,pz-hz*(c.hl-.12)+rs*w,(c.brake?.75:.45)+d*.004,1,.1,.06,(c.brake?.95:.55)*k);

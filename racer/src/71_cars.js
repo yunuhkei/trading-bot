@@ -25,7 +25,7 @@ function carInstall(def,paint){
   /* the paint finish (0 solid, 1 metallic, 2 pearl, 3 matte) and its second colour; the shut lines the shader draws */
   const fin=paint?(paint.fin|0):(def.fin|0),p2=(paint&&paint.p2)||(!paint&&def.paint2)||pc.map(v=>Math.min(255,v*.55+70));CARM.fin=new Float32Array(CAR_FIN[fin]||CAR_FIN[0]);CARM.paint2=new Float32Array([Math.pow(p2[0]/255,2.2),Math.pow(p2[1]/255,2.2),Math.pow(p2[2]/255,2.2)]);
   CARM.seam=new Float32Array(def.cc||!S._seam?12:S._seam);
-  CARM.def=def;CARM.hw=S.W/2;CARM.hl=S.L/2;CARM.R=[S.rf,S.rr];
+  CARM.mf=CARM.mf||new Float32Array(16);CARM.def=def;CARM.hw=S.W/2;CARM.hl=S.L/2;CARM.R=[S.rf,S.rr];
   const L=S._lights;CARL.hx=L.hx;CARL.hy=L.hy;CARL.hz=L.hz;CARL.tx=L.tx;CARL.ty=L.ty;CARL.tz=L.tz;
   const wk=(def.cc?S.wb:def.spec.wb)/2.45;CD.fo=1.38*wk;CD.ro=1.33*wk;CD.hw=.68*(S.tf/.775);
   CARM.parts=S._parts;CARM.zc=S.zs((S.cowl+S.roofR)/2);partsInit();dmgInit();dmgReset();return B}

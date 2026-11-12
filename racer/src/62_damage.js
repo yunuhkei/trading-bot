@@ -8,22 +8,25 @@ const DZ_CAP=[650e3,520e3,420e3,420e3,320e3];
 const DZ_NAME=['front','rear','left','right','roof'];
 /* the HEALTH BAR is one pool of crash energy (2.2 MJ: ten 25 m/s hits into a parked car, four into a wall at 30 m/s, two at 60 m/s into a car); the five zones above only decide where the dents, the hanging parts and the smoke are. You are wrecked when the bar is empty, not when one zone is crushed. */
 const DMG_POOL=2.2e6;
-const DMG={z:[0,0,0,0,0],hp:1,wrecked:0,spd:1,acc:1,pull:0,leak:0,cur:0,scale:1,minE:8000,pend:[],pendT:0,dentN:0,pf16:null,pi8:null,pris:null,ready:0,fire:0,total:0,lastHit:-9,dirty:0};
+const DMG={lampD:new Float32Array(12),lampV:null,z:[0,0,0,0,0],hp:1,wrecked:0,spd:1,acc:1,pull:0,leak:0,cur:0,scale:1,minE:8000,pend:[],pendT:0,dentN:0,pf16:null,pi8:null,pris:null,ready:0,fire:0,total:0,lastHit:-9,dirty:0};
 function dmgInit(){const B=CARM.body;if(!B||!B.ab)return;DMG.pris=new Uint8Array(B.ab.slice(0));DMG.pf16=new Int16Array(DMG.pris.buffer);DMG.pi8=new Int8Array(DMG.pris.buffer);
-  B.f16=new Int16Array(B.ab);B.i8=new Int8Array(B.ab);B.u8=new Uint8Array(B.ab);B.nv=B.ab.byteLength/16;DMG.ready=1;DMG.cur=IMP.n}
+  B.f16=new Int16Array(B.ab);B.i8=new Int8Array(B.ab);B.u8=new Uint8Array(B.ab);B.nv=B.ab.byteLength/16;DMG.ready=1;DMG.cur=IMP.n;
+  /* the four lamps: the body vertex nearest each (their dent moves the glow with them) */
+  const L=[[-CARL.hx,CARL.hy,CARL.hz],[CARL.hx,CARL.hy,CARL.hz],[-CARL.tx,CARL.ty,CARL.tz],[CARL.tx,CARL.ty,CARL.tz]],pf=DMG.pf16;DMG.lampV=L.map(p=>{let bi=0,bd=1e9;for(let v=0;v<B.nv;v++){const o=v*8,dx=pf[o]/8192-p[0],dy=pf[o+1]/8192-p[1],dz=pf[o+2]/8192-p[2],d=dx*dx+dy*dy+dz*dz;if(d<bd){bd=d;bi=v}}return bi});DMG.lampD.fill(0)}
+function dmgLamps(){const B=CARM.body;if(!DMG.lampV||!B||!B.f16)return;for(let i=0;i<4;i++){const o=DMG.lampV[i]*8;for(let a=0;a<3;a++)DMG.lampD[i*3+a]=(B.f16[o+a]-DMG.pf16[o+a])/8192}}
 function dmgHp(){return Math.max(0,1-DMG.total/DMG_POOL)}
 /* damage is health and looks (dents, smoke) only: it NEVER changes how the car drives. The multipliers stay at 1 / 0 so the physics code does not have to know. */
 function dmgEffects(){const z=DMG.z,f=z[0],r=z[1];DMG.hp=dmgHp();
   DMG.spd=1;DMG.acc=1;DMG.pull=0;DMG.leak=0;DMG.fire=DMG.hp<.3?1:0;
   DMG.wrecked=DMG.hp<=.03?1:0}
 function dmgReset(){DMG.z.fill(0);DMG.pend.length=0;DMG.cur=IMP.n;DMG.total=0;dmgEffects();DMG.wrecked=0;if(typeof partsReset==='function'&&CARM.parts)partsReset();
-  if(DMG.ready&&DMG.dirty){const B=CARM.body;new Uint8Array(B.ab).set(DMG.pris);dentUpload();DMG.dirty=0}}
+  if(DMG.ready&&DMG.dirty){const B=CARM.body;new Uint8Array(B.ab).set(DMG.pris);dentUpload();DMG.dirty=0}DMG.lampD.fill(0)}
 /* read the new impacts and turn them into damage */
 function dmgConsume(){
   if(IMP.n===DMG.cur)return;const q=IMP.q,k=Math.min(IMP.n-DMG.cur,q.length);
   for(let i=q.length-k;i<q.length;i++)dmgApply(q[i]);DMG.cur=IMP.n;dmgEffects()}
 function dmgApply(r){
-  let E=r.E*DMG.scale;if(r.src==2){if(r.vn<11)return;E=r.E*.55}else if(r.src!=4){const k=r.src==3?sstep(3,10,r.vn):sstep(4.5,13,r.vn);E*=k*Math.sqrt(k);if(E<DMG.minE)return}else if(E<DMG.minE)return;   /* batch 5: a tap is not a crash. Into a wall or a post the damage fades in from 16 to 47 km/h (a car from 11 to 36 km/h): a 20 km/h nudge leaves almost nothing */   /* (src 4, a rail scrape, counts by its energy alone) */     /* scrapes do nothing; a landing only hurts above 11 m/s */
+  let E=r.E*DMG.scale;if(r.src==2){if(r.vn<11)return;E=r.E*.55}else if(r.src!=4){const k=r.src==5?sstep(2.5,7,r.vn):r.src==3?sstep(3,10,r.vn):sstep(4.5,13,r.vn);E*=k*Math.sqrt(k);if(E<DMG.minE)return}else if(E<DMG.minE)return;   /* batch 5: a tap is not a crash. Into a wall or a post the damage fades in from 16 to 47 km/h (a car from 11 to 36 km/h): a 20 km/h nudge leaves almost nothing */   /* (src 4, a rail scrape, counts by its energy alone) */     /* scrapes do nothing; a landing only hurts above 11 m/s */
   const z=DMG.z;let zone=r.zone;
   if(r.src==2){/* the suspension bottoms out: the axles and the roof take it */z[0]+=E*.3/DZ_CAP[0];z[1]+=E*.3/DZ_CAP[1];z[4]+=E*.4/DZ_CAP[4];zone=4}
   else if(zone>=0){z[zone]+=E/DZ_CAP[zone];
@@ -36,6 +39,7 @@ function dmgDents(dt){if(!DMG.ready||!DMG.pend.length)return;DMG.pendT-=dt;let b
 function dentFromImpact(r){
   const sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);let cx,cy2,cz,dx,dy,dz;
   if(r.src==2){cx=0;cy2=1.2;cz=0;dx=0;dy=-1;dz=0}
+  else if(r.src==5&&r.b){/* a tumble: the point of the body that hit the ground is pushed in towards the middle of the car (a roof point crushes the roof down) */cx=r.b[0];cy2=r.b[1];cz=r.b[2];const ex=-cx,ey=TUM_COM-cy2,ez=-cz,l=Math.hypot(ex,ey,ez)||1;dx=ex/l;dy=ey/l;dz=ez/l;if(cy2>1)dy=-Math.max(.6,Math.abs(dy))}
   else{/* crush direction = the way the other body pushed the car (the contact normal), in model coordinates (x right, z backwards) */
     const nf=r.nx*sy+r.nz*-cy,nr=r.nx*cy+r.nz*sy,l=Math.hypot(nf,nr)||1;dx=nr/l;dy=0;dz=-nf/l;
     /* where: the point on the car's box in the direction the other body came from */
@@ -54,7 +58,7 @@ function dentApply(cx,cy,cz,dx,dy,dz,E){
     let qx=i8[nb]/127+a*.8*k,qy=i8[nb+1]/127+b*.8*k,qz=i8[nb+2]/127+c*.8*k;const ql=Math.hypot(qx,qy,qz)||1;
     i8[nb]=Math.round(qx/ql*127);i8[nb+1]=Math.round(qy/ql*127);i8[nb+2]=Math.round(qz/ql*127);
     const sc=Math.min(.7,w*.8),cb=v*16+12;u8[cb]=u8[cb]*(1-sc)+52*sc;u8[cb+1]=u8[cb+1]*(1-sc)+46*sc;u8[cb+2]=u8[cb+2]*(1-sc)+42*sc}
-  DMG.dirty=1}
+  DMG.dirty=1;dmgLamps()}
 function dentUpload(){const B=CARM.body;if(!B||!B.vb)return;const gl=G.gl;gl.bindBuffer(gl.ARRAY_BUFFER,B.vb);gl.bufferSubData(gl.ARRAY_BUFFER,0,new Uint8Array(B.ab))}
 /* ---- smoke and fire from the engine ---- */
 let _dmgCool=0;

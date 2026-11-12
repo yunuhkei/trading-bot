@@ -82,7 +82,7 @@ const _lampPick=new Int32Array(128),_lampScore=new Float32Array(128);
 /* the k lamps nearest to (x,z) within r metres, nearest first (indexes into LAMPS, step 3) */
 function gfxNearLamps(x,z,r,k,ahx,ahz){let n=0;k=Math.min(k,128);if(k<1)return 0;const c0=Math.floor((x-r)/LGC),c1=Math.floor((x+r)/LGC),d0=Math.floor((z-r)/LGC),d1=Math.floor((z+r)/LGC),r2=r*r;
   for(let cx=c0;cx<=c1;cx++)for(let cz=d0;cz<=d1;cz++){const a=LGRIDM.get(cx*8192+cz);if(!a)continue;
-    for(let q=0;q<a.length;q++){const i=a[q],dx=LAMPS[i]-x,dz=LAMPS[i+2]-z,d2=dx*dx+dz*dz;if(d2>r2)continue;const sc=d2-(dx*ahx+dz*ahz)*6;   /* lamps ahead of the car count as nearer */
+    for(let q=0;q<a.length;q++){const i=a[q];if(KO.dark[i/3])continue;const dx=LAMPS[i]-x,dz=LAMPS[i+2]-z,d2=dx*dx+dz*dz;if(d2>r2)continue;const sc=d2-(dx*ahx+dz*ahz)*6;   /* lamps ahead of the car count as nearer */
       let p=n<k?n++:k;if(p==k&&sc>=_lampScore[k-1])continue;if(p==k)p=k-1;while(p>0&&_lampScore[p-1]>sc){_lampScore[p]=_lampScore[p-1];_lampPick[p]=_lampPick[p-1];p--}_lampScore[p]=sc;_lampPick[p]=i}}
   return n}
 /* ---------------- lights near the car (used by the wet road) ---------------- */

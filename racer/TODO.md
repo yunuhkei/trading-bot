@@ -15,15 +15,16 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 3: police overhaul (`64_cops.js` fault rule, `STARS`, `copAhead`, stuck recovery; `67_police.js` helicopters and spike strips; interceptor, SUV, SWAT truck; minimap police only), tests `rheat.js`, `rpolice.js`. **Waiting for approval: a spike strip halves the grip for 4 s (the one exception to "damage never affects driving").**
 - Batch 4: supercars and looks (`CAR_STYLE`, creases / end shapes in `cgBody`, new lamps, `cgPlate` block font, paint finishes `uPt`, shader seams `uSm`, test `rlooks.js`); traffic: walking-pace bumps are not wrecks.
 
+- Batch 6: crashes roll and flip the car (and traffic), lights stay on the lamps, lamp posts fall (`42_tumble.js`, `rcrash.js`).
 - Batch 5: flat tyres 7.8 s, car order, look-around camera, police you can lose (last seen place, own top speeds, lights off on patrol), taps do no damage, more traffic.
 
 ## Next (owner's list, in this order)
-6. Crashes: cars roll and flip (the player and traffic), heavy visible damage; headlights that do not float after a crash; lamp posts that can be knocked down.
 7. Drive-through repair shops.
 8. The map: towns and places along the empty highways, the cities connected properly.
 - Still not decided: money / how cars are earned, the real names of the CC cars.
 
 ## Known, not fixed
+- A fallen lamp post's sun shadow (High tier) still stands; traffic drives through a fallen post. Only street lamp posts fall (not signal or power poles).
 - The road bot clips a lamp post on `sfnv1` after a long flight over a crest, and at 34 m/s a signal pole on `sfp` and `mojp` (one hit each).
 - The whole map now holds 485k furniture triangles (rails, lights, shelters; it was under 200k). Only near cells are drawn and the frame budget is unchanged, but it is about 20 MB more buffer memory: watch the iPhone SE for reloads.
 - Ring / `sc2` junction: an occasional queue on the side road (dissolved by the jam rule).
