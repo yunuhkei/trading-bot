@@ -382,6 +382,26 @@ Kalshi's real results). Honest take: the edge found is small and from 3 weeks of
 weeks before real money. Live mode later: a verified Kalshi account (check it works in Wisconsin), an API key from
 Kalshi's settings saved as the GitHub secrets `KALSHI_KEY_ID` and `KALSHI_PRIVATE_KEY`, and `mode: live`.
 
+## The Kalshi stock bot (S&P 500 / Nasdaq-100 close), practice only
+
+The **kalshi-stocks** workflow (`bot/kalshi_stocks.py`, settings in `kalshi_stocks.yaml`) checks every 10 minutes on
+weekdays. Kalshi lists brackets every trading day for where the **S&P 500** (25-point brackets) and the
+**Nasdaq-100** (100-point brackets) close at 4 pm ET; each pays $1 if the close lands in it.
+
+- **Its odds:** the close ~ the index now, give or take the swing the VIX (S&P) or VXN (Nasdaq) implies for the time
+  left, times 0.6 (intraday swings are smaller than the VIX implies; that was the best fit in the backtest).
+- **It bets** (10 am - 3:30 pm ET, one bet per index per day, up to 6 open) only where its chance beats the ask by 5¢
+  after Kalshi's fee and 1¢ slippage. Pretend $1,000, $100 a bet, **filled against the real order book** (cheapest
+  ask up, never past the best ask + 3¢ or where the edge drops under 5¢; a thin book means a smaller bet or none).
+- **Pings:** each practice bet and result, and a daily report at 3:30 pm (balance, bets, win rate, profit per bet
+  after fees, and whether it passes the real-money test: 100+ settled bets on 14+ days, the low end of profit per bet
+  above +1% after correcting for the 12 settings tested, 60%+ of days up, last week up). It never switches to real
+  money.
+- **Backtest (Nov 12): unproven.** Kalshi keeps market data only since Sep 8 (94 settled events). At 12:30 pm ET its
+  odds predicted the brackets a bit better than the market's (log loss 0.083 vs 0.087), but betting on them,
+  walk-forward: 58 bets, -0.4% a bet after fees, low end -47%. Practice will show if the small edge is real.
+  Run the backtest or print the record: Actions -> kalshi-stocks -> Run workflow (backtest: yes / status: yes).
+
 ## Check a chart screenshot (PC)
 
 Take a screenshot of a coin or stock in any app (Fomo, Coinbase, Robinhood...) and the bot tells you

@@ -230,6 +230,20 @@ def cmd_callouts(args, cfg):
     run(args.settings, report=args.report)
 
 
+def cmd_kalshi_stocks(args, cfg):
+    import logging
+
+    from . import kalshi_stocks as ks
+
+    logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s %(message)s")
+    if args.status:
+        print(ks.status_text())
+    elif args.backtest:
+        ks.backtest()
+    else:
+        ks.run(args.settings)
+
+
 def cmd_kalshi_backtest(args, cfg):
     import logging
 
@@ -439,6 +453,10 @@ def main(argv=None):
     co = sub.add_parser("callouts", help="track meme-coin callouts (boosts, trending, Telegram) and how they did")
     co.add_argument("--settings", default="callouts.yaml")
     co.add_argument("--report", action="store_true", help="print the callout scoreboard")
+    ks = sub.add_parser("kalshi-stocks", help="Kalshi stock bot: S&P 500 / Nasdaq-100 close, practice only")
+    ks.add_argument("--settings", default="kalshi_stocks.yaml")
+    ks.add_argument("--status", action="store_true", help="print the saved practice record and exit")
+    ks.add_argument("--backtest", action="store_true", help="test the rule on settled events")
     kb = sub.add_parser("kalshi-backtest", help="test the Kalshi weather strategies on settled markets")
     kb.add_argument("--days", type=int, default=14)
     kb.add_argument("--sameday", action="store_true", help="same-day trading: collect readings + day-of prices, then test")
@@ -532,6 +550,8 @@ def main(argv=None):
         cmd_launch_lab(args, cfg)
     elif args.cmd == "callouts":
         cmd_callouts(args, cfg)
+    elif args.cmd == "kalshi-stocks":
+        cmd_kalshi_stocks(args, cfg)
     elif args.cmd == "kalshi-backtest":
         cmd_kalshi_backtest(args, cfg)
     elif args.cmd == "smart-wallets":
