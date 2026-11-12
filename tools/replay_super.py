@@ -11,19 +11,23 @@ RPC = f"https://mainnet.helius-rpc.com/?api-key={KEY}" if KEY else "https://api.
 trades = json.load(open(sys.argv[1]))["super_trades"]["timing"]
 out_path = sys.argv[2]
 
-def rpc(method, params, tries=10):
+LAST_ERR = [""]
+
+
+def rpc(method, params, tries=6):
     for i in range(tries):
         req = urllib.request.Request(RPC, json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode(),
                                      {"Content-Type": "application/json"})
         try:
             d = json.load(urllib.request.urlopen(req, timeout=30))
+            LAST_ERR[0] = str((d.get("error") or {}).get("message", ""))[:80]
             if "result" in d:
-                time.sleep(0.05 if KEY else 1.0)
+                time.sleep(0.15 if KEY else 1.0)
                 return d["result"]
-        except Exception:
-            pass
-        time.sleep(5 + 6 * i)
-    raise RuntimeError(f"{method} kept failing")
+        except Exception as ex:
+            LAST_ERR[0] = type(ex).__name__ + f" {getattr(ex, 'code', '')}"
+        time.sleep(2 + 2 * i)
+    raise RuntimeError(f"{method} kept failing ({LAST_ERR[0]})")     # never the key
 
 def sol_price(t):
     url = (f"https://api.exchange.coinbase.com/products/SOL-USD/candles?granularity=3600"
