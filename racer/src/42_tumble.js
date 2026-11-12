@@ -20,7 +20,7 @@ function tumOrtho(R){/* Gram-Schmidt on the columns */let l=Math.hypot(R[0],R[1]
   R[6]=R[1]*R[5]-R[2]*R[4];R[7]=R[2]*R[3]-R[0]*R[5];R[8]=R[0]*R[4]-R[1]*R[3]}
 /* start a tumble. w: a spin in the CAR's frame (x right: pitch, y up: yaw, z back: roll), vy: a kick upwards */
 function tumbleStart(wbx,wby,wbz,vy,why){
-  if(TUM.on||GAME.state||!CARM.body)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
+  if(TUM.on||GAME.state||!CARM.body||C.shield>0)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
   const w=tumMul(R,wbx,wby,wbz);TUM.w[0]=w[0];TUM.w[1]=w[1]+C.wyaw;TUM.w[2]=w[2];const cm=tumMul(R,0,TUM_COM,0);TUM.p[0]=C.x+cm[0];TUM.p[1]=C.y+cm[1];TUM.p[2]=C.z+cm[2];
   C.vy=Math.max(C.vy||0,vy);TUM.on=1;TUM.rest=0;TUM.slow=0;TUM.rightT=0;TUM.t=0;TUM.n++;TUM.why=why;TUM.touch.fill(0);TUM.maxTilt=0;C.grounded=0;C.drift=0;C.dActive=0;C.slideT=0;IN.nitro=0;C.wyaw=0;
   C.shake=Math.min(1,C.shake+.6);return true}

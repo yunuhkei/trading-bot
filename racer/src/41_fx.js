@@ -51,7 +51,7 @@ function fxDraw(){
   const flat=(px,py,pz,sx,sz2,r,g,b,al)=>quad(px-sx,py,pz-sz2,px+sx,py,pz-sz2,px+sx,py,pz+sz2,px-sx,py,pz+sz2,r,g,b,al);
   /* ---- alpha: blob shadow (the soft sun shadow replaces it where the tier has one), skid marks, garage pads, smoke and spray ---- */
   batch(0);
-  const gy=C.gs+.04,L=2.6,Wd=1.35;quad(x+sy*-L-cy*Wd,gy,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,gy,z+cy*L+sy*Wd,x+sy*L+cy*Wd,gy,z-cy*L+sy*Wd,x+sy*L-cy*Wd,gy,z-cy*L-sy*Wd,0,0,0,(GFX.shadowOn?.22:.5)/(1+Math.max(0,C.y-C.gs)*.4));
+  const gy=C.gs+.04,L=2.6,Wd=1.35;if(!crashBlink())quad(x+sy*-L-cy*Wd,gy,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,gy,z+cy*L+sy*Wd,x+sy*L+cy*Wd,gy,z-cy*L+sy*Wd,x+sy*L-cy*Wd,gy,z-cy*L-sy*Wd,0,0,0,(GFX.shadowOn?.22:.5)/(1+Math.max(0,C.y-C.gs)*.4));
   {const L2=2.0,W2=.92;quad(x+sy*-L2-cy*W2,gy,z+cy*L2-sy*W2,x+sy*-L2+cy*W2,gy,z+cy*L2+sy*W2,x+sy*L2+cy*W2,gy,z-cy*L2+sy*W2,x+sy*L2-cy*W2,gy,z-cy*L2-sy*W2,0,0,0,.34/(1+Math.max(0,C.y-C.gs)*.8))}      /* a tight dark patch right under the body: the car sits on the road */
   trShadows(quad);heliFx(quad,flat,0);
   batch(2);heliFx(quad,flat,2);
@@ -91,10 +91,10 @@ function fxDraw(){
   /* neon */
   for(let i=0;i<NEONS.length&&ng<gMax+24;i+=7){const nx=NEONS[i]-gcx,nz=NEONS[i+2]-gcz,d2=nx*nx+nz*nz;if(d2>56000)continue;if(nx*R.fw[0]+nz*R.fw[2]<-3)continue;const d=Math.sqrt(d2),fl=.82+.18*Math.sin(R.time*(3+(i%5))+i),al=Math.min(.95,1.15-d/240)*fl;
     sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al*(.35+.65*dayK));ng++}
-  navBeacon(sprite);spikeFx(sprite,SRN);evFx(quad,flat,sprite,4);spotFx(flat,sprite,4);racerFx(sprite);
+  navBeacon(sprite);spikeFx(sprite,SRN);crashFx(sprite);evFx(quad,flat,sprite,4);spotFx(flat,sprite,4);racerFx(sprite);
   /* the car's own lights */
   /* batch 6: the glows sit ON the lamps: model points put through the very matrix the car was drawn with (so they pitch, roll and tumble with it and are never a physics step behind), moved with the dents */
-  {const M=CARM.mf,D=DMG.lampD,P=(bx,by,bz)=>{_lp[0]=M[0]*bx+M[4]*by+M[8]*bz+M[12];_lp[1]=M[1]*bx+M[5]*by+M[9]*bz+M[13];_lp[2]=M[2]*bx+M[6]*by+M[10]*bz+M[14];return _lp};
+  if(!crashBlink()){const M=CARM.mf,D=DMG.lampD,P=(bx,by,bz)=>{_lp[0]=M[0]*bx+M[4]*by+M[8]*bz+M[12];_lp[1]=M[1]*bx+M[5]*by+M[9]*bz+M[13];_lp[2]=M[2]*bx+M[6]*by+M[10]*bz+M[14];return _lp};
    for(const sd of[-1,1]){const si=sd<0?0:1;
      if(!PDM.head[si]){const q=P(sd*CARL.hx+D[si*3],CARL.hy+.05+D[si*3+1],CARL.hz-.02+D[si*3+2]);sprite(q[0],q[1],q[2],.36,1,.95,.75,.5*dayK)}
      if(!PDM.tail[si]){const q=P(sd*CARL.tx+D[6+si*3],CARL.ty+.05+D[7+si*3],CARL.tz+.02+D[8+si*3]);sprite(q[0],q[1],q[2],C.braking?.9:.45,1,.12,.07,C.braking?.9:.4)}}

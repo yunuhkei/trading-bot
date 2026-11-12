@@ -71,6 +71,6 @@ function copSpikeCar(r,i,side){const e=LG.ofRoad[ROADS.indexOf(r)]&&LG.ofRoad[RO
   const c=trPlace(e,Math.max(3,Math.min(e.n-4,i)),COP.heat>=4?21:4,12,0,Math.floor(TR.rng()*1e9));if(!c)return;c.x=c.px=r.X[i]+nx*o;c.z=c.pz=r.Z[i]+nz*o;c.yaw=c.pyaw=Math.atan2(t[0],-t[1])+side*.35;c.y=c.py=r.Y[i];
   c.state=1;c.kind=1;c.cm=3;c.block=1;c.siren=1;c.life=40;c.vx=c.vz=c.om=c.v=0;c.wt=0;c.L=null}
 /* called every physics step from carStep: has a wheel crossed a strip? */
-function spikeCheck(){if(!SPIKE.list.length||!C.grounded)return;
+function spikeCheck(){if(!SPIKE.list.length||!C.grounded||C.shield>0)return;
   for(const s of SPIKE.list){const dx=C.x-s.x,dz=C.z-s.z,lat=dx*s.nx+dz*s.nz,al=-dx*s.nz+dz*s.nx;if(Math.abs(lat)<s.hw&&Math.abs(al)<1.6&&Math.abs(C.y-s.y)<2&&!(C.flatT>0)){
       C.flatT=7.8;C.flatSide=Math.random()<.5?-1:1;SPIKE.hits++;C.shake=Math.min(1,C.shake+.5);C.bob=-.06;safeToast('TYRES BURST',2.6);if(typeof sparkAt==='function')sparkAt(C.x,C.y+.3,C.z,0,0,18,6);if(typeof audioBang==='function')audioBang();s.life=Math.min(s.life,3)}}}

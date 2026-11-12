@@ -2370,7 +2370,7 @@ function shdPass(){
   let P=G.P.shc;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);attrs(1);
   const yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a),S=1/8192,mb=SHD._mb,mw=SHD._mw,mf=SHD._mf;
   const mesh=(m,M)=>{gl.uniformMatrix4fv(P.u.uM,false,M);gl.bindBuffer(gl.ARRAY_BUFFER,m.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib);gl.vertexAttribPointer(0,4,gl.SHORT,false,16,0);gl.drawElements(gl.TRIANGLES,m.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=m.n/3};
-  if(CARM.body){carPose(mb,a,S);mesh(CARM.body,mb);
+  if(CARM.body&&!crashBlink()){carPose(mb,a,S);mesh(CARM.body,mb);
     for(let w=0;w<CARM.wheels.length;w++){const wh=CARM.wheels[w];for(const sd of[-1,1]){const st=w==0?C.steerVis:0;M4.trs(mw,sd*wh.lat,wh.R,wh.x,st,-C.spin,0,sd*S,S,S);carPose(mf,a,1);M4.mul(mb,mf,mw);mesh(wh,mb)}}}
   /* traffic */
   if(TRM.nv){P=G.P.sht;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);trIssue()}
@@ -2390,7 +2390,7 @@ const _mb=new Float32Array(16),_mw=new Float32Array(16),_mf=new Float32Array(16)
 function drawCarMesh(m,M,count,from){const gl=G.gl,P=G.P.car,n=count==null?m.n:count;gl.uniformMatrix4fv(P.u.uM,false,M);gl.bindBuffer(gl.ARRAY_BUFFER,m.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib);
   gl.vertexAttribPointer(0,4,gl.SHORT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,8);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,16,12);gl.drawElements(gl.TRIANGLES,n,gl.UNSIGNED_SHORT,(from||0)*2);R.draws++;R.tris+=n/3}
 function carDraw(){
-  if(!CARM.body)return;const gl=G.gl,P=G.P.car,a=R.alpha,q=CARS_RENDER;
+  if(!CARM.body||crashBlink())return;const gl=G.gl,P=G.P.car,a=R.alpha,q=CARS_RENDER;
   gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);carPaintU(P,CARM.paint,CARM.paint2,CARM.fin,CARM.seam);attrs(3);gl.disable(gl.CULL_FACE);
   /* the model is stored in 1/8192 m units */const S=1/8192;
   const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a);
@@ -2405,7 +2405,7 @@ function carDraw(){
   gl.uniform3f(P.u.uWh,0,1,0)}
 /* the tinted glass, drawn after the sky with blending (so the seats, the wheel and the dash show through it) */
 function carGlassDraw(){
-  const B=CARM.body;if(!B||B.gf>=B.n)return;const gl=G.gl,P=G.P.car,a=R.alpha;
+  const B=CARM.body;if(!B||B.gf>=B.n||crashBlink())return;const gl=G.gl,P=G.P.car,a=R.alpha;
   gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);carPaintU(P,CARM.paint,CARM.paint2,CARM.fin,CARM.seam);attrs(3);gl.disable(gl.CULL_FACE);
   const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a),S=1/8192;
   gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);gl.uniform1f(P.u.uAlpha,.66);gl.uniform3f(P.u.uWh,0,1,0);gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
@@ -2419,8 +2419,8 @@ const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
 /* impacts: everything the car hits (src 0 a building/pole/tree, 1 a steep bank, 2 a hard landing, 3 traffic) is recorded with its energy for the damage system.
    E = energy lost in the crash in joules (1/2 m v^2 style: for a wall 1/2 m_player (1-e^2) vn^2, for a car 1/2 mu (1-e^2) vn^2 with mu the reduced mass), zone 0 front 1 rear 2 left 3 right (-1 unknown/underside) */
 const IMP={q:[],n:0,total:0,last:null,max:24};
-function impactAdd(src,vn,E,mass,x,z,nx,nz){
-  if(E<=0)E=.5*1400*(1-.22*.22)*vn*vn;
+function impactAdd(src,vn,E,mass,x,z,nx,nz){if(C.shield>0)return;   /* (the spawn shield: no damage) */
+  if(E<=0)E=.5*1400*(1-.22*.22)*vn*vn;crashImpact(E,src);
   const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),dx=src==3?x-C.x:-nx,dz=src==3?z-C.z:-nz,lz=dx*fx+dz*fz,lx=dx*Math.cos(C.yaw)+dz*Math.sin(C.yaw);
   const zone=src==2?-1:(Math.abs(lz)/2.2>Math.abs(lx)/.95?(lz>0?0:1):(lx>0?3:2));
   const r={t:C.t,src,vn,E,mass,x,z,nx,nz,zone};IMP.last=r;IMP.n++;IMP.total+=E;IMP.q.push(r);if(IMP.q.length>IMP.max)IMP.q.shift()}
@@ -2450,7 +2450,7 @@ function deflect(nx,nz,vn,e,mu){
 
 /* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
 const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5};
-function carPlace(x,z,yaw,yh){TUM.on=0;TUM.rightT=0;C.flatT=0;C.orbY=C.orbP=0;C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6;C.flatT=0}
+function carPlace(x,z,yaw,yh){TUM.on=0;C.shield=0;CC.on=0;CC.scale=1;CC.fadeIn=0;TUM.rightT=0;C.flatT=0;C.orbY=C.orbP=0;C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6;C.flatT=0}
 function respawn(){TUM.on=0;TUM.rightT=0;IN.nitro=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1;C.dActive=0;C.dLast=null;C.grounded=1;C.air=0;C.liftT=0;C.kv=0;C.drift=0;C.slideT=0;C.tapN=0;C.tapT=0;C.dbK=0}
 const gw=(x,z,y)=>groundAt(x,z,y);
 function carStep(dt){
@@ -2626,7 +2626,7 @@ function collide(fx,fz){
         /* a glancing hit turns the nose along the wall */if(PHYS.classic){const tx=-nz,tz=nx,al=C.vx*tx+C.vz*tz,fa=Math.sin(C.yaw)*tx-Math.cos(C.yaw)*tz;C.wyaw+=(fa>0?-1:1)*Math.min(1.2,-vn*.05)*(ci?1:-1)*.3}}}}}}
 /* ---------- chase camera ---------- */
 const CAM={x:0,y:0,z:0,tx:0,ty:0,tz:0,fov:1.08};
-function camStep(dt,snap){
+function camStep(dt,snap){if(CC.on){crashCam();return}   /* (batch 17: the crash cinematic) */
   /* the camera follows the car exactly as it is DRAWN (interpolated between the 120 Hz physics steps), otherwise the car jitters against the camera by up to one step of travel (0.7 m at 80 m/s) */
   const a=snap?1:R.alpha,px=lerp(C.px,C.x,a),py=lerp(C.py,C.y,a),pz=lerp(C.pz,C.z,a),pyaw=C.pyaw+angd(C.yaw,C.pyaw)*a;
   const sp=Math.min(1,C.speed/70),tgtYaw=Math.atan2(C.vx,-C.vz),vw=sstep(3,8,C.speed);   /* the direction of travel only means something once the car is moving: faded in, no jump */
@@ -2701,7 +2701,7 @@ function fxDraw(){
   const flat=(px,py,pz,sx,sz2,r,g,b,al)=>quad(px-sx,py,pz-sz2,px+sx,py,pz-sz2,px+sx,py,pz+sz2,px-sx,py,pz+sz2,r,g,b,al);
   /* ---- alpha: blob shadow (the soft sun shadow replaces it where the tier has one), skid marks, garage pads, smoke and spray ---- */
   batch(0);
-  const gy=C.gs+.04,L=2.6,Wd=1.35;quad(x+sy*-L-cy*Wd,gy,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,gy,z+cy*L+sy*Wd,x+sy*L+cy*Wd,gy,z-cy*L+sy*Wd,x+sy*L-cy*Wd,gy,z-cy*L-sy*Wd,0,0,0,(GFX.shadowOn?.22:.5)/(1+Math.max(0,C.y-C.gs)*.4));
+  const gy=C.gs+.04,L=2.6,Wd=1.35;if(!crashBlink())quad(x+sy*-L-cy*Wd,gy,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,gy,z+cy*L+sy*Wd,x+sy*L+cy*Wd,gy,z-cy*L+sy*Wd,x+sy*L-cy*Wd,gy,z-cy*L-sy*Wd,0,0,0,(GFX.shadowOn?.22:.5)/(1+Math.max(0,C.y-C.gs)*.4));
   {const L2=2.0,W2=.92;quad(x+sy*-L2-cy*W2,gy,z+cy*L2-sy*W2,x+sy*-L2+cy*W2,gy,z+cy*L2+sy*W2,x+sy*L2+cy*W2,gy,z-cy*L2+sy*W2,x+sy*L2-cy*W2,gy,z-cy*L2-sy*W2,0,0,0,.34/(1+Math.max(0,C.y-C.gs)*.8))}      /* a tight dark patch right under the body: the car sits on the road */
   trShadows(quad);heliFx(quad,flat,0);
   batch(2);heliFx(quad,flat,2);
@@ -2741,10 +2741,10 @@ function fxDraw(){
   /* neon */
   for(let i=0;i<NEONS.length&&ng<gMax+24;i+=7){const nx=NEONS[i]-gcx,nz=NEONS[i+2]-gcz,d2=nx*nx+nz*nz;if(d2>56000)continue;if(nx*R.fw[0]+nz*R.fw[2]<-3)continue;const d=Math.sqrt(d2),fl=.82+.18*Math.sin(R.time*(3+(i%5))+i),al=Math.min(.95,1.15-d/240)*fl;
     sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al*(.35+.65*dayK));ng++}
-  navBeacon(sprite);spikeFx(sprite,SRN);evFx(quad,flat,sprite,4);spotFx(flat,sprite,4);racerFx(sprite);
+  navBeacon(sprite);spikeFx(sprite,SRN);crashFx(sprite);evFx(quad,flat,sprite,4);spotFx(flat,sprite,4);racerFx(sprite);
   /* the car's own lights */
   /* batch 6: the glows sit ON the lamps: model points put through the very matrix the car was drawn with (so they pitch, roll and tumble with it and are never a physics step behind), moved with the dents */
-  {const M=CARM.mf,D=DMG.lampD,P=(bx,by,bz)=>{_lp[0]=M[0]*bx+M[4]*by+M[8]*bz+M[12];_lp[1]=M[1]*bx+M[5]*by+M[9]*bz+M[13];_lp[2]=M[2]*bx+M[6]*by+M[10]*bz+M[14];return _lp};
+  if(!crashBlink()){const M=CARM.mf,D=DMG.lampD,P=(bx,by,bz)=>{_lp[0]=M[0]*bx+M[4]*by+M[8]*bz+M[12];_lp[1]=M[1]*bx+M[5]*by+M[9]*bz+M[13];_lp[2]=M[2]*bx+M[6]*by+M[10]*bz+M[14];return _lp};
    for(const sd of[-1,1]){const si=sd<0?0:1;
      if(!PDM.head[si]){const q=P(sd*CARL.hx+D[si*3],CARL.hy+.05+D[si*3+1],CARL.hz-.02+D[si*3+2]);sprite(q[0],q[1],q[2],.36,1,.95,.75,.5*dayK)}
      if(!PDM.tail[si]){const q=P(sd*CARL.tx+D[6+si*3],CARL.ty+.05+D[7+si*3],CARL.tz+.02+D[8+si*3]);sprite(q[0],q[1],q[2],C.braking?.9:.45,1,.12,.07,C.braking?.9:.4)}}
@@ -2801,7 +2801,7 @@ function tumOrtho(R){/* Gram-Schmidt on the columns */let l=Math.hypot(R[0],R[1]
   R[6]=R[1]*R[5]-R[2]*R[4];R[7]=R[2]*R[3]-R[0]*R[5];R[8]=R[0]*R[4]-R[1]*R[3]}
 /* start a tumble. w: a spin in the CAR's frame (x right: pitch, y up: yaw, z back: roll), vy: a kick upwards */
 function tumbleStart(wbx,wby,wbz,vy,why){
-  if(TUM.on||GAME.state||!CARM.body)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
+  if(TUM.on||GAME.state||!CARM.body||C.shield>0)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
   const w=tumMul(R,wbx,wby,wbz);TUM.w[0]=w[0];TUM.w[1]=w[1]+C.wyaw;TUM.w[2]=w[2];const cm=tumMul(R,0,TUM_COM,0);TUM.p[0]=C.x+cm[0];TUM.p[1]=C.y+cm[1];TUM.p[2]=C.z+cm[2];
   C.vy=Math.max(C.vy||0,vy);TUM.on=1;TUM.rest=0;TUM.slow=0;TUM.rightT=0;TUM.t=0;TUM.n++;TUM.why=why;TUM.touch.fill(0);TUM.maxTilt=0;C.grounded=0;C.drift=0;C.dActive=0;C.slideT=0;IN.nitro=0;C.wyaw=0;
   C.shake=Math.min(1,C.shake+.6);return true}
@@ -2903,6 +2903,61 @@ function lampTick(dt){const L=KO.list;for(let i=L.length-1;i>=0;i--){const q=L[i
     const P=LPOST[q.lid];if(q.t>25&&Math.hypot(P[0]-C.x,P[1]-C.z)>320){lampRestore(q);L.splice(i,1)}}
   KO.U1.fill(-1);KO.U2.fill(0);for(let i=0;i<L.length&&i<8;i++){const q=L[i],P=LPOST[q.lid];KO.U1[i*4]=q.lid;KO.U1[i*4+1]=P[0];KO.U1[i*4+2]=P[1];KO.U2[i*4]=q.dir;KO.U2[i*4+1]=q.a;KO.U2[i*4+2]=P[2]}}
 function lampReset(){for(const q of KO.list)lampRestore(q);KO.list.length=0;lampTick(0)}
+'use strict';
+/* ===== crash cam and reset (batch 17) =====
+   When a crash gets wild (the car rolls or flips hard, is thrown into the air, or hits something big head on), the game turns it into a short CINEMATIC: the world runs in slow motion,
+   the camera jumps to a fixed spot beside the crash and follows the car, black bars close in at the top and the bottom, and after about 2.8 s the screen fades out.
+   Then the car is put back ON THE ROAD where it was about 1.5 s before the crash (from a short history of road positions), facing the same way at a sensible speed, with the
+   traffic cleared round it, and a SPAWN SHIELD for 3 s: the car blinks, drives through traffic, takes no damage and cannot tumble, burst its tyres or be busted.
+   A milder tumble (a slow roll onto the side) still rights itself as before (42_tumble.js). CC.enabled=false turns the whole thing off (physics tests). */
+const CC={tn:-1,tv:0,enabled:true,on:0,t:0,dur:2.8,scale:1,cam:[0,0,0],fade:0,fadeIn:0,hist:[],histT:-9,crashT:0,why:'',n:0,shield:0};
+/* every 0.25 s on the road, upright, moving: one entry {x,z,y,yaw,v,t} (the last 10 s) */
+function crashHistory(){if(TUM.on||CC.on||C.shield>0)return;const H=CC.hist;
+  if(H.length&&C.t<H[H.length-1].t)H.length=0;                                       /* the car was put somewhere else (C.t restarts): forget */
+  if(C.t-CC.histT<.25||!C.onRoad||!C.grounded||C.speed<2||Math.abs(C.roll)>.3||Math.abs(C.pitch)>.3)return;
+  CC.histT=C.t;H.push({x:C.x,z:C.z,y:C.y,yaw:Math.atan2(C.vx,-C.vz),v:C.speed,t:C.t});if(H.length>40)H.shift()}
+/* is this crash wild enough for the cinematic? */
+function crashWild(){if(!TUM.on||TUM.rightT>0)return false;const w=Math.hypot(TUM.w[0],TUM.w[1]*.4,TUM.w[2]),g=groundAt(TUM.p[0],TUM.p[2],TUM.p[1]+.5);
+  return TUM.t>.25&&((TUM.maxTilt>1.15&&CC.tv>16)||w>2.6||TUM.p[1]-g>2.6)}   /* (rolling onto the side at a crawl is not wild: it rights itself) */
+function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.why=why;CC.crashT=C.t;CC.n++;
+  /* the camera: a fixed spot beside the crash, a little ahead of where it is going, looking back at it */
+  let dx=C.vx,dz=C.vz,l=Math.hypot(dx,dz);if(l<2){dx=Math.sin(C.yaw);dz=-Math.cos(C.yaw);l=1}dx/=l;dz/=l;const sd=(CC.n&1)?1:-1,sx=-dz*sd,sz=dx*sd,ahead=Math.min(14,4+C.speed*.25);
+  const x=C.x+dx*ahead+sx*9,z=C.z+dz*ahead+sz*9,g=groundAt(x,z,C.y+3);CC.cam[0]=x;CC.cam[2]=z;CC.cam[1]=Math.max(g+1.6,C.y+2.2);C.shake=0}
+/* called every physics step (from worldStep, after carStep) */
+function crashTick(dt){if(C.shield>0){C.shield=Math.max(0,C.shield-dt);COP.bust=Math.max(0,COP.bust-dt*3)}
+  if(TUM.on&&TUM.n!==CC.tn){CC.tn=TUM.n;CC.tv=Math.hypot(C.vx,C.vz)}           /* the speed the tumble started at */
+  crashHistory();if(!CC.enabled)return;
+  if(!CC.on&&crashWild())crashStart(TUM.why||'roll');
+  if(CC.on){IN.thr=IN.brk=0;IN.nitro=0;COP.bust=0;
+    /* the clock of the cinematic runs in real time: the world step is slowed by CC.scale */
+    CC.t+=dt/CC.scale;CC.scale=CC.t<1.5?.3:CC.t<2.3?.5:.8;CC.fade=sstep(CC.dur-.45,CC.dur,CC.t);if(CC.t>=CC.dur)crashReset()}}
+/* a hit too big to drive on from (a wall or a car taken head on, flat out): from impactAdd */
+function crashImpact(E,src){if(CC.enabled&&!CC.on&&E>420e3&&C.shield<=0&&!GAME.state)crashStart(src==3?'car':'wall')}
+/* every frame (from frame() in 90_main.js): the fade back in */
+function crashFrame(sec){if(CC.fadeIn>0)CC.fadeIn=Math.max(0,CC.fadeIn-sec*2.4);if(!CC.on)CC.scale=1}
+/* back on the road, where the car was about 1.5 s before the crash */
+function crashReset(){CC.on=0;CC.scale=1;CC.fade=0;CC.fadeIn=1;const H=CC.hist;let e=null;
+  for(let i=H.length-1;i>=0;i--)if(H[i].t<=CC.crashT-1.4){e=H[i];break}if(!e&&H.length)e=H[0];
+  if(e){C.safeX=e.x;C.safeZ=e.z;C.safeY=e.y;C.safeYaw=e.yaw}
+  TUM.on=0;TUM.rightT=0;respawn();const v=e?clamp(e.v*.8,8,34):12;C.vx=Math.sin(C.yaw)*v;C.vz=-Math.cos(C.yaw)*v;C.speed=v;C.flash=0;C.camYaw=C.yaw;C.flatT=0;
+  /* the history after that point is the crash itself */
+  if(e)while(H.length&&H[H.length-1].t>e.t)H.pop();
+  /* clear the traffic round the spot (not the racers in a race, not a chasing cop) */
+  for(const c of TR.cars){if(!c.alive)continue;if(c.kind==2&&c.race)continue;if(c.kind==1&&c.cm>0&&c.state==3)continue;if(Math.hypot(c.x-C.x,c.z-C.z)<40)trKill(c,0)}
+  C.shield=3;safeToast('BACK ON THE ROAD  -  SHIELD 3 s',2.2);camStep(0,true)}
+/* the cinematic camera (from camStep) */
+function crashCam(){const a=R.alpha,x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a);CAM.x=CC.cam[0];CAM.y=CC.cam[1];CAM.z=CC.cam[2];CAM.tx=x;CAM.ty=y+.6;CAM.tz=z;
+  const d=Math.hypot(x-CAM.x,z-CAM.z);CAM.fov=clamp(1.2-d*.006-CC.t*.05,.55,1.1)}
+/* is the car hidden this frame (the shield blinks it) */
+function crashBlink(){return C.shield>0&&((C.shield*7.5)|0)%3==0}
+/* the shield: a blue shimmer round the car (from 41_fx.js) */
+function crashFx(sprite){if(!(C.shield>0))return;const k=Math.min(1,C.shield),t=R.time*6;for(let i=0;i<6;i++){const a=t+i*TAU/6;sprite(C.x+Math.cos(a)*2.2,C.y+.8+Math.sin(t*.7+i)*.4,C.z+Math.sin(a)*2.2,.9,.4,.8,1,.55*k)}}
+/* the black bars, the label and the fades (from hudDraw) */
+function crashHud(c,W_,H_,u){if(!CC.on&&!(CC.fadeIn>0))return;c.save();
+  if(CC.on){const b=H_*.11*sstep(0,.35,CC.t);c.fillStyle='#000';c.fillRect(0,0,W_,b);c.fillRect(0,H_-b,W_,b);
+    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);c.fillStyle='#fff';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.textAlign='center';c.fillText('CRASH',W_/2,H_-b*.38)}}
+  const f=CC.on?CC.fade:CC.fadeIn;if(f>0){c.globalAlpha=f;c.fillStyle='#000';c.fillRect(0,0,W_,H_)}c.restore()}
+
 'use strict';
 /* ===== controls (touch + keyboard), HUD, minimap, audio, adaptive quality ===== */
 const UI={w:1,h:1,dpr:1,hud:null,ctx:null,touches:new Map(),stick:null,btn:[],showStats:false,fps:60,ms:16,mapCv:null,paused:false,keys:{},msg:'',msgT:0,tilt:0,lastTap:0,locName:'',locT:0};
@@ -3021,6 +3076,7 @@ function regionName(){for(const r of REGIONS)if(r[1]())return r[0];return''}
 function hudDraw(){
   const c=UI.ctx,w=UI.hud.width,h=UI.hud.height,k=w/UI.w;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,w,h);c.scale(k,k);const W_=UI.w,H_=UI.h,u=UI.btnU;
   if(MENU.open){menuDraw(c,W_,H_,u);safeHud(c,W_,H_,u);return}
+  if(CC.on){crashHud(c,W_,H_,u);return}   /* (batch 17: the crash cinematic shows only its bars) */
   c.textBaseline='alphabetic';c.font='700 12px -apple-system,Roboto,sans-serif';
   /* speed */
   const kmh=Math.round(C.speed*2.23694),bx=u*.45,by=H_-u*.45;
@@ -3057,7 +3113,7 @@ function hudDraw(){
   /* stats */
   if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px ui-monospace,Menlo,monospace';c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'gfx '+GFX.cur.name+' ('+GFX.mode+')  work '+GFX.work.toFixed(1)+' ms  fxaa'+(GFX.cur.blur?' blur':'')+(GFX.cur.bloom?' bloom':'')+(GFX.shadowOn?' shadow'+GFX.cur.shadow:''),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
   if(PHYS.classic&&!window.__shot){c.save();c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,164,58,.9)';c.fillText('CLASSIC HANDLING',W_*.5,H_-u*.12);c.restore()}   /* the old handling is on (?hnd=classic or the switch in the car menu) */
-  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);evHud(c,W_,H_,u);
+  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);evHud(c,W_,H_,u);crashHud(c,W_,H_,u);
   if(UI.paused&&!window.__shot){c.fillStyle='rgba(0,0,0,.55)';c.fillRect(0,0,W_,H_);c.fillStyle='#fff';c.textAlign='center';c.font='800 28px sans-serif';c.fillText('PAUSED - tap to resume',W_/2,H_/2)}
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}
   if(UI.mapOpen)drawWorldMap(c,W_,H_,u)
@@ -3584,7 +3640,7 @@ function trTick(dt){
   copTick(dt);
   if(TR.prof){const ms=performance.now()-t0;TR.ms+=(ms-TR.ms)*.03;TR.stat.msSum+=ms;TR.stat.ticks++;if(ms>TR.stat.msMax)TR.stat.msMax=ms}}
 /* the fixed-step world: the player at 120 Hz (collisions with traffic included), traffic at 60 Hz */
-function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);if(TR.on&&TR.nAlive)trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);evTick(dt);spotTick(dt);racerTick(dt);if(!(++TR.sub&1))trTick(dt*2)}
+function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);crashTick(dt);if(TR.on&&TR.nAlive&&!(C.shield>0))trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);evTick(dt);spotTick(dt);racerTick(dt);if(!(++TR.sub&1))trTick(dt*2)}
 
 'use strict';
 /* ===== traffic rendering: four low-poly body types built in code (about 200 triangles each), drawn instanced (one draw per type; if the GPU has no instancing, one draw per car) ===== */
@@ -4407,7 +4463,7 @@ function copSpikeCar(r,i,side){const e=LG.ofRoad[ROADS.indexOf(r)]&&LG.ofRoad[RO
   const c=trPlace(e,Math.max(3,Math.min(e.n-4,i)),COP.heat>=4?21:4,12,0,Math.floor(TR.rng()*1e9));if(!c)return;c.x=c.px=r.X[i]+nx*o;c.z=c.pz=r.Z[i]+nz*o;c.yaw=c.pyaw=Math.atan2(t[0],-t[1])+side*.35;c.y=c.py=r.Y[i];
   c.state=1;c.kind=1;c.cm=3;c.block=1;c.siren=1;c.life=40;c.vx=c.vz=c.om=c.v=0;c.wt=0;c.L=null}
 /* called every physics step from carStep: has a wheel crossed a strip? */
-function spikeCheck(){if(!SPIKE.list.length||!C.grounded)return;
+function spikeCheck(){if(!SPIKE.list.length||!C.grounded||C.shield>0)return;
   for(const s of SPIKE.list){const dx=C.x-s.x,dz=C.z-s.z,lat=dx*s.nx+dz*s.nz,al=-dx*s.nz+dz*s.nx;if(Math.abs(lat)<s.hw&&Math.abs(al)<1.6&&Math.abs(C.y-s.y)<2&&!(C.flatT>0)){
       C.flatT=7.8;C.flatSide=Math.random()<.5?-1:1;SPIKE.hits++;C.shake=Math.min(1,C.shake+.5);C.bob=-.06;safeToast('TYRES BURST',2.6);if(typeof sparkAt==='function')sparkAt(C.x,C.y+.3,C.z,0,0,18,6);if(typeof audioBang==='function')audioBang();s.life=Math.min(s.life,3)}}}
 
@@ -5434,7 +5490,7 @@ function renderOnce(w,h){R.alpha=1;viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.t
 function frame(ms){
   gfxFrameStart();uiInputs(ms/1000);gfxUpdate(ms/1000);
   const halt=UI.paused||UI.mapOpen||MENU.open;if(!halt)navUpdate(ms/1000);
-  if(!halt){acc+=Math.min(ms/1000,.1);let n=0;while(acc>=DT&&n<14){worldStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
+  if(!halt){crashFrame(ms/1000);acc+=Math.min(ms/1000,.1)*CC.scale;let n=0;while(acc>=DT&&n<14){worldStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
   R.alpha=halt?1:acc/DT;if(R.alpha>1)R.alpha=1;
   /* camera follows the interpolated state */
   camStep(halt?0:ms/1000,false);if(MENU.open)menuCam(ms/1000);

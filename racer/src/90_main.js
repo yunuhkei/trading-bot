@@ -34,7 +34,7 @@ function renderOnce(w,h){R.alpha=1;viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.t
 function frame(ms){
   gfxFrameStart();uiInputs(ms/1000);gfxUpdate(ms/1000);
   const halt=UI.paused||UI.mapOpen||MENU.open;if(!halt)navUpdate(ms/1000);
-  if(!halt){acc+=Math.min(ms/1000,.1);let n=0;while(acc>=DT&&n<14){worldStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
+  if(!halt){crashFrame(ms/1000);acc+=Math.min(ms/1000,.1)*CC.scale;let n=0;while(acc>=DT&&n<14){worldStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
   R.alpha=halt?1:acc/DT;if(R.alpha>1)R.alpha=1;
   /* camera follows the interpolated state */
   camStep(halt?0:ms/1000,false);if(MENU.open)menuCam(ms/1000);

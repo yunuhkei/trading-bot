@@ -15,6 +15,7 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 3: police overhaul (`64_cops.js` fault rule, `STARS`, `copAhead`, stuck recovery; `67_police.js` helicopters and spike strips; interceptor, SUV, SWAT truck; minimap police only), tests `rheat.js`, `rpolice.js`. **Waiting for approval: a spike strip halves the grip for 4 s (the one exception to "damage never affects driving").**
 - Batch 4: supercars and looks (`CAR_STYLE`, creases / end shapes in `cgBody`, new lamps, `cgPlate` block font, paint finishes `uPt`, shader seams `uSm`, test `rlooks.js`); traffic: walking-pace bumps are not wrecks.
 
+- Batch 17: wild crashes become a slow-motion cinematic, then the car is back on the road where it was 1.5 s before, with a 3 s spawn shield (`43_crash.js`).
 - Batch 16 (also): traffic pulling out gives way to the player and takes the blame; Vegas Run and Desert Race routes adjusted to the new towns.
 - Batch 16: Downtown, the Valley, Santa Cruz, Palm Springs with irregular outlines and outskirts; spawn and turn fixes at lights; a cop wrecking itself on you is not your crime.
 - Batch 15: Las Vegas, Sacramento, San Jose natural: an avenue through the centre between two neighbourhoods at their own angles, irregular outline, whole blocks for the city buildings, cut blocks lined with shops and houses (`makeOrganicCity`).

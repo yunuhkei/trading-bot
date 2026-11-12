@@ -5,7 +5,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
 (async()=>{
   const T=await L.launch({q:'go=1&scale=.3&fixed=1',w:240,h:160,mobile:false,traffic:true});
   await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:120000});
-  await T.ev(()=>{const {C,UI,IN,TR}=RACER;UI.paused=true;IN.assist=false;
+  await T.ev(()=>{const {C,UI,IN,TR}=RACER;UI.paused=true;CC.enabled=false;   /* (the tumble physics itself: the batch 17 crash cam would reset the car mid-roll) */ IN.assist=false;
     window.place=(id,f,spd,lat)=>{TR.cars.forEach(c=>c.alive=0);TR.nAlive=0;dmgReset();const r=ROADS.find(q=>q.id==id),i=Math.round(r.n*f),a=Math.atan2(r.X[i+1]-r.X[i],-(r.Z[i+1]-r.Z[i]));RACER.carPlace(r.X[i]+Math.cos(a)*(lat||0),r.Z[i]+Math.sin(a)*(lat||0),a,r.Y[i]+.5);C.vx=Math.sin(a)*spd;C.vz=-Math.cos(a)*spd;C.steer=0;C.wyaw=0;IN.thr=0;IN.brk=0;return a};
     window.parked=(a,dx,dz)=>{const e=LG.ofRoad[ROADS.findIndex(q=>q.id=='ring')][0][0],c=trPlace(e,5,0,1,0,78);c.state=1;c.x=c.px=C.x+dx;c.z=c.pz=C.z+dz;c.yaw=c.pyaw=a+Math.PI/2;c.vx=c.vz=0;c.v=0;c.y=c.py=groundAt(c.x,c.z,C.y+1);return c};
     window.watch=(secs,c)=>{const o={start:-1,end:-1,right:-1,tilt:0,below:0,nan:0,imp0:IMP.n,hp0:dmgHp(),cRoll:0,cAir:0};

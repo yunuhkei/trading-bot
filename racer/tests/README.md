@@ -234,3 +234,8 @@ Small differences from rounding are fine; a change of more than about 10 percent
 * Full run on the batch 16 build: every test passes after these updates. `rsig` measures one car's continuous wait at one light (it used to add up every wait of a car slot, and slots are reused) and reports where the longest wait is; `rpolice` 7 counts only buildings (a lamp post where the cop was put down does not count); `revents` keeps traffic off the race (the bot and the racers); city test spots use the avenues (`vegm`, `sacm`, `sjm`).
 * `rheat` (default seed): the bot used to T-bone a car pulling out of Mulholland onto the ring and get two stars; now the turning car gives way and is to blame if it does not.
 * `rsig` now and then: a car on `sacau2` waits through one green at the Sacramento avenue (47 s; limit 40).
+
+## Crash cam baseline (batch 17)
+
+* `rcrashcam`: a hard roll at 100 km/h starts the cinematic after 0.25 s (slow motion x0.3, the camera stays at its spot); 1.2 s of world time later the car is back on the road 35 m back, upright, at 24 m/s, shield 3 s; the shield blocks damage and tumbles and blinks the car; a 40 m/s head-on hit starts it; a slow roll onto the side does not; `CC.enabled=false` keeps the old behaviour. Added to `run_quick.sh`.
+* `rcrash` runs with `CC.enabled=false` (it measures the tumble physics itself).
