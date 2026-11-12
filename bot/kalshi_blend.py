@@ -68,22 +68,27 @@ def model_highs(info: dict, start: date, end: date) -> dict[str, dict[str, dict[
     return out
 
 
-def collect(rows: list[dict], path: Path = HIGHS) -> dict:
-    """station -> day -> {"1": {...}, "2": {...}} for every saved city-day (adds to what's saved)."""
+def collect(rows: list[dict], path: Path = HIGHS, budget_s: float = 2400) -> dict:
+    """station -> day -> {"1": {...}, "2": {...}} for every saved city-day (adds to what's saved; saved after every
+    city, so a slow run keeps what it got and the next run carries on)."""
     data = json.loads(path.read_text()) if path.exists() else {}
     stations: dict = {}
+    t0 = time.time()
     for st in sorted({r["station"] for r in rows}):
         days = [r["day"] for r in rows if r["station"] == st]
         if st in data and all(d in data[st] for d in days):
             continue
+        if time.time() - t0 > budget_s:
+            log.warning("time budget reached: the rest next run")
+            break
         try:
             info = k.station_info(st, stations)
             data[st] = model_highs(info, date.fromisoformat(min(days)) - timedelta(days=1), date.fromisoformat(max(days)))
             log.warning("%s: %d days of model forecasts", st, len(data[st]))
+            path.write_text(json.dumps(data, separators=(",", ":")))
         except Exception as e:
             log.warning("%s model forecasts: %s", st, e)
         time.sleep(1.0)
-    path.write_text(json.dumps(data, separators=(",", ":")))
     return data
 
 
@@ -239,6 +244,9 @@ def run(collect_data: bool = True) -> dict:
     rows = json.loads(kb.ROWS.read_text())
     paths = json.loads(kb.PATHS.read_text())
     highs = collect(rows) if collect_data else json.loads(HIGHS.read_text())
+    missing = sorted({r["station"] for r in rows} - set(highs))
+    if missing:
+        log.warning("no model forecasts yet for %s: run it again to collect them", ", ".join(missing))
     wf = walk_forward(rows, paths, highs)
     tests = 1
     try:
