@@ -4354,3 +4354,76 @@ def test_super_bots_trades_get_a_real_price_check_next_to_the_lab():
                  {"mint": "B", "in": 100, "out": 90, "sell_ok": True, "sold": 5000, "lab_ret": 0.0}]
     line = lab.check_lines(5100.0)[0]
     assert line.startswith("• Super bot at real prices") and "+0.0% a trade vs the lab's +10.0% on the same trades" in line
+
+
+def test_kalshi_big_reads_the_order_book_and_walks_it_with_real_fees():
+    from bot import kalshi as k
+    from bot import kalshi_big as kb
+    book = kb.parse_book({"orderbook_fp": {"yes_dollars": [["0.3000", "50"], ["0.3200", "10"]],
+                                           "no_dollars": [["0.3500", "80"], ["0.3700", "40"], ["0.3800", "30.5"]]}})
+    assert book["yes"] == [(0.62, 30.5), (0.63, 40), (0.65, 80)]                     # YES asks = 1 - NO bids, cheapest first
+    assert book["no"] == [(0.68, 10), (0.70, 50)]
+    old = kb.parse_book({"orderbook": {"yes": [[30, 5]], "no": [[38, 7]]}})          # the older cents format
+    assert old == {"yes": [(0.62, 7)], "no": [(0.70, 5)]}
+    f = kb.walk(book["yes"], 100, 0.65)
+    assert f["levels"][0] == [0.62, 30] and f["levels"][1] == [0.63, 40] and f["levels"][2][0] == 0.65
+    assert f["cost"] <= 100 and f["count"] == sum(n for _, n in f["levels"])
+    assert abs(f["fees"] - sum(k.fee(p, n) for p, n in f["levels"])) < 1e-9          # Kalshi's fee at every level
+    assert f["avg"] > 0.62                                                           # not the top price for everything
+    thin = kb.walk(book["yes"], 100, 0.62)                                           # the limit stops it at the top level
+    assert thin["count"] == 30 and thin["cost"] == round(30 * 0.62 + k.fee(0.62, 30), 2)
+    taken = {}
+    kb.walk(book["yes"], 15, 0.65, taken)                                            # someone else took 23 at 62c first
+    assert taken == {0.62: 23} and kb.walk(book["yes"], 100, 0.62, taken)["count"] == 7
+    fav = {"price": 0.62, "fair": 0.68}
+    assert kb.limit_price(fav, {"pick": "favorite", "max_price": 0.80}, 0.03) == 0.65
+    assert kb.limit_price(fav, {"pick": "favorite", "max_price": 0.63}, 0.03) == 0.63  # never past the strategy's limit
+    edge = {"price": 0.62, "fair": 0.70}                                             # C: 5c+ edge after fees
+    lim = kb.limit_price(edge, {"min_edge": 0.05, "max_price": 0.95}, 0.03)
+    assert 0.62 <= lim < 0.65 and 0.70 - lim - k.fee(lim) >= 0.05 - 1e-9
+
+
+def test_kalshi_big_accounts_trade_100_dollars_at_real_fills_next_to_the_old_accounts(tmp_path, monkeypatch):
+    from bot import kalshi as k
+    from bot import kalshi_big as kb
+    monkeypatch.chdir(tmp_path)
+    mk = lambda t, kind, lo, hi, ya, na: {"ticker": t, "strike_type": kind, "floor_strike": lo, "cap_strike": hi,
+                                          "yes_sub_title": t, "yes_ask_dollars": str(ya), "yes_ask_size_fp": "100",
+                                          "no_ask_dollars": str(na), "no_ask_size_fp": "100"}
+    ev = {"event_ticker": "KXHIGHCHI-26NOV04", "title": "Chicago high Nov 4?", "markets": [
+        mk("LOW", "less", None, 70, 0.15, 0.86), mk("MID", "between", 70, 71, 0.62, 0.40),
+        mk("HIGH", "greater", 71, None, 0.30, 0.72)]}
+    view = {"mu": 71.0, "sigma": 0.6, "floor": None, "late": False, "tomorrow": True, "why": "test"}
+    asked = []
+    books = {"MID": {"yes": [(0.62, 60), (0.63, 50), (0.64, 40), (0.65, 60), (0.70, 500)], "no": [(0.40, 500)]},
+             "LOW": {"yes": [(0.15, 500)], "no": [(0.86, 200)]}}
+
+    def book_of(ticker):
+        asked.append(ticker)
+        return books[ticker]
+    settings = {"big_accounts": {"strategies": ["F", "G", "C"]}}
+    strats = k.strategies({})
+    st = kb.big_step(settings, [(ev, view)], strats, {}, 1_000.0, lambda t, m: None, book_of)
+    f, g, c = st["F1000"], st["G1000"], st["C1000"]
+    assert f["start"] == 1000 and "MID" in f["positions"] and asked.count("MID") == 1   # one book read, shared
+    pf = f["positions"]["MID"]
+    assert 95 < pf["cost"] <= 100 and pf["fill"]["top"] == 0.62 and pf["price"] > 0.62
+    assert [p for p, _ in pf["fill"]["levels"]] == [0.62, 0.63, 0.64, 0.65]          # it walked the book
+    assert abs(f["cash"] + pf["cost"] - 1000) < 1e-9
+    pg = g["positions"]["MID"]                                                       # G gets what F left at 65c or less
+    assert [p for p, _ in pg["fill"]["levels"]] == [0.65] and 10 < pg["cost"] < 100
+    used = sum(n for p in (pf, pg) for _, n in p["fill"]["levels"])
+    assert used == 60 + 50 + 40 + 60                                                 # all of it, never more
+    assert "MID" not in c["positions"] and c["thin"] == 1                            # nothing left at C's limit: skipped
+    assert c["positions"]["LOW"]["side"] == "no" and c["positions"]["LOW"]["fill"]["top"] == 0.86
+    # settle: a win pays $1 a contract, the record keeps the fill
+    cache = {"MID": {"result": "yes", "status": "finalized"}}
+    st = kb.big_step(settings, [], strats, cache, 90_000.0, lambda t, m: None, book_of)
+    r = st["F1000"]["results"][0]
+    assert r["won"] and abs(r["profit"] - (pf["count"] - pf["cost"])) < 1e-9 and r["fill"]["top"] == 0.62
+    assert kb.status_rows(settings)[0].startswith('RESULT {"strategy": "F1000"')
+    # the old $100 accounts don't change: same check through step(), with the order book faked away
+    monkeypatch.setattr(k, "weather_views", lambda events, now, state: [(ev, view)])
+    k.step({"mode": "practice", "practice_cash": 100, **settings}, lambda t, m: None, events=[ev])
+    old = json.loads(Path("kalshi_state_practice.json").read_text())
+    assert old["variants"]["F"]["start"] == 100 and old["variants"]["F"]["cash"] > 90

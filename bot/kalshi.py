@@ -744,7 +744,8 @@ def settle(acct: dict, tell, tag: str, now: float, cache: dict, label: str = "")
             acct.setdefault("results", []).append({"t": now, "title": p["title"], "kind": p["kind"], "won": won,
                                                    "profit": profit, "fair": p.get("fair"), "price": p["price"],
                                                    "ticker": ticker, "side": p["side"], "event": p.get("event"),
-                                                   "opened": p.get("opened"), "count": p["count"], "cost": p["cost"]})
+                                                   "opened": p.get("opened"), "count": p["count"], "cost": p["cost"],
+                                                   **({"fill": p["fill"]} if "fill" in p else {})})
             tell(f"{'✅' if won else '❌'} {tag}Kalshi {'WON' if won else 'LOST'}: {profit:+,.2f}",
                  f"{label}{p['title']} ({p['count']} {p['side'].upper()} at {p['price'] * 100:.0f}¢): settled "
                  f"{m['result'].upper()}. Account {money(acct['cash'] + sum(q['cost'] for q in positions.values()))}.")
@@ -970,6 +971,12 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
             else:
                 n = trade(state["variants"][k], ideas, settings, lambda t, m, k=k: quiet(f"[{k}] {t}", m), "PRACTICE ", now)
                 summary.append(f"{k}:{n}")
+        try:                                              # the $1,000 accounts: same ideas, real order-book fills
+            from .kalshi_big import big_step
+
+            big_step(settings, views, strats, cache, now, quiet, None if scan_all else (lambda t: {}))
+        except Exception as e:
+            log.warning("$1,000 accounts failed: %s", e)
         due = None
         try:
             from .solbot import report_due
@@ -1014,6 +1021,12 @@ def status_text(settings: dict) -> str:
         lines += ["RESULT " + json.dumps({"strategy": key, **r}, default=str) for r in acct.get("results", [])]
         lines += ["OPEN " + json.dumps({"strategy": key, "ticker": t, **p}, default=str)
                   for t, p in (acct.get("positions") or {}).items()]
+    try:
+        from .kalshi_big import status_rows
+
+        lines += status_rows(settings)
+    except Exception as e:
+        lines.append(f"($1,000 accounts unreadable: {e})")
     graded = {st: {h: v for h, v in c.items()} for st, c in (state.get("calib") or {}).items()}
     lines.append("GRADED " + json.dumps(graded))
     return "\n".join(lines)
