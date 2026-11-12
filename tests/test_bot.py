@@ -4354,3 +4354,55 @@ def test_super_bots_trades_get_a_real_price_check_next_to_the_lab():
                  {"mint": "B", "in": 100, "out": 90, "sell_ok": True, "sold": 5000, "lab_ret": 0.0}]
     line = lab.check_lines(5100.0)[0]
     assert line.startswith("• Super bot at real prices") and "+0.0% a trade vs the lab's +10.0% on the same trades" in line
+
+
+def test_research_log_marks_naming_waves_news_names_and_paid_promotions(tmp_path):
+    import asyncio
+
+    from bot import coin_log as cl
+
+    lg = cl.CoinLog(data_dir=tmp_path)
+    for i, (t, name, sym) in enumerate(((1000, "Lobster Moon", "LMOON"), (1100, "Baby Lobster", "BLOB"),
+                                        (1200, "Lobster Classic", "LOBC"), (1300, "Lobster Party", "LPARTY"))):
+        lg.on_event(float(t), {"kind": "create", "mint": f"M{i}", "creator": "C", "name": name, "symbol": sym})
+    assert [lg.tracks[f"M{i}"].ctx.get("wv", 0) for i in range(4)] == [0, 1, 2, 3]     # earlier launches only
+    lg.on_event(2950.0, {"kind": "create", "mint": "M9", "creator": "C", "name": "Lobster Late", "symbol": "LLATE"})
+    assert lg.tracks["M9"].ctx.get("wv", 0) == 2 and lg.tracks["M9"].ctx.get("wv5", 0) == 0   # the windows moved on
+    lg.on_event(2990.0, {"kind": "create", "mint": "MP", "creator": "C", "name": "Pepe Moon", "symbol": "PEPE"})
+    assert lg.tracks["MP"].ctx.get("wv", 0) == 0          # "pepe", "moon": in every meme name, not a story
+    assert "tw" not in lg.tracks["M0"].ctx
+    lg.topics = {"musetti": "Lorenzo Musetti wins in Turin"}                  # a headline fetched before the launch
+    lg.on_event(4000.0, {"kind": "create", "mint": "MN", "creator": "C", "name": "Musetti", "symbol": "MUSETTI"})
+    assert lg.tracks["MN"].ctx["tw"] == 1 and lg.tracks["MN"].ctx["tk"] == "musetti"
+    assert lg.tags("MN")["tw"] == 1 and lg.tags("nope") == {}
+
+    class Resp:
+        def __init__(self, d): self.d = d
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def json(self, content_type=None): return self.d
+
+    class Session:
+        def get(self, url, timeout=None):
+            return Resp([{"chainId": "solana", "tokenAddress": "MN"}, {"chainId": "base", "tokenAddress": "M0"}])
+    import time as _t
+    lg.tracks["MN"].t0 = _t.time() - 90
+    asyncio.run(lg.poll_promos(Session(), _t.time() + 0.01, every=0.01))
+    assert 85 <= lg.tracks["MN"].pf <= 120 and lg.tracks["M0"].pf is None
+    assert lg.tracks["MN"].row().get("pf") is not None and lg.tracks["MN"].row()["tw"] == 1
+
+
+def test_brain_finds_an_edge_that_exists_only_on_news_named_coins():
+    import random
+
+    from bot import brain
+
+    rows = _synthetic_bets(noise_mean=-0.05, seed=7)
+    rng = random.Random(8)
+    for r in rows:
+        r["tw"] = 1 if rng.random() < 0.3 else 0
+        if r["k"] == "s1" and r["tw"]:                    # strategy s1 wins only on coins named after the news
+            r["r"] = 0.38 if rng.random() < (0.12 + 0.07) / 0.45 else -0.07
+    tm = brain.timing_map(rows, dict(brain.DEFAULTS))
+    assert tm["approved"] == ["s1|news"]
+    assert brain.window_label("news", brain.DEFAULTS).startswith("on coins named after")

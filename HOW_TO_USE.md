@@ -624,3 +624,11 @@ these hold, and even then it needs the owner's word and a change by hand (nothin
 3. A profit lock: once the account doubles, the original money is moved out and only winnings stay in play.
 4. Small first: the sniper's limits (`sniper.yaml`), tighter slippage (see bot/TODO.md), the 2 am-style condition.
 The weekly summary says how far it is from point 1.
+
+**News and naming waves (Nov 12):** the research log also records, for every new coin, whether its name or ticker
+matches a current headline or Google trend (the same feeds and rules as `bot/news.py`, only headlines fetched before
+the launch), how many coins with the same name word launched in the last 5 and 30 minutes (a copycat wave: a hot
+story on pump.fun, news or not; filler words like "pepe" or "moon" don't count), and when a coin it follows shows up
+on DEX Screener's paid profiles or boosts. The coin model and the launch rug filter use them, and the strict test
+judges every strategy on news-named coins and on wave coins as windows of their own. An earlier test (3,000+ coins)
+found news-named coins lost money on average, so this is a question to answer, not an edge assumed.
