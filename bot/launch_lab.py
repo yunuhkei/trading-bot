@@ -62,6 +62,7 @@ STREAK_S, STREAK_TRADES = 1800, 5     # super bot 2: a strategy is hot when it m
 COOLED = 3                            # ...and it's dropped the moment its last 3 trades all lost (good stretches end fast)
 SIGN_EVERY = 300                      # the market-signs log: one row every 5 minutes, kept for KEEP_DAYS
 FAST_WATCH = "snipe"
+CHECKED = ("timing", "brain")    # super bots whose own trades get a real-price check (pump.fun test-runs, nothing sent)
 # the learning records (every strategy's record by hour and day, the time-of-day splits, the signs log) start over at
 # the mayhem fix: before it the lab was blind to mayhem coins crashing (from Nov 8 5:37 pm) or had stuck bets (before),
 # so the super bot would have learned from fake wins
@@ -449,6 +450,10 @@ class Lab:
         self._fast_state = state.get("fast")
         self.direct = None                                # the direct buyer (pump.fun test-runs, practice), set by run()
         self._direct_state = state.get("direct")
+        # a real-price check of each super bot's own trades: the same test-runs as the direct buyer, at the bot's own
+        # $250, kept apart from the sniper's check. Its numbers sit NEXT TO the lab's; the pretend accounts don't change
+        self.checks: dict = {}
+        self._checks_state = state.get("checks") or {}
         self.sniper = None                                # the sniper (REAL money, bot/sniper.py), set by run()
         self._sniper_state = state.get("sniper")
         self.clog = None                                  # the super bot's research log (bot/coin_log.py), set by run()
@@ -570,6 +575,26 @@ class Lab:
             self._buy(self.accts["brain"], tr.mint, now, why, via="model")
             self._buy(self.ghosts["brain"], tr.mint, now, why, via="model")
 
+    def check_lines(self, now: float, hourly: bool = True) -> list[str]:
+        """Each checked super bot at real prices: the last hour and since the check started, next to the lab."""
+        out = []
+        for k, ck in self.checks.items():
+            s, h = ck.summary(), ck.hour(now)
+            if not s["signals"]:
+                continue
+            name = STRATEGIES[k]["label"].split(" (")[0]
+            txt = f"• {name} at real prices (pump.fun test-runs, nothing sent): "
+            if hourly and h["sold"]:
+                txt += f"this hour {h['sold']} trades, {h['real']:+.1%} a trade" + (
+                    f" vs the lab's {h['lab']:+.1%}" if h["lab"] is not None else "") + "; "
+            txt += f"since it started {s['finished']} sold"
+            if s["real_ret"] is not None:
+                txt += f", {s['real_ret']:+.1%} a trade vs the lab's {s['lab_ret']:+.1%} on the same trades"
+            if s["unsellable"]:
+                txt += f", {s['unsellable']} couldn't be sold"
+            out.append(txt + ".")
+        return out
+
     def brain_line(self, now: float) -> str:
         a, g = self.accts["brain"], self.ghosts["brain"]
         took = [t for t in g.trades if now - (t["t"] + t["s"]) <= 3600]
@@ -600,6 +625,9 @@ class Lab:
         for sh in (self.fast, self.direct, self.sniper):
             if sh and a.ghost and a.key == FAST_WATCH:
                 sh.lab_buy(mint, now)
+        ck = None if a.ghost else self.checks.get(a.key)
+        if ck:
+            ck.lab_buy(mint, now)
 
     def _sell(self, a: Account, mint: str, now: float, why: str):
         if mint in a.positions and not a.positions[mint].get("selling"):
@@ -607,6 +635,9 @@ class Lab:
             for sh in (self.fast, self.direct, self.sniper):
                 if sh and a.ghost and a.key == FAST_WATCH:
                     sh.lab_sell(mint, now, why)
+            ck = None if a.ghost else self.checks.get(a.key)
+            if ck:
+                ck.lab_sell(mint, now, why)
 
     def fill(self, now: float, coin: Coin, stale: bool = False):
         """Fill every order on this coin whose time has come, at the coin's current reserves."""
@@ -644,6 +675,9 @@ class Lab:
         for sh in (self.fast, self.direct, self.sniper):
             if sh and a.ghost and a.key == FAST_WATCH:
                 sh.lab_result(coin.mint, profit / p["cost"])
+        ck = None if a.ghost else self.checks.get(a.key)
+        if ck:
+            ck.lab_result(coin.mint, profit / p["cost"])
         if a.ghost and a.key not in SUPER:                # the families' results, for the market-signs log
             f = self._win["fam"].setdefault(STRATEGIES[a.key].get("family", "?"), [0, 0.0])
             f[0] += 1
@@ -965,6 +999,7 @@ class Lab:
         for sh in (self.fast, self.direct, self.sniper):
             if sh:
                 lines.append(f"• {sh.line()}")
+        lines += self.check_lines(now, hourly=False)
         on = self.timing_on(now)
         hour = local_time(now).hour
         hour = f"{hour % 12 or 12}{'a' if hour < 12 else 'p'}"
@@ -1043,6 +1078,7 @@ class Lab:
         elif g2:
             lines.append(f"• Super bot 2 (copies what's hot): ${self.value(s2):,.0f}, {s2.pnl:+,.0f} so far.")
         lines.append(self.brain_line(now))
+        lines += self.check_lines(now)
 
         # the strategies, and the ones that keep winning the same hour
         pnl = {}
@@ -1131,6 +1167,7 @@ class Lab:
                 "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs, "clean_since": self.clean_since,
                 "marks_reset": True, "fast": self.fast.to_state() if self.fast else self._fast_state,
                 "direct": self.direct.to_state() if self.direct else self._direct_state,
+                "checks": {k: c.to_state() for k, c in self.checks.items()} if self.checks else self._checks_state,
                 "sniper": self.sniper.to_state() if self.sniper else self._sniper_state,
                 "clog": self.clog.to_state() if self.clog is not None else self._clog_state}
 
@@ -1160,6 +1197,7 @@ class Lab:
                 "shadow": self.ghost_state(), "plan": self.plan, "signs": self.signs, "clean_since": self.clean_since,
                 "marks_reset": True, "fast": self.fast.to_state() if self.fast else self._fast_state,
                 "direct": self.direct.to_state() if self.direct else self._direct_state,
+                "checks": {k: c.to_state() for k, c in self.checks.items()} if self.checks else self._checks_state,
                 "sniper": self.sniper.to_state() if self.sniper else self._sniper_state,
                 "clog": self.clog.to_state() if self.clog is not None else self._clog_state}
 
@@ -1175,6 +1213,7 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
     fast_session = aiohttp.ClientSession() if (lab.fast or lab.direct) else None
     fast_task = asyncio.create_task(lab.fast.run(fast_session, end)) if lab.fast else None
     direct_task = asyncio.create_task(lab.direct.run(fast_session, end)) if lab.direct else None
+    check_tasks = [asyncio.create_task(c.run(fast_session, end)) for c in lab.checks.values()] if fast_session else []
     sniper_session = aiohttp.ClientSession() if lab.sniper else None
     if lab.sniper:
         for mint in list(lab.sniper.open):                  # anything left from a run that was killed: sell it now
@@ -1240,7 +1279,7 @@ async def listen(lab: Lab, seconds: float, report_every: float = 1800, hello_aft
     for t in (sol_task, brain_task):
         if t:
             t.cancel()
-    shadows = [t for t in (fast_task, direct_task) if t]
+    shadows = [t for t in (fast_task, direct_task, *check_tasks) if t]
 
     async def sniper_end():                                 # real money first: never kept waiting for practice
         if sniper_task:
@@ -1330,6 +1369,9 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
     lab.direct = DirectBuyer(state.get("direct"), lab.sol_usd)
     lab.direct.fee = lambda mint: lab.coins[mint].fee if mint in lab.coins else None
     lab.direct.program_of = lab.token_programs.get
+    for k in CHECKED:                                   # the super bots' own trades, at real prices, at their $250
+        ck = lab.checks[k] = DirectBuyer((state.get("checks") or {}).get(k), lab.sol_usd, usd=PER_TRADE)
+        ck.fee, ck.program_of = lab.direct.fee, lab.token_programs.get
     from .sniper import Sniper, config as sniper_config
     from .solbot import KeyProblem, keypair
     try:
@@ -1358,6 +1400,7 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
         Path("lab_status.json").write_text(json.dumps({
             "days": {k: g.days for k, g in lab.ghosts.items() if g.days}, "signs": lab.signs, "activity": lab.activity,
             "fast": lab.fast.summary(), "direct": lab.direct.summary(), "direct_trades": lab.direct.trades,
+            "checks": {k: {"summary": c.summary(), "trades": c.trades} for k, c in lab.checks.items()},
             "super_trades": {k: lab.accts[k].trades for k in SUPER if k in lab.accts},
             "sniper": lab.sniper.to_state()}))
         print(lab.fast.line(), lab.direct.line(), lab.sniper.line(), sep="\n", flush=True)
