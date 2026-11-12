@@ -31,11 +31,18 @@ const IND_MOJ={x0:3150,z0:2150,x1:3600,z1:2420};        /* Mojave Works: a deser
 const CITY_VEG={x0:3960,z0:1820,x1:4480,z1:2400};        /* Las Vegas: a neon casino strip in the south-east desert */
 const CITY_SAC={x0:70,z0:-2240,x1:540,z1:-1800};         /* Sacramento: a brick capital city with a domed capitol, north of the ring */
 const CITY_SJ={x0:-380,z0:-930,x1:240,z1:-450};          /* San Jose: glass tech campuses round a ring-shaped headquarters, inside the ring */
-const TERRACES=[[-190,-3125,380,85]];                   /* flattened sites: x,z,radius,height */
-const ZONES=[{b:TOWN_PAC,c:[.30,.27,.22]},{b:TOWN_FRE,c:[.26,.24,.19]},{b:TOWN_BAR,c:[.33,.27,.19]},{b:TOWN_BIG,c:[.2,.2,.19]},{b:IND_HAR,c:[.2,.2,.2]},{b:IND_MOJ,c:[.25,.23,.2]},{b:CITY_VEG,c:[.3,.25,.19],d:.85},{b:CITY_SAC,c:[.19,.2,.17],d:.8},{b:CITY_SJ,c:[.2,.22,.2],d:.8}];   /* ground colour (linear) inside each */
+/* batch 8: four more towns on the long empty highways (each joined to the network at two points, so the highway runs through a town instead of past nothing) */
+const TOWN_GIL={x0:-900,z0:1750,x1:-560,z1:2050};      /* Gilroy: a farm town between the ring and the coast road */
+const TOWN_IND={x0:1950,z0:1950,x1:2250,z1:2250};       /* Indio: a desert town between the southern highway and the east loop */
+const TOWN_HES={x0:2380,z0:-300,x1:2720,z1:40};         /* Hesperia: on the east highway to Barstow, on a levelled shelf */
+const TOWN_TAH={x0:500,z0:-3000,x1:820,z1:-2720};       /* Tahoe: a pine village in the northern foothills, between Big Pines and the pass */
+const TOWN_BIS={x0:1850,z0:-3050,x1:2150,z1:-2800};      /* Bishop: a mountain town on the new northern highway from Tahoe to the canyon rim */
+const TERRACES=[[-190,-3125,380,85],[2550,-130,380,18],[660,-2860,360,70],[2000,-2925,330,155]];                   /* flattened sites: x,z,radius,height */
+const ZONES=[{b:TOWN_PAC,c:[.30,.27,.22]},{b:TOWN_FRE,c:[.26,.24,.19]},{b:TOWN_BAR,c:[.33,.27,.19]},{b:TOWN_BIG,c:[.2,.2,.19]},{b:IND_HAR,c:[.2,.2,.2]},{b:IND_MOJ,c:[.25,.23,.2]},{b:CITY_VEG,c:[.3,.25,.19],d:.85},{b:CITY_SAC,c:[.19,.2,.17],d:.8},{b:CITY_SJ,c:[.2,.22,.2],d:.8},{b:TOWN_GIL,c:[.27,.25,.19],d:.7},{b:TOWN_IND,c:[.33,.28,.2],d:.7},{b:TOWN_HES,c:[.29,.26,.2],d:.7},{b:TOWN_TAH,c:[.2,.2,.19],d:.7},{b:TOWN_BIS,c:[.22,.21,.19],d:.7}];   /* ground colour (linear) inside each */
 const FIELDS=[];                                        /* farm fields: {b,c:[[r,g,b],[r,g,b]]} (filled in with the farm roads) */
 const FARMS=[];                                         /* {x,z,cs,sn}: a barn, silo, house and shed */
-const SAFEHOUSES=[],REPAIRS=[];   /* REPAIRS: the drive-through repair shops (batch 7), picked beside the main roads by pickRepairs() */                                    /* {id,name,x,z,yaw} filled in by defineWorld */
+const SAFEHOUSES=[],REPAIRS=[],RSTOPS=[];   /* RSTOPS (batch 8): roadside stops on the long empty roads: gas stations, diners, motels, a few houses */
+//   /* REPAIRS: the drive-through repair shops (batch 7), picked beside the main roads by pickRepairs() */                                    /* {id,name,x,z,yaw} filled in by defineWorld */
 const inBox=(x,z,B,m)=>x>B.x0-m&&x<B.x1+m&&z>B.z0-m&&z<B.z1+m;
 function baseH(x,z){
   let h=9+(fbm(x*.0011,z*.0011,3,4)-.5)*15;
@@ -164,9 +171,9 @@ function minRadius(r,k){const n=r.n,lo=r.closed?0:Math.max(k,30),hi=r.closed?n:n
 function landOK(r){for(let i=0;i<r.n;i+=2)if(baseH(r.X[i],r.Z[i])<2.4)return false;return true}
 function segX(ax,az,bx,bz,cx,cz,dx,dz){const den=(bx-ax)*(dz-cz)-(bz-az)*(dx-cx);if(Math.abs(den)<1e-9)return null;const t=((cx-ax)*(dz-cz)-(cz-az)*(dx-cx))/den,u=((cx-ax)*(bz-az)-(cz-az)*(bx-ax))/den;return(t>=0&&t<=1&&u>=0&&u<=1)?[ax+t*(bx-ax),az+t*(bz-az)]:null}
 function trimTo(pts,par){for(let i=0;i<pts.length-1;i++)for(let k=0;k<par.n-1;k++){const p=segX(pts[i][0],pts[i][1],pts[i+1][0],pts[i+1][1],par.X[k],par.Z[k],par.X[k+1],par.Z[k+1]);if(p)return pts.slice(0,i+1).concat([[p[0],p[1]]])}return pts}
-const DISTRICT_BOXES=[CITY,VALLEY,BEACH,RESORT,PARK,TOWN_PAC,TOWN_FRE,TOWN_BAR,TOWN_BIG,IND_HAR,IND_MOJ,CITY_VEG,CITY_SAC,CITY_SJ];
+const DISTRICT_BOXES=[CITY,VALLEY,BEACH,RESORT,PARK,TOWN_PAC,TOWN_FRE,TOWN_BAR,TOWN_BIG,IND_HAR,IND_MOJ,CITY_VEG,CITY_SAC,CITY_SJ,TOWN_GIL,TOWN_IND,TOWN_HES,TOWN_TAH,TOWN_BIS];
 /* every city, town and industrial area with the boulevard round it (the network test routes between every pair of them) */
-const PLACES=[{name:'Downtown',road:'sfp',box:CITY},{name:'The Valley',road:'lap',box:VALLEY},{name:'Santa Cruz',road:'btp',box:BEACH},{name:'Palm Springs',road:'psp',box:RESORT},{name:'Pacifica',road:'pacp',box:TOWN_PAC},{name:'Fresno',road:'frep',box:TOWN_FRE},{name:'Barstow',road:'barp',box:TOWN_BAR},{name:'Big Pines',road:'bigp',box:TOWN_BIG},{name:'Harbor',road:'harp',box:IND_HAR},{name:'Mojave Works',road:'mojp',box:IND_MOJ},{name:'Las Vegas',road:'vegp',box:CITY_VEG},{name:'Sacramento',road:'sacp',box:CITY_SAC},{name:'San Jose',road:'sjp',box:CITY_SJ}];
+const PLACES=[{name:'Downtown',road:'sfp',box:CITY},{name:'The Valley',road:'lap',box:VALLEY},{name:'Santa Cruz',road:'btp',box:BEACH},{name:'Palm Springs',road:'psp',box:RESORT},{name:'Pacifica',road:'pacp',box:TOWN_PAC},{name:'Fresno',road:'frep',box:TOWN_FRE},{name:'Barstow',road:'barp',box:TOWN_BAR},{name:'Big Pines',road:'bigp',box:TOWN_BIG},{name:'Harbor',road:'harp',box:IND_HAR},{name:'Mojave Works',road:'mojp',box:IND_MOJ},{name:'Las Vegas',road:'vegp',box:CITY_VEG},{name:'Sacramento',road:'sacp',box:CITY_SAC},{name:'San Jose',road:'sjp',box:CITY_SJ},{name:'Gilroy',road:'gilp',box:TOWN_GIL},{name:'Indio',road:'indp',box:TOWN_IND},{name:'Hesperia',road:'hesp',box:TOWN_HES},{name:'Tahoe',road:'tahp',box:TOWN_TAH},{name:'Bishop',road:'bisp',box:TOWN_BIS}];
 /* road ends that are meant to lead nowhere */
 const DEAD_OK=['pierhead'];
 function clearOf(r){const lo=r.closed?0:170;for(let i=0;i<r.n;i+=2){if(!r.closed&&(r.S[i]<lo||r.len-r.S[i]<lo))continue;for(const B of DISTRICT_BOXES)if(inBox(r.X[i],r.Z[i],B,46))return false}return true}

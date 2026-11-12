@@ -4,7 +4,7 @@
 //  - numbers: cars alive vs target, speed against the limit, turns taken, lane changes, deadlock breakers used, CPU per tick
 // usage: node racer/tests/rtraffic.js            (SECS=150 to change the length, ONLY=sfnu3,ring to pick places)
 const L=require('./rlib.js');
-const places=[['sfnu3',.5,'downtown'],['lau1',.5,'valley'],['ring',.3,'ring'],['mp',.4,'mountain pass'],['cr',.3,'coast road'],['eh',.5,'east highway'],['bigu1',.5,'Big Pines'],['harp',.3,'harbour'],['psu1',.5,'Palm Springs'],['mh',.5,'Mulholland'],['vegu2',.5,'Las Vegas'],['sacu2',.5,'Sacramento'],['sju2',.4,'San Jose']];
+const places=[['sfnu3',.5,'downtown'],['lau1',.5,'valley'],['ring',.3,'ring'],['mp',.4,'mountain pass'],['cr',.3,'coast road'],['eh',.5,'east highway'],['bigu1',.5,'Big Pines'],['harp',.3,'harbour'],['psu1',.5,'Palm Springs'],['mh',.5,'Mulholland'],['vegu2',.5,'Las Vegas'],['sacu2',.5,'Sacramento'],['sju2',.4,'San Jose'],['gilu1',.5,'Gilroy'],['tahu1',.5,'Tahoe'],['bisu1',.5,'Bishop'],['nt1',.5,'north highway']];
 const only=process.env.ONLY?process.env.ONLY.split(','):null,SECS=+(process.env.SECS||150),SEED=+(process.env.SEED||20240601);
 (async()=>{
   const T=await L.launch({q:'go=1&scale=.4&fixed=1',w:300,h:200,mobile:false,traffic:true});

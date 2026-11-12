@@ -190,3 +190,9 @@ Small differences from rounding are fine; a change of more than about 10 percent
 
 * `rrepair`: 14 shops, at least 1,124 m apart; at every one the bot (from the road, 13 m/s) is fixed 2.5-3.5 s after the start, at most a scrape under 11 km/h on a wall. `rbudget` unchanged (the shops are in the prop cells), `rbot` at 34 m/s on the eight roads with shops: all completed, no hits.
 
+## Map baseline (batch 8)
+
+* 219 roads, one connected network, no new dead ends; `netcheck`: no new road overlaps its parent (the junction mouths are the usual 52-56 m, the old exceptions are unchanged); `rnet`, `lanecheck`, `rsig`, `rsafe`, `rrepair` pass.
+* `rtraffic` (90 s) at Gilroy, Tahoe, Bishop, the northern highway and the east highway: all pass (0-2 wrecks, 4.5 m worst off lane). `rbot` at 24 and 34 m/s on the 10 new roads and the 5 new boulevards: all completed, no hits, no flights.
+* `rbudget` with the new towns and stops: Low downtown 135 draws / 102k triangles (limit 146 / 113k), Medium 195 / 154k (210 / 160k), High 221 / 166k (240 / 167k: close to the limit).
+

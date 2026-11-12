@@ -48,12 +48,23 @@ function pickRepairs(){REPAIRS.length=0;const L=17,W2=7.5;
         for(const e of[-1,1])for(let f=0;f<=1&&okk;f+=.1){const a=e*(L*.5+3+12*(1-f)),b=-(off-r.hw-RSH)*(1-f)-W2*.2*f,px=cx+t[0]*a+nx*sd*b,pz=cz+t[1]*a+nz*sd*b,h=terrainH(px,pz);if(Math.abs(h-y)>.9)okk=false}
         if(!okk)continue;for(let a=-1;a<=1&&okk;a+=.25)if(otherAsphalt(cx+t[0]*a*L,cz+t[1]*a*L,r,y,4))okk=false;if(!okk)continue;
         REPAIRS.push({id:'rp'+REPAIRS.length,x:cx,z:cz,cs:t[0],sn:t[1],side:sd,road:r.id,y,L,W:W2});break}}}}
+/* ROADSIDE STOPS (batch 8): something every 650 m along the long roads outside the towns, where the land beside the road is level: a gas station, a diner, a motel or a few houses,
+   set back from the road on a gravel lot, with a sign you can see from far away. Away from towns (450 m), junctions, garages, repair shops, farms and each other. */
+function pickStops(){RSTOPS.length=0;const hl=23,hw=15;
+  const built=(x,z)=>DISTRICT_BOXES.some(B=>inBox(x,z,B,300))||FIELDS.some(f=>inBox(x,z,f.b,40));
+  const far=(x,z)=>RSTOPS.every(p=>Math.hypot(p.x-x,p.z-z)>520)&&REPAIRS.every(p=>Math.hypot(p.x-x,p.z-z)>260)&&SAFEHOUSES.every(s=>Math.hypot(s.x-x,s.z-z)>220)&&JUNC.every(J=>Math.hypot(J.x-x,J.z-z)>110)&&FARMS.every(f=>Math.hypot(f.x-x,f.z-z)>200);
+  for(const r of ROADS){if(r.city||r.n*r.ds<700||/^(rim|lookout|pier|pierhead)$/.test(r.id))continue;const st=Math.round(260/r.ds),m=Math.round(90/r.ds);
+    for(let i=m;i<r.n-m;i+=st){if(r.br[i])continue;const t=_tan(r,i),nx=-t[1],nz=t[0],y=r.Y[i],k=(Math.imul(i+7,2654435761)^Math.imul(r.id.length*131+r.n,40503))>>>0;
+      for(const sd of(k&1?[1,-1]:[-1,1])){const off=r.hw+RSH+hw+9,cx=r.X[i]+nx*sd*off,cz=r.Z[i]+nz*sd*off;if(built(cx,cz)||!far(cx,cz))continue;let okk=true;
+        let lo=1e9,hi=-1e9;for(let a=-1;a<=1&&okk;a+=.25)for(const b of[-1,-.4,.3,1]){const px=cx+t[0]*a*hl+nx*sd*b*hw,pz=cz+t[1]*a*hl+nz*sd*b*hw,h=terrainH(px,pz);lo=Math.min(lo,h);hi=Math.max(hi,h);if(h<2||Math.abs(h-y)>4.5){okk=false;break}}if(hi-lo>5)okk=false;
+        if(!okk)continue;for(let a=-1;a<=1&&okk;a+=.5)for(const b of[-1,0,1])if(otherAsphalt(cx+t[0]*a*hl+nx*sd*b*hw,cz+t[1]*a*hl+nz*sd*b*hw,r,y,3))okk=false;if(!okk)continue;
+        RSTOPS.push({x:cx,z:cz,cs:t[0],sn:t[1],side:sd,kind:[0,1,2,3,0,2,1,0][k%8],seed:k,y,hl,hw,road:r.id});break}}}}
 function railPass(){
-  pickRepairs();
+  pickRepairs();pickStops();
   if(!RAILS){for(const r of ROADS)r.rail.fill(0);return}
   /* junctions: where a road starts or ends on another road */
   /* rails open at every junction (JUNC: where a road end sits on another road, both roads) and in front of every garage */
-  const jz=[];for(const J of JUNC)jz.push(J.x,J.z,J.rad+62);for(const s of SAFEHOUSES)jz.push(s.x,s.z,46);for(const p of REPAIRS)jz.push(p.x,p.z,66);
+  const jz=[];for(const J of JUNC)jz.push(J.x,J.z,J.rad+62);for(const s of SAFEHOUSES)jz.push(s.x,s.z,46);for(const p of REPAIRS)jz.push(p.x,p.z,66);for(const p of RSTOPS)jz.push(p.x,p.z,44);
   const nearJ=(x,z)=>{for(let q=0;q<jz.length;q+=3){if((jz[q]-x)**2+(jz[q+1]-z)**2<jz[q+2]*jz[q+2])return true}return false};
   for(const r of ROADS){const n=r.n,raw=new Uint8Array(n);
     for(let i=0;i<n;i++){const a=(i+1<n?i+1:i),b=(i>0?i-1:i);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;const nx=-tz,nz=tx,off=r.hw+RSH+7;let m=0;

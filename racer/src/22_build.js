@@ -453,6 +453,33 @@ function buildCity(){
      pboxR(1,q[0],q[1],2.2,.18,cs,sn,y+6,y+9.2,30,90,220,false,1);const f=[nx*-p.side*.2,nz*-p.side*.2];pboxR(1,q[0]+f[0],q[1]+f[1],1.3,.1,cs,sn,y+7.35,y+7.85,250,252,255,2,1);pboxR(1,q[0]+f[0],q[1]+f[1],.25,.1,cs,sn,y+6.4,y+8.8,250,252,255,2,1);
      NEONS.push(q[0],y+7.6,q[1],.7,.85,1,4)}
     p.gy=gy}
+  /* roadside stops (batch 8): u along the road, v away from it (v 0 is the middle of the lot, the road is at v = -(hw+9)) */
+  const RSC=[[205,60,50],[230,190,70],[60,120,200],[40,150,90],[200,200,205],[180,90,40],[120,60,140]];
+  for(const p of RSTOPS){const cs=p.cs,sn=p.sn,ax=-sn*p.side,az=cs*p.side,W=(u,v)=>[p.x+cs*u+ax*v,p.z+sn*u+az*v],rg=mulberry(p.seed|0),col=RSC[p.seed%RSC.length],cA=Math.atan2(sn,cs);
+    const Bx=(u,v,hu,hv,y0,h,c,win)=>{const q=W(u,v),y=y0==null?terrainH(q[0],q[1]):y0;pboxR(1,q[0],q[1],hu,hv,cs,sn,y-1.2,y+h,c[0],c[1],c[2],win,.62);COLO.push(q[0],q[1],hu,hv,cs,sn,y+h);return y};
+    const deco=(u,v,hu,hv,y,h,c,fl)=>{const q=W(u,v);pboxR(1,q[0],q[1],hu,hv,cs,sn,y,y+h,c[0],c[1],c[2],fl||false,1)};
+    /* the lot: gravel, a strip of asphalt to the road */
+    for(let u=-p.hl;u<=p.hl;u+=8)for(let v=-p.hw;v<=p.hw;v+=8){const q=W(u,v),y=terrainH(q[0],q[1]);pboxR(1,q[0],q[1],4.2,4.2,cs,sn,y+.01,y+.035,96,92,84,false,1)}
+    for(let v=-p.hw-8;v<-p.hw;v+=3){const q=W(-6,v),y=terrainH(q[0],q[1]);pboxR(1,q[0],q[1],5,1.6,cs,sn,y+.012,y+.04,70,70,74,false,1)}
+    /* a sign on a tall pole by the road: a coloured board that glows */
+    const sign=(u,c,label)=>{const q=W(u,-p.hw-4),y=terrainH(q[0],q[1]);pbox(1,q[0],y-.4,q[1],.18,y+9,.18,190,190,196,false,.8);COLC.push(q[0],q[1],.3,y-.5,y+9);
+      const t=W(u,-p.hw-4.1);pboxR(1,t[0],t[1],2.6,.2,cs,sn,y+7,y+10,c[0],c[1],c[2],false,1);pboxR(1,t[0],t[1],2.2,.24,cs,sn,y+8.2,y+8.8,255,250,230,2,1);NEONS.push(t[0],y+8.5,t[1],c[0]/255,c[1]/255,c[2]/255,4.5)};
+    if(p.kind==0){/* gas station: a canopy on four pillars over two pump islands, the shop behind */
+      const gy=terrainH(p.x,p.z);for(const u of[-7,7])for(const v of[-6,2]){const q=W(u,v);pbox(1,q[0],gy-.4,q[1],.25,gy+5,.25,230,230,235,false,.8);COLC.push(q[0],q[1],.35,gy-.5,gy+5)}
+      deco(0,-2,9.5,6.5,gy+5,.7,col,false);deco(0,-2,9.6,6.6,gy+5.7,.15,[245,245,245]);for(const u of[-7,7])deco(0,-2,.1,6.4,gy+4.9,.1,[255,250,230],2);
+      for(const u of[-4,4]){const q=W(u,-2);pboxR(1,q[0],q[1],2.2,.5,cs,sn,gy,gy+.25,120,120,125,false,1);for(const w of[-1.2,1.2]){const e=W(u+w,-2);pboxR(1,e[0],e[1],.3,.35,cs,sn,gy+.25,gy+1.8,col[0],col[1],col[2],false,1)}COLO.push(q[0],q[1],2.2,.6,cs,sn,gy+1.8)}
+      Bx(0,10,9,4,null,4.2,[226,222,214],true);deco(0,10-4.05,9,.05,terrainH(...W(0,6))+3.2,.8,col);sign(p.hl-4,col)}
+    else if(p.kind==1){/* diner: a long low building with a stripe and a big sign, a few parked boxes */
+      const y=Bx(-3,4,11,5,null,4.4,[236,232,224],true);deco(-3,4-5.05,11,.05,y+2.9,.6,col);deco(-3,4,11.4,5.4,y+4.4,.35,[60,60,66]);sign(p.hl-5,col);
+      for(let k=0;k<4;k++){const c=RSC[(p.seed+k*3)%RSC.length],q=W(-12+k*6,-7),yy=terrainH(q[0],q[1]);pboxR(1,q[0],q[1],1,2.2,cs,sn,yy+.25,yy+1.35,c[0],c[1],c[2],false,.8);COLO.push(q[0],q[1],1,2.2,cs,sn,yy+1.3)}}
+    else if(p.kind==2){/* motel: two wings round a car park, a row of doors, a tall sign */
+      const y=Bx(-4,9,15,4,null,3.6,[222,210,186],true);Bx(13,0,4,8,null,3.6,[222,210,186],true);deco(-4,9,15.4,4.4,y+3.6,.3,col);
+      for(let k=0;k<8;k++){const q=W(-17+k*3.7,4.9),yy=terrainH(q[0],q[1]);pboxR(1,q[0],q[1],.5,.05,cs,sn,yy,yy+2.1,col[0]*.6,col[1]*.6,col[2]*.6,false,1)}sign(-p.hl+3,col)}
+    else{/* a few houses with pitched roofs */
+      for(let k=0;k<3;k++){const u=-15+k*15+(rg()-.5)*4,v=(rg()-.5)*8,c=RSC[(p.seed+k)%RSC.length],hc=[200+rg()*40,190+rg()*40,170+rg()*40],y=Bx(u,v,4.5,3.5,null,3,hc,true);const q=W(u,v);proofR(1,q[0],q[1],4.8,3.8,cs,sn,y+3,1.8,c[0]*.7,c[1]*.5,c[2]*.5,true)}}
+    /* a billboard behind the lot */
+    {const q=W(rg()*20-10,p.hw+6),y=terrainH(q[0],q[1]),c=RSC[(p.seed+5)%RSC.length];for(const u of[-3,3]){const e=W(rg()*0+(q===null?0:0)+u+(W(0,0)[0]*0),p.hw+6);void e}
+     for(const du of[-3,3]){const e=[q[0]+cs*du,q[1]+sn*du];pbox(1,e[0],y-.4,e[1],.15,y+5,.15,120,110,100,false,.8)}pboxR(1,q[0],q[1],4.5,.15,cs,sn,y+5,y+8,c[0],c[1],c[2],false,1);pboxR(1,q[0],q[1],4.2,.18,cs,sn,y+5.4,y+6.4,250,248,240,false,1)}}
   /* Golden Gate Park: dense trees round a lake, kept clear of the drive */
   {const pr=mulberry(909),lk=LAKES[0];let np=0;for(let x=PARK.x0+4;x<PARK.x1-4;x+=8)for(let z=PARK.z0+4;z<PARK.z1-4;z+=8){const px=x+(pr()-.5)*7,pz=z+(pr()-.5)*7;if(Math.hypot(px-lk[0],pz-lk[1])<lk[2]+5)continue;
     const gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(W.D8[gj*W.N+gi]<5||pr()<.25||nearRoadXZ(px,pz,8))continue;ptree(px,pz,pr,terrainH(px,pz),true);COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);np++}}
@@ -604,7 +631,8 @@ function buildRoadHash(){
     const c0=Math.max(0,Math.floor((x0+W.half)/cs)),c1=Math.min(nc-1,Math.floor((x1+W.half)/cs)),d0=Math.max(0,Math.floor((z0+W.half)/cs)),d1=Math.min(nc-1,Math.floor((z1+W.half)/cs));for(let b=d0;b<=d1;b++)for(let a=c0;a<=c1;a++)fn(b*nc+a,s)}};
   each(c=>cnt[c+1]++);for(let k=0;k<nc*nc;k++)cnt[k+1]+=cnt[k];QH.st=cnt;QH.li=new Int32Array(cnt[nc*nc]);const fill=cnt.slice(0,nc*nc);each((c,s)=>{QH.li[fill[c]++]=s})}
 /* is this spot on or right beside any road (any height, bridges included)? used to keep trees and houses off roads and their ramps */
-function nearRepair(x,z,m){for(const p of REPAIRS){const dx=x-p.x,dz=z-p.z,a=dx*p.cs+dz*p.sn,b=-dx*p.sn+dz*p.cs;if(Math.abs(a)<p.L*1.7+m&&Math.abs(b)<p.W+m+4)return true}return false}
+function nearRepair(x,z,m){for(const p of REPAIRS){const dx=x-p.x,dz=z-p.z,a=dx*p.cs+dz*p.sn,b=-dx*p.sn+dz*p.cs;if(Math.abs(a)<p.L*1.7+m&&Math.abs(b)<p.W+m+4)return true}
+  for(const p of RSTOPS){const dx=x-p.x,dz=z-p.z,a=dx*p.cs+dz*p.sn,b=-dx*p.sn+dz*p.cs;if(Math.abs(a)<p.hl+m+2&&Math.abs(b)<p.hw+m+2)return true}return false}
 function nearRoadXZ(x,z,m){if(REPAIRS.length&&nearRepair(x,z,m))return true;const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)/cs),cz=Math.floor((z+W.half)/cs);if(!QH.st||cx<0||cz<0||cx>=nc||cz>=nc)return false;const c=cz*nc+cx;
   for(let q=QH.st[c];q<QH.st[c+1];q++){const s=QH.li[q],r=ROADS[QH.segR[s]],i=QH.segI[s],j=i+1<r.n?i+1:0,ax=r.X[i],az=r.Z[i],dx=r.X[j]-ax,dz=r.Z[j]-az,l2=dx*dx+dz*dz||1;let t=((x-ax)*dx+(z-az)*dz)/l2;t=t<0?0:t>1?1:t;if(Math.hypot(x-ax-dx*t,z-az-dz*t)<r.hw*Math.min(r.wk[i],r.wk[j])+RSH+m)return true}return false}
 function buildQueries(){
