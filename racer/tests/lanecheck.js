@@ -5,7 +5,7 @@
 //  - lane count and link counts, build time
 const fs=require('fs');const R=require('path').join(__dirname,'..','src')+'/';
 global.window={addEventListener(){}};global.document={getElementById(){return null}};
-const src=['00_util.js','20_map.js','20_world.js','23_lanes.js'].map(f=>fs.readFileSync(R+f,'utf8').replace(/^'use strict';/,'')).join('\n');
+const src=['00_util.js','20_map.js','20_organic.js','20_world.js','23_lanes.js'].map(f=>fs.readFileSync(R+f,'utf8').replace(/^'use strict';/,'')).join('\n');
 const f=new Function(src+';defineRoads();const t0=Date.now();const st=lgBuild();return {ROADS,LG,st,ms:Date.now()-t0,laneInfo,LANE_W}');
 const M=f();const {ROADS,LG,st}=M;let bad=0;
 console.log('lane graph: '+st.edges+' lane edges, '+st.links+' links ('+st.crossovers+' median crossovers, '+st.straight+' straight/merge, '+st.right+' right, '+st.left+' left, '+st.uturns+' u-turns), '+st.laneKm.toFixed(0)+' lane-km, '+st.points+' points, '+(st.points*16/1e6).toFixed(1)+' MB, built in '+M.ms+' ms (node)');

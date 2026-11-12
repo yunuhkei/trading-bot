@@ -341,7 +341,7 @@ function trProbe(x,z){TRP.ri=-1;const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)
 /* how busy the roads are at a place (0..1) */
 function trDens(x,z,cls){
   if(inBox(x,z,CITY,60))return 1;if(inBox(x,z,VALLEY,60))return .9;if(inBox(x,z,BEACH,60)||inBox(x,z,RESORT,60))return .65;
-  for(const zn of ZONES)if(inBox(x,z,zn.b,60))return zn.d||.6;
+  for(const zn of ZONES)if(inZone(x,z,zn,60))return zn.d||.6;
   return cls>=3?.55:cls==2?.45:.36}   /* batch 5: more traffic out of town (was .4 / .3 / .22) */
 function trSeen(x,z){const dx=x-C.x,dz=z-C.z,d=Math.hypot(dx,dz);if(d<TR.visMin)return true;if(d>TR.visFar)return false;
   const hx=Math.sin(C.yaw),hz=-Math.cos(C.yaw);return(dx*hx+dz*hz)/d>.4}
@@ -350,7 +350,7 @@ function trSeen(x,z){const dx=x-C.x,dz=z-C.z,d=Math.hypot(dx,dz);if(d<TR.visMin)
 function trPickType(r1,r2,e,x,z){const civ=TTYPES.map((T,i)=>T.civ?i:-1).filter(i=>i>=0),cc=()=>civ[Math.floor(r2*civ.length)%civ.length],city=e.road.city,cls=e.cls;
   const old=r=>r<.4?0:r<.7?1:r<.9?2:3;
   if(!city){if(cls>=3)return r1<.06?7:r1<.12?9:r1<.42?cc():(r1<.6?3:r1<.75?2:r1<.9?0:1);return r1<.12?9:r1<.18?7:r1<.48?cc():old(r2)}
-  const big=inBox(x,z,CITY,40)||inBox(x,z,CITY_VEG,40),town=ZONES.some(zn=>zn.b!==CITY_VEG&&zn.b!==CITY_SAC&&zn.b!==CITY_SJ&&inBox(x,z,zn.b,40));
+  const big=inBox(x,z,CITY,40)||inBox(x,z,CITY_VEG,40),town=ZONES.some(zn=>zn.b!==CITY_VEG&&zn.b!==CITY_SAC&&zn.b!==CITY_SJ&&inZone(x,z,zn,40));
   if(r1<.05&&trBusStops(e).length)return 5;if(r1<.08)return 6;if(r1<.14)return 7;if(r1<(big?.32:.2))return 8;if(r1<(town?.38:.25))return 9;if(r1<.6)return cc();return old(r2)}
 /* bus stops: on the kerb lane of city streets and boulevards, about every 220 m, never within 35 m of a junction (u indices on the edge, made once) */
 function trBusStops(e){if(e.bstops)return e.bstops;const o=[];e.bstops=o;if(!e.road.city||e.closed&&false||e.k!=e.nl-1)return o;const G=LG.jg[e.ri*2+lgDirI(e.dir)]||[];

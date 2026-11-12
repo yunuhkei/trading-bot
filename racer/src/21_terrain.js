@@ -39,7 +39,7 @@ async function carveRoads(prog){
    approaches, away from junctions (120 m), garages (150 m), water, bridges and other asphalt; at least 1.1 km apart. */
 function pickRepairs(){REPAIRS.length=0;const L=17,W2=7.5;
   const far=(x,z,d)=>REPAIRS.every(p=>Math.hypot(p.x-x,p.z-z)>d)&&SAFEHOUSES.every(s=>Math.hypot(s.x-x,s.z-z)>150)&&JUNC.every(J=>Math.hypot(J.x-x,J.z-z)>120);
-  const built=(x,z)=>inBox(x,z,CITY,80)||inBox(x,z,VALLEY,80)||inBox(x,z,BEACH,80)||inBox(x,z,RESORT,80)||ZONES.some(zn=>inBox(x,z,zn.b,80))||FIELDS.some(f=>inBox(x,z,f.b,20));
+  const built=(x,z)=>inBox(x,z,CITY,80)||inBox(x,z,VALLEY,80)||inBox(x,z,BEACH,80)||inBox(x,z,RESORT,80)||ZONES.some(zn=>inZone(x,z,zn,80))||FIELDS.some(f=>inBox(x,z,f.b,20));
   for(const r of ROADS){if(r.city||r.hw<7||r.n*r.ds<900)continue;const st=Math.round(600/r.ds),m=Math.round(60/r.ds);
     for(let i=m;i<r.n-m;i+=st){if(r.br[i]||r.br[Math.max(0,i-8)]||r.br[Math.min(r.n-1,i+8)])continue;const t=_tan(r,i),nx=-t[1],nz=t[0],y=r.Y[i];
       for(const sd of[1,-1]){const off=r.hw+RSH+6.5,cx=r.X[i]+nx*sd*off,cz=r.Z[i]+nz*sd*off;if(built(cx,cz)||!far(cx,cz,1100))continue;let okk=true;
@@ -86,7 +86,7 @@ function genColors(){
       c=[lerp(gr[0],dg[0],dry*(.5+nz2*.6)),lerp(gr[1],dg[1],dry*(.5+nz2*.6)),lerp(gr[2],dg[2],dry*(.5+nz2*.6))];
       const forest=forestAt(x,z,h,sl,dr);if(forest)c=[.04+.02*nz1,.09+.03*nz1,.02];
       const inCity=inBox(x,z,CITY,10)||inBox(x,z,VALLEY,10)||inBox(x,z,BEACH,10)||inBox(x,z,RESORT,10);if(inCity)c=inBox(x,z,VALLEY,10)?[.2,.19,.17]:inBox(x,z,BEACH,10)?[.36+.03*nz1,.31+.03*nz1,.22]:inBox(x,z,RESORT,10)?[.33+.03*nz1,.27+.03*nz1,.18]:[.17,.165,.155];if(inBox(x,z,PARK,0))c=[.07+.03*nz1,.2+.05*nz1,.05];
-      for(const zn of ZONES)if(inBox(x,z,zn.b,10)){c=[zn.c[0]+.03*nz1,zn.c[1]+.03*nz1,zn.c[2]]}
+      for(const zn of ZONES){if(zn.shape){/* a natural town: its ground fades into the land round it */if(!inBox(x,z,zn.b,60))continue;const w=sstep(-45,25,zn.shape.sd(x,z))*(.3+.25*nz2);if(w>0)c=[lerp(c[0],zn.c[0]+.03*nz1,w),lerp(c[1],zn.c[1]+.03*nz1,w),lerp(c[2],zn.c[2],w)]}else if(inBox(x,z,zn.b,10)){c=[zn.c[0]+.03*nz1,zn.c[1]+.03*nz1,zn.c[2]]}}
       for(const fl of FIELDS)if(inBox(x,z,fl.b,0)){const sp=(((x*.06+z*.025)|0)&1)?fl.c[0]:fl.c[1];c=[sp[0]*(.9+.2*nz1),sp[1]*(.9+.2*nz1),sp[2]]}
       /* sand */const sd=1-sstep(2.2,5.5,h+nz1*2);if(sd>0)c=[lerp(c[0],.46,sd),lerp(c[1],.37,sd),lerp(c[2],.22,sd)];
       if(h<.3){const w=sstep(-1.5,.3,h);c=[lerp(.2,c[0],w),lerp(.17,c[1],w),lerp(.1,c[2],w)]}
@@ -98,7 +98,7 @@ function genColors(){
       const o=(j*CN+i)*4,s=sq(c[0],c[1],c[2]);col[o]=Math.min(255,s[0]*255);col[o+1]=Math.min(255,s[1]*255);col[o+2]=Math.min(255,s[2]*255);col[o+3]=255}}
 }
 function forestAt(x,z,h,sl,dr){if(h<7||h>300||sl>.5||dr<26)return false;if(inBox(x,z,CITY,80)||inBox(x,z,VALLEY,80)||inBox(x,z,PARK,40)||inBox(x,z,BEACH,60)||inBox(x,z,RESORT,60))return false;
-  for(const zn of ZONES)if(inBox(x,z,zn.b,70))return false;for(const fl of FIELDS)if(inBox(x,z,fl.b,12))return false;
+  for(const zn of ZONES)if(inZone(x,z,zn,70))return false;for(const fl of FIELDS)if(inBox(x,z,fl.b,12))return false;
   const f=fbm(x*.0042,z*.0042,21,3)*1.0+.12*sstep(-200,900,x)*sstep(100,-900,z)+(fbm(x*.02,z*.02,22,2)-.5)*.2;return f>.58+sstep(2500,3300,x)*.9}
 /* RGBA8 texture data for the GPU: 16-bit height in R/G */
 function heightTexData(){const N=W.N,hm=W.hm,o=new Uint8Array(N*N*4);for(let k=0;k<N*N;k++){let v=Math.round((hm[k]-W.hmin)/W.hrange*65535);v=v<0?0:v>65535?65535:v;o[k*4]=v>>8;o[k*4+1]=v&255;o[k*4+2]=0;o[k*4+3]=255}return o}

@@ -1,7 +1,7 @@
 // Network sanity: (1) roads lying on top of each other along their length, (2) dead ends, (3) disconnected pieces.
 const fs=require('fs');const R=require('path').join(__dirname,'..','src')+'/';
 global.window={addEventListener(){}};global.document={getElementById(){return null}};
-const src=['00_util.js','20_map.js','20_world.js'].map(f=>fs.readFileSync(R+f,'utf8').replace(/^'use strict';/,'')).join('\n');
+const src=['00_util.js','20_map.js','20_organic.js','20_world.js'].map(f=>fs.readFileSync(R+f,'utf8').replace(/^'use strict';/,'')).join('\n');
 const f=new Function(src+';defineRoads();return {ROADS,CITY,GRIDS}');
 const M=f();const roads=M.ROADS;const RSH=2.2;
 // samples grid

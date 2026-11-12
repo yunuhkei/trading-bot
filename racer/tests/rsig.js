@@ -3,7 +3,7 @@
 const fs=require('fs'),path=require('path');const R=path.join(__dirname,'..','src')+'/';
 global.window={addEventListener(){}};global.document={getElementById(){return null}};
 let bad=0;const ck=(ok,msg)=>{console.log((ok?'ok   ':'FAIL ')+msg);if(!ok)bad++};
-{const src=['00_util.js','20_map.js','20_world.js','23_lanes.js','24_signals.js'].map(f=>fs.readFileSync(R+f,'utf8').replace(/^'use strict';/,'')).join('\n');
+{const src=['00_util.js','20_map.js','20_organic.js','20_world.js','23_lanes.js','24_signals.js'].map(f=>fs.readFileSync(R+f,'utf8').replace(/^'use strict';/,'')).join('\n');
  const M=new Function(src+';defineRoads();lgBuild();const s=sigBuild();return {s,SIG,sigState,PLACES,ROADS}')();const {SIG,sigState}=M;
  let both=0,minAR=1e9,T0=1e9,T1=0;for(const I of SIG.I){T0=Math.min(T0,I.T);T1=Math.max(T1,I.T);let lastOpen=-1,ar=0,inAR=false;
    for(let t=0;t<I.T*2;t+=.05){const a=sigState({I,ph:0},t),b=sigState({I,ph:1},t);if(a<2&&b<2)both++;const open=a<2?0:b<2?1:-1;if(open<0){if(!inAR){inAR=true;ar=0}ar+=.05}else{if(inAR&&lastOpen>=0&&open!=lastOpen)minAR=Math.min(minAR,ar);inAR=false;lastOpen=open}}}

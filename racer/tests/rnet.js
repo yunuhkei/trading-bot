@@ -4,7 +4,7 @@ const fs=require('fs');const R=require('path').join(__dirname,'..','src')+'/';
 global.window={addEventListener(){}};global.document={getElementById(){return null}};
 const rd=f=>fs.readFileSync(R+f,'utf8').replace(/^'use strict';/,'');
 const nav=rd('65_nav.js'),navSrc=nav.slice(nav.indexOf('class NavHeap'),nav.indexOf('/* the road sample nearest'))+nav.slice(nav.indexOf('/* A*: the chain'),nav.indexOf('/* the turn links of a chain'));
-const src=['00_util.js','20_map.js','20_world.js','23_lanes.js'].map(rd).join('\n')+'\n'+navSrc;
+const src=['00_util.js','20_map.js','20_organic.js','20_world.js','23_lanes.js'].map(rd).join('\n')+'\n'+navSrc;
 const M=new Function(src+';defineRoads();const st=lgBuild();return {ROADS,LG,st,JUNC,PLACES,DEAD_OK,RSH,navAStar,navPolyline,_tan}')();
 const {ROADS,LG,JUNC,PLACES,DEAD_OK,RSH}=M;let bad=0;const ck=(ok,msg)=>{console.log((ok?'ok   ':'FAIL ')+msg);if(!ok)bad++};
 const proj=(r,x,z)=>{let bd=1e18,o=null;const c=r.closed?r.n:r.n-1;for(let k=0;k<c;k++){const j=(k+1)%r.n,ax=r.X[k],az=r.Z[k],ex=r.X[j]-ax,ez=r.Z[j]-az,l2=ex*ex+ez*ez||1;let t=((x-ax)*ex+(z-az)*ez)/l2;t=t<0?0:t>1?1:t;const d=Math.hypot(x-ax-ex*t,z-az-ez*t);if(d<bd){bd=d;const l=Math.sqrt(l2);o={d,k,j,t,y:r.Y[k]+(r.Y[j]-r.Y[k])*t,hw:r.hw*(r.wk[k]+(r.wk[j]-r.wk[k])*t),tx:ex/l,tz:ez/l,cf:r.cf[k]+(r.cf[j]-r.cf[k])*t}}}return o};

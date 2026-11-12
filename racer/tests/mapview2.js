@@ -1,7 +1,7 @@
 // Build the whole map in Node: stats per road (length, min curve radius, land), crossing check, overview picture.
 const fs=require('fs');const R=require('path').join(__dirname,'..','src')+'/';
 global.window={addEventListener(){}};global.document={getElementById(){return null}};
-const files=['00_util.js','20_map.js','20_world.js','21_terrain.js'];
+const files=['00_util.js','20_map.js','20_organic.js','20_world.js','21_terrain.js'];
 const src=files.map(f=>fs.readFileSync(R+f,'utf8').replace(/^'use strict';/,'')).join('\n');
 const f=new Function(src+';return (async()=>{const t0=Date.now();defineRoads();console.log("roads built",Date.now()-t0,"ms,",ROADS.length,"roads");await genHeight();await carveRoads();railPass();genColors();return {W,ROADS,baseH,terrainH,minRadius,CITY,PARK,VALLEY,MARKET,GRIDS,fixed:BRIDGES_ADDED}})()');
 (async()=>{

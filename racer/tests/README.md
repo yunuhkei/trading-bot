@@ -215,3 +215,11 @@ Small differences from rounding are fine; a change of more than about 10 percent
 
 * `revents` 9: Desert Race 2.7 km, the racers at 1,181-1,526 m after 30 s (43-54 m/s), the careful bot (46 m/s) 3rd or 4th in 1:31-1:37. 10: in a death race the racers hit a bot at 86 km/h 24 times in 30 s; T-boning one at 115 km/h wrecks it. 11: a street racer appears 180-220 m ahead and offers a race to Palm Springs.
 
+
+## Natural towns baseline (batch 13)
+
+* The Node map tests (`netcheck`, `lanecheck`, `rnet`, `rsig`, `mapview2`, the `dbg_*` helpers) now also load `20_organic.js`.
+* `netcheck`: 13 overlaps (the same junction mouths as before), 2 dead ends (pier head), one connected group. `lanecheck`: 448 road directions, all one piece, no step at any road end. `rnet` 5: two new roads (`gl3` Gilroy - Pacifica, `in3` Indio - Palm Springs) keep every route under 2.6x (worst Indio -> Harbor 2,408 m for 753 m).
+* `rtraffic` (60 s): Gilroy, Tahoe, Bishop ok (one car waited over 25 s at Bishop's west gate); `harbour` 4 wrecks of 109 (3.7 %) is the same as at batch 12 (not the towns).
+* `rbudget`: Low 138 / 102k, Medium 196 / 154k, High 224 / 167k (downtown, unchanged by the towns).
+* `revents` 8: the drift-zone bot now has the traffic cleared off its line (a car in its way sent it back to the garage).
