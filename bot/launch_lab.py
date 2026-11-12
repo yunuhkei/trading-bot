@@ -18,6 +18,7 @@ Run: python -m bot launch-lab --minutes 340 (the launch-lab workflow runs it aro
 from __future__ import annotations
 
 import asyncio
+import os
 import base64
 import hashlib
 import json
@@ -1407,6 +1408,9 @@ def run(minutes: float = 340, status: bool = False, first_report: float | None =
         ping = lab.simple()
         print(f"PING SIZE: {len(ping.encode())} bytes, {len(ping.splitlines())} lines", flush=True)
         print("PING TEXT START", ping, "PING TEXT END", sep="\n", flush=True)
+        if os.environ.get("SEND_TEST_PING") == "yes" and target:      # the same path the lab's hourly ping uses
+            ok = notify(target, "🧪 Launch lab (test ping from Claude)", ping, buy=True, tag="test_tube")
+            print(f"TEST PING DELIVERED TO NTFY: {ok}", flush=True)
         return
     from .coin_log import CoinLog
     lab.clog = CoinLog(state.get("clog"))

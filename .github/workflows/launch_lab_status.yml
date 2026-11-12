@@ -29,6 +29,9 @@ jobs:
           key: lab-data-status-${{ github.run_id }}
           restore-keys: lab-data-
       - run: python -m bot launch-lab --status
+        env:
+          ALERT_TARGET: ${{ secrets.ALERT_TARGET }}
+          SEND_TEST_PING: "yes"
       - run: python -m bot brain                # the super bot's brain report (reads the research log only)
       - name: Replay the super bot's trades at real on-chain prices (reads the chain only)
         if: ${{ inputs.replay == 'yes' }}
