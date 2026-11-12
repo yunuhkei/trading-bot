@@ -13,12 +13,13 @@ function addSafe(id,name,road,f,side,off){const p=besideRoad(road,f,side,off||14
 function defineWorld(ring,sh,H){
   const {ramp,rampIn,tIn,tOut,at}=H;
   /* ---------- towns and industrial areas ---------- */
-  makeTown('pac',TOWN_PAC,'coast',{du:90,dv:80});
-  makeTown('fre',TOWN_FRE,'farm',{du:95,dv:75});
-  makeTown('bar',TOWN_BAR,'desert',{du:90,dv:90});
-  makeTown('big',TOWN_BIG,'pines',{du:80,dv:80});
-  makeTown('har',IND_HAR,'ind',{kind:'ind',du:150,dv:100,hw:8,phw:9,mu:60,mv:50});
-  makeTown('moj',IND_MOJ,'ind',{kind:'ind',du:150,dv:90,hw:8,phw:9,mu:60,mv:45});
+  /* batch 14: the older towns and the industrial areas are natural too (20_organic.js); a gate's third number is its own arm (Pacifica's west gate stays short: the coast road runs close by) */
+  const gPac=makeOrganic('pac',TOWN_PAC,'coast',{du:66,dv:62,gates:[[-1,0,-.04],[1,0]]});
+  const gFre=makeOrganic('fre',TOWN_FRE,'farm',{du:68,dv:60,gates:[[1,0],[0,1]]});
+  const gBar=makeOrganic('bar',TOWN_BAR,'desert',{du:66,dv:66,gates:[[0,-1],[0,1],[1,0]]});
+  const gBig=makeOrganic('big',TOWN_BIG,'pines',{du:62,dv:62,gates:[[0,1],[1,0]]});
+  const gHar=makeOrganic('har',IND_HAR,'ind',{kind:'ind',du:95,dv:72,hw:8,phw:7,mhw:8,warp:9,rk:.9,arm:.12,gates:[[0,-1]]});
+  const gMoj=makeOrganic('moj',IND_MOJ,'ind',{kind:'ind',du:95,dv:75,hw:8,phw:7,mhw:8,warp:9,rk:.9,arm:.12,gates:[[-1,0],[0,-1],[1,0]]});
   /* the three new cities (world 1c): Las Vegas with the Strip down its middle, Sacramento, San Jose */
   makeTown('veg',CITY_VEG,'vegas',{kind:'vegas',du:130,dv:110,hw:7.5,phw:10,mu:65,mv:60,uw:{2:{hw:12,style:4}}});
   makeTown('sac',CITY_SAC,'cap',{kind:'cap',du:120,dv:95,hw:7.5,phw:10,mu:55,mv:50});
@@ -32,13 +33,16 @@ function defineWorld(ring,sh,H){
   const gBis=makeOrganic('bis',TOWN_BIS,'pines',{du:62,dv:64,gates:[[-1,0],[1,0]]});
   const R_=id=>ROADS.find(q=>q.id==id);
   const bis=R_('bisp'),gil=R_('gilp'),ind=R_('indp'),hes=R_('hesp'),tah=R_('tahp'),mp=R_('mp'),cr=R_('cr'),bar=R_('barp'),moj=R_('mojp'),big=R_('bigp'),fre=R_('frep'),pac=R_('pacp'),har=R_('harp'),look=R_('lookout'),veg=R_('vegp'),sac=R_('sacp'),sj=R_('sjp'),bv=R_('bv');
+  const out=(par,x,z,dx,dz)=>tJoin(par,jn(par,x,z),x+dx*60,z+dz*60),into=(par,x,z,dx,dz)=>out(par,x,z,dx,dz).reverse();
+  const gate=(g,dx,dz)=>{const G=townGate(g,dx,dz);return out(g.per,G.x,G.z,G.dx,G.dz)};
+  const gateIn=(g,dx,dz)=>gate(g,dx,dz).reverse(),gatePt=(g,dx,dz)=>{const G=townGate(g,dx,dz);return[G.x,G.z]};
   /* ---------- east: the desert highway to Barstow, the refinery, and the loop back along the southern highway ---------- */
   buildCurvy({id:'eh',hw:10,lanes:2,style:1,from:'ring',to:'barp',lift:.085,smooth:100,minR:60,wig:{a1:180,l1:600,a2:50,l2:240,seed:51,fade:220},
-    pts:tJoin(ring,jn(ring,1440,50),2300,250).concat([[2300,250],[2750,520],[3150,800],[3450,1100]]).concat(tIn(bar,3580,1180))});   /* leaves the ring exactly opposite the boulevard road (bv): one crossroads */
+    pts:tJoin(ring,jn(ring,1440,50),2300,250).concat([[2300,250],[2750,520],[3150,800],[3450,1100]]).concat(gateIn(gBar,0,-1))});   /* leaves the ring exactly opposite the boulevard road (bv): one crossroads */
   buildCurvy({id:'sh2',hw:9,lanes:1,style:0,yFrom:'lookout',to:'mojp',lift:.09,smooth:80,minR:50,wig:{a1:60,l1:420,a2:16,l2:160,seed:52,fade:140},
-    pts:tOut(look,2830,2400).concat([[2900,2385]]).concat(tIn(moj,3040,2285))});
+    pts:tOut(look,2830,2400).concat([[2900,2385]]).concat(gateIn(gMoj,-1,0))});
   buildCurvy({id:'sh3',hw:10,lanes:2,style:1,yFrom:'mojp',to:'barp',lift:.095,smooth:100,minR:60,wig:{a1:90,l1:480,a2:24,l2:180,seed:53,fade:150},
-    pts:tOut(moj,3360,2080).concat([[3400,1900],[3470,1760]]).concat(tIn(bar,3545,1650))});
+    pts:gate(gMoj,0,-1).concat([[3400,1900],[3470,1760]]).concat(gateIn(gBar,0,1))});
   /* the canyon road: along the floor of the canyon, up to a turnaround on the rim */
   loopRoad('rim',3600,-2700,40,6,.1);
   buildRoad({id:'cyr',hw:7,lanes:1,style:0,lift:.06,smooth:40,grade:.12,yFrom:'eh',yTo:'rim',
@@ -47,21 +51,21 @@ function defineWorld(ring,sh,H){
   buildCurvy({id:'nh1',hw:10,lanes:2,style:1,from:'ring',to:'mp',lift:.075,smooth:100,minR:60,wig:{a1:140,l1:600,a2:40,l2:240,seed:54,fade:200},
     pts:ramp(ring,-100,-1385,-120,-1900,10).concat([[-120,-1900],[-170,-2200]]).concat(tIn(mp,-190,-2380))});
   buildCurvy({id:'nh2',hw:10,lanes:2,style:1,yFrom:'mp',to:'bigp',lift:.078,smooth:70,grade:.17,minR:55,wig:{a1:100,l1:420,a2:30,l2:180,seed:55,fade:160},
-    pts:tJoin(mp,jn(mp,-190,-2380),-175,-2780).concat([[-175,-2780],[-190,-2880]]).concat(tIn(big,-190,-2950))});   /* starts where nh1 ends on the pass: one crossroads */
+    pts:tJoin(mp,jn(mp,-190,-2380),-175,-2780).concat([[-175,-2780],[-190,-2880]]).concat(gateIn(gBig,0,1))});   /* starts where nh1 ends on the pass: one crossroads */
   /* ---------- north-west: the farm roads ---------- */
   buildCurvy({id:'fr1',hw:7,lanes:1,style:0,yFrom:'mp',to:'frep',lift:.07,smooth:60,minR:40,wig:{a1:40,l1:300,a2:12,l2:120,seed:56,fade:100},
-    pts:tOut(mp,-1150,-2110).concat([[-1250,-2130]]).concat(tIn(fre,-1330,-2135))});
+    pts:tOut(mp,-1150,-2110).concat([[-1250,-2130]]).concat(gateIn(gFre,1,0))});
   buildCurvy({id:'fr2',hw:7,lanes:1,style:0,yFrom:'frep',to:'mp',lift:.072,smooth:60,minR:40,wig:{a1:60,l1:320,a2:16,l2:130,seed:57,fade:100},
-    pts:tOut(fre,-1510,-1960).concat([[-1520,-1800],[-1470,-1620],[-1400,-1530]]).concat(tIn(mp,-1330,-1500))});
+    pts:gate(gFre,0,1).concat([[-1520,-1800],[-1470,-1620],[-1400,-1530]]).concat(tIn(mp,-1330,-1500))});
   /* ---------- the coast and the harbour ---------- */
-  buildRoad({id:'pcl',hw:6,lanes:1,style:0,yFrom:'cr',yTo:'pacp',lift:.07,pts:[at(cr,jn(cr,-1840,1500)),at(pac,jn(pac,-1860,1500))]});
-  buildRoad({id:'hb',hw:7,lanes:1,style:0,yFrom:'sh',yTo:'harp',lift:.08,pts:(q=>[at(sh,q),[sh.X[q],IND_HAR.z0]])(jn(sh,1000,2420))});
+  buildRoad({id:'pcl',hw:6,lanes:1,style:0,yFrom:'cr',yTo:'pacp',lift:.07,pts:(G=>[at(cr,jn(cr,G[0]-40,G[1])),at(pac,jn(pac,G[0],G[1]))])(gatePt(gPac,-1,0))});
+  buildRoad({id:'hb',hw:7,lanes:1,style:0,yFrom:'sh',yTo:'harp',lift:.08,pts:(G=>[at(sh,jn(sh,G[0],G[1]-120)),at(har,jn(har,G[0],G[1]))])(gatePt(gHar,0,-1))});
   /* ---------- the roads to the new cities ---------- */
   /* Las Vegas: a desert highway from Barstow and a road from Mojave Works */
   buildCurvy({id:'vg1',hw:10,lanes:2,style:1,yFrom:'barp',to:'vegp',lift:.09,smooth:90,minR:60,wig:{a1:50,l1:420,a2:14,l2:170,seed:61,fade:120},
-    pts:tOut(bar,3930,1380).concat([[4010,1500],[4150,1680]]).concat(tIn(veg,4220,1700))});
+    pts:gate(gBar,1,0).concat([[4010,1500],[4150,1680]]).concat(tIn(veg,4220,1700))});
   buildCurvy({id:'vg2',hw:9,lanes:1,style:0,yFrom:'mojp',to:'vegp',lift:.092,smooth:70,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:62,fade:90},
-    pts:tOut(moj,3660,2285).concat([[3790,2200]]).concat(tIn(veg,3900,2100))});
+    pts:gate(gMoj,1,0).concat([[3790,2200]]).concat(tIn(veg,3900,2100))});
   /* Sacramento: west to the north highway, south to the ring, north to the mountain pass */
   buildCurvy({id:'sc1',hw:9,lanes:1,style:0,yFrom:'sacp',to:'nh1',lift:.08,smooth:50,minR:45,wig:{a1:10,l1:200,a2:3,l2:90,seed:63,fade:60,hold:50},pts:tOut(sac,0,-2025).concat(tIn(R_('nh1'),-60,-2025))});
   buildCurvy({id:'sc2',hw:10,lanes:2,style:1,yFrom:'sacp',to:'ring',lift:.082,smooth:70,minR:50,wig:{a1:24,l1:260,a2:6,l2:110,seed:64,fade:80,hold:60},pts:tOut(sac,310,-1700).concat([[320,-1620]]).concat(tIn(ring,330,-1560))});
@@ -72,14 +76,12 @@ function defineWorld(ring,sh,H){
   /* ---------- batch 8: the new towns, each joined at two points ---------- */
   /* out / into: a join that leaves (or reaches) a road towards a given side (dx,dz); tOut / tIn guess the side from the point itself, which on a town's edge can send the road back into town.
      Every join on a town's edge is in line with one of its streets, so it makes a crossroads. */
-  const out=(par,x,z,dx,dz)=>tJoin(par,jn(par,x,z),x+dx*60,z+dz*60),into=(par,x,z,dx,dz)=>out(par,x,z,dx,dz).reverse();
-  const gate=(g,dx,dz)=>{const G=townGate(g,dx,dz);return out(g.per,G.x,G.z,G.dx,G.dz)};
   const C1={hold:50,fade:60},cw=(a1,l1,seed)=>Object.assign({a1,l1,a2:a1*.3,l2:l1*.45,seed},C1);
   /* Gilroy: north to the ring, south to the coast road */
   buildCurvy({id:'gl1',hw:9,lanes:1,style:0,yFrom:'gilp',to:'ring',lift:.08,smooth:60,minR:45,wig:cw(20,240,81),pts:gate(gGil,0,-1).concat([[-680,1560]]).concat(into(ring,-650,1360,0,1))});
   buildCurvy({id:'gl2',hw:9,lanes:1,style:0,yFrom:'gilp',to:'cr',lift:.08,smooth:60,minR:45,wig:cw(20,240,82),pts:gate(gGil,0,1).concat([[-690,2230]]).concat(into(cr,-695,2400,0,-1))});
   /* batch 13: and west to Pacifica (in line with Pacifica's street pacv2) */
-  buildCurvy({id:'gl3',hw:9,lanes:1,style:0,yFrom:'gilp',to:'pacp',lift:.08,smooth:60,minR:45,wig:cw(18,240,91),pts:gate(gGil,-1,0).concat([[-1180,1720]]).concat(into(pac,-1480,1580,1,0))});
+  buildCurvy({id:'gl3',hw:9,lanes:1,style:0,yFrom:'gilp',to:'pacp',lift:.08,smooth:60,minR:45,wig:cw(18,240,91),pts:gate(gGil,-1,0).concat([[-1180,1720]]).concat(gateIn(gPac,1,0))});
   /* Indio: east to the east loop, south to the southern highway */
   buildCurvy({id:'in1',hw:9,lanes:1,style:0,yFrom:'indp',to:'el',lift:.08,smooth:50,minR:40,wig:cw(10,200,83),pts:gate(gInd,1,0).concat(into(R_('el'),2400,2080,-1,0))});
   buildCurvy({id:'in2',hw:9,lanes:1,style:0,yFrom:'indp',to:'sh',lift:.08,smooth:50,minR:40,wig:cw(10,200,84),pts:gate(gInd,0,1).concat(into(sh,2155,2415,0,-1))});
@@ -89,7 +91,7 @@ function defineWorld(ring,sh,H){
   buildCurvy({id:'hs1',hw:9,lanes:1,style:0,yFrom:'hesp',to:'eh',lift:.08,smooth:50,minR:40,wig:cw(10,200,85),pts:gate(gHes,0,1).concat(into(R_('eh'),2425,230,0,-1))});
   buildCurvy({id:'hs2',hw:9,lanes:1,style:0,yFrom:'hesp',to:'eh',lift:.08,smooth:60,minR:45,wig:cw(16,220,86),pts:gate(gHes,1,0).concat([[2810,-20],[2815,200]]).concat(into(R_('eh'),2800,400,0,-1))});
   /* Tahoe: west to Big Pines along the foothills, south to the mountain pass */
-  buildCurvy({id:'th1',hw:9,lanes:1,style:0,yFrom:'tahp',to:'bigp',lift:.08,smooth:60,grade:.14,minR:45,wig:cw(24,240,87),pts:gate(gTah,-1,0).concat([[250,-2950]]).concat(into(big,-30,-3050,1,0))});
+  buildCurvy({id:'th1',hw:9,lanes:1,style:0,yFrom:'tahp',to:'bigp',lift:.08,smooth:60,grade:.14,minR:45,wig:cw(24,240,87),pts:gate(gTah,-1,0).concat([[250,-2950]]).concat(gateIn(gBig,1,0))});
   buildCurvy({id:'th2',hw:9,lanes:1,style:0,yFrom:'tahp',to:'mp',lift:.08,smooth:60,grade:.14,minR:45,wig:cw(16,220,88),pts:gate(gTah,0,1).concat([[610,-2600]]).concat(into(mp,575,-2465,0,-1))});
   /* the northern highway: Tahoe - Bishop - up onto the mesa to the canyon rim, so the canyon road is no longer a dead end but part of a loop round the north and east */
   buildCurvy({id:'nt1',hw:9,lanes:1,style:0,yFrom:'tahp',to:'bisp',lift:.08,smooth:80,grade:.14,minR:55,wig:{a1:60,l1:360,a2:16,l2:150,seed:89,fade:90,hold:60},pts:gate(gTah,1,0).concat([[1150,-2950],[1500,-3010]]).concat(gate(gBis,-1,0).reverse())});

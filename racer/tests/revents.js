@@ -30,7 +30,8 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(D.g&&D.quit&&D.paid==0,'3 a second start shows the ghost; QUIT EVENT ends it without a prize');
   /* 4 escape the cops: two stars; once the chase is on, the car gets away (far off and out of sight); the heat cools down and the event pays. (Whether a human can shake two stars is a feel test.) */
   const E=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='e_2');const m0=ECON.money;evStart(ev);let maxHeat=0,chasers=0;
-    for(let s=0;s<120*8;s++){RACER.worldStep(1/120);maxHeat=Math.max(maxHeat,COP.heat);if(s%60==0)chasers=Math.max(chasers,TR.cars.filter(c=>c.alive&&c.kind==1&&c.cm>0).length)}
+    for(let s=0;s<120*8;s++){if(s%60==0)for(const c of TR.cars)if(c.alive&&c.kind==0&&Math.hypot(c.x-C.x,c.z-C.z)<120)trKill(c,0);   /* (traffic kept off the standing car: only the police count) */
+      RACER.worldStep(1/120);maxHeat=Math.max(maxHeat,COP.heat);if(s%60==0)chasers=Math.max(chasers,TR.cars.filter(c=>c.alive&&c.kind==1&&c.cm>0).length)}
     const far=evAt('nt2',.5);RACER.carPlace(far.x,far.z,far.yaw,far.y+.5);for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);COP.sightT=3;let tLost=-1;   /* got away unseen */
     for(let s=0;s<120*60&&EV.run;s++){IN.thr=0;C.vx=C.vz=0;RACER.worldStep(1/120);if(!EV.run&&tLost<0)tLost=s/120}
     return{card:EV.card&&EV.card.title,lines:EV.card&&EV.card.lines.map(l=>l[0]),maxHeat,chasers,paid:ECON.money-m0,tLost}});
@@ -76,7 +77,8 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(K.paid==1500,'8 each first record pays 500 ('+K.paid+')');
   /* 9 a race: 4 AI racers on the grid; the bot drives the route; racers keep going and the order is kept; the result has a place */
   const Rr=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='x_desert');const m0=ECON.money;EV.card=null;evStart(ev);const n0=EV.run.racers.length;const Rt=ev.R;window.__fi=0;let minV=1e9,racerProg=[],pos=[];
-    for(let s=0;s<120*300&&EV.run;s++){if(EV.run.t>=0)follow(Rt,46);RACER.worldStep(1/120);if(s%600==0&&EV.run&&EV.run.t>2){racerProg.push(EV.run.racers.filter(c=>c.race).map(c=>Math.round(c.race.s)).join('/'));pos.push(1+EV.run.racers.filter(q=>q.race&&(q.race.done>=0||q.race.s>EV.run.ps)).length)}}
+    for(let s=0;s<120*300&&EV.run;s++){if(EV.run.t>=0)follow(Rt,46);if(s%60==0)for(const c of TR.cars)if(c.alive&&c.kind==0&&Math.hypot(c.x-C.x,c.z-C.z)<80)trKill(c,0);   /* (the bot does not dodge traffic) */
+      RACER.worldStep(1/120);if(s%600==0&&EV.run&&EV.run.t>2){racerProg.push(EV.run.racers.filter(c=>c.race).map(c=>Math.round(c.race.s)).join('/'));pos.push(1+EV.run.racers.filter(q=>q.race&&(q.race.done>=0||q.race.s>EV.run.ps)).length)}}
     IN.thr=IN.brk=0;return{n0,card:EV.card&&EV.card.title,lines:EV.card&&EV.card.lines.map(l=>l[0]),paid:ECON.money-m0,racerProg:racerProg.slice(0,6),pos,len:Math.round(ev.len)}});
   console.log('     '+JSON.stringify(Rr));
   ok(Rr.n0==4&&Rr.card=='FINISHED'&&/OF 5/.test((Rr.lines||[''])[0]),'9 a race against '+Rr.n0+' racers over '+(Rr.len/1000).toFixed(1)+' km finishes: '+(Rr.lines||[]).join(', '));

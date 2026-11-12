@@ -15,6 +15,7 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 3: police overhaul (`64_cops.js` fault rule, `STARS`, `copAhead`, stuck recovery; `67_police.js` helicopters and spike strips; interceptor, SUV, SWAT truck; minimap police only), tests `rheat.js`, `rpolice.js`. **Waiting for approval: a spike strip halves the grip for 4 s (the one exception to "damage never affects driving").**
 - Batch 4: supercars and looks (`CAR_STYLE`, creases / end shapes in `cgBody`, new lamps, `cgPlate` block font, paint finishes `uPt`, shader seams `uSm`, test `rlooks.js`); traffic: walking-pace bumps are not wrecks.
 
+- Batch 14: the older towns (Pacifica, Fresno, Barstow, Big Pines) and the industrial areas (Harbour, Mojave Works) natural too; the square suburb scatter round them removed.
 - Batch 13: natural small towns (Gilroy, Indio, Hesperia, Tahoe, Bishop): irregular outline, bent streets, main streets to the gates, lots along the streets thinning out past the edge (`20_organic.js`).
 - Batch 12: racer AI, 3 races, 2 death races, rare street racers (`69_racers.js`); police sent for 15 s after a crime.
 - Batch 11: road rage (3 events), 8 speed traps, 4 jump spots, 5 drift zones (`69_spots.js`).
@@ -26,7 +27,6 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 5: flat tyres 7.8 s, car order, look-around camera, police you can lose (last seen place, own top speeds, lights off on patrol), taps do no damage, more traffic.
 
 ## Next (agreed with the owner, in this order)
-14. Natural cities, part 2: the older towns (Pacifica, Fresno, Barstow, Big Pines) and the industrial areas the same way.
 15. Natural cities, part 3: the big cities (Downtown, the Valley, Las Vegas, Sacramento, San Jose): neighbourhoods at their own angles meeting along the main roads, an old centre, irregular edges, suburbs that thin out.
 - Later: online multiplayer (an update or a part 2).
 

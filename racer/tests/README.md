@@ -223,3 +223,8 @@ Small differences from rounding are fine; a change of more than about 10 percent
 * `rtraffic` (60 s): Gilroy, Tahoe, Bishop ok (one car waited over 25 s at Bishop's west gate); `harbour` 4 wrecks of 109 (3.7 %) is the same as at batch 12 (not the towns).
 * `rbudget`: Low 138 / 102k, Medium 196 / 154k, High 224 / 167k (downtown, unchanged by the towns).
 * `revents` 8: the drift-zone bot now has the traffic cleared off its line (a car in its way sent it back to the garage).
+
+## Older towns baseline (batch 14)
+
+* `netcheck` / `lanecheck`: one network, 460 road directions all connected, no steps. `rnet` all passed. `rbudget`: Low 138 / 102k, Medium 193 / 154k, High 217 / 166k. `rscenery`, `rsafe`, `rnav`, `rrepair` ok. `rtraffic` (60 s): 17 places ok, harbour as at batch 12.
+* `revents` 4 and 9: the traffic is now kept off the standing car (escape) and off the race bot's line (it does not dodge cars): with the new towns' traffic a car bumped the parked car up to 4 stars, and the race bot T-boned a car on the east highway and rolled.

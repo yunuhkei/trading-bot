@@ -18,11 +18,11 @@ function makeOrganic(id,B,theme,o){o=o||{};
   const toL=(x,z)=>{const a=(x-cx)*cs+(z-cz)*sn,b=-(x-cx)*sn+(z-cz)*cs;let u=a,v=b;for(let k=0;k<4;k++){const w=warp(u,v);u=a-w[0];v=b-w[1]}return[u,v]};
   /* the outline, in the local frame: r = R(theta) */
   const ax=hx*(o.rk||.86),az=hz*(o.rk||.86),hm=[.07+rng()*.05,.05+rng()*.04,.03+rng()*.02],hp=[rng()*TAU,rng()*TAU,rng()*TAU],arm=o.arm==null?.24:o.arm;
-  const gates=(o.gates||[]).map(([dx,dz])=>{const a=dx*cs+dz*sn,b=-dx*sn+dz*cs;return Math.abs(a)>Math.abs(b)?(a>0?0:Math.PI):(b>0?Math.PI/2:-Math.PI/2)});
+  const gates=(o.gates||[]).map(([dx,dz,am])=>{const a=dx*cs+dz*sn,b=-dx*sn+dz*cs;return[Math.abs(a)>Math.abs(b)?(a>0?0:Math.PI):(b>0?Math.PI/2:-Math.PI/2),am==null?arm:am]});
   const R=th=>{const c=Math.cos(th),s=Math.sin(th);let r=1/Math.sqrt((c/ax)**2+(s/az)**2);let f=1+hm[0]*Math.sin(2*th+hp[0])+hm[1]*Math.sin(3*th+hp[1])+hm[2]*Math.sin(5*th+hp[2]);
-    for(const gth of gates){const d=angd(th,gth);f+=arm*Math.exp(-((d/.42)**2))}return r*f};
+    for(const[gth,am]of gates){const d=angd(th,gth);f+=am*Math.exp(-((d/.42)**2))}return r*f};
   const ins=(u,v,m)=>Math.hypot(u,v)<R(Math.atan2(v,u))-(m||0);
-  const g={id,kind:'town',theme,organic:1,ang,cs,sn,toW,toL,R,insL:ins,cx,cz,hw:o.hw||5.5,phw:o.phw||6,lift:o.lift||.05,roads:[],us:[],vs:[]};
+  const g={id,kind:o.kind||'town',theme,organic:1,ang,cs,sn,toW,toL,R,insL:ins,cx,cz,hw:o.hw||5.5,phw:o.phw||6,lift:o.lift||.05,roads:[],us:[],vs:[]};
   g.ins=(x,z,m)=>{const[u,v]=toL(x,z);return ins(u,v,m)};
   g.sd=(x,z)=>{const[u,v]=toL(x,z);return R(Math.atan2(v,u))-Math.hypot(u,v)};   /* about how far inside the outline (negative: outside) */
   /* the streets: u=0 and v=0 are the main streets; the others at 70-100 m, a little irregular */

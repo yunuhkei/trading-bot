@@ -245,7 +245,7 @@ const inUrban=(x,z,m)=>{if(inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PAR
    A lot is used only if its corners are clear of every road and of the lots already used. */
 function organicTown(g,h){const{bld,tree,TH,SHOP,rng}=h,placed=[];
   const free=(x,z,r)=>{for(let k=0;k<placed.length;k+=3){const dx=placed[k]-x,dz=placed[k+1]-z,q=placed[k+2]+r;if(dx*dx+dz*dz<q*q)return false}return true};
-  const fits=(x,z,cs,sn,hx,hz)=>{for(const[a,b]of[[0,0],[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz],[0,hz],[0,-hz]]){if(nearRoadXZ(x+a*cs-b*sn,z+a*sn+b*cs,1.4))return false}return true};
+  const fits=(x,z,cs,sn,hx,hz)=>{if(SAFEHOUSES.some(q=>Math.hypot(q.x-x,q.z-z)<34+hx))return false;for(const[a,b]of[[0,0],[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz],[0,hz],[0,-hz]]){if(nearRoadXZ(x+a*cs-b*sn,z+a*sn+b*cs,1.4))return false}return true};
   const rrAt=(x,z)=>{const[u,v]=g.toL(x,z);return Math.hypot(u,v)/g.R(Math.atan2(v,u))};
   const house=(x,z,cs,sn,hx,hz)=>{const hh=3.2+rng()*1.5,col=TH.pal[(rng()*TH.pal.length)|0],gy=bld(x,z,hx,hz,cs,sn,hh,col,true);
     if(TH.rf==0)proofR(1,x,z,hx,hz,cs,sn,gy+hh,1.9+rng()*.7,150,92,76,true);else if(TH.rf==2)proofR(1,x,z,hx,hz,cs,sn,gy+hh,3.4+rng()*1.2,226,230,236,true);else pboxR(1,x,z,hx+.6,hz+.6,cs,sn,gy+hh,gy+hh+.4,226,214,190,false,1)};
@@ -382,11 +382,12 @@ function buildCity(){
       continue}
     if(g.kind=='ind'){/* industrial: warehouses, tanks with a chimney, container yards */
       const CONT=[[200,64,52],[52,110,170],[220,170,50],[70,140,90],[180,180,184]];
-      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,r=rng();
-        if(r<.45){const hx0=Math.min(48,wu*.42),hz0=Math.min(26,wv*.38),h=8+rng()*5,[px,pz]=B.W(cu,cv),col=[[150,156,166],[176,170,160],[120,134,150],[170,150,130]][(rng()*4)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,col,false);pboxR(1,px,pz,hx0+.5,hz0+.5,cs,sn,gy+h,gy+h+.6,92,96,104,false,1)}
-        else if(r<.75){for(let a=0;a<2;a++)for(let c=0;c<2;c++){const[px,pz]=B.W(B.u0+wu*(.25+.5*a),B.v0+wv*(.28+.44*c)),h=10+rng()*8;bld(px,pz,7,7,cs,sn,h,[210,212,214],false)}
-          const[cx0,cz0]=B.W(cu,cv),y=terrainH(cx0,cz0);ptrunk(1,cx0,y-.4,cz0,1.6,38,150,140,130);COLC.push(cx0,cz0,1.7,y-.5,y+38)}
-        else{for(let k=0;k<10;k++){const[px,pz]=B.W(B.u0+wu*(.12+.76*((k%5)/4)),B.v0+wv*(.3+.4*((k/5)|0)));bld(px,pz,6,1.3,cs,sn,2.6+(rng()<.4?2.6:0),CONT[(rng()*CONT.length)|0],false)}}});
+      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,cs=B.cs!=null?B.cs:g.cs,sn=B.sn!=null?B.sn:g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,r=rng(),ok=B.ok||(()=>true);
+        if(r<.45){let k=1;while(k>.3&&!ok(cu,cv,Math.min(48,wu*.42)*k,Math.min(26,wv*.38)*k))k-=.15;if(k<=.3)return;   /* (a natural district: the shed shrinks to fit its lot) */
+          const hx0=Math.min(48,wu*.42)*k,hz0=Math.min(26,wv*.38)*k,h=8+rng()*5,[px,pz]=B.W(cu,cv),col=[[150,156,166],[176,170,160],[120,134,150],[170,150,130]][(rng()*4)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,col,false);pboxR(1,px,pz,hx0+.5,hz0+.5,cs,sn,gy+h,gy+h+.6,92,96,104,false,1)}
+        else if(r<.75){for(let a=0;a<2;a++)for(let c=0;c<2;c++){const u=B.u0+wu*(.25+.5*a),v=B.v0+wv*(.28+.44*c);if(!ok(u,v,7,7))continue;const[px,pz]=B.W(u,v),h=10+rng()*8;bld(px,pz,7,7,cs,sn,h,[210,212,214],false)}
+          if(!ok(cu,cv,2,2))return;const[cx0,cz0]=B.W(cu,cv),y=terrainH(cx0,cz0);ptrunk(1,cx0,y-.4,cz0,1.6,38,150,140,130);COLC.push(cx0,cz0,1.7,y-.5,y+38)}
+        else{for(let k=0;k<10;k++){const u=B.u0+wu*(.12+.76*((k%5)/4)),v=B.v0+wv*(.3+.4*((k/5)|0));if(!ok(u,v,6,1.3))continue;const[px,pz]=B.W(u,v);bld(px,pz,6,1.3,cs,sn,2.6+(rng()<.4?2.6:0),CONT[(rng()*CONT.length)|0],false)}}});
       continue}
     if(g.kind=='vegas'){/* Las Vegas: hotel towers in gold, black glass and pink over wide podiums, a black pyramid with a beam of light, a needle tower, low casinos with lit marquees, neon everywhere, palms */
       const vr=mulberry(7007),HOT=[[214,172,64],[34,38,50],[236,124,164],[58,168,190],[238,232,218],[152,44,56],[96,66,156],[226,150,50]],cs=g.cs,sn=g.sn;let pyr=false,ndl=false;
@@ -530,7 +531,7 @@ function buildCity(){
     const gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(W.D8[gj*W.N+gi]<5||pr()<.25||nearRoadXZ(px,pz,8))continue;ptree(px,pz,pr,terrainH(px,pz),true);COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);np++}}
   /* suburb: low houses on a loose grid around the city, clear of every road and of the districts */
   const sub=mulberry(77);let ns=0;
-  for(const[SB,mx,mz]of[[CITY,420,380],[VALLEY,380,380],[TOWN_BAR,300,300],[TOWN_PAC,300,300],[TOWN_FRE,320,320],[TOWN_BIG,240,240],[CITY_SAC,280,260],[CITY_SJ,300,280]])
+  for(const[SB,mx,mz]of[[CITY,420,380],[VALLEY,380,380],[CITY_SAC,280,260],[CITY_SJ,300,280]])   /* (batch 14: the natural towns thin out along their own roads, organicTown) */
   for(let x=SB.x0-mx;x<SB.x1+mx;x+=34)for(let z=SB.z0-mz;z<SB.z1+mz;z+=34){
     if(inUrban(x,z,50))continue;
     const px=x+(sub()-.5)*20,pz=z+(sub()-.5)*20,gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(gi<2||gj<2||gi>=W.N-2||gj>=W.N-2)continue;
