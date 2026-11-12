@@ -13,7 +13,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
       const vt=Math.min(vmax,bend>.05?Math.sqrt(9*45/bend):vmax);C.steer=clamp(angd(h0,C.yaw)*1.8,-1,1);IN.thr=C.speed<vt?1:0;IN.brk=C.speed>vt+3?1:0}});
   /* 1 the list */
   const A=await T.ev(()=>({n:EV.list.length,tr:EV.list.filter(e=>e.type=='trial').map(e=>[e.id,Math.round(e.len),e.cps.length]),es:EV.list.filter(e=>e.type=='escape').length,rg:EV.list.filter(e=>e.type=='rage').length,onRoad:EV.list.every(e=>roadAt(e.s.x,e.s.z,e.s.y+1))}));
-  ok(A.n==15&&A.tr.length==8&&A.es==4&&A.rg==3&&A.tr.every(t=>t[1]>1000&&t[2]>=4)&&A.onRoad,'1 15 events: 8 time trials ('+A.tr.map(t=>t[0]+' '+(t[1]/1000).toFixed(1)+' km').join(', ')+') 4 escapes and 3 road rages, every start on a road');
+  ok(A.n==20&&A.tr.length==8&&A.es==4&&A.rg==3&&A.tr.every(t=>t[1]>1000&&t[2]>=4)&&A.onRoad,'1 20 events: 8 time trials ('+A.tr.map(t=>t[0]+' '+(t[1]/1000).toFixed(1)+' km').join(', ')+') 4 escapes, 3 road rages, 3 races and 2 death races, every start on a road');
   /* 2 the marker card */
   const B=await T.ev(()=>{const ev=EV.list[0];RACER.carPlace(ev.s.x,ev.s.z,ev.s.yaw,ev.s.y+.5);for(let s=0;s<30;s++)RACER.worldStep(1/120);const o={title:EV.card&&EV.card.title,sub:EV.card&&EV.card.sub};EV.card.btns[1].act();for(let s=0;s<30;s++)RACER.worldStep(1/120);o.after=!!EV.card;return o});
   ok(B.title=='TIME TRIAL'&&B.sub=='Ring Sprint'&&!B.after,'2 stopping on a marker offers the event ("'+B.title+': '+B.sub+'"); NOT NOW puts it away');
@@ -51,7 +51,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(G.poor&&G.bought,'6 a car costs money: the Mac Seven-Twenty is '+G.price+' (one short: still locked; with enough: bought, 500 left)');
   ok(G.free==0&&G.cheap<G.dear,'6 prices follow speed: the starter is free, the slowest car '+G.cheap+', the fastest '+G.dear);
   ok(G.garage&&G.left==5000,'6 stopping on a locked garage with 20,000 buys it for 15,000');
-  console.log(JSON.stringify(G.dbg));ok(G.list=='EVENTS'&&G.items==16,'6 parked in your garage, the card lists all 15 events (and CLOSE)');
+  console.log(JSON.stringify(G.dbg));ok(G.list=='EVENTS'&&G.items==21,'6 parked in your garage, the card lists all 20 events (and CLOSE)');
   /* 7 road rage: a row of parked cars down the ring; every wreck counts and adds 4 s */
   const H=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='r_ring');const m0=ECON.money;evStart(ev);for(let s=0;s<120*3.2;s++)RACER.worldStep(1/120);const r=ROADS.find(q=>q.id=='ring'),e=LG.ofRoad[ROADS.indexOf(r)][0][0];const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw);
     const sn=navSnap(C.x,C.z,30),la=navLane(sn,C.x,C.z,fx,fz);for(let k=0;k<8;k++){const c=trPlace(la.e,Math.min(la.e.n-2,(la.u+10+k*11)%la.e.n),0,1,0,900+k);if(c){c.v0f=0;c.v=0}}   /* standing cars in your lane */
@@ -74,4 +74,25 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(K.jump>15,'8 a jump spot records a '+K.jump+' m jump ("'+K.jumpMsg+'")');
   ok(K.drift>100,'8 a drift zone adds up the drift points between its gates: '+K.drift+' ("'+K.driftMsg+'")');
   ok(K.paid==1500,'8 each first record pays 500 ('+K.paid+')');
+  /* 9 a race: 4 AI racers on the grid; the bot drives the route; racers keep going and the order is kept; the result has a place */
+  const Rr=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='x_desert');const m0=ECON.money;EV.card=null;evStart(ev);const n0=EV.run.racers.length;const Rt=ev.R;window.__fi=0;let minV=1e9,racerProg=[],pos=[];
+    for(let s=0;s<120*300&&EV.run;s++){if(EV.run.t>=0)follow(Rt,46);RACER.worldStep(1/120);if(s%600==0&&EV.run&&EV.run.t>2){racerProg.push(EV.run.racers.filter(c=>c.race).map(c=>Math.round(c.race.s)).join('/'));pos.push(1+EV.run.racers.filter(q=>q.race&&(q.race.done>=0||q.race.s>EV.run.ps)).length)}}
+    IN.thr=IN.brk=0;return{n0,card:EV.card&&EV.card.title,lines:EV.card&&EV.card.lines.map(l=>l[0]),paid:ECON.money-m0,racerProg:racerProg.slice(0,6),pos,len:Math.round(ev.len)}});
+  console.log('     '+JSON.stringify(Rr));
+  ok(Rr.n0==4&&Rr.card=='FINISHED'&&/OF 5/.test((Rr.lines||[''])[0]),'9 a race against '+Rr.n0+' racers over '+(Rr.len/1000).toFixed(1)+' km finishes: '+(Rr.lines||[]).join(', '));
+  ok(Rr.racerProg.length>=3&&Rr.racerProg[2].split('/').every((v,i)=>+v>+Rr.racerProg[0].split('/')[i]+300),'9 the racers drive the route (progress in metres every 5 s: '+Rr.racerProg.slice(0,3).join('  ')+')');
+  /* 10 a death race: the racers ram you; a racer you hit hard is wrecked and scores 500 */
+  const Dr=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='d_ring');EV.card=null;EV.pending=null;evStart(ev);const Rt=ev.R;window.__fi=0;let hits=0;const imp0=IMP.n;DMG.scale=0;
+    for(let s=0;s<120*30&&EV.run;s++){if(EV.run.t>=0)follow(Rt,24);RACER.worldStep(1/120)}for(let k=imp0;k<IMP.n;k++){const q=IMP.q[IMP.q.length-(IMP.n-k)];if(q&&q.src==3)hits++}
+    const tgt=EV.run&&EV.run.racers.find(c=>c.race&&c.state==3);let wrecked=0;if(tgt){const fx=Math.sin(tgt.yaw),fz=-Math.cos(tgt.yaw);const ah=tgt.v*.25;RACER.carPlace(tgt.x+fx*ah+Math.cos(tgt.yaw)*9,tgt.z+fz*ah+Math.sin(tgt.yaw)*9,tgt.yaw-Math.PI/2,tgt.y+.5);C.vx=-Math.cos(tgt.yaw)*32;C.vz=-Math.sin(tgt.yaw)*32;for(let s=0;s<120;s++)RACER.worldStep(1/120);wrecked=EV.run?EV.run.wrecks:-1}
+    const n=EV.run?EV.run.racers.length:0;DMG.scale=1;evQuit();return{hits,wrecked,n,state:tgt?tgt.state:-1}});
+  console.log('     '+JSON.stringify(Dr));
+  ok(Dr.n==5&&Dr.hits>=1,'10 a death race: 5 racers, they hit you '+Dr.hits+' times in 30 s (the bot drives at 86 km/h)');
+  ok(Dr.wrecked==1&&Dr.state==1,'10 T-boning a racer at 115 km/h wrecks it and counts (+500)');
+  /* 11 a street racer: it joins the traffic ahead, drive up beside it and it challenges you; RACE! starts a race to a town */
+  const Sr=await T.ev(()=>{EV.card=null;EV.pending=null;if(EV.run)evQuit();const r=ROADS.find(q=>q.id=='ring'),i=Math.round(r.n*.42),a=Math.atan2(r.X[i+1]-r.X[i],-(r.Z[i+1]-r.Z[i]));RACER.carPlace(r.X[i]+Math.cos(a)*5,r.Z[i]+Math.sin(a)*5,a,r.Y[i]+.5);C.vx=Math.sin(a)*25;C.vz=-Math.cos(a)*25;C.speed=25;
+    RACE.sr=null;racerStreetSpawn();const c=RACE.sr;if(!c)return{spawn:0};const o={spawn:1,d0:Math.round(Math.hypot(c.x-C.x,c.z-C.z))};RACER.carPlace(c.x-Math.sin(c.yaw)*9+Math.cos(c.yaw)*3,c.z+Math.cos(c.yaw)*9+Math.sin(c.yaw)*3,c.yaw,c.y+.5);
+    for(let s=0;s<120*4&&!EV.card;s++){C.vx=Math.sin(c.yaw)*c.v;C.vz=-Math.cos(c.yaw)*c.v;C.speed=c.v;RACER.worldStep(1/120)}o.card=EV.card&&EV.card.title;o.sub=EV.card&&EV.card.sub;if(EV.card)EV.card.btns[0].act();o.run=!!EV.run;o.racers=EV.run?EV.run.racers.length:0;o.going=EV.run&&EV.run.racers[0].race.go;evQuit();return o});
+  console.log('     '+JSON.stringify(Sr));
+  ok(Sr.spawn&&Sr.card=='STREET RACE'&&Sr.run&&Sr.racers==1&&Sr.going,'11 a street racer appears '+Sr.d0+' m ahead; driving up beside it it offers "'+Sr.sub+'"; RACE! starts it');
   console.log('errs',T.errs.length?T.errs.slice(0,3):0);await T.close();console.log(bad?bad+' FAILED':'all passed');process.exit(bad||T.errs.length?1:0)})().catch(e=>{console.error(e);process.exit(1)});
