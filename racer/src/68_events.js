@@ -15,7 +15,7 @@ const EV_DEF=[
  {id:'t_north',type:'trial',name:'Northern Line',from:['nt1',.06],to:['nt2',.94]},
  {id:'t_coast',type:'trial',name:'Coast Highway',from:['cr',.08],to:['btp',.5]},
  {id:'t_pass',type:'trial',name:'Mountain Pass',from:['nh1',.08],to:['bigp',.5]},
- {id:'t_vegas',type:'trial',name:'Vegas Run',from:['vg1',.02],to:['vegm',.95]},
+ {id:'t_vegas',type:'trial',name:'Vegas Run',from:['sh3',.88],to:['vegm',.99]},
  {id:'t_south',type:'trial',name:'Southern Cross',from:['sh',.12],to:['sh',.88]},
  {id:'e_2',type:'escape',name:'Hot Pursuit',stars:2,secs:100,from:['ring',.55]},
  {id:'e_3',type:'escape',name:'Roadblocks',stars:3,secs:130,from:['bv',.5]},
@@ -27,7 +27,7 @@ const EV_DEF=[
  {id:'r_vegas',type:'rage',name:'Road Rage: Las Vegas',secs:60,goals:[6,12,20],prize:7000,from:['vegp',.3]},
  /* batch 12: RACES against 4 AI racers (prizes for 1st / 2nd / 3rd) and DEATH RACES against 5 that ram you (points for every racer you wreck and for your place) */
  {id:'x_coast',type:'race',name:'Coast Race',from:['cr',.15],to:['btp',.5],n:4,prize:9000},
- {id:'x_desert',type:'race',name:'Desert Race',from:['eh',.15],to:['barp',.5],n:4,prize:8000},
+ {id:'x_desert',type:'race',name:'Desert Race',from:['eh',.15],to:['barp',.75],n:4,prize:8000},
  {id:'x_north',type:'race',name:'Northern Race',from:['nt1',.12],to:['nt2',.94],n:4,prize:8000},
  {id:'d_ring',type:'death',name:'Death Race: The Ring',from:['ring',.36],to:['ring',.66],n:5,prize:12000,goals:[1000,2000,3200]},
  {id:'d_south',type:'death',name:'Death Race: Southern Cross',from:['sh',.18],to:['sh',.9],n:5,prize:10000,goals:[1000,2000,3200]}];

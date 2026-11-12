@@ -339,8 +339,8 @@ function defineRoads(){
   buildRoad({id:'jfkp',hw:5.5,lanes:1,style:0,yFrom:'sfp',yTo:'sfnv7',lift:.05,smooth:25,
     pts:tOut(sfp,-1270,444).concat([[-1212,452],[-1162,444],[-1116,451],[-1082,454],[-1078,465]])});
   /* Twin Peaks Boulevard: out of the grid, a loop up over the two peaks and back down into the grid */
-  {const stEnd=(x,z)=>{let b=null,bd=1e18;for(const e of cityEnds){if(e[2]=='sfp')continue;const d=(e[0]-x)**2+(e[1]-z)**2;if(d<bd){bd=d;b=e}}return b},e1=nearEnd(-760,700),e2=stEnd(-552,700);   /* the east end comes down exactly opposite a street: a crossroads on the boulevard */
-   buildRoad({id:'tp',hw:5.5,lanes:1,style:0,smooth:18,grade:.22,lift:.05,yFrom:'sfp',yTo:'sfp',pts:[[e1[0],e1[1]],[-762,738],[-735,772],[-690,792],[-650,772],[-620,802],[-640,836],[-598,862],[-556,838],[-540,800],[-547,758],[e2[0],e2[1]]]})}
+  {const stEnd=(x,z)=>{let b=null,bd=1e18;for(const e of cityEnds){if(e[2]=='sfp')continue;const d=(e[0]-x)**2+(e[1]-z)**2;if(d<bd){bd=d;b=e}}return b},e1=stEnd(-760,700),e2=stEnd(-552,700);   /* the east end comes down exactly opposite a street: a crossroads on the boulevard */
+   buildRoad({id:'tp',hw:5.5,lanes:1,style:0,smooth:18,grade:.22,lift:.05,yFrom:'sfp',yTo:'sfp',pts:[[e1[0],e1[1]],[e1[0],e1[1]+30],[-762,748],[-735,772],[-690,792],[-650,772],[-620,802],[-640,836],[-598,862],[-556,838],[-540,800],[-547,758],[e2[0],e2[1]]]})}
   /* ===== the long highways ===== */
   /* Geary: ring (west) -> the downtown boulevard */
   buildCurvy({id:'dc',hw:10,lanes:2,style:1,from:'ring',yTo:'sfp',lift:.03,minR:45,wig:{a1:40,l1:240,a2:14,l2:110,seed:8,fade:130},

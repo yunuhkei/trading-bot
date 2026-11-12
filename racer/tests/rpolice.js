@@ -99,13 +99,13 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     if(wd>0){const e=LG.ofRoad[ROADS.indexOf(r)][0][0],c=trPlace(e,Math.round(e.n*.5),4,12,0,4242);c.kind=1;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=true;c.stk=0;c.rev=0;copAlert(c);copDetach(c);
       c.x=c.px=r.X[i]+rx*(wd-3.2)*sd;c.z=c.pz=r.Z[i]+rz*(wd-3.2)*sd;c.yaw=c.pyaw=Math.atan2(rx*sd,-rz*sd);c.v=0;
       RACER.carPlace(r.X[i]+rx*(wd+45)*sd,r.Z[i]+rz*(wd+45)*sd,a);P3.pin(3);const x0=c.x,z0=c.z;let rev=0,inside=0,maxMove=0,tRev=-1;
-      for(let s=0;s<120*9;s++){P3.pin(3);COP.spawnT=99;C.vx=C.vz=0;RACER.worldStep(1/120);if(c.rev>0&&tRev<0)tRev=s/120;if(c.rev>0)rev++;if(c.alive&&trStatic(c.x,c.z,.25,c.y))inside++;maxMove=Math.max(maxMove,Math.hypot(c.x-x0,c.z-z0))}
+      for(let s=0;s<120*9;s++){P3.pin(3);COP.spawnT=99;C.vx=C.vz=0;RACER.worldStep(1/120);if(c.rev>0&&tRev<0)tRev=s/120;if(c.rev>0)rev++;if(c.alive&&trStatic(c.x,c.z,.25,c.y)){let pole=0;for(let k=0;k<COLC.length;k+=5)if(Math.hypot(COLC[k]-c.x,COLC[k+1]-c.z)<COLC[k+2]+.3)pole=1;if(!pole){inside++;if(!o.insAt)o.insAt=[Math.round(c.x),Math.round(c.z),s/120]}}   /* (a building; a lamp post or tree where it was put down does not count) */maxMove=Math.max(maxMove,Math.hypot(c.x-x0,c.z-z0))}
       o.rev=rev;o.tRev=tRev;o.inside=inside;o.move=+maxMove.toFixed(1);o.state=c.state;o.alive=c.alive}
     /* a chase through the streets: the player loops round the block, every police car is sampled */
     P3.reset(.5,0,'sfnu3');P3.pin(3);let samples=0,ins=0,maxC=0,nan=0;
     for(let s=0;s<120*60;s++){P3.pin(3);C.vx=C.vz=0;if(!(s%120))dmgReset();RACER.worldStep(1/120);if(s%6==0){let n=0;for(const c of TR.cars){if(!c.alive||c.kind!==1||c.cm==3)continue;n++;samples++;if(!isFinite(c.x+c.z))nan++;if(trStatic(c.x,c.z,.25,c.y))ins++}maxC=Math.max(maxC,n)}}
     o.samples=samples;o.ins=ins;o.maxC=maxC;o.nan=nan;P3.clear();return o});
-  ok(B.wall>0&&B.rev>0&&B.move>3&&B.inside==0,'7 a police car nose-on to a wall backs out (reversing began after '+(B.tRev>=0?B.tRev.toFixed(1):'?')+' s, it got '+B.move+' m away) and was never inside the building');
+  ok(B.wall>0&&B.rev>0&&B.move>3&&B.inside==0,'7 a police car nose-on to a wall backs out'+(B.insAt?' (in at '+B.insAt.join(' ')+')':'')+' (reversing began after '+(B.tRev>=0?B.tRev.toFixed(1):'?')+' s, it got '+B.move+' m away) and was never inside the building');
   ok(B.samples>2000&&B.ins==0&&B.nan==0&&B.maxC>=3,'7 a minute of police converging on a car parked downtown: '+B.maxC+' cars, '+B.samples+' position samples, '+B.ins+' inside a building');
   /* ---- 8 a real chance to lose them (batch 5): patrols never pop up in view and drive with their lights off; at one star, driving away fast on the ring and out of sight, the heat goes back to 0 ---- */
   const E=await T.ev(()=>{const o={};

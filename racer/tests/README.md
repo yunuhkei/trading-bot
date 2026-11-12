@@ -228,3 +228,9 @@ Small differences from rounding are fine; a change of more than about 10 percent
 
 * `netcheck` / `lanecheck`: one network, 460 road directions all connected, no steps. `rnet` all passed. `rbudget`: Low 138 / 102k, Medium 193 / 154k, High 217 / 166k. `rscenery`, `rsafe`, `rnav`, `rrepair` ok. `rtraffic` (60 s): 17 places ok, harbour as at batch 12.
 * `revents` 4 and 9: the traffic is now kept off the standing car (escape) and off the race bot's line (it does not dodge cars): with the new towns' traffic a car bumped the parked car up to 4 stars, and the race bot T-boned a car on the east highway and rolled.
+
+## Natural cities baseline (batches 15-16), full run
+
+* Full run on the batch 16 build: every test passes after these updates. `rsig` measures one car's continuous wait at one light (it used to add up every wait of a car slot, and slots are reused) and reports where the longest wait is; `rpolice` 7 counts only buildings (a lamp post where the cop was put down does not count); `revents` keeps traffic off the race (the bot and the racers); city test spots use the avenues (`vegm`, `sacm`, `sjm`).
+* `rheat` (default seed): the bot used to T-bone a car pulling out of Mulholland onto the ring and get two stars; now the turning car gives way and is to blame if it does not.
+* `rsig` now and then: a car on `sacau2` waits through one green at the Sacramento avenue (47 s; limit 40).

@@ -90,7 +90,7 @@ const SQAB=2*Math.sqrt(2.4*3.2);
 function trTerm(c,v,gap,vl){const ss=2+Math.max(0,v*c.T+v*(v-vl)/SQAB),g=gap<.15?.15:gap,t=ss/g;if(t*t>_term)_term=t*t;if(gap<.5&&v>vl+.3)_emerg=1}
 /* how a neighbour j (a car, a wreck, or the player) affects car c: corridor blockers (leaders) and crossing conflicts that c has to give way to */
 function trInteract(c,j,v,fx,fz){
-  const hn=c.hn,hx=c.hx,hz=c.hz,dx=j.x-c.x,dz=j.z-c.z,d2=dx*dx+dz*dz,lim=(hn-1)*c.hs+8;if(d2>lim*lim)return;
+  const hn=c.hn,hx=c.hx,hz=c.hz,dx=j.x-c.x,dz=j.z-c.z,d2=dx*dx+dz*dz,lim=(hn-1)*c.hs+8+(j===TR.P?Math.min(70,j.v*2.5):0);if(d2>lim*lim)return;   /* (the player is seen from further away: a fast player comes from beyond a slow car's path) */
   const jw=j.state==1||j.state==2;
   /* corridor: is j's centre inside my path ahead? */
   let cum=0,found=false;const CW=c.hw*.8+j.hw*.8+.1;
@@ -110,6 +110,7 @@ function trInteract(c,j,v,fx,fz){
     if((lx<0?-lx:lx)<mhw+extx&&(lz<0?-lz:lz)<mhl+extz){
       const t=(k+1)*DTS,dI=vE*t,sj=j.vS*t;let yield_=false;
       if(jw)yield_=true;
+      else if(j===TR.P&&c.L&&c.L.kind!=0)yield_=true;                    /* a car turning out of a junction gives way to the player */
       else if(t<.95&&v>3.5)yield_=true;                                  /* about to touch while still moving: whatever the priorities, brake (a car that is already slow follows the priorities) */
       else if(c.ign>0)yield_=false;
       else if(j.yTo===c.i)yield_=false;                                  /* it is already giving way to me */
@@ -315,7 +316,7 @@ function trPlayerCollide(){
         const vn=HIT.vn;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.04);C.flash=Math.max(C.flash,Math.min(.25,vn*.01));
         impactAdd(3,vn,e,c.m,HIT.cx,HIT.cz,HIT.nx,HIT.nz);if(C.t-c.hitT>.5)TR.stat.hits++;const hnx=HIT.nx,hnz=HIT.nz;
         /* WHO WAS AT FAULT: only a crash YOU drive into is a crime. The normal points from the car to you: your speed into it against its speed into you (being rear-ended, or a patrol nudging you at a standstill, used to make you wanted) */
-        const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin;
+        const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
         const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
         TR.hitP=1;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1)evTakedown(c);if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic)tumbleFromCar(hnx,hnz,vn,e,c.m)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}

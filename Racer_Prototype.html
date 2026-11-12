@@ -662,8 +662,8 @@ function defineRoads(){
   buildRoad({id:'jfkp',hw:5.5,lanes:1,style:0,yFrom:'sfp',yTo:'sfnv7',lift:.05,smooth:25,
     pts:tOut(sfp,-1270,444).concat([[-1212,452],[-1162,444],[-1116,451],[-1082,454],[-1078,465]])});
   /* Twin Peaks Boulevard: out of the grid, a loop up over the two peaks and back down into the grid */
-  {const stEnd=(x,z)=>{let b=null,bd=1e18;for(const e of cityEnds){if(e[2]=='sfp')continue;const d=(e[0]-x)**2+(e[1]-z)**2;if(d<bd){bd=d;b=e}}return b},e1=nearEnd(-760,700),e2=stEnd(-552,700);   /* the east end comes down exactly opposite a street: a crossroads on the boulevard */
-   buildRoad({id:'tp',hw:5.5,lanes:1,style:0,smooth:18,grade:.22,lift:.05,yFrom:'sfp',yTo:'sfp',pts:[[e1[0],e1[1]],[-762,738],[-735,772],[-690,792],[-650,772],[-620,802],[-640,836],[-598,862],[-556,838],[-540,800],[-547,758],[e2[0],e2[1]]]})}
+  {const stEnd=(x,z)=>{let b=null,bd=1e18;for(const e of cityEnds){if(e[2]=='sfp')continue;const d=(e[0]-x)**2+(e[1]-z)**2;if(d<bd){bd=d;b=e}}return b},e1=stEnd(-760,700),e2=stEnd(-552,700);   /* the east end comes down exactly opposite a street: a crossroads on the boulevard */
+   buildRoad({id:'tp',hw:5.5,lanes:1,style:0,smooth:18,grade:.22,lift:.05,yFrom:'sfp',yTo:'sfp',pts:[[e1[0],e1[1]],[e1[0],e1[1]+30],[-762,748],[-735,772],[-690,792],[-650,772],[-620,802],[-640,836],[-598,862],[-556,838],[-540,800],[-547,758],[e2[0],e2[1]]]})}
   /* ===== the long highways ===== */
   /* Geary: ring (west) -> the downtown boulevard */
   buildCurvy({id:'dc',hw:10,lanes:2,style:1,from:'ring',yTo:'sfp',lift:.03,minR:45,wig:{a1:40,l1:240,a2:14,l2:110,seed:8,fade:130},
@@ -3242,7 +3242,7 @@ const SQAB=2*Math.sqrt(2.4*3.2);
 function trTerm(c,v,gap,vl){const ss=2+Math.max(0,v*c.T+v*(v-vl)/SQAB),g=gap<.15?.15:gap,t=ss/g;if(t*t>_term)_term=t*t;if(gap<.5&&v>vl+.3)_emerg=1}
 /* how a neighbour j (a car, a wreck, or the player) affects car c: corridor blockers (leaders) and crossing conflicts that c has to give way to */
 function trInteract(c,j,v,fx,fz){
-  const hn=c.hn,hx=c.hx,hz=c.hz,dx=j.x-c.x,dz=j.z-c.z,d2=dx*dx+dz*dz,lim=(hn-1)*c.hs+8;if(d2>lim*lim)return;
+  const hn=c.hn,hx=c.hx,hz=c.hz,dx=j.x-c.x,dz=j.z-c.z,d2=dx*dx+dz*dz,lim=(hn-1)*c.hs+8+(j===TR.P?Math.min(70,j.v*2.5):0);if(d2>lim*lim)return;   /* (the player is seen from further away: a fast player comes from beyond a slow car's path) */
   const jw=j.state==1||j.state==2;
   /* corridor: is j's centre inside my path ahead? */
   let cum=0,found=false;const CW=c.hw*.8+j.hw*.8+.1;
@@ -3262,6 +3262,7 @@ function trInteract(c,j,v,fx,fz){
     if((lx<0?-lx:lx)<mhw+extx&&(lz<0?-lz:lz)<mhl+extz){
       const t=(k+1)*DTS,dI=vE*t,sj=j.vS*t;let yield_=false;
       if(jw)yield_=true;
+      else if(j===TR.P&&c.L&&c.L.kind!=0)yield_=true;                    /* a car turning out of a junction gives way to the player */
       else if(t<.95&&v>3.5)yield_=true;                                  /* about to touch while still moving: whatever the priorities, brake (a car that is already slow follows the priorities) */
       else if(c.ign>0)yield_=false;
       else if(j.yTo===c.i)yield_=false;                                  /* it is already giving way to me */
@@ -3467,7 +3468,7 @@ function trPlayerCollide(){
         const vn=HIT.vn;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.04);C.flash=Math.max(C.flash,Math.min(.25,vn*.01));
         impactAdd(3,vn,e,c.m,HIT.cx,HIT.cz,HIT.nx,HIT.nz);if(C.t-c.hitT>.5)TR.stat.hits++;const hnx=HIT.nx,hnz=HIT.nz;
         /* WHO WAS AT FAULT: only a crash YOU drive into is a crime. The normal points from the car to you: your speed into it against its speed into you (being rear-ended, or a patrol nudging you at a standstill, used to make you wanted) */
-        const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin;
+        const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
         const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
         TR.hitP=1;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1)evTakedown(c);if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic)tumbleFromCar(hnx,hnz,vn,e,c.m)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
@@ -4427,7 +4428,7 @@ const EV_DEF=[
  {id:'t_north',type:'trial',name:'Northern Line',from:['nt1',.06],to:['nt2',.94]},
  {id:'t_coast',type:'trial',name:'Coast Highway',from:['cr',.08],to:['btp',.5]},
  {id:'t_pass',type:'trial',name:'Mountain Pass',from:['nh1',.08],to:['bigp',.5]},
- {id:'t_vegas',type:'trial',name:'Vegas Run',from:['vg1',.02],to:['vegm',.95]},
+ {id:'t_vegas',type:'trial',name:'Vegas Run',from:['sh3',.88],to:['vegm',.99]},
  {id:'t_south',type:'trial',name:'Southern Cross',from:['sh',.12],to:['sh',.88]},
  {id:'e_2',type:'escape',name:'Hot Pursuit',stars:2,secs:100,from:['ring',.55]},
  {id:'e_3',type:'escape',name:'Roadblocks',stars:3,secs:130,from:['bv',.5]},
@@ -4439,7 +4440,7 @@ const EV_DEF=[
  {id:'r_vegas',type:'rage',name:'Road Rage: Las Vegas',secs:60,goals:[6,12,20],prize:7000,from:['vegp',.3]},
  /* batch 12: RACES against 4 AI racers (prizes for 1st / 2nd / 3rd) and DEATH RACES against 5 that ram you (points for every racer you wreck and for your place) */
  {id:'x_coast',type:'race',name:'Coast Race',from:['cr',.15],to:['btp',.5],n:4,prize:9000},
- {id:'x_desert',type:'race',name:'Desert Race',from:['eh',.15],to:['barp',.5],n:4,prize:8000},
+ {id:'x_desert',type:'race',name:'Desert Race',from:['eh',.15],to:['barp',.75],n:4,prize:8000},
  {id:'x_north',type:'race',name:'Northern Race',from:['nt1',.12],to:['nt2',.94],n:4,prize:8000},
  {id:'d_ring',type:'death',name:'Death Race: The Ring',from:['ring',.36],to:['ring',.66],n:5,prize:12000,goals:[1000,2000,3200]},
  {id:'d_south',type:'death',name:'Death Race: Southern Cross',from:['sh',.18],to:['sh',.9],n:5,prize:10000,goals:[1000,2000,3200]}];

@@ -77,7 +77,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(K.paid==1500,'8 each first record pays 500 ('+K.paid+')');
   /* 9 a race: 4 AI racers on the grid; the bot drives the route; racers keep going and the order is kept; the result has a place */
   const Rr=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='x_desert');const m0=ECON.money;EV.card=null;evStart(ev);const n0=EV.run.racers.length;const Rt=ev.R;window.__fi=0;let minV=1e9,racerProg=[],pos=[];
-    for(let s=0;s<120*300&&EV.run;s++){if(EV.run.t>=0)follow(Rt,46);if(s%60==0)for(const c of TR.cars)if(c.alive&&c.kind==0&&Math.hypot(c.x-C.x,c.z-C.z)<80)trKill(c,0);   /* (the bot does not dodge traffic) */
+    for(let s=0;s<120*300&&EV.run;s++){if(EV.run.t>=0)follow(Rt,46);if(s%60==0)for(const c of TR.cars)if(c.alive&&c.kind==0&&[C].concat(EV.run.racers).some(q=>Math.hypot(c.x-q.x,c.z-q.z)<80))trKill(c,0);   /* (the bot does not dodge traffic or wrecks: the traffic is kept off the race) */
       RACER.worldStep(1/120);if(s%600==0&&EV.run&&EV.run.t>2){racerProg.push(EV.run.racers.filter(c=>c.race).map(c=>Math.round(c.race.s)).join('/'));pos.push(1+EV.run.racers.filter(q=>q.race&&(q.race.done>=0||q.race.s>EV.run.ps)).length)}}
     IN.thr=IN.brk=0;return{n0,card:EV.card&&EV.card.title,lines:EV.card&&EV.card.lines.map(l=>l[0]),paid:ECON.money-m0,racerProg:racerProg.slice(0,6),pos,len:Math.round(ev.len)}});
   console.log('     '+JSON.stringify(Rr));
