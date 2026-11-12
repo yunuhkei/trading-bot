@@ -1779,7 +1779,7 @@ function renderFrame(w,h,sky){
   for(let i=0;i<R.props.length;i++){const p=R.props[i],dist=R.drawProp[p.cat];const dx=p.cx-cx,dz=p.cz-cz;if(dx*dx+dz*dz>(dist+p.rad)*(dist+p.rad)||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
     gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,28,12);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,28,16);gl.vertexAttribPointer(3,2,gl.FLOAT,false,28,20);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}
   /* the player's car (+ rivals later) */
-  if(R.carDraw)R.carDraw();if(R.trDraw)R.trDraw();
+  if(R.carDraw)R.carDraw();if(R.trDraw)R.trDraw();heliDraw();
   /* sky: only where nothing else was drawn */
   P=G.P.sky;gl.useProgram(P.p);setEnvU(P);gl.disable(gl.CULL_FACE);bindTex(0,R.tex.nz);gl.uniform1i(P.u.uNz,0);
   const th=Math.tan(R.fov/2);gl.uniform3fv(P.u.uFw,R.fw);gl.uniform3fv(P.u.uRt,R.rt);gl.uniform3fv(P.u.uUp,R.up);gl.uniform2f(P.u.uTan,th*w/h,th);gl.bindBuffer(gl.ARRAY_BUFFER,R.skyB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);gl.drawArrays(gl.TRIANGLES,0,3);R.draws++;
@@ -2001,7 +2001,7 @@ function shdSetU(P){if(!P.u.uSh)return;const gl=G.gl;bindTex(4,SHD.tex||R.tex.nz
 'use strict';
 /* ===== the car: baked Surge Sport mesh, arcade driving model, chase camera ===== */
 const CARM={body:null,wheels:[],mat:null};
-function carGLInit(){carLoad();carSelect(CARSEL.cur);R.carDraw=carDraw;R.carGlass=carGlassDraw;R.fxDraw=fxDraw}
+function carGLInit(){carLoad();carSelect(CARSEL.cur);R.carDraw=carDraw;heliInit();R.carGlass=carGlassDraw;R.fxDraw=fxDraw}
 const _mb=new Float32Array(16),_mw=new Float32Array(16),_mf=new Float32Array(16);
 function drawCarMesh(m,M,count,from){const gl=G.gl,P=G.P.car,n=count==null?m.n:count;gl.uniformMatrix4fv(P.u.uM,false,M);gl.bindBuffer(gl.ARRAY_BUFFER,m.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib);
   gl.vertexAttribPointer(0,4,gl.SHORT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,8);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,16,12);gl.drawElements(gl.TRIANGLES,n,gl.UNSIGNED_SHORT,(from||0)*2);R.draws++;R.tris+=n/3}
@@ -2066,7 +2066,7 @@ function deflect(nx,nz,vn,e,mu){
 
 /* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
 const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5};
-function carPlace(x,z,yaw,yh){C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6}
+function carPlace(x,z,yaw,yh){C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6;C.flatT=0}
 function respawn(){IN.nitro=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1;C.dActive=0;C.dLast=null;C.grounded=1;C.air=0;C.liftT=0;C.kv=0;C.drift=0;C.slideT=0;C.tapN=0;C.tapT=0;C.dbK=0}
 const gw=(x,z,y)=>groundAt(x,z,y);
 function carStep(dt){
@@ -2143,7 +2143,9 @@ function carStep(dt){
   const dr=C.drift;let beta=0,sK=0;
   if(gr){
     /* the most sideways acceleration the tyres give: a little aero grip at speed, much less on grass */
-    const A=(HND.aBase+HND.aAero*af*af)*surf*(1-HND.powerOS*thr*Math.max(0,1-af/45));   /* rear-drive cars with a lot of power break traction under throttle at low speed */
+    /* burst tyres (spike strips, batch 3): grip halved for 3 s, back over the next second. The one deliberate case of damage changing how the car drives. */
+    const flatK=C.flatT>0?Math.min(1,C.flatT):0;
+    const A=(HND.aBase+HND.aAero*af*af)*surf*(1-HND.powerOS*thr*Math.max(0,1-af/45))*(1-.5*flatK);   /* rear-drive cars with a lot of power break traction under throttle at low speed */
     /* steering target: yaw rate limited by that budget, so at speed full lock just gives you the tightest line (understeer), not a slide */
     const omN=steer*Math.min(PHYS.classic?HND.omLow*Math.min(1,af/6):af/(PHYS.rmin*HND0.omLow/HND.omLow),A/Math.max(af,4))*(f<-1?-1:1);   /* slow: the turning circle of a car (it used to be a 2 m radius); fast: the tyre budget */
     /* drift assist: the stick chooses the slide angle, the assist holds it and straightens the car the moment you let go */
@@ -2153,7 +2155,7 @@ function carStep(dt){
     if(sl>0){const minA=Math.min(HND.tapAng*(1+1.5*C.dbK),HND.tapFrac*bmax)*sl*(hand?lerp(1,.5,sstep(.6,1.8,C.handT)):1),sg=Math.abs(steer)>.12?Math.sign(steer):C.slideDir;if(Math.abs(bt)<minA)bt=-sg*minA}   /* even with the stick centred the tap asks for a slide */
     const omDm=HND.omDrift*(1+.55*C.dbK),omD=clamp(HND.kBeta*(1+.4*C.dbK)*angd(beta,bt),-omDm,omDm);
     /* lateral friction: strong normally, weak in a drift; always limited, so a hit or a hard turn cannot snap the car around */
-    let kg=HND.grip*surf;if(brk>0&&af>20&&Math.abs(steer)>.5)kg=Math.min(kg,HND.gripBrake);
+    let kg=HND.grip*surf*(1-.5*flatK);if(brk>0&&af>20&&Math.abs(steer)>.5)kg=Math.min(kg,HND.gripBrake);
     kg=lerp(kg,HND.gripDrift*(1-.4*C.dbK),dr);const fr=lerp(1.3*A,(HND.driftFric+HND.driftFricV*af)*(.6+.4*surf),dr);
     /* at low speed the car turns about its REAR axle like a real one (the middle of the car then moves sideways at yaw rate x the distance to that axle); it used to spin about its middle */
     sK=PHYS.classic?0:C.wyaw*PHYS.lr*(1-sstep(7,15,af))*(1-dr)*(f<0?-1:1);
@@ -2216,6 +2218,8 @@ function carStep(dt){
   /* water */
   if(terrainH(C.x,C.z)<-1.2&&!C.onRoad){C.wet+=dt;C.vx*=1-dt*2.5;C.vz*=1-dt*2.5;C.y=Math.max(C.y,-1.2-C.wet*.3);if(C.wet>1.4){respawn();C.wet=0}}else C.wet=0;
   if(IN.respawn){IN.respawn=0;respawn()}
+  if(C.flatT>0){C.flatT-=dt;if(gr&&C.speed>4)C.wyaw+=Math.sin(C.t*23)*.25*dt*Math.min(1,C.flatT)}   /* a burst tyre also tugs at the steering */
+  spikeCheck()
 }
 /* two circles along the car vs rects and circles from the spatial hash */
 function collide(fx,fz){
@@ -2278,6 +2282,8 @@ function fxUpdate(dt){
     while(spCool<=0){spCool+=.045/Math.max(.4,q*(.5+sp));for(let w=0;w<2;w++){const sd=w?1:-1,s=SMOKE[smokeHead++%SMOKE.length];s.x=C.x-sy*1.3+cy*sd*.85;s.z=C.z+cy*1.3+sy*sd*.85;s.y=C.y+.12;s.vx=C.vx*.55+cy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vz=C.vz*.55+sy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vy=.5+Math.random()*1.4*(.5+sp);
         s.age=0;s.life=.5+Math.random()*.5;s.sz=.35+sp*.35;s.a=.12+.14*sp;s.fire=0;s.dark=0;s.k=1}}}
   for(const s of SMOKE){if(s.age<s.life){s.age+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;s.vy*=Math.max(0,1-dt*(s.k?2.4:1.2));if(s.k){s.vx*=Math.max(0,1-dt*1.6);s.vz*=Math.max(0,1-dt*1.6)}}}
+  /* sparks from the rims of burst tyres */
+  if(C.flatT>0&&C.speed>4&&C.grounded&&Math.random()<.6){const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),w=Math.random()<.5?-1:1,f=Math.random()<.5?1.3:-1.3;sparkAt(C.x+fx*f+rx*w*.8,C.y+.1,C.z+fz*f+rz*w*.8,-fx,-fz,1,3+C.speed*.1)}
   /* a stream of sparks while the car scrapes a guard rail */
   if(C.railT>0&&C.railP&&C.speed>3){const k=Math.min(3,1+C.speed/25)*q;for(let i=0;i<Math.round(k+Math.random()*.7);i++){const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw);sparkAt(C.railP[0]+fx*(Math.random()-.3)*2,C.y+.35,C.railP[1]+fz*(Math.random()-.3)*2,C.railP[2]-C.vx*.03,C.railP[3]-C.vz*.03,1,3+C.speed*.12)}}
   /* sparks from every new impact (walls, poles, other cars) */
@@ -2307,8 +2313,8 @@ function fxDraw(){
   batch(0);
   const gy=C.gs+.04,L=2.6,Wd=1.35;quad(x+sy*-L-cy*Wd,gy,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,gy,z+cy*L+sy*Wd,x+sy*L+cy*Wd,gy,z-cy*L+sy*Wd,x+sy*L-cy*Wd,gy,z-cy*L-sy*Wd,0,0,0,(GFX.shadowOn?.22:.5)/(1+Math.max(0,C.y-C.gs)*.4));
   {const L2=2.0,W2=.92;quad(x+sy*-L2-cy*W2,gy,z+cy*L2-sy*W2,x+sy*-L2+cy*W2,gy,z+cy*L2+sy*W2,x+sy*L2+cy*W2,gy,z-cy*L2+sy*W2,x+sy*L2-cy*W2,gy,z-cy*L2-sy*W2,0,0,0,.34/(1+Math.max(0,C.y-C.gs)*.8))}      /* a tight dark patch right under the body: the car sits on the road */
-  trShadows(quad);
-  batch(2);
+  trShadows(quad);heliFx(quad,flat,0);
+  batch(2);heliFx(quad,flat,2);
   const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,al=.55*(1-age/40)*q[6];if(l>6)continue;
     quad(q[0]-nx,y,q[1]-nz,q[0]+nx,y,q[1]+nz,q[2]+nx,y,q[3]+nz,q[2]-nx,y,q[3]-nz,.02,.02,.02,al)}
   navFx(quad,sprite,R.time);
@@ -2323,6 +2329,7 @@ function fxDraw(){
   const lampK=Math.max(T.glow,T.pool),nl=gfxNearLamps(x,z,300,lampK,fwx,fwz);
   const nPool=Math.min(nl,T.pool);
   for(let i=0;i<nPool;i++){const j=_lampPick[i],lx=LAMPS[j],ly=LAMPS[j+1]-6.95,lz=LAMPS[j+2];flat(lx,ly+.03,lz,7.5,7.5,1,.78,.45,.34*dayK)}
+  heliFx(quad,flat,5);
   /* red and blue wash on the road round a police car with its siren on */
   if(TR.on)for(const c of TR.cars){if(!c.alive||!c.siren)continue;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz;if(dx*dx+dz*dz>40000)continue;const ph=Math.sin(R.time*12)>0;flat(px,lerp(c.py,c.y,a)+.05,pz,11,11,ph?1:.12,ph?.1:.32,ph?.08:1,.42)}
   if(C.boostK>.04){const hx=sy,hz=-cy;flat(x-hx*3.4,C.gs+.04,z-hz*3.4,3+2*C.boostK,3+2*C.boostK,1,.62,.28,.5*C.boostK*(.4+.6*(1-dayK)))}
@@ -2330,6 +2337,7 @@ function fxDraw(){
   /* the car's headlights: a pool of light on the road ahead, wider the further it goes (uv runs across, then along: mode 6 is the beam shape) */
   {const hx=sy,hz=-cy,rxc=cy,rzc=sy,gy2=C.gs+.05,x0=x+hx*2.0,z0=z+hz*2.0,len=26;
    const lk=1-.5*(PDM.head[0]+PDM.head[1]);if(lk>0)quad(x0-rxc*1.0,gy2,z0-rzc*1.0,x0+rxc*1.0,gy2,z0+rzc*1.0,x0+hx*len+rxc*6.5,gy2,z0+hz*len+rzc*6.5,x0+hx*len-rxc*6.5,gy2,z0+hz*len-rzc*6.5,1,.92,.7,.5*lk*dayK)}
+  heliFx(quad,flat,6);
   /* beams of the cars that come at us */
   if(TR.on&&T.glow>30){let k=0;for(const c of TR.cars){if(!c.alive||k>=10)continue;const dx=c.x-x,dz=c.z-z,d2=dx*dx+dz*dz;if(d2>14400||d2<100)continue;const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);
       if((x-c.x)*hx+(z-c.z)*hz<0)continue;k++;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),py=lerp(c.py,c.y,a)+.06,x0=px+hx*(c.hl-.1),z0=pz+hz*(c.hl-.1),rr=-hz,rs=hx;
@@ -2343,7 +2351,7 @@ function fxDraw(){
   /* neon */
   for(let i=0;i<NEONS.length&&ng<gMax+24;i+=7){const nx=NEONS[i]-gcx,nz=NEONS[i+2]-gcz,d2=nx*nx+nz*nz;if(d2>56000)continue;if(nx*R.fw[0]+nz*R.fw[2]<-3)continue;const d=Math.sqrt(d2),fl=.82+.18*Math.sin(R.time*(3+(i%5))+i),al=Math.min(.95,1.15-d/240)*fl;
     sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al*(.35+.65*dayK));ng++}
-  navBeacon(sprite);
+  navBeacon(sprite);spikeFx(sprite,SRN);
   /* the car's own lights */
   {const hx=sy,hz=-cy,rr=cy,rs=sy,yy=C.y+C.bob;
    for(const sd of[-1,1]){const si=sd<0?0:1;if(!PDM.head[si])sprite(x+hx*-CARL.hz+rr*sd*CARL.hx,yy+CARL.hy+.12,z+hz*-CARL.hz+rs*sd*CARL.hx,.36,1,.95,.75,.5*dayK);
@@ -2358,7 +2366,7 @@ function fxDraw(){
         sprite(px-hx*(c.hl-.12)+rr*w,py+.66,pz-hz*(c.hl-.12)+rs*w,(c.brake?.75:.45)+d*.004,1,.1,.06,(c.brake?.95:.55)*k);
         sprite(px+hx*(c.hl-.12)+rr*w,py+.62,pz+hz*(c.hl-.12)+rs*w,.5+d*.004,1,.93,.74,.5*k*dayK)}
       if(c.siren){const ph=Math.sin(R.time*12)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),2.6+d*.016,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(1,k*2.6))}
-      else if(c.kind===1&&c.cm===0&&c.type===4){const ph=Math.sin(R.time*2.6)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),1.1+d*.01,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(.9,k*2))}}}
+      else if(c.kind===1&&c.cm===0){const ph=Math.sin(R.time*2.6)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),1.1+d*.01,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(.9,k*2))}}}
   /* police lights are drawn with plain blending (a saturated red or blue even against the bright sky), the other glows are added */
   /* traffic lights: the lit lamp of every head that faces the camera, within 220 m (plain blending, so red, yellow and green read in bright sun) */
   {let k=0;const H=SIG.heads,cx2=CAM.x,cz2=CAM.z;for(let i=0;i<H.length&&k<64;i+=7){const dx=H[i]-cx2,dz=H[i+2]-cz2,d2=dx*dx+dz*dz;if(d2>48400||dx*H[i+3]+dz*H[i+4]>0)continue;if(dx*R.fw[0]+dz*R.fw[2]<-3)continue;
@@ -2478,8 +2486,9 @@ function drawMap(ctx,cx,cy,rad,zoomM,rot){
   const S=UI.mapCv.width,pxm=S/W.size,s=rad/zoomM/pxm;ctx.save();ctx.beginPath();ctx.arc(cx,cy,rad,0,TAU);ctx.clip();ctx.fillStyle='#10202e';ctx.fillRect(cx-rad,cy-rad,rad*2,rad*2);
   ctx.translate(cx,cy);ctx.rotate(rot);ctx.scale(s,s);ctx.translate(-(C.x+W.half)*pxm,-(C.z+W.half)*pxm);ctx.imageSmoothingEnabled=true;ctx.drawImage(UI.mapCv,0,0);
   mapOverlay(ctx,pxm,s);
-  /* traffic: small dots (white cars, red wrecks) */
-  if(TR.on){const r=2.6/s;for(const c of TR.cars){if(!c.alive)continue;ctx.fillStyle=c.state==1?'#ff4a3a':'rgba(235,240,250,.85)';ctx.fillRect((c.x+W.half)*pxm-r,(c.z+W.half)*pxm-r,r*2,r*2)}}
+  /* only the police on the minimap (batch 3: the other traffic is left off): a patrol a blue dot, a chaser flashing red and blue, a helicopter a bigger ring */
+  if(TR.on){const r=3.2/s,fl=((R.time*6)|0)&1;for(const c of TR.cars){if(!c.alive||c.kind!==1||c.state==1)continue;ctx.fillStyle=c.cm>0?(fl?'#ff3a3a':'#3a7aff'):'#5a8aff';ctx.fillRect((c.x+W.half)*pxm-r,(c.z+W.half)*pxm-r,r*2,r*2)}
+    for(const h of HELI.list){ctx.strokeStyle=fl?'#ff3a3a':'#3a7aff';ctx.lineWidth=2/s;ctx.beginPath();ctx.arc((h.x+W.half)*pxm,(h.z+W.half)*pxm,6/s,0,TAU);ctx.stroke()}}
   ctx.restore();
   ctx.save();ctx.translate(cx,cy);ctx.fillStyle='#ff7a1a';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,-rad*.14);ctx.lineTo(rad*.09,rad*.1);ctx.lineTo(0,rad*.05);ctx.lineTo(-rad*.09,rad*.1);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
   ctx.beginPath();ctx.arc(cx,cy,rad,0,TAU);ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.85)';ctx.stroke()}
@@ -2545,11 +2554,17 @@ function audioStart(){if(AU.ctx||window.__noAudio)return;try{const A=window.Audi
   const tn=mkNoise(),tf=x.createBiquadFilter();tf.type='bandpass';tf.frequency.value=1500;tf.Q.value=2.2;AU.tireG=x.createGain();AU.tireG.gain.value=0;tn.connect(tf);tf.connect(AU.tireG);AU.tireG.connect(master);tn.start();
   /* the scrape of metal on a guard rail: high, harsh noise */
   {const sn=mkNoise(),sf=x.createBiquadFilter();sf.type='bandpass';sf.frequency.value=3200;sf.Q.value=1.4;AU.scrF=sf;AU.scrG=x.createGain();AU.scrG.gain.value=0;sn.connect(sf);sf.connect(AU.scrG);AU.scrG.connect(master);sn.start()}
+  /* the helicopter: low noise chopped by a 14 Hz wave (the rotor) */
+  {const hn=mkNoise(),hf=x.createBiquadFilter();hf.type='lowpass';hf.frequency.value=260;const hg=x.createGain();hg.gain.value=0;const lfo=x.createOscillator();lfo.type='square';lfo.frequency.value=14;const lg=x.createGain();lg.gain.value=.5;lfo.connect(lg);lg.connect(hg.gain);hn.connect(hf);hf.connect(hg);AU.heliG=x.createGain();AU.heliG.gain.value=0;hg.connect(AU.heliG);AU.heliG.connect(master);hn.start();lfo.start();hg.gain.value=.5}
+  AU.master=master;AU.mkNoise=mkNoise;
   AU.sir=x.createOscillator();AU.sir.type='triangle';AU.sir.frequency.value=800;AU.sirG=x.createGain();AU.sirG.gain.value=0;AU.sir.connect(AU.sirG);AU.sirG.connect(master);AU.sir.start();AU.ready=true}catch(e){}}
+/* a bang (a tyre bursting): a short burst of noise */
+function audioBang(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime,n=AU.mkNoise(),g=x.createGain();g.gain.setValueAtTime(.9,t);g.gain.exponentialRampToValueAtTime(.001,t+.35);n.connect(g);g.connect(AU.master);n.start(t);n.stop(t+.4)}
 function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.state=='suspended')x.resume();
   const sp=Math.min(1,C.speed/80),gear=Math.min(5,Math.floor(C.speed/16)),gp=(C.speed-gear*16)/16,rpm=.22+(Math.min(1,gp*.9+.1)*.55)+(IN.thr||IN.auto?.12:0)+(C.boosting?.1:0)+(C.grounded?0:.16);
   const f=38+rpm*150;AU.eng.frequency.setTargetAtTime(f,t,.04);AU.eng2.frequency.setTargetAtTime(f*.503,t,.04);AU.lp.frequency.setTargetAtTime(500+rpm*1400,t,.05);
   AU.gain.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:.07+.07*rpm+(C.boosting?.05:0),t,.05);AU.windG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:sp*sp*.22,t,.1);AU.tireG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:(C.grounded&&(C.drift>.3||C.dActive)?.12*Math.max(C.drift,Math.min(1,C.slip*3)):0)+(C.hit>3?.05:0),t,.05);
+  if(AU.heliG)AU.heliG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:Math.max(0,1-HELI.near/350)*.9,t,.2);
   if(AU.scrG){const on=C.railT>0&&!UI.paused&&!UI.mapOpen;AU.scrG.gain.setTargetAtTime(on?.1+.14*Math.min(1,C.speed/45):0,t,on?.015:.06);AU.scrF.frequency.setTargetAtTime(2400+C.speed*30+Math.random()*600,t,.03)}
   /* the siren: a two-tone wail, louder the nearer the nearest chasing cop */
   if(AU.sir){const ph=Math.sin(t*5.2)>0;AU.sir.frequency.setTargetAtTime(ph?960:720,t,.04);AU.sirG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:COP.sirenVol*.07,t,.1)}}
@@ -2623,6 +2638,7 @@ const TTYPES=[{n:'sedan',hl:2.25,hw:.9,m:1300},{n:'hatch',hl:2.0,hw:.88,m:1100},
  /* batch 2: working vehicles with their own behaviour (beh), a taxi and a pickup; col forces a livery colour; far: whose far body they share (saves draw calls) */
  {n:'bus',cc:'t_bus',hl:5.3,hw:1.16,m:12000,beh:'bus',col:15,v0:.8,far:-1},{n:'garbage',box:'garbage',hl:4.0,hw:1.25,m:14000,beh:'garbage',col:14,v0:.6,far:-1},
  {n:'delivery',box:'boxvan',hl:3.1,hw:1.08,m:3500,beh:'delivery',col:16,v0:.97,far:3},{n:'taxi',cc:'n_cruiser',hl:2.33,hw:.96,m:1600,beh:'taxi',col:13,v0:1.1,far:0,sign:1},{n:'pickup',box:'pickup',hl:2.7,hw:1.0,m:2200,v0:.95,far:2}];
+/* (TTYPES 10-19: the Close Call civilians, then 20-22 the police vehicles of batch 3, added by 73_ccars.js once the car generator is loaded) */
 /* (the civilian cars ported from Close Call are added to TTYPES by 73_ccars.js, which loads after the car generator) */
 /* paint albedos like real paint: white about .6, silver .42, black .04, a deep red, dark blue; nothing near 1 so the sun does not clip it */
 const TCOLS=[[.60,.60,.62],[.045,.045,.05],[.42,.43,.46],[.40,.045,.05],[.04,.08,.2],[.64,.64,.62],[.05,.13,.08],[.40,.34,.24],[.52,.38,.05],[.2,.07,.18],[.12,.2,.3],[.28,.28,.26],[.58,.58,.6],
@@ -2894,7 +2910,7 @@ function trResolve(a,b,e,mu){
 function trBody(B,c){B.x=c.x;B.z=c.z;B.yaw=c.yaw;if(c.state==0){B.vx=Math.sin(c.yaw)*c.v;B.vz=-Math.cos(c.yaw)*c.v;B.om=0}else{B.vx=c.vx;B.vz=c.vz;B.om=c.om}B.m=c.m;B.I=c.m*(c.hl*c.hl+c.hw*c.hw)/3;B.hl=c.hl;B.hw=c.hw}
 /* write a body back into a car: a hard hit (or any hit on a wreck) makes it a wreck, a light bump just changes its speed */
 /* a crash leaves a dent in the car: where (on its body), how deep and how wide; two dents are kept per car and a new one near an old one deepens it. The shader (trV) pushes the metal in. */
-const TDCAP=[170000,150000,230000,280000,250000];      /* energy that finishes a sedan / hatch / SUV / van / police car (J) */
+const TDCAP=[170000,150000,230000,280000,250000,900000,900000,400000,170000,260000,170000,170000,170000,150000,260000,170000,170000,260000,170000,170000,230000,300000,900000];      /* energy that finishes a sedan / hatch / SUV / van / police car (J) */
 function trDent(c,wx,wz,E){
   if(E<4000)return;c.dmg=Math.min(1,(c.dmg||0)+E/(TDCAP[c.type]||180000));const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
   const q=Math.sqrt(E/180000),dep=Math.min(.42,.05+.33*q),rad=.42+.4*q,d=c.dn||(c.dn=new Float32Array(12));let slot=-1;
@@ -2925,8 +2941,10 @@ function trPlayerCollide(){
         C.vx=BA.vx;C.vz=BA.vz;C.wyaw+=clamp((BA.om-C.wyaw),-1.6,1.6)*.55;C.x=BA.x;C.z=BA.z;
         const vn=HIT.vn;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.04);C.flash=Math.max(C.flash,Math.min(.25,vn*.01));
         impactAdd(3,vn,e,c.m,HIT.cx,HIT.cz,HIT.nx,HIT.nz);if(C.t-c.hitT>.5)TR.stat.hits++;
-        const was=c.state;if(c.kind==1)copRammed(c,e);else if(e>5000)copTrigger(e>70000?3:2);                 /* crashing into a car is a crime */
-        trBack(BB,c,e);c.hitT=C.t;if(c.kind==0&&was==0&&c.state==1)copTrigger(3)}
+        /* WHO WAS AT FAULT: only a crash YOU drive into is a crime. The normal points from the car to you: your speed into it against its speed into you (being rear-ended, or a patrol nudging you at a standstill, used to make you wanted) */
+        const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin;
+        const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
+        trBack(BB,c,e);c.hitT=C.t;if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck')}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){
@@ -3097,7 +3115,10 @@ const TRMATMAP=[0,1,2,2,5,3,4,6,5,2,2,12,0,6,2,6,5,13,6,2];      /* generator ma
 /* the working vehicles (generator frame: metres, front at -z): a refuse truck, a box van, a pickup. A cab, a body, lamps, plates, the game's wheels. */
 function trBoxVehicle(kind){
   const b=new CGB(),M=CGM,box=(x,y,z,hx,hy,hz,m)=>cgBox(b,x,y,z,hx,hy,hz,m,0);let S;
-  if(kind=='garbage'){S={L:8.1,W:2.5,H:3.4,fz:-2.75,rz:2.45,rf:.52,rr:.52,wf:.32,wr:.36,tf:1.02,tr:1.0};
+  if(kind=='swat'){/* a black armoured truck: a high cab, a windowless body with slits, a ram bar, a light bar */S={L:6.6,W:2.4,H:2.75,fz:-2.1,rz:2.0,rf:.5,rr:.5,wf:.32,wr:.32,tf:.98,tr:.98,cowl:1.0,roofF:1.4,roofR:5.8,curves:{half:()=>1.1}};
+    box(0,.75,0,1.12,.2,3.2,M.under);box(0,1.55,-2.6,1.18,.8,.7,M.paint);box(0,1.55,.6,1.2,1.2,2.6,M.paint);box(0,2.05,-3.25,1.08,.32,.02,M.glass);for(const sd of[-1,1]){box(sd*1.19,2.05,-2.65,.02,.3,.5,M.glass);box(sd*1.21,1.95,.6,.02,.08,1.8,M.trim);box(sd*1.21,1.25,.6,.02,.1,2.4,M.plate)}
+    box(0,.95,-3.4,1.15,.28,.1,M.trim);for(const sd of[-1,1]){box(sd*.85,1.25,-3.32,.16,.08,.03,M.head);box(sd*1.0,1.1,3.22,.1,.18,.03,M.tail)}box(0,.95,-3.5,.26,.07,.02,M.plate)}
+  else if(kind=='garbage'){S={L:8.1,W:2.5,H:3.4,fz:-2.75,rz:2.45,rf:.52,rr:.52,wf:.32,wr:.36,tf:1.02,tr:1.0};
     box(0,.62,-.2,1.1,.16,3.8,M.under);box(0,1.75,-3.15,1.2,1.05,.9,M.plate);box(0,2.35,-4.04,1.1,.42,.02,M.glass);for(const sd of[-1,1])box(sd*1.21,2.3,-3.3,.02,.38,.55,M.glass);box(0,.95,-4.08,1.18,.3,.06,M.trim);box(0,1.15,-4.1,.6,.18,.03,M.grille);
     box(0,2.05,.95,1.25,1.25,3.0,M.paint);box(0,2.0,3.95,1.2,1.15,.08,M.trim);box(0,3.32,.95,1.27,.06,3.02,M.paint);for(let k=0;k<3;k++)box(0,2.05,-1.2+k*1.35,1.27,1.15,.04,M.trim);
     for(const sd of[-1,1]){box(sd*.8,1.05,-4.1,.18,.08,.03,M.head);box(sd*1.0,1.0,4.04,.12,.18,.03,M.tail);box(sd*1.15,3.25,-3.0,.05,.06,.05,M.amber)}box(0,.85,-4.11,.26,.07,.02,M.plate);box(0,.75,4.05,.26,.07,.02,M.plate)}
@@ -3119,10 +3140,10 @@ function trFarOf(i){const T=TTYPES[i];if(i<5)return trBuildType(TRSHAPE[i],T.hw)
   if(T.box=='garbage')return trBuildType({gz:[2.6,3.9],wheel:.52,sec:[[4.05,.5,2.5,2.9,1.2,1.1],[2.2,.5,2.5,2.9,1.2,1.1],[2.1,.5,3.3,3.3,1.25,1.25],[-3.95,.5,3.3,3.3,1.25,1.25]]},T.hw);
   return trBuildType(TRSHAPE[3],T.hw)}
 function trGenType(i){
-  const spec=Object.assign({noSkirt:1},TRGEN[i==4?0:i]||{});if(i==4)spec.lowerDark=.66;
+  const spec=Object.assign({noSkirt:1},TRGEN[i==4?0:i]||{});if(TTYPES[i].cop)spec.lowerDark=.66;
   const R=trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
   /* the police livery: white doors, roof and pillars, black bonnet, wings and boot (x, y, z in generator coordinates, front negative) */
-  const copLivery=(x,y,z,S)=>{const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
+  const swat=TTYPES[i].box=='swat',copLivery=(x,y,z,S)=>{if(swat)return 9;const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
   const add=(mb,dx,dy,dz,mirX,mapM)=>{const n=mb.nv;for(let v=0;v<n;v++){const x=mb.P[v*3]*(mirX?-1:1)+dx,y=mb.P[v*3+1]+dy,z=-(mb.P[v*3+2]+dz);P.push(x,y,z);N.push(mb.N[v*3]*(mirX?-1:1),mb.N[v*3+1],-mb.N[v*3+2]);const m=TRMATMAP[mb.M[v]];
       /* the black lower body of a police car: the shade ramp of the generator marks it; the paint of the upper part stays the palette colour */
       const mm=m==0&&mb.S&&mb.S[v]<.4?(spec.lowerDark?9:6):(m==0&&spec.lowerDark&&mb===R.body?copLivery(P[P.length-3],P[P.length-2],-P[P.length-1],S):m),pt=mb===R.body?(mb.Pt[v]||0):0;
@@ -3130,7 +3151,7 @@ function trGenType(i){
     for(let k=0;k<mb.I.length;k++)I.push(mb.I[k]+o);o+=n};
   add(R.body,0,0,0,false);
   for(const[wz,wr,wheel,tx]of[[S.fz,S.rf,R.wheelF,S.tf],[S.rz,S.rr,R.wheelR,S.tr]])for(const sd of[-1,1])add(wheel,sd*tx,wr,wz,sd<0);
-  if(i==4){/* a police car: the light bar (red, clear, blue segments on a black base), a push bar, A-pillar spotlights, an aerial, a rear deck light */
+  if(TTYPES[i].cop){/* a police car: the light bar (red, clear, blue segments on a black base), a push bar, A-pillar spotlights, an aerial, a rear deck light */
     const bb=new CGB(),yt=S.H+.005,zc=S.zs((S.roofF+S.roofR)/2),T=(m)=>m;
     cgBox(bb,0,yt+.025,zc,.62,.025,.22,CGM.trim,0);
     for(let k=0;k<3;k++){cgBox(bb,-.5+k*.17,yt+.085,zc,.075,.045,.19,CGM.paint,0);cgBox(bb,.5-k*.17,yt+.085,zc,.075,.045,.19,CGM.glass,0)}
@@ -3347,23 +3368,29 @@ function safeHud(c,W_,H_,u){
 const COPD={
   /* top: the slowest a chaser's top speed can be; follow: chasers match your speed times this (up to 105 m/s) and get a rubber-band boost when they fall behind; accel: how hard they accelerate;
      loseT / loseD: you only lose them by being more than loseD metres from every chaser AND out of sight for loseT seconds; passV: speed at which blowing past a cop gets you chased (120 mph) */
-  forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,2,3,4,4,5],patrol:3,ramLevel:2,ramCd:4.2,ramV:10,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:14,loseD:230,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
-  medium:{name:'Medium',top:66,follow:1.15,accel:14,react:.7,chaseN:[0,2,4,5,6,7],patrol:4,ramLevel:1,ramCd:3,ramV:12,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:12,loseD:260,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
-  hard:{name:'Hard',top:76,follow:1.2,accel:16,react:.5,chaseN:[1,3,5,6,7,8],patrol:5,ramLevel:1,ramCd:2.2,ramV:15,blockLevel:2,bustT:2,bustSpd:8,bustN:2,loseT:10,loseD:300,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
+  forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,2,4,5,6,8],patrol:1,ramLevel:2,ramCd:4.2,ramV:10,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:14,loseD:230,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
+  medium:{name:'Medium',top:66,follow:1.15,accel:14,react:.7,chaseN:[0,3,5,6,7,9],patrol:1,ramLevel:2,ramCd:3,ramV:12,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:12,loseD:260,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
+  hard:{name:'Hard',top:76,follow:1.2,accel:16,react:.5,chaseN:[0,3,5,7,8,10],patrol:2,ramLevel:2,ramCd:2.2,ramV:15,blockLevel:3,bustT:2,bustSpd:8,bustN:2,loseT:10,loseD:300,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
+/* WHAT EACH STAR ADDS (batch 3; the difficulty presets above set the speeds, the number of chasers and how often they ram):
+   1 a couple of patrol cars follow you, no contact; 2 more cars and they RAM you (interceptors join); 3 PIT manoeuvres (they aim at your rear quarter), bigger roadblocks (4 cars across, 5 at four stars, 6 at five; one fewer on Forgiving, which leaves a gap; fewer on a narrow road);
+   4 a HELICOPTER with a spotlight follows you (it always knows where you are) and SPIKE STRIPS are laid on the road ahead; 5 SWAT trucks block, two or three helicopters, near-constant PIT
+   attempts, roadblocks of 6 with heavy trucks. types: the police vehicles that chase at that level (4 patrol, 20 interceptor, 21 SUV, 22 SWAT truck). */
+const STARS=[{types:[4]},{types:[4],pit:0,block:0,heli:0,spikes:0,ramMul:1},{types:[4,20],pit:0,block:0,heli:0,spikes:0,ramMul:1},{types:[4,20,21],pit:1,block:4,heli:0,spikes:0,ramMul:.85},
+  {types:[20,21,4],pit:1,block:5,heli:1,spikes:1,ramMul:.7},{types:[20,21,22],pit:1,block:6,heli:3,spikes:1,ramMul:.4}];
 const COP={on:true,D:COPD.forgiving,diff:'forgiving',heat:0,w:0,t:0,sightT:99,minD:1e9,bust:0,spawnT:2,nC:0,nP:0,sirenVol:0,lastBlock:-99,warnT:0,heatT:0,seenNow:false,rbN:0};
 function copSetDiff(n){if(COPD[n]){COP.D=COPD[n];COP.diff=n}}
 /* ---- heat ---- */
 function copLevelOf(){const t=COP.D.thr;let L=0;for(let i=1;i<6;i++)if(COP.w>=t[i]*(i<=COP.heat?.7:1))L=i;return L}
 /* what gets you chased (and nothing else does): you hit a cop car, you blow past a cop at 120 mph or more, you crash into another car. level = the number of stars it is worth at least */
-function copTrigger(level){
-  if(!COP.on||GAME.state||!TR.on)return;const t=COP.D.thr;
+function copTrigger(level,why){
+  if(!COP.on||GAME.state||!TR.on)return;(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:why||'?',level});if(COP.crimes.length>40)COP.crimes.shift();const t=COP.D.thr;
   if(COP.w<t[level]+1)COP.w=t[level]+1;else COP.w+=(t[Math.min(5,level+1)]-t[level])*.3;
   if(COP.w>t[5]*1.3)COP.w=t[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=0}
 /* how fast a chaser may go: it matches you (a little more), never less than the difficulty's top, and gets a boost the further behind it falls, so it keeps coming */
 function copTop(c){const D=COP.D;let t=Math.max(D.top,Math.min(105,C.speed*D.follow+6));if(c){const d=Math.hypot(c.x-C.x,c.z-C.z);t*=1+Math.min(.25,Math.max(0,d-110)/450)}return Math.min(115,t)}
 function heatAdd(p){if(!COP.on||GAME.state||!TR.on)return;COP.w+=p*COP.D.ev;if(COP.w>COP.D.thr[5]*1.3)COP.w=COP.D.thr[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=Math.min(COP.sightT,.2)}
 /* wipe the heat and send the chasers home (full: they disappear, as when you reach a garage) */
-function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;
+function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;SPIKE.list.length=0;if(full)HELI.list.length=0;
   for(const c of TR.cars){if(!c.alive||c.kind!==1)continue;if(c.cm==3||(full&&c.cm>0))trKill(c,0);else if(c.cm>0)copStandDown(c)}}
 function copStandDown(c){c.cm=0;c.siren=0;c.v0f=1;c.A=2.2;if(c.state==3)copAttach(c)}
 function copAlert(c){c.cm=1;c.siren=1;c.v0f=COP.D.chaseSpd;c.A=COP.D.accel*.85;c.T=.7;c.pickJ=-1;c.role=0;c.rt=null}
@@ -3381,13 +3408,20 @@ function copTarget(c){
   let tx=C.x-fx*b+rx*s,tz=C.z-fz*b+rz*s,ram=false;
   /* ramming / PIT: aim at the player's rear quarter, faster than the player, then back off for a while */
   const dist=Math.hypot(C.x-c.x,C.z-c.z);
-  if(D.ramLevel<=COP.heat&&c.role<=3&&c.ramCd<=0&&dist<85){ram=true;const sd=c.role==1?-1:c.role==2?1:((c.i&1)?1:-1);tx=C.x-fx*1.7+rx*sd*.9;tz=C.z-fz*1.7+rz*sd*.9}
+  const ST=STARS[COP.heat]||STARS[0];
+  if(D.ramLevel<=COP.heat&&c.role<=3&&c.ramCd<=0&&dist<85){ram=true;const sd=c.role==1?-1:c.role==2?1:((c.i&1)?1:-1);
+    /* a ram goes for your back bumper; a PIT (from 3 stars) for the rear corner, from the side, so your tail is pushed round */
+    if(ST.pit){tx=C.x-fx*1.9+rx*sd*1.25;tz=C.z-fz*1.9+rz*sd*1.25}else{tx=C.x-fx*1.7+rx*sd*.6;tz=C.z-fz*1.7+rz*sd*.6}}
+  else{/* lead the target: aim where you will be (up to 1.2 s ahead), so they cut corners instead of following your tail round them */const lt=Math.min(1.2,dist/60);tx+=C.vx*lt;tz+=C.vz*lt}
   const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),dl=(tx-c.x)*sy+(tz-c.z)*cy,dd=Math.hypot(tx-c.x,tz-c.z);let tv=ps+Math.max(-12,Math.min(22,dl*.9));
   if(ram)tv=ps+D.ramV;else{const cl=Math.min(34,Math.sqrt(2*8*Math.max(0,dd-2)));tv=ps+(dl>=0?cl:-cl)}     /* come up to the slot at a speed it can still stop from */
   _ct.x=tx;_ct.z=tz;_ct.v=Math.max(0,Math.min(copTop(c),tv))}
 function copFree(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;const D=COP.D;if(c.ramCd>0)c.ramCd-=dt;
   copTarget(c);
+  /* stuck against something: back off for a moment, turning away, then go again (it used to grind into the wall until it was replaced) */
+  if(c.rev>0){c.rev-=dt;const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw);c.yaw+=c.revS*1.2*dt;c.v=0;c.x-=sy*4.5*dt;c.z+=cy*4.5*dt;c.vx=-sy*4.5;c.vz=cy*4.5;if(trStatic(c.x,c.z,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz}const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);return}
+  if(c.stk>1.1&&c.v<2){c.rev=.9;c.revS=angd(Math.atan2(_ct.x-c.x,-(_ct.z-c.z)),c.yaw)>0?-1:1;c.stk=.4}
   const dx=_ct.x-c.x,dz=_ct.z-c.z,err=angd(Math.atan2(dx,-dz),c.yaw),v=c.v,maxYr=Math.min(2.6,13/Math.max(v,4));
   const yr=Math.max(-maxYr,Math.min(maxYr,err*3.2));c.om=yr;c.yaw+=yr*dt;
   const a=Math.max(-12,Math.min(D.accel,(_ct.v-v)*1.6)),top=copTop(c);c.v=Math.max(0,Math.min(top,v+a*dt));c.brake=a<-2.5?1:0;
@@ -3418,6 +3452,8 @@ function copPick(c,g,e){
   if(g.through){const ii=Math.min(e.n-1,Math.round(g.foot+10));bd=((e.X[ii]-C.x)**2+(e.Z[ii]-C.z)**2)*.8}
   for(let q=0;q<L.length;q++){const l=L[q];if(own&&l.from!==e)continue;const k=l.n-1,tx=l.X[k]-l.X[k-1],tz=l.Z[k]-l.Z[k-1],ll=Math.hypot(tx,tz)||1,px=l.X[k]+tx/ll*45,pz=l.Z[k]+tz/ll*45;let d=(px-C.x)**2+(pz-C.z)**2;if(l.kind==3)d*=3;if(d<bd){bd=d;best=l}}
   c.pickJ=g.id;c.pickL=best;return best}
+/* which police vehicle: from the star table (patrols are patrol cars or SUVs) */
+function copType(chase){const T=chase?(STARS[COP.heat]||STARS[1]).types:[4,4,21];return T[Math.floor(TR.rng()*T.length)]}
 /* ---- spawning (out of sight, behind the player when chasing) ---- */
 function trSpawnCop(chase,far){
   const rng=TR.rng,P=C;let ux=C.vx,uz=C.vz;const l=Math.hypot(ux,uz);if(l<2){ux=Math.sin(C.yaw);uz=-Math.cos(C.yaw)}else{ux/=l;uz/=l}
@@ -3427,7 +3463,7 @@ function trSpawnCop(chase,far){
     for(let tries=0;tries<4;tries++){const D=far?265+rng()*80:120+rng()*100;let idx=NAV.pl.i-sg*Math.round(D/r.ds);if(r.closed)idx=((idx%r.n)+r.n)%r.n;else if(idx<6||idx>r.n-8)continue;
       const k=Math.floor(rng()*o[di].length),e=o[di][k],u=e.dir>0?idx:r.n-1-idx;trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz))continue;
       let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
-      const c=trPlace(e,u,4,12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*1.0,Math.floor(rng()*1e9));if(!c)return null;c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;copAlert(c);return c}}
+      const c=trPlace(e,u,copType(true),12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*1.0,Math.floor(rng()*1e9));if(!c)return null;c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;copAlert(c);return c}}
   for(let tries=0;tries<16;tries++){
     const ahead=!chase&&rng()<.7,ang=chase?Math.atan2(-uz,-ux)+(rng()-.5)*2.2:(ahead?Math.atan2(uz,ux)+(rng()-.5)*1.3:rng()*TAU),r=chase?(far?265+rng()*80:120+rng()*100):(ahead?230+rng()*150:140+rng()*200),x=P.x+Math.cos(ang)*r,z=P.z+Math.sin(ang)*r;
     if(!trProbe(x,z))continue;
@@ -3436,18 +3472,22 @@ function trSpawnCop(chase,far){
     let u=e.dir>0?i+(TRP.t>.5?1:0):r0.n-1-i-(TRP.t>.5?1:0);if(e.closed)u=((u%e.n)+e.n)%e.n;else if(u<6||u>e.n-8)continue;
     trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||(trSeen(sx,sz)&&!(ahead&&d>=225)))continue;   /* a patrol 230 m or more ahead may appear in view: the haze hides it popping in, and you will meet it */
     let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
-    const c=trPlace(e,u,4,12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*(chase?1.0:.85),Math.floor(rng()*1e9));if(!c)return null;
+    const c=trPlace(e,u,copType(chase),12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*(chase?1.0:.85),Math.floor(rng()*1e9));if(!c)return null;
     c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;if(chase)copAlert(c);return c}
   return null}
+/* a point on the road D metres ahead of you ALONG the road you are on (so it also works round a bend); where that road ends, a straight-line probe. Leaves the result in TRP */
+function copAhead(D,ux,uz){let pl=NAV.pl;if(!pl||!ROADS[pl.ri]||Math.hypot(ROADS[pl.ri].X[pl.i]-C.x,ROADS[pl.ri].Z[pl.i]-C.z)>90)pl=navSnap(C.x,C.z,70);if(pl&&ROADS[pl.ri]){const r=ROADS[pl.ri],t=_tan(r,pl.i),sg=(t[0]*ux+t[1]*uz)>=0?1:-1;let i=pl.i+sg*Math.round(D/r.ds);if(r.closed)i=((i%r.n)+r.n)%r.n;if(i>=3&&i<=r.n-4){TRP.ri=pl.ri;TRP.i=i;TRP.t=0;return true}}
+  return !!trProbe(C.x+ux*D,C.z+uz*D)}
 /* ---- roadblock: two or three cars across the road ahead (with a gap on Forgiving) ---- */
 function copRoadblock(){
   const rng=TR.rng;let ux=C.vx,uz=C.vz;const l=Math.hypot(ux,uz);if(l<8)return false;ux/=l;uz/=l;
-  for(let tries=0;tries<4;tries++){const dist=250+rng()*80,x=C.x+ux*dist,z=C.z+uz*dist;if(!trProbe(x,z))continue;
+  for(let tries=0;tries<4;tries++){const dist=250+rng()*80;if(!copAhead(dist,ux,uz))continue;
     const ri=TRP.ri,r=ROADS[ri],i=Math.max(2,Math.min(r.n-3,TRP.i)),t=_tan(r,i),nx=-t[1],nz=t[0],hw=r.hw,gap=COP.D.rbGap,cx=r.X[i],cz=r.Z[i],yaw0=Math.atan2(t[0],-t[1]);
-    const offs=[];if(hw<=9){if(gap>0){offs.push(-hw*.62,hw*.62)}else offs.push(-hw*.5,hw*.5,0)}else{offs.push(-hw*.7,-hw*.2,hw*.35,hw*.8);if(gap>0)offs.splice(1,2)}
+    /* bigger with the stars (STARS.block cars across the road; on Forgiving a car-wide gap is left); from 4 stars SUVs, at 5 SWAT trucks in the middle */
+    const nb=Math.max(2,Math.min((STARS[COP.heat]||{}).block||3,Math.floor(hw*1.64/2.6)+1)),offs=[];for(let q=0;q<nb;q++)offs.push(-hw*.82+hw*1.64*q/Math.max(1,nb-1));if(gap>0&&offs.length>2)offs.splice(Math.floor(offs.length/2),1);
     const e=LG.ofRoad[ri]&&LG.ofRoad[ri][0][0];if(!e)continue;let n=0;
-    for(let q=0;q<offs.length;q++){const c=trPlace(e,Math.max(3,Math.min(e.n-4,r.n>i?i:3)),4,12,0,Math.floor(rng()*1e9));if(!c)break;
-      c.x=cx+nx*offs[q];c.z=cz+nz*offs[q];c.yaw=yaw0+(q&1?1:-1)*(1.05+.12*rng());c.px=c.x;c.pz=c.z;c.pyaw=c.yaw;c.y=r.Y[i];c.py=c.y;c.state=1;c.kind=1;c.cm=3;c.block=1;c.siren=1;c.life=55;c.vx=c.vz=c.om=c.v=0;c.m=2100;c.wt=0;c.L=null;n++}
+    for(let q=0;q<offs.length;q++){const mid=Math.abs(offs[q])<hw*.45,ty=COP.heat>=5&&mid?22:COP.heat>=4?(q&1?21:20):4,c=trPlace(e,Math.max(3,Math.min(e.n-4,r.n>i?i:3)),ty,12,0,Math.floor(rng()*1e9));if(!c)break;
+      c.x=cx+nx*offs[q];c.z=cz+nz*offs[q];c.yaw=yaw0+(q&1?1:-1)*(1.05+.12*rng());c.px=c.x;c.pz=c.z;c.pyaw=c.yaw;c.y=r.Y[i];c.py=c.y;c.state=1;c.kind=1;c.cm=3;c.block=1;c.siren=1;c.life=55;c.vx=c.vz=c.om=c.v=0;c.m=ty==22?9000:ty==21?2600:2100;c.wt=0;c.L=null;n++}
     if(n){COP.lastBlock=COP.t;COP.warnT=4;return true}}
   return false}
 /* ---- the tick: sight, heat, who chases, spawns, boxing in ---- */
@@ -3463,7 +3503,7 @@ function copTick(dt){
     if(((TR.tk|0)+i)%15==0||c.los===null)c.los=d<300&&copLos(c);
     if((c.los&&d<300)||(c.cm>=1&&d<D.loseD))seen=true;      /* in sight, or a chaser within loseD of you: you have not lost it */
     if(c.cm>=1&&d>520){trKill(c,0);COP.farSpawn=1;continue}  /* a chaser that fell hopelessly behind is replaced by a fresh one 260-350 m behind you */
-    if(c.cm==0&&ps>=D.passV&&d<55&&COP.t-(c.clk||-99)>14){c.clk=COP.t;copTrigger(2)}   /* you blow past a cop at 120 mph or more */
+    if(c.cm==0&&ps>=D.passV&&d<55&&COP.t-(c.clk||-99)>14){c.clk=COP.t;copTrigger(1,'speeding past a cop')}   /* you blow past a cop at 120 mph or more */
     if(c.cm>=1&&d<10)nNear++;
     if(c.state==3)nFree++;
     /* alert: a patrol within earshot joins the chase once the heat has been on for a moment */
@@ -3471,7 +3511,7 @@ function copTick(dt){
     if(c.cm>=1){
       if(COP.heat==0||COP.sightT>D.loseT+2){copStandDown(c);continue}
       if(c.state==0){if((d<115&&c.los)||d<40)copDetach(c)}
-      else if(c.state==3){if(d>210||c.stk>2.6)copAttach(c)}}}
+      else if(c.state==3){if(d>210||c.stk>3.2)copAttach(c)}}}
   COP.nC=nC;COP.nP=nP;COP.minD=minD;COP.seenNow=seen;
   /* roles for the free chasers, nearest first */
   if(nFree){let k=0;const free=[];for(let i=0;i<TRN;i++){const c=cars[i];if(c.alive&&c.kind===1&&c.state==3)free.push(c)}free.sort((a,b)=>Math.hypot(a.x-C.x,a.z-C.z)-Math.hypot(b.x-C.x,b.z-C.z));for(const c of free)c.role=k++}
@@ -3481,15 +3521,16 @@ function copTick(dt){
   /* spawns */
   if(COP.spawnT<=0){
     if(COP.heat>0){const want=D.chaseN[COP.heat];if(nC<want){if(trSpawnCop(true,COP.farSpawn)){COP.spawnT=1.4;COP.farSpawn=0}else COP.spawnT=.5}}
-    else if(nP<D.patrol&&TR.nAlive<TRN-8){if(trSpawnCop(false))COP.spawnT=1.6;else COP.spawnT=1}}
+    else if(nP<D.patrol&&TR.nAlive<TRN-8&&COP.t-(COP.lastPatrol||-99)>50){if(trSpawnCop(false)){COP.spawnT=1.6;COP.lastPatrol=COP.t}else COP.spawnT=1}}   /* patrols are rare: one at a time (two on Hard), a new one at most every 50 s */
   /* roadblock */
-  if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>24&&COP.sightT<3&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<4)copRoadblock()}
+  if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>24&&COP.sightT<3&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<6)copRoadblock()}
+  copHeliTick(dt);copSpikeTick(dt);
   /* boxed in: slow, with cops all round, for long enough */
   if(COP.heat>0&&ps<D.bustSpd&&nNear>=D.bustN)COP.bust+=dt;else COP.bust=Math.max(0,COP.bust-dt*1.5);
   if(COP.bust>=D.bustT){gameBusted();COP.bust=0}
   COP.sirenVol=COP.heat>0&&minChase<260?Math.pow(1-minChase/260,1.4):0}
 /* a ram or a collision with a cop: called from the player collision code */
-function copRammed(c,e){c.ramCd=COP.D.ramCd;copTrigger(3);if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=1;c.wt=0;c.block=0;TR.stat.wrecks++;copTrigger(4)}}
+function copRammed(c,e,fault){c.ramCd=COP.D.ramCd*((STARS[COP.heat]||STARS[1]).ramMul||1);if(fault)copTrigger(c.cm>0?Math.max(2,COP.heat):2,'hit a cop');if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=1;c.wt=0;c.block=0;TR.stat.wrecks++;copTrigger(4,'wrecked a cop')}}   /* a cop that runs into you is not your crime */
 /* ---- HUD: stars, the bust meter, the losing-them bar ---- */
 function copStar(c,x,y,r,fill,col){c.beginPath();for(let k=0;k<10;k++){const a=-PI/2+k*PI/5,rr=k&1?r*.45:r;k?c.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr):c.moveTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}c.closePath();if(fill){c.fillStyle=col;c.fill()}c.strokeStyle='rgba(255,255,255,.7)';c.lineWidth=1.4;c.stroke()}
 function copHud(c,W_,H_,u){
@@ -3504,6 +3545,7 @@ function copHud(c,W_,H_,u){
       c.fillStyle=fl?'#ff4a3a':'#4a7aff';c.beginPath();const s=u*.2,beh=Math.abs(rel)>1.9;if(beh){c.moveTo(x-s,y-s*.7);c.lineTo(x+s,y-s*.7);c.lineTo(x,y+s*.8)}else if(rel>0){c.moveTo(x-s*.7,y-s);c.lineTo(x-s*.7,y+s);c.lineTo(x+s*.9,y)}else{c.moveTo(x+s*.7,y-s);c.lineTo(x+s*.7,y+s);c.lineTo(x-s*.9,y)}c.closePath();c.fill();
       c.fillStyle='#fff';c.fillText(Math.round(d)+' m',x,y+u*.5)}c.restore()}
   if(COP.bust>.05){const k=Math.min(1,COP.bust/COP.D.bustT),w=u*3,h=u*.2,y=H_*.74;c.save();c.fillStyle='rgba(0,0,0,.55)';c.fillRect(W_*.5-w/2,y,w,h);c.fillStyle=((C.t*8)|0)%2?'#ff4a3a':'#4a7aff';c.fillRect(W_*.5-w/2,y,w*k,h);c.textAlign='center';c.font='800 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#fff';c.fillText('BUSTED?  keep moving!',W_*.5,y-u*.12);c.restore()}
+  if(COP.spikeWarn>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ff8a3a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('SPIKE STRIP AHEAD',W_*.5,H_*.36);c.restore()}
   if(COP.warnT>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('ROADBLOCK AHEAD',W_*.5,H_*.3);c.restore()}}
 
 'use strict';
@@ -3736,6 +3778,74 @@ function partsDrawCar(mf,sc,glass){
   for(const d of DEB){const r=runs[d.k];if(!r||!r.n)continue;const c=CARM.parts[d.k].c,R=d.R,s=d.t>17.5?Math.max(0,(19-d.t)/1.5):1,o=_pq;
     o[0]=R[0]*sc*s;o[1]=R[1]*sc*s;o[2]=R[2]*sc*s;o[3]=0;o[4]=R[3]*sc*s;o[5]=R[4]*sc*s;o[6]=R[5]*sc*s;o[7]=0;o[8]=R[6]*sc*s;o[9]=R[7]*sc*s;o[10]=R[8]*sc*s;o[11]=0;
     o[12]=d.x-s*(R[0]*c[0]+R[3]*c[1]+R[6]*c[2]);o[13]=d.y-s*(R[1]*c[0]+R[4]*c[1]+R[7]*c[2]);o[14]=d.z-s*(R[2]*c[0]+R[5]*c[1]+R[8]*c[2]);o[15]=1;drawCarMesh(B,o,r.n,r.f)}}
+
+'use strict';
+/* ===== batch 3: police helicopters and spike strips =====
+   HELICOPTERS (from 4 stars, STARS[heat].heli of them): a navy and white helicopter with a cabin, a tail boom and fin, skids, a main rotor and a tail rotor that blur into discs, a spotlight that
+   follows you (a beam and a pool of light), and the chop of the rotor. It flies 32-45 m above the ground, holds a slot behind or beside you and keeps you in its light: while it is within
+   220 m you cannot lose the police. It has fuel for 75 s, then it peels off; the next one comes 25 s later (that gap is your chance to escape). Drawn with the car program (one draw each).
+   SPIKE STRIPS (from 4 stars): every 16-20 s a strip is laid across the road 150-230 m ahead of you (it lies there for 40 s). Driving over it bursts the tyres: a bang, sparks from the rims,
+   "TYRES BURST" and a short loss of grip (about 4 s: grip down by half, recovering over the last second). THIS IS A DELIBERATE EXCEPTION to "damage never changes how the car drives". */
+const HELI={list:[],mesh:null,nextT:0,want:0,chop:0,near:1e9,made:0};
+const SPIKE={list:[],nextT:0,hits:0};
+/* the helicopter mesh, built at a third of its size (the car mesh format holds +-4 m) and drawn three times bigger */
+function heliMesh(){const b=new CGB(),M=CGM,k=1/3,box=(x,y,z,hx,hy,hz,m)=>cgBox(b,x*k,y*k,z*k,hx*k,hy*k,hz*k,m,0);
+  box(0,1.7,-.4,.95,.85,1.9,M.paint);box(0,1.55,-2.55,.8,.7,.45,M.glass);box(0,2.05,-1.7,.85,.42,.55,M.glass);box(0,1.55,-1.0,.97,.45,1.05,M.plate);   /* cabin, nose glass, windscreen, white band */
+  box(0,2.65,-.3,.55,.22,1.2,M.paint);box(0,2.95,-.2,.1,.18,.1,M.trim);                                                                               /* engine housing and the rotor mast */
+  box(0,2.0,3.2,.22,.25,2.4,M.paint);box(0,2.7,5.4,.06,.75,.45,M.paint);box(.2,2.2,5.5,.04,.55,.55,M.trim);                                            /* tail boom, fin, the tail rotor hub */
+  for(const sd of[-1,1]){box(sd*.85,.12,-.4,.06,.06,1.8,M.trim);box(sd*.75,.55,-1.2,.04,.42,.04,M.trim);box(sd*.75,.55,.6,.04,.42,.04,M.trim);box(sd*.98,1.8,-.6,.02,.35,.9,M.glass)}   /* skids and struts, side windows */
+  box(0,.95,-2.7,.18,.14,.16,M.head);box(0,.45,-1.6,.14,.1,.14,M.chrome);box(0,3.0,1.6,.05,.05,.05,M.tail);box(0,1.0,1.0,.05,.05,.05,M.amber);              /* searchlight, camera ball, beacons */
+  return b}
+function heliInit(){if(!G.gl)return;const B=heliMesh();HELI.mesh=_mkMesh(G.gl,B,m=>m==CGM.paint?[255,255,255]:CGCOL[m])}
+function heliSpawn(i){const ux=C.speed>3?C.vx/C.speed:Math.sin(C.yaw),uz=C.speed>3?C.vz/C.speed:-Math.cos(C.yaw);
+  HELI.list.push({x:C.x-ux*260+(i&1?60:-60),z:C.z-uz*260,y:C.y+60,yaw:Math.atan2(ux,-uz),vx:ux*40,vz:uz*40,vy:0,rot:0,fuel:75,slot:i,px:0,py:0,pz:0,pyaw:0,leave:0});HELI.made++}
+function copHeliTick(dt){
+  const want=COP.heat>0?((STARS[COP.heat]||{}).heli||0):0;HELI.want=want;let near=1e9;
+  if(HELI.nextT>0)HELI.nextT-=dt;
+  const active=HELI.list.filter(h=>!h.leave).length;if(active<want&&HELI.nextT<=0){heliSpawn(HELI.list.length);HELI.nextT=active+1<want?4:0}
+  for(const h of HELI.list){h.px=h.x;h.py=h.y;h.pz=h.z;h.pyaw=h.yaw;h.fuel-=dt;if((h.fuel<=0||want==0)&&!h.leave){h.leave=1;if(want>0)HELI.nextT=25}
+    const ps=C.speed,ux=ps>3?C.vx/ps:Math.sin(C.yaw),uz=ps>3?C.vz/ps:-Math.cos(C.yaw),side=h.slot%3==0?0:h.slot%3==1?-1:1;
+    let tx=C.x-ux*(22+8*(h.slot%3))+(-uz)*side*24+C.vx*.8,tz=C.z-uz*(22+8*(h.slot%3))+ux*side*24+C.vz*.8,ty=Math.max(terrainH(tx,tz),C.y)+32+5*(h.slot%3);
+    if(h.leave){tx=h.x+h.vx*10+(h.slot&1?400:-400);tz=h.z+h.vz*10;ty=h.y+40}
+    const dx=tx-h.x,dz=tz-h.z,d=Math.hypot(dx,dz),vmax=Math.min(85,ps*1.25+30),vw=Math.min(vmax,d*.9),ax=(dx/(d||1)*vw-h.vx)*1.3,az=(dz/(d||1)*vw-h.vz)*1.3,al=Math.hypot(ax,az),lim=14;
+    h.vx+=(al>lim?ax/al*lim:ax)*dt;h.vz+=(al>lim?az/al*lim:az)*dt;h.vy+=((ty-h.y)*.8-h.vy)*Math.min(1,dt*2);h.x+=h.vx*dt;h.z+=h.vz*dt;h.y+=h.vy*dt;
+    const gy=terrainH(h.x,h.z)+18;if(h.y<gy)h.y=gy;
+    /* it faces you (the spotlight is in its nose), banked into its turns */
+    const face=Math.atan2(C.x-h.x,-(C.z-h.z));h.yaw+=angd(h.leave?Math.atan2(h.vx,-h.vz):face,h.yaw)*Math.min(1,dt*1.5);h.rot+=dt*38;
+    h.pitch=clamp((h.vx*Math.sin(h.yaw)-h.vz*Math.cos(h.yaw))*-.006,-.25,.25);h.roll=clamp((h.vx*Math.cos(h.yaw)+h.vz*Math.sin(h.yaw))*.006,-.3,.3);
+    const dd=Math.hypot(h.x-C.x,h.z-C.z);if(!h.leave){near=Math.min(near,dd);if(dd<220){COP.sightT=0;COP.heliSeen=1}}}
+  HELI.list=HELI.list.filter(h=>!(h.leave&&Math.hypot(h.x-C.x,h.z-C.z)>700));HELI.near=near;if(COP.heat==0&&!HELI.list.length)HELI.nextT=0}
+function heliDraw(){
+  if(!HELI.list.length||!HELI.mesh)return;const gl=G.gl,P=G.P.car,a=R.alpha,S=3/8192,M=new Float32Array(16);
+  gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,0);gl.uniform3f(P.u.uPaint,.012,.03,.09);attrs(3);gl.disable(gl.CULL_FACE);
+  gl.uniform3f(P.u.uBr,0,0,0);gl.uniform1f(P.u.uAlpha,1);gl.uniform3f(P.u.uWh,0,1,0);gl.uniform4f(P.u.uArch,0,0,0,0);gl.uniform4f(P.u.uDm,0,0,0,0);gl.uniform4f(P.u.uCr,0,0,0,0);gl.uniform1f(P.u.uZc,0);
+  for(const h of HELI.list){const x=lerp(h.px,h.x,a),y=lerp(h.py,h.y,a),z=lerp(h.pz,h.z,a),yaw=h.pyaw+angd(h.yaw,h.pyaw)*a;M4.trs(M,x,y,z,-yaw,h.pitch||0,h.roll||0,S,S,S);drawCarMesh(HELI.mesh,M)}}
+/* rotor discs (in the dark blob batch), the spotlight beam and its pool (additive), called from fxDraw */
+function heliFx(quad,flat,stage){
+  const a=R.alpha;
+  for(const h of HELI.list){const x=lerp(h.px,h.x,a),y=lerp(h.py,h.y,a),z=lerp(h.pz,h.z,a),yaw=h.pyaw+angd(h.yaw,h.pyaw)*a,fx=Math.sin(yaw),fz=-Math.cos(yaw);
+    if(stage==0){const ry=y+3.35,R0=6.2;quad(x-R0,ry,z-R0,x+R0,ry,z-R0,x+R0,ry,z+R0,x-R0,ry,z+R0,0,0,0,.32);
+      const tx=x-fx*5.5+Math.cos(yaw)*.75,tz=z-fz*5.5+Math.sin(yaw)*.75,ty=y+2.25,r=1.1;quad(tx,ty-r,tz-fz*r,tx,ty-r,tz+fz*r,tx,ty+r,tz+fz*r,tx,ty+r,tz-fz*r,0,0,0,.28)}
+    else if(!h.leave&&stage==5){const gy=C.gs+.06;flat(C.x+C.vx*.1,gy,C.z+C.vz*.1,8,8,1,.97,.85,.5)}
+    else if(!h.leave&&stage==6){const sx=x+fx*2.6,sz=z+fz*2.6,sy=y+.3,gx=C.x,gz=C.z,gy=C.gs+.1,dx=gx-sx,dz=gz-sz,l=Math.hypot(dx,dz)||1,px=-dz/l,pz=dx/l;
+      quad(sx-px*.3,sy,sz-pz*.3,sx+px*.3,sy,sz+pz*.3,gx+px*6,gy,gz+pz*6,gx-px*6,gy,gz-pz*6,1,.96,.85,.16)}}
+  /* a spike strip: a dark mat 2 m wide across the whole road with a pale steel ridge of teeth standing on it */
+  if(stage==2)for(const s of SPIKE.list){const L=s.hw,nx=s.nx,nz=s.nz,tx=-nz,tz=nx,w=1.1,y=s.y+.05;quad(s.x-tx*w-nx*L,y,s.z-tz*w-nz*L,s.x+tx*w-nx*L,y,s.z+tz*w-nz*L,s.x+tx*w+nx*L,y,s.z+tz*w+nz*L,s.x-tx*w+nx*L,y,s.z-tz*w+nz*L,.03,.03,.035,.95);
+      for(const o of[-.4,0,.4])quad(s.x+tx*(o-.07)-nx*L,y+.02,s.z+tz*(o-.07)-nz*L,s.x+tx*(o+.07)-nx*L,y+.3,s.z+tz*(o+.07)-nz*L,s.x+tx*(o+.07)+nx*L,y+.3,s.z+tz*(o+.07)+nz*L,s.x+tx*(o-.07)+nx*L,y+.02,s.z+tz*(o-.07)+nz*L,.82,.85,.9,.95)}}
+/* the glints of the spikes (sprites) */
+function spikeFx(sprite,SRN){const on=Math.sin(R.time*14)>0;for(const s of SPIKE.list){const d=Math.hypot(s.x-C.x,s.z-C.z);if(d>260)continue;for(let k=-6;k<=6;k++){const q=k/6*s.hw;sprite(s.x+s.nx*q,s.y+.24,s.z+s.nz*q,.2+d*.004,.9,.92,1,.9)}
+    /* a red flasher at each end, so the strip reads from a distance in daylight too */
+    if(SRN)for(const sd of[-1,1])SRN.push(s.x+s.nx*s.hw*sd,s.y+.5,s.z+s.nz*s.hw*sd,(on==(sd>0)?.7:.3)+d*.006,1,.12,.08,on==(sd>0)?.95:.4)}}
+/* ---- spike strips ---- */
+function copSpikeTick(dt){if(COP.spikeWarn>0)COP.spikeWarn-=dt;
+  const on=COP.heat>0&&(STARS[COP.heat]||{}).spikes;for(const s of SPIKE.list)s.life-=dt;SPIKE.list=SPIKE.list.filter(s=>s.life>0);
+  if(on&&C.speed>14){SPIKE.nextT-=dt;if(SPIKE.nextT<=0){SPIKE.nextT=16+TR.rng()*4;const ux=C.vx/C.speed,uz=C.vz/C.speed,dd=150+TR.rng()*80;
+      if(copAhead(dd,ux,uz)){const r=ROADS[TRP.ri],i=TRP.i,t=_tan(r,i);SPIKE.list.push({x:r.X[i],z:r.Z[i],y:r.Y[i],nx:-t[1],nz:t[0],hw:r.hw+.6,life:40});COP.spikeWarn=3}}}
+  else SPIKE.nextT=Math.min(SPIKE.nextT,5)}
+/* called every physics step from carStep: has a wheel crossed a strip? */
+function spikeCheck(){if(!SPIKE.list.length||!C.grounded)return;
+  for(const s of SPIKE.list){const dx=C.x-s.x,dz=C.z-s.z,lat=dx*s.nx+dz*s.nz,al=-dx*s.nz+dz*s.nx;if(Math.abs(lat)<s.hw&&Math.abs(al)<1.6&&Math.abs(C.y-s.y)<2&&!(C.flatT>0)){
+      C.flatT=4;SPIKE.hits++;C.shake=Math.min(1,C.shake+.5);C.bob=-.06;safeToast('TYRES BURST',2.6);if(typeof sparkAt==='function')sparkAt(C.x,C.y+.3,C.z,0,0,18,6);if(typeof audioBang==='function')audioBang();s.life=Math.min(s.life,3)}}}
 
 'use strict';
 /* ===== procedural car bodies: smooth lofted bodywork, wheel wells, real wheels, lights, intakes, wings, exhausts, mirrors =====
@@ -4369,6 +4479,10 @@ for(const key of Object.keys(CC_DES)){const d=CC_DES[key];if(d.ty=='bus'||key=='
 /* the civilian traffic bodies ported from Close Call (TTYPES 10 and up): sizes from their bodies */
 for(const k of['coupe','n_cruiser','n_magnet','n_courier','n_bruiser','n_banker','rally','h_warden','gt','h_outlaw']){const S=ccBuild(k,{lo:1}).S,ty=CC_DES[k].ty;
   TTYPES.push({n:'cc_'+k,cc:k,hl:S.L/2-.05,hw:S.W/2-.04,m:ty=='suv'?2100:ty=='hatch'?1150:1450,far:ty=='suv'?2:ty=='hatch'||ty=='rally'?1:0,v0:ty=='muscle'||ty=='gt'?1.05:1,civ:1})}
+/* the police vehicles (TTYPES 20-22, batch 3): an interceptor on the Surge Sport body, a police SUV on the Bruiser, and a SWAT truck (a black armoured box). All get the livery, a light bar and a push bar. */
+{const S1=ccBuild('n_nitro',{lo:1}).S,S2=ccBuild('n_bruiser',{lo:1}).S;
+ TTYPES.push({n:'interceptor',cc:'n_nitro',cop:1,hl:S1.L/2-.05,hw:S1.W/2-.04,m:1700,far:0},{n:'police SUV',cc:'n_bruiser',cop:1,hl:S2.L/2-.05,hw:S2.W/2-.04,m:2600,far:2},{n:'SWAT truck',box:'swat',cop:1,hl:3.2,hw:1.2,m:9000,far:-1})}
+TTYPES[4].cop=1;TTYPES[4].cc='t_cop';   /* the patrol car: Close Call's police cruiser body (it used to be the plain sedan) */
 
 'use strict';
 /* ===== boot: generate the county, upload it, then run the loop ===== */

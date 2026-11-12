@@ -70,10 +70,10 @@ let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
     reset(0);C.speed0=0;cop=mkCop(5.4);if(cop){cop.state=1;cop.v=0;cop.vx=cop.vz=cop.om=0;cop.yaw=cop.pyaw=C.yaw;cop.px=cop.x=C.x+fx*5.2;cop.pz=cop.z=C.z+fz*5.2;C.vx=fx*20;C.vz=fz*20;COP.spawnT=99;for(let s=0;s<80;s++){RACER.worldStep(1/120)}}
     out.copHit=COP.heat;
     copClear(true);return out});
-  ok(cp.placed&&cp.slow===0&&cp.fast>=2,'passing a cop at 110 mph is nothing (heat '+cp.slow+'), at 125 mph you are wanted (heat '+cp.fast+')');
+  ok(cp.placed&&cp.slow===0&&cp.fast>=1,'passing a cop at 110 mph is nothing (heat '+cp.slow+'), at 125 mph you are wanted (heat '+cp.fast+': one star since batch 3)');
   ok(cp.alone===0,'speeding at 60 m/s with no cop near is no crime (heat '+cp.alone+')');
   ok(cp.crash>=1&&cp.crashDmg>0,'crashing into another car gets you chased (heat '+cp.crash+') and damages it (damage '+cp.crashDmg.toFixed(2)+')');
-  ok(cp.copHit>=3,'hitting a cop car is a big crime (heat '+cp.copHit+')');
+  ok(cp.copHit>=2,'hitting a cop car is a big crime (heat '+cp.copHit+': two stars at once)');
   /* ---- 5 the chase does not give up ---- */
   const ch=await ev(()=>{const {C,IN,TR,COP,ROADS}=RACER;copSetDiff('forgiving');GAME.state=0;GAME.lock=0;dmgReset();copClear(true);COP.spawnT=0;for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);
     const ring=ROADS.find(q=>q.id=='ring'),n=ring.n;placeOn('ring',.3,60);let idx=Math.round(.3*n);

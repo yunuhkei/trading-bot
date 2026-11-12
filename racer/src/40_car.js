@@ -1,7 +1,7 @@
 'use strict';
 /* ===== the car: baked Surge Sport mesh, arcade driving model, chase camera ===== */
 const CARM={body:null,wheels:[],mat:null};
-function carGLInit(){carLoad();carSelect(CARSEL.cur);R.carDraw=carDraw;R.carGlass=carGlassDraw;R.fxDraw=fxDraw}
+function carGLInit(){carLoad();carSelect(CARSEL.cur);R.carDraw=carDraw;heliInit();R.carGlass=carGlassDraw;R.fxDraw=fxDraw}
 const _mb=new Float32Array(16),_mw=new Float32Array(16),_mf=new Float32Array(16);
 function drawCarMesh(m,M,count,from){const gl=G.gl,P=G.P.car,n=count==null?m.n:count;gl.uniformMatrix4fv(P.u.uM,false,M);gl.bindBuffer(gl.ARRAY_BUFFER,m.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,m.ib);
   gl.vertexAttribPointer(0,4,gl.SHORT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,8);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,16,12);gl.drawElements(gl.TRIANGLES,n,gl.UNSIGNED_SHORT,(from||0)*2);R.draws++;R.tris+=n/3}
@@ -66,7 +66,7 @@ function deflect(nx,nz,vn,e,mu){
 
 /* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
 const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5};
-function carPlace(x,z,yaw,yh){C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6}
+function carPlace(x,z,yaw,yh){C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6;C.flatT=0}
 function respawn(){IN.nitro=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1;C.dActive=0;C.dLast=null;C.grounded=1;C.air=0;C.liftT=0;C.kv=0;C.drift=0;C.slideT=0;C.tapN=0;C.tapT=0;C.dbK=0}
 const gw=(x,z,y)=>groundAt(x,z,y);
 function carStep(dt){
@@ -143,7 +143,9 @@ function carStep(dt){
   const dr=C.drift;let beta=0,sK=0;
   if(gr){
     /* the most sideways acceleration the tyres give: a little aero grip at speed, much less on grass */
-    const A=(HND.aBase+HND.aAero*af*af)*surf*(1-HND.powerOS*thr*Math.max(0,1-af/45));   /* rear-drive cars with a lot of power break traction under throttle at low speed */
+    /* burst tyres (spike strips, batch 3): grip halved for 3 s, back over the next second. The one deliberate case of damage changing how the car drives. */
+    const flatK=C.flatT>0?Math.min(1,C.flatT):0;
+    const A=(HND.aBase+HND.aAero*af*af)*surf*(1-HND.powerOS*thr*Math.max(0,1-af/45))*(1-.5*flatK);   /* rear-drive cars with a lot of power break traction under throttle at low speed */
     /* steering target: yaw rate limited by that budget, so at speed full lock just gives you the tightest line (understeer), not a slide */
     const omN=steer*Math.min(PHYS.classic?HND.omLow*Math.min(1,af/6):af/(PHYS.rmin*HND0.omLow/HND.omLow),A/Math.max(af,4))*(f<-1?-1:1);   /* slow: the turning circle of a car (it used to be a 2 m radius); fast: the tyre budget */
     /* drift assist: the stick chooses the slide angle, the assist holds it and straightens the car the moment you let go */
@@ -153,7 +155,7 @@ function carStep(dt){
     if(sl>0){const minA=Math.min(HND.tapAng*(1+1.5*C.dbK),HND.tapFrac*bmax)*sl*(hand?lerp(1,.5,sstep(.6,1.8,C.handT)):1),sg=Math.abs(steer)>.12?Math.sign(steer):C.slideDir;if(Math.abs(bt)<minA)bt=-sg*minA}   /* even with the stick centred the tap asks for a slide */
     const omDm=HND.omDrift*(1+.55*C.dbK),omD=clamp(HND.kBeta*(1+.4*C.dbK)*angd(beta,bt),-omDm,omDm);
     /* lateral friction: strong normally, weak in a drift; always limited, so a hit or a hard turn cannot snap the car around */
-    let kg=HND.grip*surf;if(brk>0&&af>20&&Math.abs(steer)>.5)kg=Math.min(kg,HND.gripBrake);
+    let kg=HND.grip*surf*(1-.5*flatK);if(brk>0&&af>20&&Math.abs(steer)>.5)kg=Math.min(kg,HND.gripBrake);
     kg=lerp(kg,HND.gripDrift*(1-.4*C.dbK),dr);const fr=lerp(1.3*A,(HND.driftFric+HND.driftFricV*af)*(.6+.4*surf),dr);
     /* at low speed the car turns about its REAR axle like a real one (the middle of the car then moves sideways at yaw rate x the distance to that axle); it used to spin about its middle */
     sK=PHYS.classic?0:C.wyaw*PHYS.lr*(1-sstep(7,15,af))*(1-dr)*(f<0?-1:1);
@@ -216,6 +218,8 @@ function carStep(dt){
   /* water */
   if(terrainH(C.x,C.z)<-1.2&&!C.onRoad){C.wet+=dt;C.vx*=1-dt*2.5;C.vz*=1-dt*2.5;C.y=Math.max(C.y,-1.2-C.wet*.3);if(C.wet>1.4){respawn();C.wet=0}}else C.wet=0;
   if(IN.respawn){IN.respawn=0;respawn()}
+  if(C.flatT>0){C.flatT-=dt;if(gr&&C.speed>4)C.wyaw+=Math.sin(C.t*23)*.25*dt*Math.min(1,C.flatT)}   /* a burst tyre also tugs at the steering */
+  spikeCheck()
 }
 /* two circles along the car vs rects and circles from the spatial hash */
 function collide(fx,fz){

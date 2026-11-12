@@ -61,7 +61,10 @@ const TRMATMAP=[0,1,2,2,5,3,4,6,5,2,2,12,0,6,2,6,5,13,6,2];      /* generator ma
 /* the working vehicles (generator frame: metres, front at -z): a refuse truck, a box van, a pickup. A cab, a body, lamps, plates, the game's wheels. */
 function trBoxVehicle(kind){
   const b=new CGB(),M=CGM,box=(x,y,z,hx,hy,hz,m)=>cgBox(b,x,y,z,hx,hy,hz,m,0);let S;
-  if(kind=='garbage'){S={L:8.1,W:2.5,H:3.4,fz:-2.75,rz:2.45,rf:.52,rr:.52,wf:.32,wr:.36,tf:1.02,tr:1.0};
+  if(kind=='swat'){/* a black armoured truck: a high cab, a windowless body with slits, a ram bar, a light bar */S={L:6.6,W:2.4,H:2.75,fz:-2.1,rz:2.0,rf:.5,rr:.5,wf:.32,wr:.32,tf:.98,tr:.98,cowl:1.0,roofF:1.4,roofR:5.8,curves:{half:()=>1.1}};
+    box(0,.75,0,1.12,.2,3.2,M.under);box(0,1.55,-2.6,1.18,.8,.7,M.paint);box(0,1.55,.6,1.2,1.2,2.6,M.paint);box(0,2.05,-3.25,1.08,.32,.02,M.glass);for(const sd of[-1,1]){box(sd*1.19,2.05,-2.65,.02,.3,.5,M.glass);box(sd*1.21,1.95,.6,.02,.08,1.8,M.trim);box(sd*1.21,1.25,.6,.02,.1,2.4,M.plate)}
+    box(0,.95,-3.4,1.15,.28,.1,M.trim);for(const sd of[-1,1]){box(sd*.85,1.25,-3.32,.16,.08,.03,M.head);box(sd*1.0,1.1,3.22,.1,.18,.03,M.tail)}box(0,.95,-3.5,.26,.07,.02,M.plate)}
+  else if(kind=='garbage'){S={L:8.1,W:2.5,H:3.4,fz:-2.75,rz:2.45,rf:.52,rr:.52,wf:.32,wr:.36,tf:1.02,tr:1.0};
     box(0,.62,-.2,1.1,.16,3.8,M.under);box(0,1.75,-3.15,1.2,1.05,.9,M.plate);box(0,2.35,-4.04,1.1,.42,.02,M.glass);for(const sd of[-1,1])box(sd*1.21,2.3,-3.3,.02,.38,.55,M.glass);box(0,.95,-4.08,1.18,.3,.06,M.trim);box(0,1.15,-4.1,.6,.18,.03,M.grille);
     box(0,2.05,.95,1.25,1.25,3.0,M.paint);box(0,2.0,3.95,1.2,1.15,.08,M.trim);box(0,3.32,.95,1.27,.06,3.02,M.paint);for(let k=0;k<3;k++)box(0,2.05,-1.2+k*1.35,1.27,1.15,.04,M.trim);
     for(const sd of[-1,1]){box(sd*.8,1.05,-4.1,.18,.08,.03,M.head);box(sd*1.0,1.0,4.04,.12,.18,.03,M.tail);box(sd*1.15,3.25,-3.0,.05,.06,.05,M.amber)}box(0,.85,-4.11,.26,.07,.02,M.plate);box(0,.75,4.05,.26,.07,.02,M.plate)}
@@ -83,10 +86,10 @@ function trFarOf(i){const T=TTYPES[i];if(i<5)return trBuildType(TRSHAPE[i],T.hw)
   if(T.box=='garbage')return trBuildType({gz:[2.6,3.9],wheel:.52,sec:[[4.05,.5,2.5,2.9,1.2,1.1],[2.2,.5,2.5,2.9,1.2,1.1],[2.1,.5,3.3,3.3,1.25,1.25],[-3.95,.5,3.3,3.3,1.25,1.25]]},T.hw);
   return trBuildType(TRSHAPE[3],T.hw)}
 function trGenType(i){
-  const spec=Object.assign({noSkirt:1},TRGEN[i==4?0:i]||{});if(i==4)spec.lowerDark=.66;
+  const spec=Object.assign({noSkirt:1},TRGEN[i==4?0:i]||{});if(TTYPES[i].cop)spec.lowerDark=.66;
   const R=trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
   /* the police livery: white doors, roof and pillars, black bonnet, wings and boot (x, y, z in generator coordinates, front negative) */
-  const copLivery=(x,y,z,S)=>{const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
+  const swat=TTYPES[i].box=='swat',copLivery=(x,y,z,S)=>{if(swat)return 9;const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
   const add=(mb,dx,dy,dz,mirX,mapM)=>{const n=mb.nv;for(let v=0;v<n;v++){const x=mb.P[v*3]*(mirX?-1:1)+dx,y=mb.P[v*3+1]+dy,z=-(mb.P[v*3+2]+dz);P.push(x,y,z);N.push(mb.N[v*3]*(mirX?-1:1),mb.N[v*3+1],-mb.N[v*3+2]);const m=TRMATMAP[mb.M[v]];
       /* the black lower body of a police car: the shade ramp of the generator marks it; the paint of the upper part stays the palette colour */
       const mm=m==0&&mb.S&&mb.S[v]<.4?(spec.lowerDark?9:6):(m==0&&spec.lowerDark&&mb===R.body?copLivery(P[P.length-3],P[P.length-2],-P[P.length-1],S):m),pt=mb===R.body?(mb.Pt[v]||0):0;
@@ -94,7 +97,7 @@ function trGenType(i){
     for(let k=0;k<mb.I.length;k++)I.push(mb.I[k]+o);o+=n};
   add(R.body,0,0,0,false);
   for(const[wz,wr,wheel,tx]of[[S.fz,S.rf,R.wheelF,S.tf],[S.rz,S.rr,R.wheelR,S.tr]])for(const sd of[-1,1])add(wheel,sd*tx,wr,wz,sd<0);
-  if(i==4){/* a police car: the light bar (red, clear, blue segments on a black base), a push bar, A-pillar spotlights, an aerial, a rear deck light */
+  if(TTYPES[i].cop){/* a police car: the light bar (red, clear, blue segments on a black base), a push bar, A-pillar spotlights, an aerial, a rear deck light */
     const bb=new CGB(),yt=S.H+.005,zc=S.zs((S.roofF+S.roofR)/2),T=(m)=>m;
     cgBox(bb,0,yt+.025,zc,.62,.025,.22,CGM.trim,0);
     for(let k=0;k<3;k++){cgBox(bb,-.5+k*.17,yt+.085,zc,.075,.045,.19,CGM.paint,0);cgBox(bb,.5-k*.17,yt+.085,zc,.075,.045,.19,CGM.glass,0)}

@@ -22,6 +22,8 @@ function fxUpdate(dt){
     while(spCool<=0){spCool+=.045/Math.max(.4,q*(.5+sp));for(let w=0;w<2;w++){const sd=w?1:-1,s=SMOKE[smokeHead++%SMOKE.length];s.x=C.x-sy*1.3+cy*sd*.85;s.z=C.z+cy*1.3+sy*sd*.85;s.y=C.y+.12;s.vx=C.vx*.55+cy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vz=C.vz*.55+sy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vy=.5+Math.random()*1.4*(.5+sp);
         s.age=0;s.life=.5+Math.random()*.5;s.sz=.35+sp*.35;s.a=.12+.14*sp;s.fire=0;s.dark=0;s.k=1}}}
   for(const s of SMOKE){if(s.age<s.life){s.age+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;s.vy*=Math.max(0,1-dt*(s.k?2.4:1.2));if(s.k){s.vx*=Math.max(0,1-dt*1.6);s.vz*=Math.max(0,1-dt*1.6)}}}
+  /* sparks from the rims of burst tyres */
+  if(C.flatT>0&&C.speed>4&&C.grounded&&Math.random()<.6){const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),w=Math.random()<.5?-1:1,f=Math.random()<.5?1.3:-1.3;sparkAt(C.x+fx*f+rx*w*.8,C.y+.1,C.z+fz*f+rz*w*.8,-fx,-fz,1,3+C.speed*.1)}
   /* a stream of sparks while the car scrapes a guard rail */
   if(C.railT>0&&C.railP&&C.speed>3){const k=Math.min(3,1+C.speed/25)*q;for(let i=0;i<Math.round(k+Math.random()*.7);i++){const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw);sparkAt(C.railP[0]+fx*(Math.random()-.3)*2,C.y+.35,C.railP[1]+fz*(Math.random()-.3)*2,C.railP[2]-C.vx*.03,C.railP[3]-C.vz*.03,1,3+C.speed*.12)}}
   /* sparks from every new impact (walls, poles, other cars) */
@@ -51,8 +53,8 @@ function fxDraw(){
   batch(0);
   const gy=C.gs+.04,L=2.6,Wd=1.35;quad(x+sy*-L-cy*Wd,gy,z+cy*L-sy*Wd,x+sy*-L+cy*Wd,gy,z+cy*L+sy*Wd,x+sy*L+cy*Wd,gy,z-cy*L+sy*Wd,x+sy*L-cy*Wd,gy,z-cy*L-sy*Wd,0,0,0,(GFX.shadowOn?.22:.5)/(1+Math.max(0,C.y-C.gs)*.4));
   {const L2=2.0,W2=.92;quad(x+sy*-L2-cy*W2,gy,z+cy*L2-sy*W2,x+sy*-L2+cy*W2,gy,z+cy*L2+sy*W2,x+sy*L2+cy*W2,gy,z-cy*L2+sy*W2,x+sy*L2-cy*W2,gy,z-cy*L2-sy*W2,0,0,0,.34/(1+Math.max(0,C.y-C.gs)*.8))}      /* a tight dark patch right under the body: the car sits on the road */
-  trShadows(quad);
-  batch(2);
+  trShadows(quad);heliFx(quad,flat,0);
+  batch(2);heliFx(quad,flat,2);
   const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,al=.55*(1-age/40)*q[6];if(l>6)continue;
     quad(q[0]-nx,y,q[1]-nz,q[0]+nx,y,q[1]+nz,q[2]+nx,y,q[3]+nz,q[2]-nx,y,q[3]-nz,.02,.02,.02,al)}
   navFx(quad,sprite,R.time);
@@ -67,6 +69,7 @@ function fxDraw(){
   const lampK=Math.max(T.glow,T.pool),nl=gfxNearLamps(x,z,300,lampK,fwx,fwz);
   const nPool=Math.min(nl,T.pool);
   for(let i=0;i<nPool;i++){const j=_lampPick[i],lx=LAMPS[j],ly=LAMPS[j+1]-6.95,lz=LAMPS[j+2];flat(lx,ly+.03,lz,7.5,7.5,1,.78,.45,.34*dayK)}
+  heliFx(quad,flat,5);
   /* red and blue wash on the road round a police car with its siren on */
   if(TR.on)for(const c of TR.cars){if(!c.alive||!c.siren)continue;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz;if(dx*dx+dz*dz>40000)continue;const ph=Math.sin(R.time*12)>0;flat(px,lerp(c.py,c.y,a)+.05,pz,11,11,ph?1:.12,ph?.1:.32,ph?.08:1,.42)}
   if(C.boostK>.04){const hx=sy,hz=-cy;flat(x-hx*3.4,C.gs+.04,z-hz*3.4,3+2*C.boostK,3+2*C.boostK,1,.62,.28,.5*C.boostK*(.4+.6*(1-dayK)))}
@@ -74,6 +77,7 @@ function fxDraw(){
   /* the car's headlights: a pool of light on the road ahead, wider the further it goes (uv runs across, then along: mode 6 is the beam shape) */
   {const hx=sy,hz=-cy,rxc=cy,rzc=sy,gy2=C.gs+.05,x0=x+hx*2.0,z0=z+hz*2.0,len=26;
    const lk=1-.5*(PDM.head[0]+PDM.head[1]);if(lk>0)quad(x0-rxc*1.0,gy2,z0-rzc*1.0,x0+rxc*1.0,gy2,z0+rzc*1.0,x0+hx*len+rxc*6.5,gy2,z0+hz*len+rzc*6.5,x0+hx*len-rxc*6.5,gy2,z0+hz*len-rzc*6.5,1,.92,.7,.5*lk*dayK)}
+  heliFx(quad,flat,6);
   /* beams of the cars that come at us */
   if(TR.on&&T.glow>30){let k=0;for(const c of TR.cars){if(!c.alive||k>=10)continue;const dx=c.x-x,dz=c.z-z,d2=dx*dx+dz*dz;if(d2>14400||d2<100)continue;const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);
       if((x-c.x)*hx+(z-c.z)*hz<0)continue;k++;const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),py=lerp(c.py,c.y,a)+.06,x0=px+hx*(c.hl-.1),z0=pz+hz*(c.hl-.1),rr=-hz,rs=hx;
@@ -87,7 +91,7 @@ function fxDraw(){
   /* neon */
   for(let i=0;i<NEONS.length&&ng<gMax+24;i+=7){const nx=NEONS[i]-gcx,nz=NEONS[i+2]-gcz,d2=nx*nx+nz*nz;if(d2>56000)continue;if(nx*R.fw[0]+nz*R.fw[2]<-3)continue;const d=Math.sqrt(d2),fl=.82+.18*Math.sin(R.time*(3+(i%5))+i),al=Math.min(.95,1.15-d/240)*fl;
     sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al*(.35+.65*dayK));ng++}
-  navBeacon(sprite);
+  navBeacon(sprite);spikeFx(sprite,SRN);
   /* the car's own lights */
   {const hx=sy,hz=-cy,rr=cy,rs=sy,yy=C.y+C.bob;
    for(const sd of[-1,1]){const si=sd<0?0:1;if(!PDM.head[si])sprite(x+hx*-CARL.hz+rr*sd*CARL.hx,yy+CARL.hy+.12,z+hz*-CARL.hz+rs*sd*CARL.hx,.36,1,.95,.75,.5*dayK);
@@ -102,7 +106,7 @@ function fxDraw(){
         sprite(px-hx*(c.hl-.12)+rr*w,py+.66,pz-hz*(c.hl-.12)+rs*w,(c.brake?.75:.45)+d*.004,1,.1,.06,(c.brake?.95:.55)*k);
         sprite(px+hx*(c.hl-.12)+rr*w,py+.62,pz+hz*(c.hl-.12)+rs*w,.5+d*.004,1,.93,.74,.5*k*dayK)}
       if(c.siren){const ph=Math.sin(R.time*12)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),2.6+d*.016,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(1,k*2.6))}
-      else if(c.kind===1&&c.cm===0&&c.type===4){const ph=Math.sin(R.time*2.6)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),1.1+d*.01,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(.9,k*2))}}}
+      else if(c.kind===1&&c.cm===0){const ph=Math.sin(R.time*2.6)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),1.1+d*.01,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(.9,k*2))}}}
   /* police lights are drawn with plain blending (a saturated red or blue even against the bright sky), the other glows are added */
   /* traffic lights: the lit lamp of every head that faces the camera, within 220 m (plain blending, so red, yellow and green read in bright sun) */
   {let k=0;const H=SIG.heads,cx2=CAM.x,cz2=CAM.z;for(let i=0;i<H.length&&k<64;i+=7){const dx=H[i]-cx2,dz=H[i+2]-cz2,d2=dx*dx+dz*dz;if(d2>48400||dx*H[i+3]+dz*H[i+4]>0)continue;if(dx*R.fw[0]+dz*R.fw[2]<-3)continue;

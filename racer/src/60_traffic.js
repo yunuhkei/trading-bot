@@ -9,6 +9,7 @@ const TTYPES=[{n:'sedan',hl:2.25,hw:.9,m:1300},{n:'hatch',hl:2.0,hw:.88,m:1100},
  /* batch 2: working vehicles with their own behaviour (beh), a taxi and a pickup; col forces a livery colour; far: whose far body they share (saves draw calls) */
  {n:'bus',cc:'t_bus',hl:5.3,hw:1.16,m:12000,beh:'bus',col:15,v0:.8,far:-1},{n:'garbage',box:'garbage',hl:4.0,hw:1.25,m:14000,beh:'garbage',col:14,v0:.6,far:-1},
  {n:'delivery',box:'boxvan',hl:3.1,hw:1.08,m:3500,beh:'delivery',col:16,v0:.97,far:3},{n:'taxi',cc:'n_cruiser',hl:2.33,hw:.96,m:1600,beh:'taxi',col:13,v0:1.1,far:0,sign:1},{n:'pickup',box:'pickup',hl:2.7,hw:1.0,m:2200,v0:.95,far:2}];
+/* (TTYPES 10-19: the Close Call civilians, then 20-22 the police vehicles of batch 3, added by 73_ccars.js once the car generator is loaded) */
 /* (the civilian cars ported from Close Call are added to TTYPES by 73_ccars.js, which loads after the car generator) */
 /* paint albedos like real paint: white about .6, silver .42, black .04, a deep red, dark blue; nothing near 1 so the sun does not clip it */
 const TCOLS=[[.60,.60,.62],[.045,.045,.05],[.42,.43,.46],[.40,.045,.05],[.04,.08,.2],[.64,.64,.62],[.05,.13,.08],[.40,.34,.24],[.52,.38,.05],[.2,.07,.18],[.12,.2,.3],[.28,.28,.26],[.58,.58,.6],
@@ -280,7 +281,7 @@ function trResolve(a,b,e,mu){
 function trBody(B,c){B.x=c.x;B.z=c.z;B.yaw=c.yaw;if(c.state==0){B.vx=Math.sin(c.yaw)*c.v;B.vz=-Math.cos(c.yaw)*c.v;B.om=0}else{B.vx=c.vx;B.vz=c.vz;B.om=c.om}B.m=c.m;B.I=c.m*(c.hl*c.hl+c.hw*c.hw)/3;B.hl=c.hl;B.hw=c.hw}
 /* write a body back into a car: a hard hit (or any hit on a wreck) makes it a wreck, a light bump just changes its speed */
 /* a crash leaves a dent in the car: where (on its body), how deep and how wide; two dents are kept per car and a new one near an old one deepens it. The shader (trV) pushes the metal in. */
-const TDCAP=[170000,150000,230000,280000,250000];      /* energy that finishes a sedan / hatch / SUV / van / police car (J) */
+const TDCAP=[170000,150000,230000,280000,250000,900000,900000,400000,170000,260000,170000,170000,170000,150000,260000,170000,170000,260000,170000,170000,230000,300000,900000];      /* energy that finishes a sedan / hatch / SUV / van / police car (J) */
 function trDent(c,wx,wz,E){
   if(E<4000)return;c.dmg=Math.min(1,(c.dmg||0)+E/(TDCAP[c.type]||180000));const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
   const q=Math.sqrt(E/180000),dep=Math.min(.42,.05+.33*q),rad=.42+.4*q,d=c.dn||(c.dn=new Float32Array(12));let slot=-1;
@@ -311,8 +312,10 @@ function trPlayerCollide(){
         C.vx=BA.vx;C.vz=BA.vz;C.wyaw+=clamp((BA.om-C.wyaw),-1.6,1.6)*.55;C.x=BA.x;C.z=BA.z;
         const vn=HIT.vn;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.04);C.flash=Math.max(C.flash,Math.min(.25,vn*.01));
         impactAdd(3,vn,e,c.m,HIT.cx,HIT.cz,HIT.nx,HIT.nz);if(C.t-c.hitT>.5)TR.stat.hits++;
-        const was=c.state;if(c.kind==1)copRammed(c,e);else if(e>5000)copTrigger(e>70000?3:2);                 /* crashing into a car is a crime */
-        trBack(BB,c,e);c.hitT=C.t;if(c.kind==0&&was==0&&c.state==1)copTrigger(3)}
+        /* WHO WAS AT FAULT: only a crash YOU drive into is a crime. The normal points from the car to you: your speed into it against its speed into you (being rear-ended, or a patrol nudging you at a standstill, used to make you wanted) */
+        const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin;
+        const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
+        trBack(BB,c,e);c.hitT=C.t;if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck')}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){

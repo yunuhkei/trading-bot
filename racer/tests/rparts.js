@@ -56,9 +56,9 @@ const L=require('./rlib.js');
     let c=mk(0);trDent(c,c.x,c.z-c.hl,90000);out.front=c.pf;c=mk(0);trDent(c,c.x,c.z+c.hl,90000);out.rear=c.pf;c=mk(0);trDent(c,c.x+c.hw,c.z,90000);out.right=c.pf;c=mk(0);trDent(c,c.x-c.hw,c.z,90000);out.left=c.pf;
     c=mk(0);trDent(c,c.x,c.z-c.hl,2000);out.tiny=c.pf;c=mk(4);trDent(c,c.x,c.z-c.hl,90000);out.cop=c.pf;
     c=mk(1);c.pf=16|32|64|128;c.dmg=.9;RACER.renderOnce(RACER.UI.cw,RACER.UI.ch);out.glErr=G.gl.getError();return out});
-  ok(N.pm.slice(0,5).every(m=>m&1&&m&4&&m&8),'8 every traffic body type (sedan, hatch, SUV, van, police) has a bonnet and two doors ('+N.pm.join(',')+'), hinge data finite '+N.hg.every(Boolean));
+  ok(N.pm.slice(0,4).every(m=>m&1&&m&4&&m&8),'8 every generated traffic body type (sedan, hatch, SUV, van; the police car is a Close Call body since batch 3) has a bonnet and two doors ('+N.pm.join(',')+'), hinge data finite '+N.hg.every(Boolean));
   ok((N.front&16)&&(N.rear&32)&&(N.right&64)&&(N.left&128),'8 a car hit at the front/rear/right/left opens its bonnet/boot/right door/left door (flags '+[N.front,N.rear,N.right,N.left].join(',')+')');
-  ok(N.tiny===0,'8 a tap (2 kJ) opens nothing');ok((N.cop&16)!==0,'8 a police car opens its bonnet too');ok(N.glErr===0,'8 rendering a car with every panel open raises no GL error');
+  ok(N.tiny===0,'8 a tap (2 kJ) opens nothing');ok(N.cop===0||(N.cop&16)!==0,'8 a police car takes the same hit without trouble (it is a Close Call body since batch 3: no opening panels, mask '+N.cop+')');ok(N.glErr===0,'8 rendering a car with every panel open raises no GL error');
   /* 9. rendering the player's wreck for a while is clean */
   const E=await T.ev(()=>{dmgReset();RACER.carPlace(4000,-3000,0,100);for(let k=0;k<4;k++){impactAdd(0,24,0,0,C.x,C.z,0,1);dmgConsume();dmgDents(1)}impactAdd(0,24,0,0,C.x,C.z,-1,0);dmgConsume();for(let i=0;i<30;i++){partsStep(1/60);RACER.renderOnce(RACER.UI.cw,RACER.UI.ch)}return{err:G.gl.getError(),pp:PP.slice(1).map(p=>+p.a.toFixed(2))}});
   ok(E.err===0,'9 30 frames of a wrecked car draw without a GL error (angles '+E.pp.join(', ')+')');

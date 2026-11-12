@@ -125,3 +125,7 @@ for(const key of Object.keys(CC_DES)){const d=CC_DES[key];if(d.ty=='bus'||key=='
 /* the civilian traffic bodies ported from Close Call (TTYPES 10 and up): sizes from their bodies */
 for(const k of['coupe','n_cruiser','n_magnet','n_courier','n_bruiser','n_banker','rally','h_warden','gt','h_outlaw']){const S=ccBuild(k,{lo:1}).S,ty=CC_DES[k].ty;
   TTYPES.push({n:'cc_'+k,cc:k,hl:S.L/2-.05,hw:S.W/2-.04,m:ty=='suv'?2100:ty=='hatch'?1150:1450,far:ty=='suv'?2:ty=='hatch'||ty=='rally'?1:0,v0:ty=='muscle'||ty=='gt'?1.05:1,civ:1})}
+/* the police vehicles (TTYPES 20-22, batch 3): an interceptor on the Surge Sport body, a police SUV on the Bruiser, and a SWAT truck (a black armoured box). All get the livery, a light bar and a push bar. */
+{const S1=ccBuild('n_nitro',{lo:1}).S,S2=ccBuild('n_bruiser',{lo:1}).S;
+ TTYPES.push({n:'interceptor',cc:'n_nitro',cop:1,hl:S1.L/2-.05,hw:S1.W/2-.04,m:1700,far:0},{n:'police SUV',cc:'n_bruiser',cop:1,hl:S2.L/2-.05,hw:S2.W/2-.04,m:2600,far:2},{n:'SWAT truck',box:'swat',cop:1,hl:3.2,hw:1.2,m:9000,far:-1})}
+TTYPES[4].cop=1;TTYPES[4].cc='t_cop';   /* the patrol car: Close Call's police cruiser body (it used to be the plain sedan) */

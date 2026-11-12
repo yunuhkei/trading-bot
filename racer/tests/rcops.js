@@ -19,7 +19,7 @@ const L=require('./rlib.js');
   const P=await T.ev(()=>{T3.reset(.3,0);const x0=C.x,z0=C.z;let first=-1;const seenSpawn=[];
     let present=0,samples=0,maxN=0,bad=0;for(let s=0;s<120*90;s++){RACER.worldStep(1/120);C.x=C.px=x0;C.z=C.pz=z0;C.vx=C.vz=0;if(first<0&&COP.nP>0)first=TR.t;if(s%120==0&&s>120*10){samples++;if(COP.nP>0)present++;maxN=Math.max(maxN,COP.nP);for(const c of TR.cars)if(c.alive&&c.kind==1&&(c.cm!=0||c.siren||c.state!=0))bad++}}
     return{nP:maxN,first:+first.toFixed(1),frac:present/samples,bad,heat:COP.heat,want:COP.D.patrol}});
-  ok(P.nP>=2&&P.frac>.5&&P.bad===0&&P.heat===0,'2 patrols at heat 0: a cop is around '+Math.round(P.frac*100)+' % of the time (up to '+P.nP+' at once, Forgiving wants '+P.want+'), first after '+P.first+' s, every one is a lights-off lane follower');
+  ok(P.nP>=1&&P.nP<=P.want&&P.bad===0&&P.heat===0,'2 patrols at heat 0 are rare: never more than '+P.nP+' at once (Forgiving allows '+P.want+', a new one at most every 50 s), one is around '+Math.round(P.frac*100)+' % of the time, first after '+P.first+' s, every one is a lights-off lane follower');
   /* 3. a chase on the ring */
   const C3=await T.ev(()=>{T3.reset(.3,30);heatAdd(200);const lvl=COP.heat;let minD=1e9,tFree=-1,tNear=-1,maxC=0,freeSeen=0,nan=0,sirenOn=0;const imp0=IMP.n;let ramHit=0;
     for(let s=0;s<120*80;s++){T3.drive();RACER.worldStep(1/120);if(!isFinite(C.x+C.z))nan++;if(s%60==0){const ch=TR.cars.filter(c=>c.alive&&c.kind==1&&c.cm>=1);maxC=Math.max(maxC,ch.length);for(const c of ch){const d=Math.hypot(c.x-C.x,c.z-C.z);if(d<minD)minD=d;if(c.state==3)freeSeen++;if(c.siren)sirenOn=1;if(!isFinite(c.x+c.z+c.y))nan++}if(tNear<0&&minD<25)tNear=TR.t;if(tFree<0&&freeSeen)tFree=TR.t}}
