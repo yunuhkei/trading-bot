@@ -1,0 +1,35 @@
+# The Kalshi brain (bot/kalshi_brain.py): the strict walk-forward test of strategies F, G, C and every slice of them,
+# on the saved history plus the live practice results (from the kalshi workflow's saved state). Reads the practice
+# records only; trades nothing. Saves models/kalshi_brain.json (how many slices were tested feeds the real-money gate).
+name: kalshi-brain
+on:
+  schedule:
+    - cron: "41 20 * * 0"    # Sundays, 2:41 pm Milwaukee time (standard time)
+  workflow_dispatch:
+permissions:
+  contents: write            # to save models/kalshi_brain.json
+jobs:
+  brain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: kalshi_state_*.json
+          key: kalshi-state-brain-${{ github.run_id }}
+          restore-keys: kalshi-state-
+      - name: Test the strategies
+        run: python -m bot kalshi-brain
+      - name: Save the result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add models/kalshi_brain.json
+          git commit -q -m "Kalshi brain: weekly test" || exit 0
+          git pull -q --rebase origin "${GITHUB_REF_NAME}" && git push -q origin "HEAD:${GITHUB_REF_NAME}"

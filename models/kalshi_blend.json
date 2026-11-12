@@ -1,0 +1,42 @@
+{
+ "passes": false,
+ "why": "only 29 trades (needs 100)",
+ "stats": {
+  "n": 29,
+  "days": 21,
+  "mean": 0.3574074342532575,
+  "lb": -0.3734465031120472,
+  "won": 0.6206896551724138,
+  "day_share": 0.6666666666666666,
+  "last_week": 1.9408866995073892
+ },
+ "tests": 101,
+ "chosen": [
+  [
+   "2026-11-01",
+   0.0,
+   0.02
+  ],
+  [
+   "2026-11-02",
+   0.0,
+   0.02
+  ],
+  [
+   "2026-11-03",
+   0.0,
+   0.02
+  ],
+  [
+   "2026-11-04",
+   0.0,
+   0.02
+  ],
+  [
+   "2026-11-05",
+   0.0,
+   0.02
+  ]
+ ],
+ "text": "Kalshi blend (market + weather models, per-city trust), walk-forward on 21 days: 29 trades, won 62%, +35.7% a trade after fees, low end -37.3% (corrected for 101 tests), 67% of days up. Does not pass: only 29 trades (needs 100). Latest pick: 0% models / 100% market, margin 2c."
+}

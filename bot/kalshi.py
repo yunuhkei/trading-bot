@@ -485,6 +485,7 @@ def weather_views(events: list[dict], now: datetime, state: dict) -> list[tuple[
             state.setdefault("fc_log", {}).setdefault(st, {}).setdefault(day.isoformat(), {}).setdefault(horizon, round(view["avg"], 2))
         view["late"] = start <= now and local_hour >= 15 and view.get("floor") is not None   # today, the high mostly in
         view["tomorrow"] = now < start
+        view["start"] = start.timestamp()                 # when the measurement day starts (maker bids end then)
         out.append((e, view))
     return out
 
@@ -744,7 +745,8 @@ def settle(acct: dict, tell, tag: str, now: float, cache: dict, label: str = "")
             acct.setdefault("results", []).append({"t": now, "title": p["title"], "kind": p["kind"], "won": won,
                                                    "profit": profit, "fair": p.get("fair"), "price": p["price"],
                                                    "ticker": ticker, "side": p["side"], "event": p.get("event"),
-                                                   "opened": p.get("opened"), "count": p["count"], "cost": p["cost"]})
+                                                   "opened": p.get("opened"), "count": p["count"], "cost": p["cost"],
+                                                   **({"fill": p["fill"]} if "fill" in p else {})})
             tell(f"{'✅' if won else '❌'} {tag}Kalshi {'WON' if won else 'LOST'}: {profit:+,.2f}",
                  f"{label}{p['title']} ({p['count']} {p['side'].upper()} at {p['price'] * 100:.0f}¢): settled "
                  f"{m['result'].upper()}. Account {money(acct['cash'] + sum(q['cost'] for q in positions.values()))}.")
@@ -804,6 +806,14 @@ def trade(acct: dict, ideas: list[dict], settings: dict, tell, tag: str, now: fl
     return bought
 
 
+def _ts(iso) -> float:
+    """An ISO time like 2026-11-12T13:22:00.817325Z as unix seconds (0 if unreadable: counts as before)."""
+    try:
+        return datetime.fromisoformat(str(iso).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
+
+
 def maker_fee(price: float, count: int = 1, rate: float = 0.0175) -> float:
     """Kalshi's fee for a resting (maker) order on the series that charge one, rounded up to the cent."""
     return math.ceil(rate * count * price * (1 - price) * 100 - 1e-9) / 100
@@ -814,11 +824,13 @@ def maker_step(acct: dict, views: list[tuple[dict, dict]], rules: dict, settings
     """Practice maker bids: a resting bid at the best bid on tomorrow's favorite YES bracket (bid in min-max, spread at
     most max_spread), re-priced each check. It counts as FILLED only if someone traded that market BELOW our price
     since the bid was placed (so the queue at our price was used up), at our price, paying the maker fee to be safe.
-    Bids are cancelled once the measurement day starts. Returns how many bids filled."""
+    Bids end when the measurement day starts: a trade after that never fills them (a real bid would have been
+    cancelled; until Nov 12 such trades counted, 5 of M's first 41 fills). Returns how many bids filled."""
     trades_of = trades_of or (lambda t, since: kget("/markets/trades", {"ticker": t, "min_ts": int(since), "limit": 1000})
                               .get("trades", []))
     resting, positions = acct.setdefault("resting", {}), acct.setdefault("positions", {})
     tomorrow = {e["event_ticker"]: e for e, v in views if v.get("tomorrow")}
+    starts = {e["event_ticker"]: v.get("start") for e, v in views if v.get("tomorrow")}
     filled = 0
     for ticker, b in list(resting.items()):
         try:
@@ -826,6 +838,9 @@ def maker_step(acct: dict, views: list[tuple[dict, dict]], rules: dict, settings
         except Exception as e:
             log.warning("maker check %s: %s", ticker, e)
             continue
+        until = b.get("until")
+        if until is not None:                            # only trades before the measurement day started
+            prints = [t for t in prints if _ts(t.get("created_time")) < until]
         if any(_f(t.get("yes_price_dollars")) < b["price"] for t in prints):
             count = int(min(float(settings.get("max_per_trade", 5)), acct["cash"]) // (b["price"] * 1.02))
             if count >= 1:
@@ -836,7 +851,7 @@ def maker_step(acct: dict, views: list[tuple[dict, dict]], rules: dict, settings
                 filled += 1
                 tell(f"🎯 PRACTICE Kalshi maker bid filled: {count} YES at {b['price'] * 100:.0f}¢", b["title"])
             resting.pop(ticker)
-        elif b["event"] not in tomorrow:
+        elif b["event"] not in tomorrow or (until is not None and now >= until):
             resting.pop(ticker)                          # the measurement day began: cancel
     held = {p["event"] for p in positions.values()} | {b["event"] for b in resting.values()}
     for et, e in tomorrow.items():
@@ -856,7 +871,7 @@ def maker_step(acct: dict, views: list[tuple[dict, dict]], rules: dict, settings
                 resting[m["ticker"]] = {**r, "price": bid, "placed": now}
             continue
         if acct["cash"] >= bid * 1.02:
-            resting[m["ticker"]] = {"event": et, "price": bid, "placed": now, "title": title}
+            resting[m["ticker"]] = {"event": et, "price": bid, "placed": now, "title": title, "until": starts.get(et)}
     return filled
 
 
@@ -970,6 +985,12 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
             else:
                 n = trade(state["variants"][k], ideas, settings, lambda t, m, k=k: quiet(f"[{k}] {t}", m), "PRACTICE ", now)
                 summary.append(f"{k}:{n}")
+        try:                                              # the $1,000 accounts: same ideas, real order-book fills
+            from .kalshi_big import big_step
+
+            big_step(settings, views, strats, cache, now, quiet, None if scan_all else (lambda t: {}), tell=tell)
+        except Exception as e:
+            log.warning("$1,000 accounts failed: %s", e)
         due = None
         try:
             from .solbot import report_due
@@ -1014,6 +1035,12 @@ def status_text(settings: dict) -> str:
         lines += ["RESULT " + json.dumps({"strategy": key, **r}, default=str) for r in acct.get("results", [])]
         lines += ["OPEN " + json.dumps({"strategy": key, "ticker": t, **p}, default=str)
                   for t, p in (acct.get("positions") or {}).items()]
+    try:
+        from .kalshi_big import status_rows
+
+        lines += status_rows(settings)
+    except Exception as e:
+        lines.append(f"($1,000 accounts unreadable: {e})")
     graded = {st: {h: v for h, v in c.items()} for st, c in (state.get("calib") or {}).items()}
     lines.append("GRADED " + json.dumps(graded))
     return "\n".join(lines)

@@ -230,6 +230,15 @@ def cmd_callouts(args, cfg):
     run(args.settings, report=args.report)
 
 
+def cmd_kalshi_brain(args, cfg):
+    import logging
+
+    from .kalshi_brain import run
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    run()
+
+
 def cmd_kalshi_stocks(args, cfg):
     import logging
 
@@ -248,7 +257,10 @@ def cmd_kalshi_backtest(args, cfg):
     import logging
 
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
-    if args.lead2:
+    if args.blend:
+        from .kalshi_blend import run
+        run()
+    elif args.lead2:
         from .kalshi_backtest import add_two_day_forecasts
         for kind in ("high", "low"):
             try:
@@ -453,6 +465,7 @@ def main(argv=None):
     co = sub.add_parser("callouts", help="track meme-coin callouts (boosts, trending, Telegram) and how they did")
     co.add_argument("--settings", default="callouts.yaml")
     co.add_argument("--report", action="store_true", help="print the callout scoreboard")
+    sub.add_parser("kalshi-brain", help="the strict walk-forward test of Kalshi strategies F, G, C and their slices")
     ks = sub.add_parser("kalshi-stocks", help="Kalshi stock bot: S&P 500 / Nasdaq-100 close, practice only")
     ks.add_argument("--settings", default="kalshi_stocks.yaml")
     ks.add_argument("--status", action="store_true", help="print the saved practice record and exit")
@@ -462,6 +475,7 @@ def main(argv=None):
     kb.add_argument("--sameday", action="store_true", help="same-day trading: collect readings + day-of prices, then test")
     kb.add_argument("--kind", default="high", choices=["high", "low"], help="daily highs (default) or daily lows")
     kb.add_argument("--lead2", action="store_true", help="add the models' two-day-ahead forecasts and re-test")
+    kb.add_argument("--blend", action="store_true", help="the blend test: market + weather models, per-city trust")
     kb.add_argument("--markets", default="", help="test other markets: lows, gas, crypto, stocks or all")
     kb.add_argument("--walkforward", action="store_true",
                     help="walk-forward test of ideas to improve the main strategy (collects hourly prices first)")
@@ -550,6 +564,8 @@ def main(argv=None):
         cmd_launch_lab(args, cfg)
     elif args.cmd == "callouts":
         cmd_callouts(args, cfg)
+    elif args.cmd == "kalshi-brain":
+        cmd_kalshi_brain(args, cfg)
     elif args.cmd == "kalshi-stocks":
         cmd_kalshi_stocks(args, cfg)
     elif args.cmd == "kalshi-backtest":

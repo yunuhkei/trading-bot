@@ -4356,6 +4356,186 @@ def test_super_bots_trades_get_a_real_price_check_next_to_the_lab():
     assert line.startswith("• Super bot at real prices") and "+0.0% a trade vs the lab's +10.0% on the same trades" in line
 
 
+def test_kalshi_big_reads_the_order_book_and_walks_it_with_real_fees():
+    from bot import kalshi as k
+    from bot import kalshi_big as kb
+    book = kb.parse_book({"orderbook_fp": {"yes_dollars": [["0.3000", "50"], ["0.3200", "10"]],
+                                           "no_dollars": [["0.3500", "80"], ["0.3700", "40"], ["0.3800", "30.5"]]}})
+    assert book["yes"] == [(0.62, 30.5), (0.63, 40), (0.65, 80)]                     # YES asks = 1 - NO bids, cheapest first
+    assert book["no"] == [(0.68, 10), (0.70, 50)]
+    old = kb.parse_book({"orderbook": {"yes": [[30, 5]], "no": [[38, 7]]}})          # the older cents format
+    assert old == {"yes": [(0.62, 7)], "no": [(0.70, 5)]}
+    f = kb.walk(book["yes"], 100, 0.65)
+    assert f["levels"][0] == [0.62, 30] and f["levels"][1] == [0.63, 40] and f["levels"][2][0] == 0.65
+    assert f["cost"] <= 100 and f["count"] == sum(n for _, n in f["levels"])
+    assert abs(f["fees"] - sum(k.fee(p, n) for p, n in f["levels"])) < 1e-9          # Kalshi's fee at every level
+    assert f["avg"] > 0.62                                                           # not the top price for everything
+    thin = kb.walk(book["yes"], 100, 0.62)                                           # the limit stops it at the top level
+    assert thin["count"] == 30 and thin["cost"] == round(30 * 0.62 + k.fee(0.62, 30), 2)
+    taken = {}
+    kb.walk(book["yes"], 15, 0.65, taken)                                            # someone else took 23 at 62c first
+    assert taken == {0.62: 23} and kb.walk(book["yes"], 100, 0.62, taken)["count"] == 7
+    fav = {"price": 0.62, "fair": 0.68}
+    assert kb.limit_price(fav, {"pick": "favorite", "max_price": 0.80}, 0.03) == 0.65
+    assert kb.limit_price(fav, {"pick": "favorite", "max_price": 0.63}, 0.03) == 0.63  # never past the strategy's limit
+    edge = {"price": 0.62, "fair": 0.70}                                             # C: 5c+ edge after fees
+    lim = kb.limit_price(edge, {"min_edge": 0.05, "max_price": 0.95}, 0.03)
+    assert 0.62 <= lim < 0.65 and 0.70 - lim - k.fee(lim) >= 0.05 - 1e-9
+
+
+def test_kalshi_big_accounts_trade_100_dollars_at_real_fills_next_to_the_old_accounts(tmp_path, monkeypatch):
+    from bot import kalshi as k
+    from bot import kalshi_big as kb
+    monkeypatch.chdir(tmp_path)
+    mk = lambda t, kind, lo, hi, ya, na: {"ticker": t, "strike_type": kind, "floor_strike": lo, "cap_strike": hi,
+                                          "yes_sub_title": t, "yes_ask_dollars": str(ya), "yes_ask_size_fp": "100",
+                                          "no_ask_dollars": str(na), "no_ask_size_fp": "100"}
+    ev = {"event_ticker": "KXHIGHCHI-26NOV04", "title": "Chicago high Nov 4?", "markets": [
+        mk("LOW", "less", None, 70, 0.15, 0.86), mk("MID", "between", 70, 71, 0.62, 0.40),
+        mk("HIGH", "greater", 71, None, 0.30, 0.72)]}
+    view = {"mu": 71.0, "sigma": 0.6, "floor": None, "late": False, "tomorrow": True, "why": "test"}
+    asked = []
+    books = {"MID": {"yes": [(0.62, 60), (0.63, 50), (0.64, 40), (0.65, 60), (0.70, 500)], "no": [(0.40, 500)]},
+             "LOW": {"yes": [(0.15, 500)], "no": [(0.86, 200)]}}
+
+    def book_of(ticker):
+        asked.append(ticker)
+        return books[ticker]
+    settings = {"big_accounts": {"strategies": ["F", "G", "C"]}}
+    strats = k.strategies({})
+    st = kb.big_step(settings, [(ev, view)], strats, {}, 1_000.0, lambda t, m: None, book_of)
+    f, g, c = st["F1000"], st["G1000"], st["C1000"]
+    assert f["start"] == 1000 and "MID" in f["positions"] and asked.count("MID") == 1   # one book read, shared
+    pf = f["positions"]["MID"]
+    assert 95 < pf["cost"] <= 100 and pf["fill"]["top"] == 0.62 and pf["price"] > 0.62
+    assert [p for p, _ in pf["fill"]["levels"]] == [0.62, 0.63, 0.64, 0.65]          # it walked the book
+    assert abs(f["cash"] + pf["cost"] - 1000) < 1e-9
+    pg = g["positions"]["MID"]                                                       # G gets what F left at 65c or less
+    assert [p for p, _ in pg["fill"]["levels"]] == [0.65] and 10 < pg["cost"] < 100
+    used = sum(n for p in (pf, pg) for _, n in p["fill"]["levels"])
+    assert used == 60 + 50 + 40 + 60                                                 # all of it, never more
+    assert "MID" not in c["positions"] and c["thin"] == 1                            # nothing left at C's limit: skipped
+    assert c["positions"]["LOW"]["side"] == "no" and c["positions"]["LOW"]["fill"]["top"] == 0.86
+    # settle: a win pays $1 a contract, the record keeps the fill
+    cache = {"MID": {"result": "yes", "status": "finalized"}}
+    st = kb.big_step(settings, [], strats, cache, 90_000.0, lambda t, m: None, book_of)
+    r = st["F1000"]["results"][0]
+    assert r["won"] and abs(r["profit"] - (pf["count"] - pf["cost"])) < 1e-9 and r["fill"]["top"] == 0.62
+    assert kb.status_rows(settings)[0].startswith('RESULT {"strategy": "F1000"')
+    # the old $100 accounts don't change: same check through step(), with the order book faked away
+    monkeypatch.setattr(k, "weather_views", lambda events, now, state: [(ev, view)])
+    k.step({"mode": "practice", "practice_cash": 100, **settings}, lambda t, m: None, events=[ev])
+    old = json.loads(Path("kalshi_state_practice.json").read_text())
+    assert old["variants"]["F"]["start"] == 100 and old["variants"]["F"]["cash"] > 90
+
+
+def test_kalshi_real_money_gate_needs_enough_days_a_solid_low_end_and_a_good_last_week():
+    from bot import kalshi_big as kb
+
+    def results(days, per_day, gain, noise=0.30, bad_days=(), day_noise=0.05):
+        out = []
+        for d in range(days):
+            for j in range(per_day):
+                r = gain + (noise if j % 2 else -noise) + (day_noise if d % 2 else -day_noise) + (-0.6 if d in bad_days else 0.0)
+                out.append({"event": f"KXHIGHCHI-26OCT{d + 1:02d}", "t": 0, "cost": 100.0, "profit": 100.0 * r,
+                            "won": r > 0})
+        return out
+    good = results(20, 6, 0.08)                                     # 120 trades over 20 days, +8% a trade
+    g = kb.gate(good, tests=3)
+    assert g["passes"] and g["lcb"] > 0.01 and abs(g["rate"] - 0.08) < 1e-9
+    assert not kb.gate(good[:60], 3)["passes"] and "60/100 trades" in kb.gate(good[:60], 3)["missing"][0]
+    assert kb.gate(good, 50)["lcb"] < g["lcb"]                      # more things tested: a lower low end
+    late = results(20, 6, 0.08, bad_days=(15, 16, 17, 18, 19))      # the last week lost
+    assert not kb.gate(late, 3)["passes"] and not kb.gate(late, 3)["checks"]["last_week"][0]
+    choppy = results(20, 6, 0.02, day_noise=0.5)                    # +2% a trade, but days swing too much to be sure
+    assert not kb.gate(choppy, 3)["checks"]["lcb"][0]
+    cfg = {**kb.DEFAULTS, "strategies": ["F", "G"]}
+    state = {"F1000": {"cash": 1200.0, "positions": {}, "results": good}, "G1000": {"cash": 990.0, "positions": {}, "results": []}}
+    title, msg, passing = kb.report(state, cfg, 3)
+    assert passing == ["F1000"] and title.startswith("✅") and "F1000: $1,200.00" in msg and "none yet" in msg
+    assert "Nothing is switched on" in msg
+
+
+def test_kalshi_brain_uses_only_what_was_known_then_and_corrects_for_many_slices():
+    from bot import kalshi_brain as kb
+    rows = [{"day": d, "station": "KMDW", "mu2": 70.0, "spread2": 1.0, "actual": a, "event": {"markets": []}}
+            for d, a in (("2026-10-01", 75.0), ("2026-10-02", 75.0), ("2026-10-03", 75.0), ("2026-10-04", 70.0))]
+    h = {r["day"]: r for r in kb.honest(rows)}
+    assert h["2026-10-01"]["bias"] == 0 and h["2026-10-02"]["bias"] == 0      # the day before isn't over at buy time
+    assert h["2026-10-03"]["bias"] > 0                                         # Oct 1 (ended 2 days before) is known
+    assert h["2026-10-03"]["mu"] == 70.0 + h["2026-10-03"]["bias"]             # the two-day-ahead forecast, corrected
+    s = {"q": {"A": (0.62, 0.60), "B": (0.30, 0.28)}, "fav": "A", "chance": {"A": 0.55, "B": 0.40}, "top": "A",
+         "result": {"A": "yes", "B": "no"}}
+    assert kb.rule_pick(s, kb.STRATS["F"])["ticker"] == "A"                    # favorite, models agree, 60-80c
+    assert kb.rule_pick({**s, "top": "B"}, kb.STRATS["F"]) is None
+    assert kb.rule_pick(s, kb.STRATS["G"], band=(0.65, 0.70)) is None          # outside the slice's band
+    c = kb.rule_pick({**s, "chance": {"A": 0.80, "B": 0.10}}, kb.STRATS["C"])
+    assert c["ticker"] == "A" and c["side"] == "yes"                           # an edge after fees of 5c+
+    assert kb.ret(0.62, True) > 0.5 and kb.ret(0.62, False) == -1.0
+
+    def trades(n_days, per_day, r, name):
+        return [{"day": f"2026-{9 + d // 30:02d}-{d % 30 + 1:02d}", "city": "X", "hour": 9, "ahead": 1, "price": 0.62,
+                 "won": True, "r": r + (0.02 if (d + j) % 2 else -0.02), "src": "history"}
+                for d in range(n_days) for j in range(per_day)]
+    slices = {"F": trades(40, 5, 0.08, "F"), "G": trades(40, 5, 0.0, "G"), "C": trades(10, 3, 0.20, "C")}
+    res = kb.judge(slices)
+    assert res["tested"] == 3 and res["approved"] == ["F"] and res["slices"]["F"]["oos_n"] >= 30
+    assert "only 30 trades" in res["slices"]["C"]["why"] and not res["slices"]["G"]["ok"]
+    many = kb.judge({**slices, **{f"F|x{i}": slices["G"] for i in range(200)}})
+    assert many["z"] > res["z"]                                                # more slices: a stricter bar
+    assert kb.same_dropped({"G": slices["G"], "G|price 60-65c": list(slices["G"]), "G|city X": slices["G"][:5]}).keys() \
+        == {"G", "G|city X"}
+    big = {"event": "KXHIGHCHI-26NOV09", "opened": 1794600000, "t": 1794700000, "price": 0.63, "cost": 99.0,
+           "profit": 58.0, "won": True}
+    small = {**big, "cost": 4.9, "profit": 2.8}
+    old = {"title": "Highest temperature in Chicago on Nov 9, 2026: 50° to 51°", "price": 0.62, "profit": 2.9, "won": True, "t": 0}
+    live = kb.live_trades({"F": [small, old], "F1000": [big]}, {"KXHIGHCHI": "KMDW"}, "2026-11-05", {"Chicago": "KMDW"})
+    assert len(live["F"]) == 1 and live["F"][0]["src"] == "live F1000" and live["F"][0]["city"] == "KMDW"
+    only_old = kb.live_trades({"C": [old]}, {}, "2026-11-05", {"Chicago": "KMDW"})["C"][0]
+    assert only_old["day"] == "2026-11-09" and only_old["hour"] is None and only_old["city"] == "KMDW"
+
+
+def test_kalshi_blend_learns_each_citys_models_from_past_days_only_and_bets_past_fees_and_a_margin():
+    from bot import kalshi_blend as bl
+    days = [f"2026-10-{d:02d}" for d in range(1, 21)]
+    rows = [{"day": d, "station": "KMDW", "actual": 70.0, "event": {"event_ticker": f"E{d}", "markets": []}} for d in days]
+    highs = {"KMDW": {d: {"2": {"good": 70.5, "bad": 76.0}} for d in days}}
+    fc = bl.forecasts(rows, highs)
+    assert abs(fc["E2026-10-01"]["mu"] - 73.25) < 1e-9                  # nothing known yet: equal weights
+    assert fc["E2026-10-02"]["mu"] == fc["E2026-10-01"]["mu"]            # the day before isn't over: still nothing
+    assert abs(fc["E2026-10-20"]["mu"] - 70.0) < 0.6                     # learned: trust "good", correct "bad"'s +6
+    late = bl.forecasts(rows[:-1] + [{**rows[-1], "actual": 99.0}], highs)
+    assert late["E2026-10-20"]["mu"] == fc["E2026-10-20"]["mu"]          # a day's own result never changes its forecast
+    m = bl.market_chances({"A": (0.62, 0.58), "B": (0.42, 0.38)})
+    assert abs(sum(m.values()) - 1) < 1e-9 and m["A"] == 0.6
+    snap = {9: {"q": {"A": (0.50, 0.48), "B": (0.52, 0.50)}, "model": {"A": 0.80, "B": 0.20},
+                "market": {"A": 0.49, "B": 0.51}, "result": {"A": "yes", "B": "no"}}}
+    t = bl.pick(snap, mix=1.0, margin=0.05)
+    assert t and t["ticker"] == "A" and t["side"] == "yes" and t["won"]   # 80% vs 50c: past fee + slip + margin
+    assert bl.pick(snap, mix=0.0, margin=0.05) is None                   # trusting only the market: no edge
+    assert bl.pick(snap, mix=1.0, margin=0.40) is None                   # the margin isn't met
+
+
+def test_kalshi_maker_bid_is_never_filled_by_a_trade_after_the_measurement_day_starts():
+    from datetime import datetime, timezone
+    from bot import kalshi as k
+    ev = {"event_ticker": "EV", "title": "Chicago high Nov 9?",
+          "markets": [{"ticker": "FAV", "yes_sub_title": "FAV", "yes_bid_dollars": "0.66", "yes_ask_dollars": "0.69"}]}
+    start = 1000.0
+    acct = {"cash": 100.0, "positions": {}}
+    rules, iso = k.STRATEGIES["M"]["rules"], lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat()
+    k.maker_step(acct, [(ev, {"tomorrow": True, "start": start})], rules, {}, lambda *a: None, 900.0, lambda t, s: [])
+    assert acct["resting"]["FAV"]["until"] == start
+    late = [{"created_time": iso(1100.0), "yes_price_dollars": "0.40"}]           # someone sold below us, too late
+    k.maker_step(acct, [(ev, {"tomorrow": False, "start": start})], rules, {}, lambda *a: None, 1200.0, lambda t, s: late)
+    assert not acct["positions"] and not acct["resting"]                          # not filled; cancelled
+    acct = {"cash": 100.0, "positions": {}}
+    k.maker_step(acct, [(ev, {"tomorrow": True, "start": start})], rules, {}, lambda *a: None, 900.0, lambda t, s: [])
+    early = [{"created_time": iso(950.0), "yes_price_dollars": "0.60"}]           # in time: filled
+    assert k.maker_step(acct, [(ev, {"tomorrow": False, "start": start})], rules, {}, lambda *a: None, 1200.0,
+                        lambda t, s: early) == 1 and "FAV" in acct["positions"]
+
+
 def _stock_event(level_now=7600.0, close=1_000_000.0):
     """A pretend KXINX day: 25-point brackets around 7,600 plus the two tails."""
     ms = [{"ticker": "T-LO", "strike_type": "less", "floor_strike": None, "cap_strike": 7500, "yes_sub_title": "below 7,500"}]

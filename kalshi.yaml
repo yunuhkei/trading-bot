@@ -25,6 +25,18 @@ arb_margin: 0.02          # arbitrage: the set must pay at least 2¢ more than i
 # M Maker bids on the favorite (Nov 7): rests a bid at the best bid instead of paying the ask; on real trade prints
 # +7.2% (+6.4% with a maker fee) on 374 bids vs +5.3% paying the ask (tools/kalshi_maker_test.py).
 # Override or add one like:  strategies: {F: {label: "My idea", rules: {min_edge: 0.2, sigma_mult: 1.2}}}
+# Practice accounts with their OWN pretend $1,000 and $100 trades (bot/kalshi_big.py, kalshi_state_big.json), next to
+# the $100 / $5 ones above (those are untouched). Fills walk Kalshi's real order book (never the top price for the whole
+# $100), with Kalshi's real fees; a thin book means a smaller fill or no trade.
+big_accounts:
+  strategies: [F, G, C]
+  cash: 1000
+  per_trade: 100
+  max_slip: 0.03          # pay at most 3c over the best ask (and never past the strategy's own price limits)
+  min_fill: 10            # skip the trade if the book has under $10 at acceptable prices
+  max_trades_per_day: 10
+  max_trades_per_check: 3
+  report_at: "15:00"      # a short report every day at 3 pm Milwaukee time
 report_at: "15:00"        # the scoreboard: every Thursday at 3 pm Milwaukee time
 report_days: [Thursday]
 timezone: America/Chicago
