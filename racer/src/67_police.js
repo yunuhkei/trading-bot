@@ -3,7 +3,7 @@
    HELICOPTERS (from 4 stars, STARS[heat].heli of them): a navy and white helicopter with a cabin, a tail boom and fin, skids, a main rotor and a tail rotor that blur into discs, a spotlight that
    follows you (a beam and a pool of light), and the chop of the rotor. It flies 32-45 m above the ground, holds a slot behind or beside you and keeps you in its light: while it is within
    220 m you cannot lose the police. It has fuel for 75 s, then it peels off; the next one comes 25 s later (that gap is your chance to escape). Drawn with the car program (one draw each).
-   SPIKE STRIPS (from 4 stars): every 16-20 s a strip is laid across the road 150-230 m ahead of you (it lies there for 40 s). Driving over it bursts the tyres: a bang, sparks from the rims,
+   SPIKE STRIPS (from 4 stars): every 16-20 s a strip is laid 150-230 m ahead of you across ONE lane, the one you are in (one and a half lanes at five stars, plus a second strip 30 m on over the other side): swerve round it. A police car stands beside it. It lies there for 40 s. Driving over it bursts the tyres: a bang, sparks from the rims,
    "TYRES BURST" and a short loss of grip (7.8 s on the rims: grip down to 40 %, the car wanders and pulls to one side, top speed about 90 km/h, then the tyres reinflate; approved by the owner). THIS IS A DELIBERATE EXCEPTION to "damage never changes how the car drives". */
 const HELI={list:[],mesh:null,nextT:0,want:0,chop:0,near:1e9,made:0};
 const SPIKE={list:[],nextT:0,hits:0},HELI_PAINT=new Float32Array([.012,.03,.09]);
@@ -59,8 +59,17 @@ function spikeFx(sprite,SRN){const on=Math.sin(R.time*14)>0;for(const s of SPIKE
 function copSpikeTick(dt){if(COP.spikeWarn>0)COP.spikeWarn-=dt;
   const on=COP.heat>0&&(STARS[COP.heat]||{}).spikes;for(const s of SPIKE.list)s.life-=dt;SPIKE.list=SPIKE.list.filter(s=>s.life>0);
   if(on&&C.speed>14&&COP.sightT<1.5){SPIKE.nextT-=dt;if(SPIKE.nextT<=0){SPIKE.nextT=16+TR.rng()*4;const ux=C.vx/C.speed,uz=C.vz/C.speed,dd=150+TR.rng()*80;
-      if(copAhead(dd,ux,uz)){const r=ROADS[TRP.ri],i=TRP.i,t=_tan(r,i);SPIKE.list.push({x:r.X[i],z:r.Z[i],y:r.Y[i],nx:-t[1],nz:t[0],hw:r.hw+.6,life:40});COP.spikeWarn=3}}}
+      if(copAhead(dd,ux,uz)){const r=ROADS[TRP.ri],i=TRP.i,t=_tan(r,i),nx=-t[1],nz=t[0];
+        /* batch 9: a strip covers one lane (one and a half at five stars) where YOU are driving, so you can swerve round it; at five stars a second strip 30 m on covers the other side.
+           A police car stands at the road's edge beside it. */
+        roadAt(C.x,C.z,C.y);const myLat=RQ.ri===TRP.ri?RQ.lat*((RQ.nx*nx+RQ.nz*nz)>0?1:-1):0,five=COP.heat>=5,shw=five?2.7:1.9,lim=r.hw-shw-.3,lat=clamp(myLat,-lim,lim);
+        const put=(ii,la)=>{SPIKE.list.push({x:r.X[ii]+nx*la,z:r.Z[ii]+nz*la,y:r.Y[ii],nx,nz,hw:shw,life:40});copSpikeCar(r,ii,la>0?-1:1)};
+        put(i,lat);if(five){const sg=(t[0]*ux+t[1]*uz)>=0?1:-1,j=Math.min(r.n-2,Math.max(1,i+sg*Math.round(30/r.ds)));put(j,clamp(-lat*.8+(lat>0?-1:1)*shw,-lim,lim))}COP.spikeWarn=3}}}
   else SPIKE.nextT=Math.min(SPIKE.nextT,5)}
+/* the police car that laid the strip, parked on the road's edge beside it (on the other side from the strip) */
+function copSpikeCar(r,i,side){const e=LG.ofRoad[ROADS.indexOf(r)]&&LG.ofRoad[ROADS.indexOf(r)][0][0];if(!e)return;const t=_tan(r,i),nx=-t[1],nz=t[0],o=side*(r.hw-1.4);
+  const c=trPlace(e,Math.max(3,Math.min(e.n-4,i)),COP.heat>=4?21:4,12,0,Math.floor(TR.rng()*1e9));if(!c)return;c.x=c.px=r.X[i]+nx*o;c.z=c.pz=r.Z[i]+nz*o;c.yaw=c.pyaw=Math.atan2(t[0],-t[1])+side*.35;c.y=c.py=r.Y[i];
+  c.state=1;c.kind=1;c.cm=3;c.block=1;c.siren=1;c.life=40;c.vx=c.vz=c.om=c.v=0;c.wt=0;c.L=null}
 /* called every physics step from carStep: has a wheel crossed a strip? */
 function spikeCheck(){if(!SPIKE.list.length||!C.grounded)return;
   for(const s of SPIKE.list){const dx=C.x-s.x,dz=C.z-s.z,lat=dx*s.nx+dz*s.nz,al=-dx*s.nz+dz*s.nx;if(Math.abs(lat)<s.hw&&Math.abs(al)<1.6&&Math.abs(C.y-s.y)<2&&!(C.flatT>0)){

@@ -15,13 +15,18 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 3: police overhaul (`64_cops.js` fault rule, `STARS`, `copAhead`, stuck recovery; `67_police.js` helicopters and spike strips; interceptor, SUV, SWAT truck; minimap police only), tests `rheat.js`, `rpolice.js`. **Waiting for approval: a spike strip halves the grip for 4 s (the one exception to "damage never affects driving").**
 - Batch 4: supercars and looks (`CAR_STYLE`, creases / end shapes in `cgBody`, new lamps, `cgPlate` block font, paint finishes `uPt`, shader seams `uSm`, test `rlooks.js`); traffic: walking-pace bumps are not wrecks.
 
+- Batch 9: patrols only near towns (one per 110 s), one-lane spike strips with a cop beside them.
 - Batch 8: five new towns joined at two points each, the northern highway (no more dead-end canyon), 18 roadside stops.
 - Batch 7: 14 drive-through repair shops (`pickRepairs`, `repairStep`, `rrepair.js`).
 - Batch 6: crashes roll and flip the car (and traffic), lights stay on the lamps, lamp posts fall (`42_tumble.js`, `rcrash.js`).
 - Batch 5: flat tyres 7.8 s, car order, look-around camera, police you can lose (last seen place, own top speeds, lights off on patrol), taps do no damage, more traffic.
 
-## Next (owner's list, in this order)
-- Still not decided: money / how cars are earned, the real names of the CC cars.
+## Next (agreed with the owner, in this order)
+10. Events and money: markers on the map and an event list in the garages; money and records saved; cars bought with money (the unlock-all switch stays for testing). First events: time trials (checkpoints, ghost, medals) and escape-the-cops challenges.
+11. Road rage (timed takedowns of traffic) and the cheap extras: speed traps, jump spots, drift zones.
+12. Racer AI, then races, death races (points for wrecking the AI racers) and rare street racers on the map you can challenge.
+13. Natural cities: irregular outlines, main roads into an old centre, neighbourhoods at their own angles, curving streets, outskirts that thin out; small towns first, then the big cities.
+- Later: online multiplayer (an update or a part 2).
 
 ## Known, not fixed
 - East highway: with the default traffic seed one car waits over 25 s to turn left into Hesperia's `hs2` across the busy divided highway (other seeds fine). The road bot at 34 m/s clips the signal pole on the Mojave Works boulevard and rolls.
