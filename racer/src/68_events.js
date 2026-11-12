@@ -15,7 +15,7 @@ const EV_DEF=[
  {id:'t_north',type:'trial',name:'Northern Line',from:['nt1',.06],to:['nt2',.94]},
  {id:'t_coast',type:'trial',name:'Coast Highway',from:['cr',.08],to:['btp',.5]},
  {id:'t_pass',type:'trial',name:'Mountain Pass',from:['nh1',.08],to:['bigp',.5]},
- {id:'t_vegas',type:'trial',name:'Vegas Run',from:['vg1',.12],to:['vegp',.6]},
+ {id:'t_vegas',type:'trial',name:'Vegas Run',from:['vg1',.02],to:['vegm',.95]},
  {id:'t_south',type:'trial',name:'Southern Cross',from:['sh',.12],to:['sh',.88]},
  {id:'e_2',type:'escape',name:'Hot Pursuit',stars:2,secs:100,from:['ring',.55]},
  {id:'e_3',type:'escape',name:'Roadblocks',stars:3,secs:130,from:['bv',.5]},

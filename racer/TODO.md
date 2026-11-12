@@ -15,6 +15,8 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 3: police overhaul (`64_cops.js` fault rule, `STARS`, `copAhead`, stuck recovery; `67_police.js` helicopters and spike strips; interceptor, SUV, SWAT truck; minimap police only), tests `rheat.js`, `rpolice.js`. **Waiting for approval: a spike strip halves the grip for 4 s (the one exception to "damage never affects driving").**
 - Batch 4: supercars and looks (`CAR_STYLE`, creases / end shapes in `cgBody`, new lamps, `cgPlate` block font, paint finishes `uPt`, shader seams `uSm`, test `rlooks.js`); traffic: walking-pace bumps are not wrecks.
 
+- Batch 16: Downtown, the Valley, Santa Cruz, Palm Springs with irregular outlines and outskirts; spawn and turn fixes at lights; a cop wrecking itself on you is not your crime.
+- Batch 15: Las Vegas, Sacramento, San Jose natural: an avenue through the centre between two neighbourhoods at their own angles, irregular outline, whole blocks for the city buildings, cut blocks lined with shops and houses (`makeOrganicCity`).
 - Batch 14: the older towns (Pacifica, Fresno, Barstow, Big Pines) and the industrial areas (Harbour, Mojave Works) natural too; the square suburb scatter round them removed.
 - Batch 13: natural small towns (Gilroy, Indio, Hesperia, Tahoe, Bishop): irregular outline, bent streets, main streets to the gates, lots along the streets thinning out past the edge (`20_organic.js`).
 - Batch 12: racer AI, 3 races, 2 death races, rare street racers (`69_racers.js`); police sent for 15 s after a crime.
@@ -27,10 +29,11 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 5: flat tyres 7.8 s, car order, look-around camera, police you can lose (last seen place, own top speeds, lights off on patrol), taps do no damage, more traffic.
 
 ## Next (agreed with the owner, in this order)
-15. Natural cities, part 3: the big cities (Downtown, the Valley, Las Vegas, Sacramento, San Jose): neighbourhoods at their own angles meeting along the main roads, an old centre, irregular edges, suburbs that thin out.
 - Later: online multiplayer (an update or a part 2).
 
 ## Known, not fixed
+- Sacramento: now and then a car on a street that meets the avenue waits through one green (47 s at `sacau2`, the signal test allows 40).
+- Downtown and the Valley: their street grids are still straight (only the outlines are irregular); the grids of the natural towns and cities bend.
 - Death racers ram hard (24 hits in 30 s on a slow bot): feel-test. Racers drive on the route's line and ignore you otherwise (no blocking).
 - East highway: with the default traffic seed one car waits over 25 s to turn left into Hesperia's `hs2` across the busy divided highway (other seeds fine). The road bot at 34 m/s clips the signal pole on the Mojave Works boulevard and rolls.
 - The far north band (snow mountains), the east mesa and the map edges are still empty country (the play area is the middle); the house roofs at roadside stops sit a little off-centre. High tier triangles downtown are within 1k of the limit.

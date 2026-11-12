@@ -13,7 +13,7 @@ let bad=0;const ck=(ok,msg)=>{console.log((ok?'ok   ':'FAIL ')+msg);if(!ok)bad++
  const inBoxP=(I,B)=>I.x>B.x0-40&&I.x<B.x1+40&&I.z>B.z0-40&&I.z<B.z1+40;const per=M.PLACES.map(p=>p.name+' '+SIG.I.filter(I=>inBoxP(I,p.box)).length);
  ck(M.PLACES.every(p=>SIG.I.some(I=>inBoxP(I,p.box))),'every city and town has lights: '+per.join(', '))}
 const L=require('./rlib.js');
-const places=[['sfnu3',.5,'downtown'],['lau1',.5,'Valley'],['vegu2',.5,'Las Vegas'],['sacu2',.5,'Sacramento']];
+const places=[['sfnu3',.5,'downtown'],['lau1',.5,'Valley'],['vegm',.5,'Las Vegas'],['sacm',.5,'Sacramento']];
 const only=process.env.ONLY?process.env.ONLY.split(','):null,SECS=+(process.env.SECS||120);
 (async()=>{
   const T=await L.launch({q:'go=1&scale=.4&fixed=1',w:300,h:200,mobile:false,traffic:true});
@@ -30,9 +30,9 @@ const only=process.env.ONLY?process.env.ONLY.split(','):null,SECS=+(process.env.
         for(const c of TR.cars){if(!c.alive||c.state!=0)continue;let key=null,d=null,g=null;
           if(!c.L&&c.e){g=lgNextJ(c.e,c.u);if(g&&g.sig&&nearSet.has(g.sig.I)){let su=g.minFu;if(c.e.closed&&su<c.u-1e-6)su+=c.e.n;d=trSu(c.e,su)-trSu(c.e,c.u)-c.hl;key=g}}
           const p=prev.get(c.i);
-          if(key&&d!=null){const st=sigState(g.sig);if(st>0&&c.v<.3&&d<12){qn.set(g,(qn.get(g)||0)+1);stopAt.set(c.i,(stopAt.get(c.i)||0)+1/60);res.waitMax=Math.max(res.waitMax,stopAt.get(c.i))}
+          if(key&&d!=null){const st=sigState(g.sig);const wk=c.i+':'+c.seed;if(st>0&&c.v<.3&&d<12){qn.set(g,(qn.get(g)||0)+1);stopAt.set(wk,(stopAt.get(wk)||0)+1/60);if(stopAt.get(wk)>res.waitMax){res.waitMax=stopAt.get(wk);res.waitAt=[Math.round(c.x),Math.round(c.z)];const ld=TR.cars.filter(q=>q.alive&&q!==c&&q.e===c.e&&q.u>c.u&&q.u-c.u<12).sort((a,b)=>a.u-b.u)[0];res.waitWhy={hend:c.hend,hn:c.hnTrue,lane:c.e.li,nl:c.e.nl,plfu:c.pl&&c.pl.fu,plfrom:c.pl&&c.pl.from===c.e,hv:(c.hv?Array.from(c.hv).slice(0,6).map(v=>+v.toFixed(1)):null),term:_term,lead:ld?{fl:ld.flags,pl:ld.pl&&ld.pl.kind,v:+ld.v.toFixed(1),y:ld.yTo,yg:+(ld.yGap||0).toFixed(1),to:ld.pl&&ld.pl.to?ROADS[ld.pl.to.ri].id:null}:null,fl:c.flags,pl:c.pl&&c.pl.kind,y:c.yTo,road:ROADS[c.e.ri].id,u:Math.round(c.u),gx:Math.round(g.x||0),gz:Math.round(g.z||0),st}}}else if(c.v>1)stopAt.delete(wk)   /* one car's wait at one light (the slots are reused) */
             if(d<=0)stopAt.delete(c.i);
-            if(p&&p.g===g&&p.d>0&&d<=0){const st0=sigState(g.sig),st1=sigState(g.sig,SIG.t-1.5);if(st0==2&&st1==2){res.runRed++;(res.rr||(res.rr=[])).push({v:+c.v.toFixed(1),pd:+p.d.toFixed(2),flags:c.flags,ign:+c.ign.toFixed(1),k:c.kind,cm:c.cm,age:+c.age.toFixed(1),hist:(c._h||[]).join(' ')})}else if(st0==2)res.lateYellow++;else if(st0==0)res.greenX++;
+            if(p&&p.g===g&&p.d>0&&d<=0){const st0=sigState(g.sig),st1=sigState(g.sig,SIG.t-1.5);if(st0==2&&st1==2){res.runRed++;(res.rr||(res.rr=[])).push({x:Math.round(c.x),z:Math.round(c.z),v:+c.v.toFixed(1),pd:+p.d.toFixed(2),flags:c.flags,ign:+c.ign.toFixed(1),k:c.kind,cm:c.cm,age:+c.age.toFixed(1),hist:(c._h||[]).join(' ')})}else if(st0==2)res.lateYellow++;else if(st0==0)res.greenX++;
               const k=g.sig.I.id+'/'+g.sig.ph;res.crossings[k]=(res.crossings[k]||0)+1}}
           if(key){c._h=c._h||[];c._h.push(d.toFixed(1)+'/'+c.v.toFixed(1)+'/'+sigState(g.sig));if(c._h.length>12)c._h.shift()}
           prev.set(c.i,key?{g:key,d}:null)}
@@ -40,6 +40,6 @@ const only=process.env.ONLY?process.env.ONLY.split(','):null,SECS=+(process.env.
       const st=TR.stat;res.wrecks=st.wrecks;res.spawn=st.spawn;res.jams=st.stuck;res.ign=st.ign;
       const ph=new Set(Object.keys(res.crossings).map(k=>k.split('/')[1]));res.bothPhases=ph.size;res.nX=Object.values(res.crossings).reduce((a,b)=>a+b,0);delete res.crossings;return res},[id,f,SECS]);
     const ok=r.runRed==0&&r.bothPhases==2&&r.maxQ>=2&&r.waitMax<40&&r.wrecks/Math.max(1,r.spawn)<.03;
-    ck(ok,label.padEnd(11)+' '+r.near+' lights within 220 m: '+r.nX+' cars crossed a stop line ('+r.greenX+' on green, '+r.lateYellow+' late yellow, '+r.runRed+' on red), both phases flow: '+(r.bothPhases==2)+', longest queue '+r.maxQ+' cars, longest wait '+r.waitMax.toFixed(0)+' s, stopped past the line '+r.overshoot+', wrecked '+r.wrecks+' of '+r.spawn+', jams dissolved '+r.jams+', deadlock breaker '+r.ign+(r.rr?' '+JSON.stringify(r.rr):''))}
+    ck(ok,label.padEnd(11)+' '+r.near+' lights within 220 m: '+r.nX+' cars crossed a stop line ('+r.greenX+' on green, '+r.lateYellow+' late yellow, '+r.runRed+' on red), both phases flow: '+(r.bothPhases==2)+', longest queue '+r.maxQ+' cars, longest wait '+r.waitMax.toFixed(0)+' s'+(r.waitAt?' (at '+r.waitAt.join(',')+' '+JSON.stringify(r.waitWhy)+')':'')+', stopped past the line '+r.overshoot+', wrecked '+r.wrecks+' of '+r.spawn+', jams dissolved '+r.jams+', deadlock breaker '+r.ign+(r.rr?' '+JSON.stringify(r.rr):''))}
   console.log('errs',T.errs.length?T.errs:0);await T.close();console.log(bad?bad+' FAILED':'all passed');process.exit(bad||T.errs.length?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});

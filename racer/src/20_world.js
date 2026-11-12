@@ -21,9 +21,10 @@ function defineWorld(ring,sh,H){
   const gHar=makeOrganic('har',IND_HAR,'ind',{kind:'ind',du:95,dv:72,hw:8,phw:7,mhw:8,warp:9,rk:.9,arm:.12,gates:[[0,-1]]});
   const gMoj=makeOrganic('moj',IND_MOJ,'ind',{kind:'ind',du:95,dv:75,hw:8,phw:7,mhw:8,warp:9,rk:.9,arm:.12,gates:[[-1,0],[0,-1],[1,0]]});
   /* the three new cities (world 1c): Las Vegas with the Strip down its middle, Sacramento, San Jose */
-  makeTown('veg',CITY_VEG,'vegas',{kind:'vegas',du:130,dv:110,hw:7.5,phw:10,mu:65,mv:60,uw:{2:{hw:12,style:4}}});
-  makeTown('sac',CITY_SAC,'cap',{kind:'cap',du:120,dv:95,hw:7.5,phw:10,mu:55,mv:50});
-  makeTown('sj',CITY_SJ,'tech',{kind:'tech',du:150,dv:125,hw:7.5,phw:10,mu:85,mv:60});
+  /* batch 15: natural cities (20_organic.js): each split by its main avenue into two neighbourhoods at their own angles; Las Vegas's avenue is the Strip */
+  const gVeg=makeOrganicCity('veg',CITY_VEG,'vegas',{kind:'vegas',rk:.97,arm:.1,avenue:{ang:Math.PI/2,hw:12,style:4,off:20},hoods:[{ang:0,du:100,dv:92,on:70},{ang:.42,du:104,dv:94,on:66,oa:30}],gates:[[0,-1],[-1,0]]});
+  const gSac=makeOrganicCity('sac',CITY_SAC,'cap',{kind:'cap',rk:.97,arm:.1,avenue:{ang:0,hw:10,style:4,off:-10},hoods:[{ang:0,du:96,dv:80,on:62},{ang:-.3,du:96,dv:80,on:62,oa:20}],gates:[[-1,0],[0,1],[0,-1]]});
+  const gSj=makeOrganicCity('sj',CITY_SJ,'tech',{kind:'tech',rk:.97,arm:.1,avenue:{ang:.55,hw:10,style:4},hoods:[{ang:.55,du:118,dv:100,on:72},{ang:.97,du:120,dv:102,on:72}],gates:[[0,1],[-1,0]]});
   /* batch 8: four towns on the empty highways */
   /* batch 13: natural towns (20_organic.js): an irregular outline, bent streets, the main streets out to the gates the roads below join */
   const gGil=makeOrganic('gil',TOWN_GIL,'farm',{du:66,dv:62,gates:[[0,-1],[0,1],[-1,0]]});
@@ -63,16 +64,16 @@ function defineWorld(ring,sh,H){
   /* ---------- the roads to the new cities ---------- */
   /* Las Vegas: a desert highway from Barstow and a road from Mojave Works */
   buildCurvy({id:'vg1',hw:10,lanes:2,style:1,yFrom:'barp',to:'vegp',lift:.09,smooth:90,minR:60,wig:{a1:50,l1:420,a2:14,l2:170,seed:61,fade:120},
-    pts:gate(gBar,1,0).concat([[4010,1500],[4150,1680]]).concat(tIn(veg,4220,1700))});
+    pts:gate(gBar,1,0).concat([[4010,1500],[4150,1680]]).concat(gateIn(gVeg,0,-1))});
   buildCurvy({id:'vg2',hw:9,lanes:1,style:0,yFrom:'mojp',to:'vegp',lift:.092,smooth:70,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:62,fade:90},
-    pts:gate(gMoj,1,0).concat([[3790,2200]]).concat(tIn(veg,3900,2100))});
+    pts:gate(gMoj,1,0).concat([[3790,2200]]).concat(gateIn(gVeg,-1,0))});
   /* Sacramento: west to the north highway, south to the ring, north to the mountain pass */
-  buildCurvy({id:'sc1',hw:9,lanes:1,style:0,yFrom:'sacp',to:'nh1',lift:.08,smooth:50,minR:45,wig:{a1:10,l1:200,a2:3,l2:90,seed:63,fade:60,hold:50},pts:tOut(sac,0,-2025).concat(tIn(R_('nh1'),-60,-2025))});
-  buildCurvy({id:'sc2',hw:10,lanes:2,style:1,yFrom:'sacp',to:'ring',lift:.082,smooth:70,minR:50,wig:{a1:24,l1:260,a2:6,l2:110,seed:64,fade:80,hold:60},pts:tOut(sac,310,-1700).concat([[320,-1620]]).concat(tIn(ring,330,-1560))});
-  buildCurvy({id:'sc3',hw:9,lanes:1,style:0,yFrom:'sacp',to:'mp',lift:.084,smooth:50,grade:.12,minR:40,wig:{a1:10,l1:200,a2:3,l2:90,seed:65,fade:60,hold:50},pts:tOut(sac,310,-2320).concat(tIn(mp,300,-2420))});
+  buildCurvy({id:'sc1',hw:9,lanes:1,style:0,yFrom:'sacp',to:'nh1',lift:.08,smooth:50,minR:45,wig:{a1:10,l1:200,a2:3,l2:90,seed:63,fade:60,hold:50},pts:gate(gSac,-1,0).concat(tIn(R_('nh1'),-60,-2025))});
+  buildCurvy({id:'sc2',hw:10,lanes:2,style:1,yFrom:'sacp',to:'ring',lift:.082,smooth:70,minR:50,wig:{a1:24,l1:260,a2:6,l2:110,seed:64,fade:80,hold:60},pts:gate(gSac,0,1).concat([[320,-1620]]).concat(tIn(ring,330,-1560))});
+  buildCurvy({id:'sc3',hw:9,lanes:1,style:0,yFrom:'sacp',to:'mp',lift:.084,smooth:50,grade:.12,minR:40,wig:{a1:10,l1:200,a2:3,l2:90,seed:65,fade:60,hold:50},pts:gate(gSac,0,-1).concat(tIn(mp,300,-2420))});
   /* San Jose: south to the boulevard road, west to the ring */
-  buildCurvy({id:'sj1',hw:10,lanes:2,style:1,yFrom:'sjp',to:'bv',lift:.086,smooth:70,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:66,fade:90,hold:60},pts:tOut(sj,-70,-380).concat([[-60,-240]]).concat(tIn(bv,-50,-120))});
-  buildCurvy({id:'sj2',hw:9,lanes:1,style:0,yFrom:'sjp',to:'ring',lift:.088,smooth:60,minR:45,wig:{a1:12,l1:220,a2:4,l2:100,seed:67,fade:60,hold:50},pts:tOut(sj,-450,-690).concat(tIn(ring,-560,-860))});
+  buildCurvy({id:'sj1',hw:10,lanes:2,style:1,yFrom:'sjp',to:'bv',lift:.086,smooth:70,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:66,fade:90,hold:60},pts:gate(gSj,0,1).concat([[-60,-240]]).concat(tIn(bv,-50,-120))});
+  buildCurvy({id:'sj2',hw:9,lanes:1,style:0,yFrom:'sjp',to:'ring',lift:.088,smooth:60,minR:45,wig:{a1:12,l1:220,a2:4,l2:100,seed:67,fade:60,hold:50},pts:gate(gSj,-1,0).concat(tIn(ring,-560,-860))});
   /* ---------- batch 8: the new towns, each joined at two points ---------- */
   /* out / into: a join that leaves (or reaches) a road towards a given side (dx,dz); tOut / tIn guess the side from the point itself, which on a town's edge can send the road back into town.
      Every join on a town's edge is in line with one of its streets, so it makes a crossroads. */

@@ -29,12 +29,12 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   const D=await T.ev((id)=>{const ev=EV.list.find(e=>e.id==id);const m0=ECON.money;evStart(ev);for(let s=0;s<120*4;s++)RACER.worldStep(1/120);const g=!!(EV.rec[ev.id].ghost&&EV.run);evQuit();return{g,quit:!EV.run,paid:ECON.money-m0}},id);
   ok(D.g&&D.quit&&D.paid==0,'3 a second start shows the ghost; QUIT EVENT ends it without a prize');
   /* 4 escape the cops: two stars; once the chase is on, the car gets away (far off and out of sight); the heat cools down and the event pays. (Whether a human can shake two stars is a feel test.) */
-  const E=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='e_2');const m0=ECON.money;evStart(ev);let maxHeat=0,chasers=0;
+  const E=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='e_2');const m0=ECON.money;COP.crimes=[];evStart(ev);let maxHeat=0,chasers=0;
     for(let s=0;s<120*8;s++){if(s%60==0)for(const c of TR.cars)if(c.alive&&c.kind==0&&Math.hypot(c.x-C.x,c.z-C.z)<120)trKill(c,0);   /* (traffic kept off the standing car: only the police count) */
       RACER.worldStep(1/120);maxHeat=Math.max(maxHeat,COP.heat);if(s%60==0)chasers=Math.max(chasers,TR.cars.filter(c=>c.alive&&c.kind==1&&c.cm>0).length)}
     const far=evAt('nt2',.5);RACER.carPlace(far.x,far.z,far.yaw,far.y+.5);for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);COP.sightT=3;let tLost=-1;   /* got away unseen */
     for(let s=0;s<120*60&&EV.run;s++){IN.thr=0;C.vx=C.vz=0;RACER.worldStep(1/120);if(!EV.run&&tLost<0)tLost=s/120}
-    return{card:EV.card&&EV.card.title,lines:EV.card&&EV.card.lines.map(l=>l[0]),maxHeat,chasers,paid:ECON.money-m0,tLost}});
+    return{card:EV.card&&EV.card.title,lines:EV.card&&EV.card.lines.map(l=>l[0]),maxHeat,chasers,paid:ECON.money-m0,tLost,crimes:(COP.crimes||[]).slice(-4)}});
   console.log('     '+JSON.stringify(E));
   ok(E.maxHeat==2&&E.chasers>=2&&E.card=='ESCAPED'&&E.paid==4000,'4 escape at two stars: the chase starts ('+E.chasers+' chasers), out of sight the heat is gone after '+E.tLost.toFixed(1)+' s: '+(E.lines||[]).join(', '));
   const E2=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='e_2');evStart(ev);const trig=copTrigger;window.copTrigger=function(){};for(let s=0;s<120*(ev.secs+5)&&EV.run;s++){IN.thr=0;RACER.worldStep(1/120);C.vx=C.vz=0;COP.sightT=0;if(GAME.state){GAME.state=0;GAME.lock=0}COP.bust=0}window.copTrigger=trig;copClear(true);return{card:EV.card&&EV.card.title,why:EV.card&&EV.card.lines[0][0]}});

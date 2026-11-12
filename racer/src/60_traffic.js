@@ -131,6 +131,9 @@ function trThink(c,dt){
      Every car within 160 m of a red line is flagged (8) as waiting at a light, so a queue is not taken for a jam (stopT) and does not try to pass the car in front. */
   if(!c.L&&c.e&&!(c.kind===1&&c.cm>0)){const e=c.e,g=lgNextJ(e,c.u);if(g&&g.sig){let su=g.minFu;if(e.closed&&su<c.u-1e-6)su+=e.n;const d=trSu(e,su)-trSu(e,c.u);
     if(d>-.5&&d<160){const st=sigState(g.sig);if(st>0){c.flags|=8;const gap=d-c.hl-.3,need=v*v/(2*Math.max(gap,.1));if(gap>-.3&&(st==2?need<7.5:need<3.2))trTerm(c,v,gap<.15?.15:gap,0)}}}}
+  /* (batch 15) on a turn: a light just after it (a street that crosses another a few metres after leaving the edge street) is seen from the turn already */
+  else if(c.L&&!(c.kind===1&&c.cm>0)){const L=c.L,e=L.to,g=lgNextJ(e,L.tu);if(g&&g.sig){let su=g.minFu;if(e.closed&&su<L.tu-1e-6)su+=e.n;const d=L.len-trSu(L,c.lu||0)+trSu(e,su)-trSu(e,L.tu);
+    if(d>-.5&&d<60){const st=sigState(g.sig);if(st>0){c.flags|=8;const gap=d-c.hl-.3,need=v*v/(2*Math.max(gap,.1));if(gap>-.3&&(st==2?need<7.5:need<3.2))trTerm(c,v,gap<.15?.15:gap,0)}}}}
   /* neighbours */
   const st=++TR.stamp,cx=Math.floor(c.x/48),cz=Math.floor(c.z/48),cars=TR.cars;
   for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){const k=((Math.imul(cx+a+4096,73856093)^Math.imul(cz+b+4096,19349663))&4095);
@@ -369,6 +372,9 @@ function trPlace(e,u,type,col,v,seed){
   trPt(e,u);c.x=_pt.x;c.z=_pt.z;c.y=_pt.y;c.yaw=Math.atan2(_pt.tx,-_pt.tz);c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.v=v;c.vx=Math.sin(c.yaw)*v;c.vz=-Math.cos(c.yaw)*v;c.om=0;c.pitch=c.roll=0;
   c.acc=0;c.v0f=(.86+trHash(seed,7)*.22)*(T.v0||1);c.A=(1.9+trHash(seed,11)*.9)*(T.m>5000?.6:1);c.T=(1.0+trHash(seed,13)*.7)*(T.beh=='taxi'?.75:1);c.beh=T.beh||'';c.dwell=0;c.odo=0;c.halt=40+trHash(seed,19)*30;c.lastStop=-1e9;c.nh=0;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.pickL=null;c.role=0;c.ramCd=0;c.los=null;c.stk=0;
   TR.nAlive++;TR.stat.spawn++;return c}
+/* a red or yellow light too close ahead to stop for (the next two junctions: a T just before a light, as where two streets meet an avenue a few metres apart, used to hide it; batch 15) */
+function trLightAhead(e,u,v){let g=lgNextJ(e,u);for(let q=0;q<2&&g;q++){if(g.sig&&sigState(g.sig)>0){let su=g.minFu;if(e.closed&&su<u)su+=e.n;const d=trSu(e,su)-trSu(e,u);if(d>-2&&d<v*v/5+12)return true}
+    const g2=lgNextJ(e,g.foot+1);if(!g2||g2===g)break;g=g2}return false}
 function trSpawn(){
   const rng=TR.rng,P=C;
   for(let tries=0;tries<10;tries++){
@@ -387,7 +393,7 @@ function trSpawn(){
     let v=Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*.85;
     for(const c of TR.cars)if(c.alive&&c.e===e&&!c.L){const dd=(c.u-u)*e.ds;if(dd>0&&dd<45&&c.v<v)v=c.v}
     /* never put a car where it could not stop for a red (or soon red) light ahead */
-    {const g=lgNextJ(e,u);if(g&&g.sig&&sigState(g.sig)>0){let su=g.minFu;if(e.closed&&su<u)su+=e.n;const d=trSu(e,su)-trSu(e,u);if(d>-2&&d<v*v/5+12)continue}}
+    if(trLightAhead(e,u,v))continue;
     const c=trPlace(e,u,type,col,v,seed);return c}
   return null}
 /* the graphics tier scales how many cars the player sees (a stronger phone gets more) */

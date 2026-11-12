@@ -2,7 +2,7 @@
 // (commit c02a69c, measured by this script: the WORLD without traffic, which is deterministic; the numbers in the README's old "Graphics baseline" were older and lower).
 // Traffic is reported too (it varies with which cars are near). `RFILE=old.html node racer/tests/rbudget.js` measures another build to compare.
 const L=require('./rlib.js');
-const PLACES=[['sfnu3',.43,'downtown'],['market',.5,'Market St'],['lau1',.5,'Valley'],['ring',.3,'ring'],['ring',.62,'ring jumps'],['mp',.2,'mountain pass'],['cr',.55,'coast'],['psu1',.5,'Palm Springs'],['btp',.3,'Santa Cruz'],['eh',.02,'ring crossroads'],['vegu2',.5,'Las Vegas'],['sacu2',.5,'Sacramento'],['sju2',.4,'San Jose']].concat(process.env.EXTRA?JSON.parse(process.env.EXTRA):[]);
+const PLACES=[['sfnu3',.43,'downtown'],['market',.5,'Market St'],['lau1',.5,'Valley'],['ring',.3,'ring'],['ring',.62,'ring jumps'],['mp',.2,'mountain pass'],['cr',.55,'coast'],['psu1',.5,'Palm Springs'],['btp',.3,'Santa Cruz'],['eh',.02,'ring crossroads'],['vegm',.5,'Las Vegas'],['sacm',.5,'Sacramento'],['sjm',.4,'San Jose']].concat(process.env.EXTRA?JSON.parse(process.env.EXTRA):[]);
 const LIM=JSON.parse(process.env.LIM||'[[146,113],[210,160],[240,167]]');   /* world only, worst place per tier: [draws, thousand triangles] */
 (async()=>{
   const T=await L.launch({q:'go=1&scale=.5&fixed=1',w:667,h:375,mobile:true,traffic:true});

@@ -1,7 +1,7 @@
 // Traffic variety (batch 2): which vehicles drive where, buses stop at the bus stops, refuse trucks stop and start, nothing jams or crashes more than before.
 // SECS=120 by default, ONLY=sfnu3,... picks places.
 const L=require('./rlib.js');let bad=0;const ck=(ok,m)=>{console.log((ok?'ok   ':'FAIL ')+m);if(!ok)bad++};
-const places=[['sfnu3',.5,'downtown'],['vegu2',.5,'Las Vegas'],['ring',.3,'ring'],['bigu1',.5,'Big Pines']];const only=process.env.ONLY?process.env.ONLY.split(','):null,SECS=+(process.env.SECS||120);
+const places=[['sfnu3',.5,'downtown'],['vegm',.5,'Las Vegas'],['ring',.3,'ring'],['bigu1',.5,'Big Pines']];const only=process.env.ONLY?process.env.ONLY.split(','):null,SECS=+(process.env.SECS||120);
 (async()=>{
   const T=await L.launch({q:'go=1&scale=.4&fixed=1',w:300,h:200,mobile:false,traffic:true});
   await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:120000});

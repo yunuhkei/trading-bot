@@ -221,19 +221,27 @@ const BRICK=[[168,112,92],[190,150,120],[150,120,104],[120,126,140]];
 /* every block of a rotated street grid: calls fn with its local extents */
 /* a natural town (batch 13): the cells between its bent streets; each gets its own turn (B.cs,B.sn: the frame bends with the streets), B.rr (0 in the centre, 1 at the edge)
    and B.ok(u,v,hx,hz): a lot fits there (inside the edge street, off every street) */
-function forOrganic(g,fn){const m=g.hw+3.8,pm=g.phw+4.5,rmax=Math.max(...g.us.map(Math.abs),...g.vs.map(Math.abs))+90,us=[-rmax].concat(g.us,[rmax]),vs=[-rmax].concat(g.vs,[rmax]);
+/* (batch 15) B.full: the whole block lies inside (a city builder fills only those); B.rank: the whole blocks in order from the centre (the landmarks take the first ones) */
+function forOrganic(g,fn){const m=g.hw+3.8,pm=g.phw+4.5,rmax=Math.max(...g.us.map(Math.abs),...g.vs.map(Math.abs))+90,us=[-rmax].concat(g.us,[rmax]),vs=[-rmax].concat(g.vs,[rmax]),cells=[];
   for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){const u0=us[i]+m,u1=us[i+1]-m,v0=vs[j]+m,v1=vs[j+1]-m;if(u1-u0<14||v1-v0<14)continue;const cu=(u0+u1)/2,cv=(v0+v1)/2;
-    const c=g.toW(cu,cv),a=g.toW(cu+1,cv),cs=a[0]-c[0],sn=a[1]-c[1],l=Math.hypot(cs,sn)||1,rr=Math.hypot(cu,cv)/g.R(Math.atan2(cv,cu));
+    const c=g.toW(cu,cv),a=g.toW(cu+1,cv),cs=a[0]-c[0],sn=a[1]-c[1],l=Math.hypot(cs,sn)||1,rr=g.rrL?g.rrL(cu,cv):Math.hypot(cu,cv)/g.R(Math.atan2(cv,cu));
     const ok=(u,v,hx,hz)=>{for(const[a,b]of[[u-hx,v-hz],[u+hx,v-hz],[u+hx,v+hz],[u-hx,v+hz],[u,v]]){if(!g.insL(a,b,pm))return false;const w=g.toW(a,b);if(nearRoadXZ(w[0],w[1],1.2))return false}return true};
-    if(!g.insL(Math.max(u0,Math.min(u1,0)),Math.max(v0,Math.min(v1,0)),pm))continue;
-    fn({i,j,u0,u1,v0,v1,W:g.toW,g,cs:cs/l,sn:sn/l,rr,ok})}}
+    const full=[[u0,v0],[u1,v0],[u1,v1],[u0,v1],[cu,v0],[cu,v1],[u0,cv],[u1,cv]].every(([a,b])=>g.insL(a,b,pm));
+    if(!full&&!g.insL(Math.max(u0,Math.min(u1,0)),Math.max(v0,Math.min(v1,0)),pm)&&!g.insL(cu,cv,pm))continue;
+    cells.push({i,j,u0,u1,v0,v1,W:g.toW,g,cs:cs/l,sn:sn/l,rr,ok,full})}
+  cells.filter(c=>c.full).sort((a,b)=>a.rr-b.rr).forEach((c,k)=>c.rank=k);
+  if(!g.fullSet){g.fullSet=new Set(cells.filter(c=>c.full).map(c=>c.i+','+c.j));g.fu=us;g.fv=vs}
+  for(const c of cells)fn(c)}
+/* is a point inside one of the whole blocks of a city's neighbourhoods (filled by the city builder)? */
+function inFullBlock(city,x,z){for(const h of city.hoods){if(!h.fullSet)continue;const[u,v]=h.toL(x,z);let i=-1,j=-1;for(let k=0;k<h.fu.length-1;k++)if(u>=h.fu[k]&&u<h.fu[k+1]){i=k;break}for(let k=0;k<h.fv.length-1;k++)if(v>=h.fv[k]&&v<h.fv[k+1]){j=k;break}
+    if(i>=0&&j>=0&&h.fullSet.has(i+','+j))return true}return false}
 function forBlocks(g,fn){if(g.organic)return forOrganic(g,fn);const hw=g.hw+3.8,pl=g.planes,Wd=(u,v)=>[g.ox+u*g.cs-v*g.sn,g.oz+u*g.sn+v*g.cs],sf=g.kind!='la';
   /* a town (g.box) also has blocks between its outer streets and the boulevard round it */
   const bx=g.box,ph=(g.phw||7)+3.8,us=bx?[bx.x0].concat(g.us,[bx.x1]):g.us,vs=bx?[bx.z0].concat(g.vs,[bx.z1]):g.vs,hv=(k,n)=>bx&&(k==0||k==n-1)?ph:hw,hu=(k,n)=>{const w=g.uw&&g.uw[bx?k-1:k];return w?w.hw+3.8:hv(k,n)};
   for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){const u0=us[i]+hu(i,us.length),u1=us[i+1]-hu(i+1,us.length),v0=vs[j]+hv(j,vs.length),v1=vs[j+1]-hv(j+1,vs.length);if(u1-u0<14||v1-v0<14)continue;
     let ok=true,x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const[u,v]of[[u0,v0],[u1,v0],[u1,v1],[u0,v1]]){const p=Wd(u,v);x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);z0=Math.min(z0,p[1]);z1=Math.max(z1,p[1]);
-      for(let k=0;k<pl.length;k++){const m=(sf&&k==4)?MARKET.hw+12:(bx?6:18);if(pl[k][0]*p[0]+pl[k][1]*p[1]>pl[k][2]-m)ok=false}}
+      for(let k=0;k<pl.length;k++){const m=(k===g.mkI)?MARKET.hw+12:(bx?6:18);if(pl[k][0]*p[0]+pl[k][1]*p[1]>pl[k][2]-m)ok=false}}
     if(g.cut)for(const R of g.cut)if(x1>R.x0&&x0<R.x1&&z1>R.z0&&z0<R.z1)ok=false;
     if(ok)fn({i,j,u0,u1,v0,v1,W:Wd,g})}}
 const URB=[CITY,VALLEY];
@@ -243,15 +251,15 @@ const inUrban=(x,z,m)=>{if(inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PAR
    In the old centre (the inner third) the lots are shops in a row; round it houses with gardens; towards the edge more and more lots stay empty; the edge street has houses on its
    outer side too (fewer), and the roads leading in carry a few houses for the first 250 m (the town thins out into the country instead of stopping at a line).
    A lot is used only if its corners are clear of every road and of the lots already used. */
-function organicTown(g,h){const{bld,tree,TH,SHOP,rng}=h,placed=[];
+function organicTown(g,h){const{bld,tree,TH,SHOP,rng}=h,placed=[],skip=h.skip||(()=>false);
   const free=(x,z,r)=>{for(let k=0;k<placed.length;k+=3){const dx=placed[k]-x,dz=placed[k+1]-z,q=placed[k+2]+r;if(dx*dx+dz*dz<q*q)return false}return true};
   const fits=(x,z,cs,sn,hx,hz)=>{if(SAFEHOUSES.some(q=>Math.hypot(q.x-x,q.z-z)<34+hx))return false;for(const[a,b]of[[0,0],[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz],[0,hz],[0,-hz]]){if(nearRoadXZ(x+a*cs-b*sn,z+a*sn+b*cs,1.4))return false}return true};
   const rrAt=(x,z)=>{const[u,v]=g.toL(x,z);return Math.hypot(u,v)/g.R(Math.atan2(v,u))};
   const house=(x,z,cs,sn,hx,hz)=>{const hh=3.2+rng()*1.5,col=TH.pal[(rng()*TH.pal.length)|0],gy=bld(x,z,hx,hz,cs,sn,hh,col,true);
     if(TH.rf==0)proofR(1,x,z,hx,hz,cs,sn,gy+hh,1.9+rng()*.7,150,92,76,true);else if(TH.rf==2)proofR(1,x,z,hx,hz,cs,sn,gy+hh,3.4+rng()*1.2,226,230,236,true);else pboxR(1,x,z,hx+.6,hz+.6,cs,sn,gy+hh,gy+hh+.4,226,214,190,false,1)};
-  const shop=(x,z,cs,sn,hx,hz)=>{const hh=4.6+rng()*3,col=SHOP[(rng()*SHOP.length)|0],gy=bld(x,z,hx,hz,cs,sn,hh,col,true);pboxR(1,x,z,hx+.3,hz+.3,cs,sn,gy+hh,gy+hh+.5,92,96,104,false,1)};
+  const shop=(x,z,cs,sn,hx,hz)=>{const hh=(h.shopH||4.6)+rng()*(h.shopH?8:3),col=SHOP[(rng()*SHOP.length)|0],gy=bld(x,z,hx,hz,cs,sn,hh,col,true);pboxR(1,x,z,hx+.3,hz+.3,cs,sn,gy+hh,gy+hh+.5,92,96,104,false,1)};
   /* the landmark (church, water tower or lodge) on a lot near the centre */
-  {const c=g.toW(0,0);let done=false;for(let k=0;k<24&&!done;k++){const a=k*.785+.39,d=26+Math.floor(k/8)*14,x=c[0]+Math.cos(a)*d,z=c[1]+Math.sin(a)*d,cs=g.cs,sn=g.sn,hx=g.theme=='desert'?6:10,hz=g.theme=='desert'?6:8;
+  if(!h.noLandmark){const c=g.toW(0,0);let done=false;for(let k=0;k<24&&!done;k++){const a=k*.785+.39,d=26+Math.floor(k/8)*14,x=c[0]+Math.cos(a)*d,z=c[1]+Math.sin(a)*d,cs=g.cs,sn=g.sn,hx=g.theme=='desert'?6:10,hz=g.theme=='desert'?6:8;
     if(!fits(x,z,cs,sn,hx+2,hz+2))continue;done=true;placed.push(x,z,Math.hypot(hx,hz)+2);const y=terrainH(x,z);
     if(g.theme=='desert'){for(const sx of[-3,3])for(const sz of[-3,3])pbox(1,x+sx,y-.4,z+sz,.35,y+12,.35,150,150,156,false,.8);pbox(1,x,y+12,z,5,y+19,5,196,196,200,false,.9);COLC.push(x,z,4.8,y-.5,y+19)}
     else if(g.theme=='pines'){const gy=bld(x,z,10,8,cs,sn,5.5,[122,90,66],true);proofR(1,x,z,10,8,cs,sn,gy+5.5,6,236,238,242,true)}
@@ -263,16 +271,17 @@ function organicTown(g,h){const{bld,tree,TH,SHOP,rng}=h,placed=[];
       const hx=k==2?5.5+rng()*2.5:4+rng()*2.5,hz=k==2?6+rng():4.5+rng()*1.5,off=r.hw+(r.sw||RSH)+back+hz,x=x0+nx*off,z=z0+nz*off;
       if(free(x,z,Math.hypot(hx,hz)+.5)&&fits(x,z,cs,sn,hx,hz)){placed.push(x,z,Math.hypot(hx,hz)+.5);if(k==2)shop(x,z,cs,sn,hx,hz);else{house(x,z,cs,sn,hx,hz);if(rng()<.55){const bx=x+nx*(hz+5),bz=z+nz*(hz+5);if(!nearRoadXZ(bx,bz,4)&&free(bx,bz,1.5))tree(bx,bz)}}
         s+=hx*2+(k==2?.6:4+rng()*6)}else s+=4}};
-  const inner=(x,z)=>{if(!g.ins(x,z,4))return 0;const rr=rrAt(x,z);if(rr<.36)return rng()<.92?2:1;return rng()<.93-sstep(.55,1,rr)*.5?1:0};
+  const inner=(x,z)=>{if(!g.ins(x,z,4)||skip(x,z))return 0;const rr=rrAt(x,z);if(rr<(h.shopR||.36))return rng()<.92?2:1;return rng()<.93-sstep(.55,1,rr)*.5?1:0};
   for(const r of g.roads)for(const sd of[-1,1])line(r,sd,1.5,inner);
   /* the edge street: houses inside it, and on its outer side fewer, further back */
-  for(const sd of[-1,1]){const r=g.per,i=Math.round(r.n/4),t=_tan(r,i),out=!g.ins(r.X[i]-t[1]*sd*20,r.Z[i]+t[0]*sd*20,0);line(r,sd,out?4:1.5,out?(()=>rng()<.42?1:0):inner)}
+  for(const sd of[-1,1]){const r=g.per,i=Math.round(r.n/4),t=_tan(r,i),out=!g.ins(r.X[i]-t[1]*sd*20,r.Z[i]+t[0]*sd*20,0);line(r,sd,out?4:1.5,out?((x,z)=>!inUrban(x,z,8)&&rng()<.42?1:0):inner)}
   /* the roads leading in: a few houses for the first 250 m out of town */
   for(const r of ROADS){if(r.city||r.style==1||r.style==2)continue;let near=false;for(let i=0;i<r.n;i+=8)if(inBox(r.X[i],r.Z[i],g.box,40)){near=true;break}if(!near)continue;
-    for(const sd of[-1,1])line(r,sd,5,(x,z)=>{if(g.ins(x,z,-10))return 0;const dd=-g.sd(x,z);return dd<250&&rng()<.5*(1-dd/250)?1:0})}
+    for(const sd of[-1,1])line(r,sd,5,(x,z)=>{if(g.ins(x,z,-10))return 0;const dd=-g.sd(x,z);return dd<250&&!inUrban(x,z,8)&&rng()<.5*(1-dd/250)?1:0})}
   /* trees in the gardens behind the lots */
-  forOrganic(g,B=>{const n=B.rr>.7?7:4;for(let k=0;k<n;k++){const u=lerp(B.u0+3,B.u1-3,rng()),v=lerp(B.v0+3,B.v1-3,rng()),p=B.W(u,v);if(!g.ins(p[0],p[1],8)||nearRoadXZ(p[0],p[1],5)||!free(p[0],p[1],2.5))continue;placed.push(p[0],p[1],1.5);tree(p[0],p[1])}})}
-function buildCity(){
+  if(!h.noTrees)forOrganic(g,B=>{const n=B.rr>.7?7:4;for(let k=0;k<n;k++){const u=lerp(B.u0+3,B.u1-3,rng()),v=lerp(B.v0+3,B.v1-3,rng()),p=B.W(u,v);if(!g.ins(p[0],p[1],8)||nearRoadXZ(p[0],p[1],5)||!free(p[0],p[1],2.5))continue;placed.push(p[0],p[1],1.5);tree(p[0],p[1])}})}
+const LMK=new Set();const lmk=(B,name,k,i,j)=>{if(!B.ok)return B.i==i&&B.j==j;if(!B.full||B.rank!==k||LMK.has(B.g.city+name))return false;LMK.add(B.g.city+name);return true};
+function buildCity(){LMK.clear();
   const rng=mulberry(1337);let nb=0,pyramid=false;const CORE={x:-870,z:310};
   const reg=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
   const NEONC=[[255,40,120],[40,220,255],[255,190,40],[130,90,255],[60,255,150],[255,90,40]],nrng=mulberry(7771);
@@ -361,6 +370,15 @@ function buildCity(){
       for(const r of g.roads.concat(ROADS.filter(q=>q.id=='psp'))){for(let i=3;i<r.n-3;i+=6){const a=(i+1<r.n?i+1:(i+1)%r.n),b=(i>0?i-1:r.n-1);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;if(r.mk[i]<.6)continue;
         for(const sd of[-1,1]){const px=r.X[i]-tz*sd*(r.hw+RSH+3.4),pz=r.Z[i]+tx*sd*(r.hw+RSH+3.4);if(nearRoadXZ(px,pz,1.5))continue;palmAt(px,pz)}}}
       continue}
+    if(g.kind=='outskirts'){/* batch 16: round Downtown, the Valley, Santa Cruz and Palm Springs: houses on the outer side of the boulevard and along the roads leading in */
+      const TH={pal:g.theme=='city'?BRICK.concat(PASTEL.slice(0,3)):PASTEL,rf:g.theme=='desert'||g.theme=='la'?1:0};
+      const tree=(x,z)=>{const y=terrainH(x,z);if(y<2)return;if(g.theme=='city')ptree(x,z,rng,y,true);else ppalm(x,z,rng,y);COLC.push(x,z,.5,y-.5,y+12)};
+      organicTown(g,{bld,tree,TH,SHOP:PASTEL,rng,skip:()=>true,noLandmark:1,noTrees:1});continue}
+    if(g.kind=='cityedge'){/* batch 15: a natural city's cut blocks and outskirts: lots along the streets, houses thinning out along the roads leading in */
+      const PAL={vegas:[[214,184,146],[226,200,160],[236,220,190],[200,170,140]],cap:BRICK,tech:[[236,238,240],[214,220,226],[200,206,214],[226,226,220]]}[g.theme]||PASTEL;
+      const TH={pal:PAL,rf:g.theme=='cap'?0:1},SHOPC=[[236,120,110],[250,200,96],[96,170,196],[240,240,232],[130,200,150],[214,150,90]];
+      const tree=(x,z)=>{const y=terrainH(x,z);if(y<2)return;if(g.theme=='vegas')ppalm(x,z,rng,y);else ptree(x,z,rng,y,true);COLC.push(x,z,.5,y-.5,y+12)};
+      organicTown(g,{bld,tree,TH,SHOP:SHOPC,rng,skip:(x,z)=>inFullBlock(g,x,z),noLandmark:1,noTrees:1,shopR:.7,shopH:7});continue}
     if(g.kind=='town'){/* a small town: houses, a row of shops, trees, one landmark (church, water tower or lodge) */
       const TH={coast:{pal:PASTEL,rf:0},farm:{pal:[[240,238,230],[230,226,214],[196,64,56],[186,198,206],[232,220,170]],rf:0},desert:{pal:[[214,184,146],[226,200,160],[196,164,128],[232,214,180]],rf:1},pines:{pal:[[110,80,60],[130,96,70],[92,70,56],[150,112,80]],rf:2}}[g.theme]||{pal:PASTEL,rf:0};
       const SHOP=[[236,120,110],[250,200,96],[96,170,196],[240,240,232],[130,200,150],[214,150,90]];let lm=false;
@@ -394,10 +412,11 @@ function buildCity(){
       const glow=(x,y,z,c,sz)=>NEONS.push(x,y,z,c[0]/255,c[1]/255,c[2]/255,sz),palmV=(x,z)=>{const y=terrainH(x,z);if(y<2||nearRoadXZ(x,z,.5))return;ppalm(x,z,vr,y);COLC.push(x,z,.5,y-.5,y+12)};
       /* a sign pylon by the street: a post and a lit panel */
       const pylon=(x,z,h,c)=>{const y=terrainH(x,z);pbox(1,x,y-.4,z,.45,y+h,.45,70,72,80,false,.8);pboxR(1,x,z,2.6,.35,cs,sn,y+h*.55,y+h,c[0],c[1],c[2],2,1);pboxR(1,x,z,2.9,.25,cs,sn,y+h,y+h+.5,250,240,200,2,1);COLC.push(x,z,.7,y-.5,y+h);glow(x,y+h*.78,z,c,5)};
-      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=vr(),c=HOT[(vr()*HOT.length)|0],c2=NEONC[(vr()*NEONC.length)|0];
-        if(!pyr&&B.i==1&&B.j==2){pyr=true;const hb=Math.min(wu,wv)*.4,gy=gmin(cx,cz,hb,hb,cs,sn);pboxR(1,cx,cz,hb+3,hb+3,cs,sn,gy-1.5,gy+1.2,60,58,56,false,.8);ppyramid(1,cx,cz,hb,gy+1.2,hb*1.3,cs,sn,[30,32,42]);reg(cx,cz,hb*.7,hb*.7,cs,sn,gy+hb);nb++;
+      forBlocks(g,B=>{if(B.ok&&!B.full)return;const cs=B.cs!=null?B.cs:g.cs,sn=B.sn!=null?B.sn:g.sn;   /* (a natural city: only whole blocks here, the cut ones are lined with lots by organicTown) */
+        const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=vr(),c=HOT[(vr()*HOT.length)|0],c2=NEONC[(vr()*NEONC.length)|0];
+        if(!pyr&&lmk(B,'pyr',1,1,2)){pyr=true;const hb=Math.min(wu,wv)*.4,gy=gmin(cx,cz,hb,hb,cs,sn);pboxR(1,cx,cz,hb+3,hb+3,cs,sn,gy-1.5,gy+1.2,60,58,56,false,.8);ppyramid(1,cx,cz,hb,gy+1.2,hb*1.3,cs,sn,[30,32,42]);reg(cx,cz,hb*.7,hb*.7,cs,sn,gy+hb);nb++;
           pbox(1,cx,gy+hb*1.3,cz,.5,gy+hb*1.3+70,.5,255,250,225,2,1);glow(cx,gy+hb*1.3+2,cz,[255,250,220],9);const[sx,sz]=B.W(B.u0+5,B.v1-5);pylon(sx,sz,13,[250,200,60]);return}
-        if(!ndl&&B.i==4&&B.j==1){ndl=true;const y=terrainH(cx,cz);pfrus(1,cx,y-.5,cz,3.4,1.5,104,214,214,220,8);pfrus(1,cx,y+100,cz,2,9.5,3,226,226,232,10);pfrus(1,cx,y+103,cz,9.5,8,3.2,90,170,220,10);pfrus(1,cx,y+106.2,cz,8,1,5,226,226,232,10);
+        if(!ndl&&lmk(B,'ndl',4,4,1)){ndl=true;const y=terrainH(cx,cz);pfrus(1,cx,y-.5,cz,3.4,1.5,104,214,214,220,8);pfrus(1,cx,y+100,cz,2,9.5,3,226,226,232,10);pfrus(1,cx,y+103,cz,9.5,8,3.2,90,170,220,10);pfrus(1,cx,y+106.2,cz,8,1,5,226,226,232,10);
           pbox(1,cx,y+111,cz,.3,y+132,.3,255,90,90,2,1);COLC.push(cx,cz,3.6,y-.5,y+100);glow(cx,y+105,cz,[90,190,255],10);glow(cx,y+131,cz,[255,60,60],5);
           for(const[du,dv]of[[-.3,-.3],[.3,.3]]){const[px,pz]=B.W(cu+wu*du,cv+wv*dv);bld(px,pz,wu*.16,wv*.16,cs,sn,7,HOT[(vr()*HOT.length)|0],true)}return}
         if(r<.55){/* a hotel: a slab tower on a podium, a lit crown, a pylon sign */
@@ -417,8 +436,9 @@ function buildCity(){
     if(g.kind=='cap'){/* Sacramento: red and brown brick blocks with stone cornices and shop awnings, a white capitol with a gold dome and columns in a park, brick row houses, oaks */
       const sr2=mulberry(4004),cs=g.cs,sn=g.sn,BR=[[150,74,58],[168,96,70],[132,70,60],[176,122,92],[120,84,70],[158,110,96]],AW=[[40,110,70],[150,40,44],[36,70,130],[220,180,60]];let capd=false;
       const oak=(x,z)=>{const y=terrainH(x,z);if(y<2||nearRoadXZ(x,z,1))return;let c0=0;const fr=()=>c0++==0?.8:sr2();ptree(x,z,fr,y,true);COLC.push(x,z,.5,y-.5,y+10)};
-      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=sr2();
-        if(!capd&&B.i==2&&B.j==2){capd=true;/* the capitol */const y=terrainH(cx,cz);pflat(1,cx,cz,wu/2-2,wv/2-2,cs,sn,y+.1,60,118,58);
+      forBlocks(g,B=>{if(B.ok&&!B.full)return;const cs=B.cs!=null?B.cs:g.cs,sn=B.sn!=null?B.sn:g.sn;   /* (a natural city: only whole blocks here, the cut ones are lined with lots by organicTown) */
+        const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=sr2();
+        if(!capd&&lmk(B,'cap',0,2,2)){capd=true;/* the capitol */const y=terrainH(cx,cz);pflat(1,cx,cz,wu/2-2,wv/2-2,cs,sn,y+.1,60,118,58);
           const gy=bld(cx,cz,wu*.3,wv*.17,cs,sn,13,[236,232,220],true);pboxR(1,cx,cz,wu*.3+.6,wv*.17+.6,cs,sn,gy+13,gy+14,226,222,210,false,1);
           for(const sd of[-1,1]){const[wx,wz]=B.W(cu+sd*wu*.3,cv);bld(wx,wz,wu*.08,wv*.22,cs,sn,10,[232,228,216],true)}
           pfrus(1,cx,gy+14,cz,7.4,7.4,7,232,228,216,14);pblob(1,cx,gy+19.5,cz,7.6,7.2,214,178,70,0);ptrunk(1,cx,gy+28,cz,.9,3.4,236,232,220);pcone(1,cx,gy+31.4,cz,1.1,2.2,214,178,70,8,0);
@@ -439,8 +459,9 @@ function buildCity(){
       const tq=mulberry(9009),cs=g.cs,sn=g.sn,GL=[[120,168,196],[136,184,176],[108,150,190],[150,176,200]];let ringd=false;
       const sap=(x,z)=>{const y=terrainH(x,z);if(y<2||nearRoadXZ(x,z,1))return;ptrunk(2,x,y-.2,z,.12,2.4,96,80,62);pcrown(2,x,y+3.6,z,1.5,1.6,1.5,5,2,((x*5.1+z*3.3)|0),70,128,58,0);COLC.push(x,z,.35,y-.5,y+5)};
       const solar=(px,pz,hx,hz)=>{const y=terrainH(px,pz);pflat(1,px,pz,hx,hz,cs,sn,y+.12,52,54,60);for(const k of[-1,1]){const lz=k*hz*.5,wx=px-lz*sn,wz=pz+lz*cs;pboxR(1,wx,wz,hx-1,2.6,cs,sn,y+3.1,y+3.3,26,44,96,false,1);for(const q of[-1,1]){const ex=wx+q*(hx-2)*cs,ez=wz+q*(hx-2)*sn;pbox(1,ex,y,ez,.14,y+3.1,.14,180,182,188,false,.8);COLC.push(ex,ez,.25,y-.5,y+3.1)}}};
-      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=tq(),c=GL[(tq()*GL.length)|0];
-        if(!ringd&&B.i==2&&B.j==1){ringd=true;/* the ring */const y=terrainH(cx,cz),Rr=Math.min(wu,wv)*.4,N=18,sw=Rr*TAU/N*.56;pflat(1,cx,cz,wu/2-2,wv/2-2,cs,sn,y+.1,70,132,62);
+      forBlocks(g,B=>{if(B.ok&&!B.full)return;const cs=B.cs!=null?B.cs:g.cs,sn=B.sn!=null?B.sn:g.sn;   /* (a natural city: only whole blocks here, the cut ones are lined with lots by organicTown) */
+        const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=tq(),c=GL[(tq()*GL.length)|0];
+        if(!ringd&&lmk(B,'ring',0,2,1)){ringd=true;/* the ring */const y=terrainH(cx,cz),Rr=Math.min(wu,wv)*.4,N=18,sw=Rr*TAU/N*.56;pflat(1,cx,cz,wu/2-2,wv/2-2,cs,sn,y+.1,70,132,62);
           for(let k=0;k<N;k++){const a=k/N*TAU,px=cx+Math.cos(a)*Rr,pz=cz+Math.sin(a)*Rr,c2=Math.cos(a+Math.PI/2),s2=Math.sin(a+Math.PI/2),gy=gmin(px,pz,sw,5,c2,s2);pboxR(1,px,pz,sw,5,c2,s2,gy-1,gy+13,150,196,214,true,.72);pboxR(1,px,pz,sw+.2,5.5,c2,s2,gy+13,gy+13.7,240,240,244,false,1);reg(px,pz,sw,5,c2,s2,gy+13.7);nb++}
           for(let k=0;k<9;k++){const a=k/9*TAU+.3;sap(cx+Math.cos(a)*Rr*.5,cz+Math.sin(a)*Rr*.5)}return}
         if(r<.5){/* a campus: two low glass buildings with white bands, a lawn, a car park under solar roofs */
@@ -531,7 +552,7 @@ function buildCity(){
     const gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(W.D8[gj*W.N+gi]<5||pr()<.25||nearRoadXZ(px,pz,8))continue;ptree(px,pz,pr,terrainH(px,pz),true);COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);np++}}
   /* suburb: low houses on a loose grid around the city, clear of every road and of the districts */
   const sub=mulberry(77);let ns=0;
-  for(const[SB,mx,mz]of[[CITY,420,380],[VALLEY,380,380],[CITY_SAC,280,260],[CITY_SJ,300,280]])   /* (batch 14: the natural towns thin out along their own roads, organicTown) */
+  for(const[SB,mx,mz]of[])   /* (batch 16: every district now thins out along its own roads: organicTown, kinds 'cityedge' and 'outskirts') */   /* (batch 14: the natural towns thin out along their own roads, organicTown) */
   for(let x=SB.x0-mx;x<SB.x1+mx;x+=34)for(let z=SB.z0-mz;z<SB.z1+mz;z+=34){
     if(inUrban(x,z,50))continue;
     const px=x+(sub()-.5)*20,pz=z+(sub()-.5)*20,gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(gi<2||gj<2||gi>=W.N-2||gj>=W.N-2)continue;

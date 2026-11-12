@@ -366,7 +366,16 @@ const FIELDS=[];                                        /* farm fields: {b,c:[[r
 const FARMS=[];                                         /* {x,z,cs,sn}: a barn, silo, house and shed */
 const SAFEHOUSES=[],REPAIRS=[],RSTOPS=[];   /* RSTOPS (batch 8): roadside stops on the long empty roads: gas stations, diners, motels, a few houses */
 //   /* REPAIRS: the drive-through repair shops (batch 7), picked beside the main roads by pickRepairs() */                                    /* {id,name,x,z,yaw} filled in by defineWorld */
-const inBox=(x,z,B,m)=>x>B.x0-m&&x<B.x1+m&&z>B.z0-m&&z<B.z1+m;
+const inBox=(x,z,B,m)=>x>B.x0-m&&x<B.x1+m&&z>B.z0-m&&z<B.z1+m&&(!B.pl||polySd(B.pl,x,z)>-m);
+/* batch 16: the old districts get an irregular outline: the box with its corners cut at different angles and an edge or two pushed out (convex, so the street grids still clip
+   with planes). B.poly: the corners, clockwise from the north-west; B.pl: the planes [nx,nz,c] (outward normal). Every point where a road joins stays on an uncut stretch of the edge. */
+function polyPlanes(V){let ax=0,az=0;for(const v of V){ax+=v[0]/V.length;az+=v[1]/V.length}return V.map((a,i)=>{const b=V[(i+1)%V.length];let nx=b[1]-a[1],nz=-(b[0]-a[0]);const l=Math.hypot(nx,nz);nx/=l;nz/=l;if(nx*(ax-a[0])+nz*(az-a[1])>0){nx=-nx;nz=-nz}return[nx,nz,nx*a[0]+nz*a[1]]})}
+function polySd(pl,x,z){let m=1e9;for(const p of pl){const d=p[2]-(p[0]*x+p[1]*z);if(d<m)m=d}return m}   /* how far inside (negative: outside, roughly) */
+function setPoly(B,V){B.poly=V;B.pl=polyPlanes(V)}
+setPoly(CITY,[[-1180,-170],[-900,-202],[-640,-170],[-470,-60],[-470,430],[-520,700],[-1290,700],[-1330,650],[-1330,168]]);
+setPoly(VALLEY,[[420,520],[860,520],[1050,680],[1050,1000],[905,1290],[400,1290],[230,1150],[205,925],[230,700]]);
+setPoly(BEACH,[[-450,2540],[-200,2540],[-130,2602],[-130,2780],[-520,2780],[-520,2618]]);
+setPoly(RESORT,[[1525,1420],[1765,1420],[1860,1515],[1860,1775],[1752,1900],[1500,1900],[1380,1810],[1380,1565]]);
 function baseH(x,z){
   let h=9+(fbm(x*.0011,z*.0011,3,4)-.5)*15;
   const hm=sstep(-300,1500,x)*sstep(500,-1000,z)+.2*sstep(-1800,-800,z);
@@ -525,11 +534,19 @@ function gridStreets(g){
      could serve them all). Now only the family that meets an edge more squarely opens onto it; a street of the other family stops as a T on the last street it crosses that is at least 40 m
      from that street's own ends (or is left out if that leaves less than 34 m of it). */
   {const fd=[[-sn,cs],[cs,sn]],keep=q=>{const[nx,nz]=g.planes[q];return Math.abs(fd[0][0]*nx+fd[0][1]*nz)>=Math.abs(fd[1][0]*nx+fd[1][1]*nz)-1e-6?0:1};g.trimmed=[];
-   for(const P of cand)for(const end of[0,1]){const q=end?P.pe:P.ps;if(q<0)continue;const[nx,nz]=g.planes[q];if(Math.abs(fd[P.fam][0]*nx+fd[P.fam][1]*nz)<.05||Math.abs(fd[1-P.fam][0]*nx+fd[1-P.fam][1]*nz)<.05||keep(q)==P.fam)continue;
-     const ex=end?P.ex:P.sx,ez=end?P.ez:P.sz;let best=null,bd=1e9;
+   for(const P of cand)for(const end of[0,1]){const q=end?P.pe:P.ps;if(q<0)continue;const[nx,nz]=g.planes[q];const ex=end?P.ex:P.sx,ez=end?P.ez:P.sz;
+     const nearV=g.verts&&g.verts.some(v=>Math.hypot(v[0]-ex,v[1]-ez)<30);   /* (batch 16: an end on a rounded corner of the boulevard is cut back too) */
+     if(!nearV&&(Math.abs(fd[P.fam][0]*nx+fd[P.fam][1]*nz)<.05||Math.abs(fd[1-P.fam][0]*nx+fd[1-P.fam][1]*nz)<.05||keep(q)==P.fam))continue;
+     let best=null,bd=1e9;
      for(const Q of cand){if(Q.fam==P.fam||!Q.ok)continue;const k=1.5/(Q.len||1),X=segX(P.sx,P.sz,P.ex,P.ez,Q.sx-(Q.ex-Q.sx)*k,Q.sz-(Q.ez-Q.sz)*k,Q.ex+(Q.ex-Q.sx)*k,Q.ez+(Q.ez-Q.sz)*k);   /* (a street that stops AT this one, cut by the park, counts) */if(!X)continue;if((Q.ps>=0&&Math.hypot(X[0]-Q.sx,X[1]-Q.sz)<40)||(Q.pe>=0&&Math.hypot(X[0]-Q.ex,X[1]-Q.ez)<40))continue;const d=Math.hypot(X[0]-ex,X[1]-ez);if(d<bd){bd=d;best=X}}
      g.trimmed.push(P.id+(end?' end':' start')+(best?' -'+Math.round(bd)+' m':' gone'));
      if(!best){P.ok=0;continue}if(end){P.ex=best[0];P.ez=best[1];P.pe=-1}else{P.sx=best[0];P.sz=best[1];P.ps=-1}P.len=Math.hypot(P.ex-P.sx,P.ez-P.sz);if(P.len<34)P.ok=0}}
+  /* (batch 16) an end cut back onto a street that was itself cut back afterwards: cut back again to a street that is still there */
+  {const dseg=(x,z,Q)=>{const ex=Q.ex-Q.sx,ez=Q.ez-Q.sz,l2=ex*ex+ez*ez||1;let t=((x-Q.sx)*ex+(z-Q.sz)*ez)/l2;t=t<0?0:t>1?1:t;return Math.hypot(x-Q.sx-ex*t,z-Q.sz-ez*t)};
+   for(let it=0;it<3;it++){let ch=0;for(const P of cand){if(!P.ok)continue;for(const end of[0,1]){if((end?P.pe:P.ps)!==-1)continue;const ex=end?P.ex:P.sx,ez=end?P.ez:P.sz;
+       if(cand.some(Q=>Q.ok&&Q.fam!=P.fam&&dseg(ex,ez,Q)<2))continue;
+       let best=null,bd=1e9;for(const Q of cand){if(Q.fam==P.fam||!Q.ok)continue;const X=segX(P.sx,P.sz,P.ex,P.ez,Q.sx,Q.sz,Q.ex,Q.ez);if(!X)continue;const d=Math.hypot(X[0]-ex,X[1]-ez);if(d<bd){bd=d;best=X}}
+       ch=1;if(!best){P.ok=0;break}if(end){P.ex=best[0];P.ez=best[1]}else{P.sx=best[0];P.sz=best[1]}P.len=Math.hypot(P.ex-P.sx,P.ez-P.sz);if(P.len<34){P.ok=0;break}}}if(!ch)break}}
   for(const P of cand){if(!P.ok)continue;const r=buildRoad({id:P.id,hw:P.ov?P.ov.hw:g.hw,lanes:1,style:P.ov?P.ov.style:g.style,city:1,smooth:g.smooth||60,grade:g.grade||.26,lift:g.lift+(idx++)*.0004,cityField:1,pts:[[P.sx,P.sz],[P.ex,P.ez]]});g.roads.push(r);cityEnds.push([P.sx,P.sz,r.id],[P.ex,P.ez,r.id])}
   GRIDS.push(g);return g}
 const nearEnd=(x,z)=>{let b=null,bd=1e18;for(const e of cityEnds){const d=(e[0]-x)**2+(e[1]-z)**2;if(d<bd){bd=d;b=e}}return b};
@@ -604,6 +621,17 @@ function perimeter(id,B,hw,lift){const r=30,P=[];
   edge(B.x0+r,B.z0,B.x1-r,B.z0);arc(B.x1-r,B.z0+r,-Math.PI/2);edge(B.x1,B.z0+r,B.x1,B.z1-r);arc(B.x1-r,B.z1-r,0);edge(B.x1-r,B.z1,B.x0+r,B.z1);arc(B.x0+r,B.z1-r,Math.PI/2);edge(B.x0,B.z1-r,B.x0,B.z0+r);arc(B.x0+r,B.z0+r,Math.PI);
   P.pop();   /* the last arc point is the first edge point */
   const road=buildRoad({id,closed:1,hw,lanes:2,style:4,city:1,cityField:1,lift,pts:P});for(let i=0;i<road.n;i+=3)cityEnds.push([road.X[i],road.Z[i],id]);return road}
+/* a boulevard round a district's polygon (batch 16): straight edges, every corner rounded */
+function perimeterPoly(id,V,hw,lift){const P=[],n=V.length,r=34;
+  for(let i=0;i<n;i++){const a=V[(i+n-1)%n],v=V[i],b=V[(i+1)%n],la=Math.hypot(v[0]-a[0],v[1]-a[1]),lb=Math.hypot(b[0]-v[0],b[1]-v[1]),di=[(v[0]-a[0])/la,(v[1]-a[1])/la],dO=[(b[0]-v[0])/lb,(b[1]-v[1])/lb];
+    const ph=Math.acos(clamp(di[0]*dO[0]+di[1]*dO[1],-1,1)),f=Math.min(r*Math.tan(ph/2)+6,la*.4,lb*.4),p0=[v[0]-di[0]*f,v[1]-di[1]*f],p1=[v[0]+dO[0]*f,v[1]+dO[1]*f];
+    for(let k=0;k<=4;k++){const t=k/4,u=1-t;P.push([u*u*p0[0]+2*u*t*v[0]+t*t*p1[0],u*u*p0[1]+2*u*t*v[1]+t*t*p1[1]])}
+    const e0=p1,e1=(()=>{const c=V[(i+2)%n],lc=Math.hypot(c[0]-b[0],c[1]-b[1]),dc=[(c[0]-b[0])/lc,(c[1]-b[1])/lc],ph2=Math.acos(clamp(dO[0]*dc[0]+dO[1]*dc[1],-1,1)),f2=Math.min(r*Math.tan(ph2/2)+6,lb*.4,lc*.4);return[b[0]-dO[0]*f2,b[1]-dO[1]*f2]})();
+    const L=Math.hypot(e1[0]-e0[0],e1[1]-e0[1]),k=Math.max(1,Math.ceil(L/70));for(let q=1;q<k;q++)P.push([e0[0]+(e1[0]-e0[0])*q/k,e0[1]+(e1[1]-e0[1])*q/k])}
+  const road=buildRoad({id,closed:1,hw,lanes:2,style:4,city:1,cityField:1,lift,pts:P});for(let i=0;i<road.n;i+=3)cityEnds.push([road.X[i],road.Z[i],id]);return road}
+/* the outskirts of a district with a polygon (batch 16): houses on the outer side of its boulevard and along the roads leading in (organicTown, kind 'outskirts') */
+function outskirts(id,B,theme,per){const g={id,kind:'outskirts',theme,organic:1,box:B,per,roads:[],us:[],vs:[],cx:(B.x0+B.x1)/2,cz:(B.z0+B.z1)/2,cs:1,sn:0,hw:6,phw:per.hw};
+  g.ins=(x,z,m)=>polySd(B.pl,x,z)>(m||0);g.sd=(x,z)=>polySd(B.pl,x,z);g.toL=(x,z)=>[x-g.cx,z-g.cz];g.toW=(u,v)=>[g.cx+u,g.cz+v];g.R=()=>1e9;GRIDS.push(g);return g}
 /* a small turnaround loop at the end of a road */
 function loopRoad(id,cx,cz,r,hw,lift,flat){const P=[];for(let k=0;k<8;k++){const a=k*TAU/8;P.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r])}return buildRoad({id,closed:1,hw,lanes:1,style:0,lift,pts:P,flat:flat==null?undefined:flat})}
 function defineRoads(){
@@ -619,11 +647,11 @@ function defineRoads(){
   const M=MARKET,ml=Math.hypot(M.x1-M.x0,M.z1-M.z0),mdx=(M.x1-M.x0)/ml,mdz=(M.z1-M.z0)/ml,nx=-mdz,nz=mdx,c0=nx*M.x0+nz*M.z0;   /* n points to the south-east of Market */
   const cutPark={x0:PARK.x0-2,z0:381,x1:PARK.x1+2,z1:464};   /* the park interior: the two streets along its edges (Fulton, Lincoln) stay, the cross streets stop at them */
   const us=[],vs=[];for(let x=-1290;x<=-470;x+=125)us.push(x);for(let z=-130;z<=690;z+=85)vs.push(z);
-  const gN=gridStreets({id:'sfn',kind:'sfN',ox:0,oz:0,ang:0,us,vs,hw:7.5,style:3,lift:.02,planes:planesBox(CITY).concat([[nx,nz,c0]]),cut:[cutPark]});
+  const gN=gridStreets({id:'sfn',kind:'sfN',ox:0,oz:0,ang:0,us,vs,hw:7.5,style:3,lift:.02,planes:CITY.pl.concat([[nx,nz,c0]]),cut:[cutPark],mkI:CITY.pl.length,verts:CITY.poly});
   const us2=[],vs2=[];for(let u=0;u<=ml;u+=125)us2.push(u);for(let k=0;k<9;k++)vs2.push(42.5+85*k);
-  const gS=gridStreets({id:'sfs',kind:'sfS',ox:M.x0,oz:M.z0,ang:Math.atan2(mdz,mdx),us:us2,vs:vs2,hw:7.5,style:3,lift:.03,planes:planesBox(CITY).concat([[-nx,-nz,-c0]]),cut:[cutPark]});
+  const gS=gridStreets({id:'sfs',kind:'sfS',ox:M.x0,oz:M.z0,ang:Math.atan2(mdz,mdx),us:us2,vs:vs2,hw:7.5,style:3,lift:.03,planes:CITY.pl.concat([[-nx,-nz,-c0]]),cut:[cutPark],mkI:CITY.pl.length,verts:CITY.poly});
   buildRoad({id:'market',hw:M.hw,lanes:2,style:4,city:1,cityField:1,lift:.015,pts:[[M.x0,M.z0],[M.x1,M.z1]]});cityEnds.push([M.x0,M.z0,'market'],[M.x1,M.z1,'market']);
-  const sfp=perimeter('sfp',CITY,11,.025);cityLand();
+  const sfp=perimeterPoly('sfp',CITY.poly,11,.025);cityLand();
   /* Lombard Street: eight hairpins down one block of Russian Hill, joining the two streets above and below it */
   {let bi=0,bj=0,bd=1e18;for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){const d=((us[i]+us[i+1])/2+1090)**2+((vs[j]+vs[j+1])/2+5)**2;if(d<bd){bd=d;bi=i;bj=j}}
     gN.skip=[bi+','+bj];const xc=(us[bi]+us[bi+1])/2,z0=vs[bj],z1=vs[bj+1],pts=[[xc,z0]];const nzz=7;for(let k=1;k<nzz;k++){pts.push([xc+(k%2?-30:30),z0+(z1-z0)*k/nzz])}pts.push([xc,z1]);
@@ -662,27 +690,28 @@ function defineRoads(){
     pts:[[M.x0,M.z0],[-1275,742],[-1380,790],[-1560,1000],[-1790,1250],[-1900,1600],[-1840,2000],[-1560,2300],[-1100,2470],[-560,2432],[-80,2400],[230,2452],[400,2462]].concat((q=>tJoin(sh,q,sh.X[q],sh.Z[q]+200).reverse())(jn(sh,560,2400)))})}   /* it used to run onto the highway at 12 degrees */
   /* ===== the Valley: LA style boulevards, ringed by a boulevard that joins the boulevard road and the ring ===== */
   const vu=[275,575,875,1015],vv=[565,825,1085,1245];
-  gridStreets({id:'la',kind:'la',ox:0,oz:0,ang:0,us:vu,vs:vv,hw:12,style:4,lift:.05,planes:planesBox(VALLEY)});
-  const lap=perimeter('lap',VALLEY,11,.055);cityLand();
+  gridStreets({id:'la',kind:'la',ox:0,oz:0,ang:0,us:vu,vs:vv,hw:12,style:4,lift:.05,planes:VALLEY.pl,verts:VALLEY.poly});
+  const lap=perimeterPoly('lap',VALLEY.poly,11,.055);cityLand();
   buildCurvy({id:'lan',hw:9,lanes:1,style:0,to:'bv',yFrom:'lap',lift:.1,minR:50,wig:{a1:24,l1:300,a2:7,l2:120,seed:37,fade:120},pts:[[640,VALLEY.z0],[622,470],[590,380],[600,300]].concat(tIn(bv,600,300))});
   buildCurvy({id:'lae',hw:10,lanes:2,style:1,to:'ring',yFrom:'lap',lift:.11,minR:60,wig:{a1:40,l1:420,a2:10,l2:170,seed:41,fade:160},pts:[[VALLEY.x1,826],[1150,800],[1300,745]].concat(rampIn(ring,1300,745,1300,745,10))});
   /* the Valley's south road: straight down to the ring (the Valley used to have no way south: the harbour 1.5 km away was a 5 km drive) */
   buildCurvy({id:'las',hw:9,lanes:1,style:0,to:'ring',yFrom:'lap',lift:.1,minR:50,wig:{a1:16,l1:260,a2:5,l2:110,seed:39,fade:90,hold:60},pts:[[640,VALLEY.z1],[648,1400]].concat(tIn(ring,645,1500))});
   /* ===== Santa Cruz: a beach town on the south coast with a boardwalk and a pier ===== */
   const bu=[-470,-390,-310,-230,-170],bvv=[2580,2645,2710];
-  gridStreets({id:'bt',kind:'beach',ox:0,oz:0,ang:0,us:bu,vs:bvv,hw:6,style:3,lift:.05,planes:planesBox(BEACH)});
-  perimeter('btp',BEACH,8,.055);cityLand();
+  gridStreets({id:'bt',kind:'beach',ox:0,oz:0,ang:0,us:bu,vs:bvv,hw:6,style:3,lift:.05,planes:BEACH.pl,verts:BEACH.poly});
+  perimeterPoly('btp',BEACH.poly,8,.055);cityLand();
   {const c=ROADS.find(q=>q.id=='cr');buildRoad({id:'btl',hw:7,lanes:1,style:0,lift:.07,yFrom:'cr',yTo:'btp',pts:[at(c,jn(c,-350,BEACH.z0)),[-350,BEACH.z0]]})}
   /* the pier: out over the water from the boardwalk (a bridge deck on piles, with a T-shaped head to turn round on) */
   {const bp=ROADS.find(q=>q.id=='btp'),e=at(bp,jn(bp,-350,BEACH.z1+60)),yd=Math.max(Hs(-350,BEACH.z1+4),3.2)+.2,zh=BEACH.z1+205;
    buildRoad({id:'pier',hw:5,lanes:1,style:2,flat:yd,lift:.04,bridge:[{x:-350,z:BEACH.z1+110,len:500,h:0}],pts:[e,[-350,BEACH.z1+110],[-350,zh]]});
    buildRoad({id:'pierhead',hw:5,lanes:1,style:2,flat:yd,lift:.04,bridge:[{x:-350,z:zh,len:500,h:0}],pts:[[-387,zh],[-350,zh],[-313,zh]]})}
   /* ===== Palm Springs: a desert resort town of wide palm boulevards, joined to the east link and the southern highway ===== */
-  gridStreets({id:'ps',kind:'ps',ox:0,oz:0,ang:0,us:[1440,1620,1800],vs:[1480,1660,1840],hw:12,style:4,lift:.05,planes:planesBox(RESORT)});
-  perimeter('psp',RESORT,11,.055);cityLand();
+  gridStreets({id:'ps',kind:'ps',ox:0,oz:0,ang:0,us:[1440,1620,1800],vs:[1480,1660,1840],hw:12,style:4,lift:.05,planes:RESORT.pl,verts:RESORT.poly});
+  perimeterPoly('psp',RESORT.poly,11,.055);cityLand();
   buildCurvy({id:'psl',hw:9,lanes:1,style:0,to:'el',yFrom:'psp',lift:.1,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:43,fade:120},pts:[[RESORT.x1,1660],[1980,1650],[2100,1610]].concat(tIn(el,2100,1610))});
   buildCurvy({id:'pss',hw:9,lanes:1,style:0,to:'sh',yFrom:'psp',lift:.1,minR:50,wig:{a1:40,l1:320,a2:10,l2:130,seed:47,fade:140},pts:[[1620,RESORT.z1],[1612,2060],[1630,2250]].concat(tIn(sh,1630,2250))});
   defineWorld(ring,sh,{ramp,rampIn,tIn,tOut,at});
+  outskirts('sfo',CITY,'city',sfp);outskirts('lao',VALLEY,'la',lap);outskirts('bto',BEACH,'coast',ROADS.find(q=>q.id=='btp'));outskirts('pso',RESORT,'desert',ROADS.find(q=>q.id=='psp'));
   const fixed=fixCrossings();findJunctions();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;findJumps();
   return GRIDS}
 let BRIDGES_ADDED=[];
@@ -744,6 +773,10 @@ function makeOrganic(id,B,theme,o){o=o||{};
   for(let it=0;it<3;it++){const M=[];for(const S of P)if(!S.dead)for(const end of[0,1])if(end?S.e1:S.e0){const t=end?S.a1:S.a0,w=toW(...ptL(S,t));M.push({S,end,x:w[0],z:w[1],sl:slant(S,t)})}
     let ch=0;for(let a=0;a<M.length;a++)for(let b=a+1;b<M.length;b++){const A=M[a],Bm=M[b];if(A.S===Bm.S||A.S.dead||Bm.S.dead)continue;if(Math.hypot(A.x-Bm.x,A.z-Bm.z)>36)continue;
       const k=A.S.main?Bm:Bm.S.main?A:(A.sl>Bm.sl?A:Bm);if(k.S.main)continue;if(k.end?k.S.e1:k.S.e0){trim(k.S,k.end);ch=1}}if(!ch)break}
+  /* (batch 16) a short stub: an end on the edge less than 40 m past the last crossing makes two junctions too close for a car to stop between: it stops at that crossing */
+  for(const S of P){if(S.main||S.dead)continue;for(const end of[0,1]){if(S.dead||!(end?S.e1:S.e0))continue;const te=end?S.a1:S.a0;if(P.some(Q=>!Q.dead&&Q.fam!=S.fam&&covers(Q,S.c,0)&&Math.abs(Q.c-te)<40&&Q.c>S.a0&&Q.c<S.a1))trim(S,end)}}
+  /* (and a street that ends as a T on another less than 40 m from that one's mouth: its own end goes back to its last crossing) */
+  for(const S of P){if(S.dead)continue;for(const end of[0,1]){if(!(end?S.e1:S.e0))continue;const te=end?S.a1:S.a0;for(const Q of P){if(Q.dead||Q.main||Q.fam==S.fam||Math.abs(Q.c-te)>=40)continue;for(const qe of[0,1])if(!Q.dead&&!(qe?Q.e1:Q.e0)&&Math.abs((qe?Q.a1:Q.a0)-S.c)<.01)trim(Q,qe)}}}
   /* a T end whose street was cut back or dropped: cut back again */
   for(let it=0;it<4;it++){let ch=0;for(const S of P){if(S.dead)continue;for(const end of[0,1]){if(S.dead||(end?S.e1:S.e0))continue;const t=end?S.a1:S.a0;
       if(!P.some(Q=>!Q.dead&&Q.fam!=S.fam&&Math.abs(Q.c-t)<.01&&covers(Q,S.c,20))){trim(S,end);ch=1}}}if(!ch)break}
@@ -760,10 +793,87 @@ function makeOrganic(id,B,theme,o){o=o||{};
   g.box=B;g.per=per;const zn=ZONES.find(q=>q.b===B);if(zn)zn.shape=g;
   GRIDS.push(g);cityLand();return g}
 /* a gate of a natural town: the edge end of the main street pointing most nearly along (dx,dz): {x,z,dx,dz} (dx,dz the street's own outward direction there) */
-function townGate(g,dx,dz){let best=null;for(const S of g.pieces){if(!S.main)continue;const r=S.r;for(const e of[0,1]){const ie=e?r.n-1:0,ib=e?r.n-4:3;let tx=r.X[ie]-r.X[ib],tz=r.Z[ie]-r.Z[ib];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;
+function townGate(g,dx,dz){let best=null;for(const S of g.pieces){if(!S.main)continue;const r=S.r;for(const e of[0,1]){if(S.edge&&!(e?S.e1:S.e0))continue;const ie=e?r.n-1:0,ib=e?r.n-4:3;let tx=r.X[ie]-r.X[ib],tz=r.Z[ie]-r.Z[ib];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;
+    if(S.edge&&g.per){/* a city: an end on the edge street (not on the avenue), scored by where it is as much as by where it points */const px=r.X[ie]-g.cx,pz=r.Z[ie]-g.cz,pl=Math.hypot(px,pz)||1;if(g.sd(r.X[ie],r.Z[ie])>4)continue;
+      const s=.5*(tx*dx+tz*dz)+(px*dx+pz*dz)/pl;if(!best||s>best.s)best={s,x:r.X[ie],z:r.Z[ie],dx:tx,dz:tz};continue}
     const s=tx*dx+tz*dz;if(!best||s>best.s)best={s,x:r.X[ie],z:r.Z[ie],dx:tx,dz:tz}}}return best}
 /* a point in a district zone: the outline of a natural town, the box of anything else */
 const inZone=(x,z,zn,m)=>inBox(x,z,zn.b,m)&&(!zn.shape||zn.shape.ins(x,z,-m));
+/* ===== batch 15: NATURAL CITIES =====
+   A city is split by its main AVENUE (a straight boulevard from edge to edge through the centre: the Strip in Las Vegas) into two NEIGHBOURHOODS, each with its own street grid at its own
+   angle and its own bend, meeting along the avenue (as the two grids of Downtown meet along Market Street). The outline is irregular as in a town (an ellipse with harmonics and arms
+   to the gates); the edge street runs round it. Each neighbourhood's streets end on the avenue or on the edge street (or, at a slant, as a T on the last street they cross).
+   Each neighbourhood is a GRIDS entry of the city's kind (the city builders fill its whole blocks; g.city is the city's id); the city itself is one more entry (kind 'cityedge') whose
+   lots line the streets in the blocks the outline cuts, and whose outskirts thin out along the roads leading in (organicTown).
+   o.avenue: {ang (its direction), hw, style, off (how far from the centre)}; o.hoods: [{ang, warp, du, dv, ou, ov}] for the left and the right side of the avenue. */
+function makeOrganicCity(id,B,theme,o){
+  const cx=(B.x0+B.x1)/2,cz=(B.z0+B.z1)/2,hx=(B.x1-B.x0)/2,hz=(B.z1-B.z0)/2;let sd0=0;for(const ch of id)sd0=sd0*31+ch.charCodeAt(0)|0;const rng=mulberry(9300+sd0);
+  const A=o.avenue,ad=[Math.cos(A.ang),Math.sin(A.ang)],an=[-ad[1],ad[0]],aoff=A.off||0;
+  const side=(x,z)=>(x-cx)*an[0]+(z-cz)*an[1]-aoff;                                  /* signed distance from the avenue's centre line */
+  /* the outline (frame of the old box, no bend) */
+  const ax=hx*(o.rk||.86),az=hz*(o.rk||.86),hm=[.06+rng()*.04,.05+rng()*.03,.025+rng()*.02],hp=[rng()*TAU,rng()*TAU,rng()*TAU],arm=o.arm==null?.16:o.arm;
+  const gates=(o.gates||[]).map(([dx,dz,am])=>[Math.atan2(dz,dx),am==null?arm:am]);
+  const R=th=>{const c=Math.cos(th),s=Math.sin(th);let r=1/Math.sqrt((c/ax)**2+(s/az)**2),f=1+hm[0]*Math.sin(2*th+hp[0])+hm[1]*Math.sin(3*th+hp[1])+hm[2]*Math.sin(5*th+hp[2]);
+    for(const[gth,am]of gates){const d=angd(th,gth);f+=am*Math.exp(-((d/.42)**2))}return r*f};
+  const sdO=(x,z)=>{const u=x-cx,v=z-cz;return R(Math.atan2(v,u))-Math.hypot(u,v)};
+  const city={id,kind:'cityedge',theme,organic:1,cityOf:id,cx,cz,cs:Math.cos(A.ang),sn:Math.sin(A.ang),hw:o.hw||7.5,phw:o.phw||7,lift:o.lift||.05,roads:[],us:[],vs:[],hoods:[]};
+  city.toL=(x,z)=>[x-cx,z-cz];city.toW=(u,v)=>[cx+u,cz+v];city.R=R;city.insL=(u,v,m)=>Math.hypot(u,v)<R(Math.atan2(v,u))-(m||0);
+  city.ins=(x,z,m)=>sdO(x,z)>(m||0);city.sd=sdO;
+  let rmax=0;for(let k=0;k<64;k++)rmax=Math.max(rmax,R(k*TAU/64));
+  /* the avenue: where its line leaves the outline on both sides */
+  const aEnd=sg=>{let t0=0,t1=rmax+50;const p=t=>[cx+an[0]*aoff+ad[0]*t*sg,cz+an[1]*aoff+ad[1]*t*sg];for(let k=0;k<30;k++){const m=(t0+t1)/2;if(sdO(...p(m))>0)t0=m;else t1=m}return p((t0+t1)/2)};
+  const a0=aEnd(-1),a1=aEnd(1),aL=Math.hypot(a1[0]-a0[0],a1[1]-a0[1]),aN=Math.max(2,Math.ceil(aL/30)),AP=[];for(let q=0;q<=aN;q++)AP.push([lerp(a0[0],a1[0],q/aN),lerp(a0[1],a1[1],q/aN)]);
+  /* a world point is in neighbourhood k (side +1 / -1) at least m metres inside (the avenue counts its own width) */
+  const inHood=(sg,x,z,m)=>sdO(x,z)>m&&sg*side(x,z)>(m>0?m+(A.hw-city.phw):0);
+  const P=[];let idx=0;
+  (o.hoods||[]).forEach((H,k)=>{const sg=k?-1:1,cs=Math.cos(H.ang),sn=Math.sin(H.ang),wa=H.warp==null?8:H.warp,wk=TAU/(H.wl||520),ph=[0,1,2,3].map(()=>rng()*TAU);
+    const ox=cx+an[0]*sg*(H.on||40)+ad[0]*(H.oa||0),oz=cz+an[1]*sg*(H.on||40)+ad[1]*(H.oa||0);   /* the grid's origin: inside its own side, so no street lies along the avenue */
+    const warp=(u,v)=>[wa*Math.sin(v*wk+ph[0])+wa*.3*Math.sin((u+v)*wk*1.5+ph[1]),wa*Math.sin(u*wk*1.1+ph[2])+wa*.3*Math.sin((u-v)*wk*1.3+ph[3])];
+    const toW=(u,v)=>{const w=warp(u,v),a=u+w[0],b=v+w[1];return[ox+a*cs-b*sn,oz+a*sn+b*cs]};
+    const toL=(x,z)=>{const a=(x-ox)*cs+(z-oz)*sn,b=-(x-ox)*sn+(z-oz)*cs;let u=a,v=b;for(let q=0;q<4;q++){const w=warp(u,v);u=a-w[0];v=b-w[1]}return[u,v]};
+    const spread=d=>{const L=[0];for(const s of[1,-1]){let p=0;for(;;){p+=d*(.88+rng()*.24);if(p>rmax*1.5)break;L.push(s*p)}}return L.sort((a,b)=>a-b)};
+    const g={id:id+(k?'b':'a'),city:id,kind:o.kind,theme,organic:1,ang:H.ang,cs,sn,toW,toL,hw:city.hw,phw:city.phw,lift:city.lift,roads:[],us:spread(H.du),vs:spread(H.dv)};
+    g.insL=(u,v,m)=>{const w=toW(u,v);return inHood(sg,w[0],w[1],m||0)};g.R=null;g.rrL=(u,v)=>{const w=toW(u,v);return Math.hypot(w[0]-cx,w[1]-cz)/R(Math.atan2(w[1]-cz,w[0]-cx))};
+    g.us=g.us.filter(u=>{for(let t=-rmax*1.6;t<rmax*1.6;t+=20)if(g.insL(u,t,0))return true;return false});g.vs=g.vs.filter(v=>{for(let t=-rmax*1.6;t<rmax*1.6;t+=20)if(g.insL(t,v,0))return true;return false});
+    const pieces=(fam,c)=>{const pt=t=>fam?[t,c]:[c,t],inn=t=>g.insL(...pt(t),0),out=[];let a=null;const st=3,L=rmax*1.6;
+      const edge=(t0,t1)=>{const i0=inn(t0);for(let q=0;q<24;q++){const m=(t0+t1)/2;if(inn(m)===i0)t0=m;else t1=m}return(t0+t1)/2};
+      for(let t=-L;t<=L;t+=st){const i=inn(t);if(i&&a==null)a=edge(t-st,t);if(!i&&a!=null){out.push([a,edge(t-st,t)]);a=null}}return out};
+    const SP=[];g.us.forEach((u,i)=>{for(const[p0,p1]of pieces(0,u))SP.push({g,fam:0,c:u,a0:p0,a1:p1,e0:1,e1:1,tag:'u'+i})});g.vs.forEach((v,j)=>{for(const[p0,p1]of pieces(1,v))SP.push({g,fam:1,c:v,a0:p0,a1:p1,e0:1,e1:1,tag:'v'+j})});
+    g.SP=SP;g.sg=sg;city.hoods.push(g);P.push(...SP)});
+  const ptL=(S,t)=>S.fam?[t,S.c]:[S.c,t],wAt=(S,t)=>S.g.toW(...ptL(S,t));
+  /* how squarely an end meets what it ends on (the avenue or the edge): |sin| of the angle between them, 0 = square */
+  const slant=(S,t)=>{const p=wAt(S,t),q=wAt(S,t+(S.a1>t?-1:1)),tx=p[0]-q[0],tz=p[1]-q[1],tl=Math.hypot(tx,tz)||1;let nx,nz;
+    if(Math.abs(side(...p))<2){nx=an[0];nz=an[1]}else{nx=sdO(p[0]+1,p[1])-sdO(p[0]-1,p[1]);nz=sdO(p[0],p[1]+1)-sdO(p[0],p[1]-1)}const nl=Math.hypot(nx,nz)||1,c=(tx*nx+tz*nz)/tl/nl;return Math.sqrt(Math.max(0,1-c*c))};
+  const covers=(Q,t,m)=>t>Q.a0+m&&t<Q.a1-m;
+  const trim=(S,end)=>{let best=null;for(const Q of S.g.SP){if(Q.dead||Q.fam==S.fam||!covers(Q,S.c,22))continue;const t=Q.c;if(t<=S.a0+1||t>=S.a1-1)continue;const d=end?S.a1-t:t-S.a0;if(d>0&&(best==null||d<best.d))best={t,d}}
+    if(!best){S.dead=1;return}if(end){S.a1=best.t;S.e1=0}else{S.a0=best.t;S.e0=0}if(S.a1-S.a0<40)S.dead=1};
+  for(const S of P)for(const end of[0,1]){if(S.dead)break;if((end?S.e1:S.e0)&&slant(S,end?S.a1:S.a0)>.68)trim(S,end)}
+  /* mouths on the avenue or the edge closer than 36 m (ends from the two sides of the avenue within 4 m of each other make one crossroads: kept) */
+  /* (two ends on the avenue from its two sides 4-22 m apart: the worse one bends its last stretch to meet the other, one crossroads) */
+  for(let it=0;it<4;it++){const M=[];for(const S of P)if(!S.dead)for(const end of[0,1])if(end?S.e1:S.e0){const t=end?S.a1:S.a0,sn_=S['snap'+end],w=sn_||wAt(S,t);M.push({S,end,x:w[0],z:w[1],sl:slant(S,t),av:Math.abs(side(w[0],w[1]))<2,sn:!!sn_})}
+    for(const p of[a0,a1])M.push({S:null,x:p[0],z:p[1],sl:0});
+    let ch=0;for(let a=0;a<M.length;a++)for(let b=a+1;b<M.length;b++){const P1=M[a],P2=M[b];if(P1.S&&P1.S===P2.S)continue;if((P1.S&&P1.S.dead)||(P2.S&&P2.S.dead))continue;const d=Math.hypot(P1.x-P2.x,P1.z-P2.z);if(d>36)continue;
+      if(d<4&&P1.S&&P2.S&&P1.S.g!==P2.S.g)continue;
+      if(d<=22&&P1.S&&P2.S&&P1.S.g!==P2.S.g&&P1.av&&P2.av&&!P1.sn&&!P2.sn){const k=P1.sl>P2.sl?P1:P2,o2=k===P1?P2:P1;k.S['snap'+k.end]=[o2.x,o2.z];k.sn=1;ch=1;continue}
+      const k=!P1.S?P2:!P2.S?P1:(P1.sl>P2.sl?P1:P2);if(k.end?k.S.e1:k.S.e0){trim(k.S,k.end);ch=1}}if(!ch)break}
+  for(const S of P){if(S.dead)continue;for(const end of[0,1]){if(S.dead||!(end?S.e1:S.e0))continue;const te=end?S.a1:S.a0;if(S.g.SP.some(Q=>!Q.dead&&Q.fam!=S.fam&&covers(Q,S.c,0)&&Math.abs(Q.c-te)<40&&Q.c>S.a0&&Q.c<S.a1))trim(S,end)}}   /* (short stubs, as in the towns) */
+  for(const S of P){if(S.dead)continue;for(const end of[0,1]){if(!(end?S.e1:S.e0))continue;const te=end?S.a1:S.a0;for(const Q of S.g.SP){if(Q.dead||Q.fam==S.fam||Math.abs(Q.c-te)>=40)continue;for(const qe of[0,1])if(!Q.dead&&!(qe?Q.e1:Q.e0)&&Math.abs((qe?Q.a1:Q.a0)-S.c)<.01)trim(Q,qe)}}}
+  for(let it=0;it<4;it++){let ch=0;for(const S of P){if(S.dead)continue;for(const end of[0,1]){if(S.dead||(end?S.e1:S.e0))continue;const t=end?S.a1:S.a0;
+      if(!S.g.SP.some(Q=>!Q.dead&&Q.fam!=S.fam&&Math.abs(Q.c-t)<.01&&covers(Q,S.c,20))){trim(S,end);ch=1}}}if(!ch)break}
+  /* build: the edge street, the avenue, the streets */
+  const OP=[];for(let k=0;k<72;k++){const th=k*TAU/72,r=R(th);OP.push([cx+r*Math.cos(th),cz+r*Math.sin(th)])}
+  const per=buildRoad({id:id+'p',closed:1,hw:city.phw,lanes:2,style:3,city:1,cityField:1,lift:city.lift+.005,pts:OP});for(let i=0;i<per.n;i+=3)cityEnds.push([per.X[i],per.Z[i],per.id]);
+  const av=buildRoad({id:id+'m',hw:A.hw,lanes:2,style:A.style==null?4:A.style,city:1,cityField:1,lift:city.lift+.003,pts:AP});cityEnds.push([av.X[0],av.Z[0],av.id],[av.X[av.n-1],av.Z[av.n-1],av.id]);
+  city.roads.push(av);city.av=av;
+  for(const g of city.hoods){g.pieces=g.SP.filter(S=>!S.dead);for(const S of g.pieces){const L=S.a1-S.a0,k=Math.max(2,Math.ceil(L/25)),pts=[];for(let q=0;q<=k;q++)pts.push(g.toW(...ptL(S,S.a0+L*q/k)));if(S.snap0)pts[0]=S.snap0;if(S.snap1)pts[k]=S.snap1;
+      const r=buildRoad({id:g.id+S.tag+(g.SP.filter(Q=>Q.tag==S.tag&&!Q.dead).length>1?'~'+Math.round(S.a0):''),hw:city.hw,lanes:1,style:3,city:1,smooth:60,grade:.26,lift:city.lift+(idx++)*.0004,cityField:1,pts});
+      S.r=r;g.roads.push(r);city.roads.push(r);cityEnds.push([r.X[0],r.Z[0],r.id],[r.X[r.n-1],r.Z[r.n-1],r.id])}}
+  city.hoods[0].roads.push(av);   /* (the avenue's palms and lamps come with the first neighbourhood) */
+  {let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(let i=0;i<per.n;i++){x0=Math.min(x0,per.X[i]);x1=Math.max(x1,per.X[i]);z0=Math.min(z0,per.Z[i]);z1=Math.max(z1,per.Z[i])}B.x0=x0;B.x1=x1;B.z0=z0;B.z1=z1}
+  city.box=B;city.per=per;for(const g of city.hoods){g.box=B;g.per=per}const zn=ZONES.find(q=>q.b===B);if(zn)zn.shape=city;
+  /* the gates: the avenue's ends and every street end on the edge */
+  city.pieces=[];for(const g of city.hoods)for(const S of g.pieces)if(S.e0||S.e1)city.pieces.push({main:1,r:S.r,e0:S.e0,e1:S.e1,edge:1});city.pieces.push({main:1,r:av,e0:1,e1:1,edge:1});
+  for(const g of city.hoods)GRIDS.push(g);GRIDS.push(city);cityLand();return city}
 
 'use strict';
 /* ===== the wider county: towns, industry, farms and the highways that join them to the rest of the network =====
@@ -788,9 +898,10 @@ function defineWorld(ring,sh,H){
   const gHar=makeOrganic('har',IND_HAR,'ind',{kind:'ind',du:95,dv:72,hw:8,phw:7,mhw:8,warp:9,rk:.9,arm:.12,gates:[[0,-1]]});
   const gMoj=makeOrganic('moj',IND_MOJ,'ind',{kind:'ind',du:95,dv:75,hw:8,phw:7,mhw:8,warp:9,rk:.9,arm:.12,gates:[[-1,0],[0,-1],[1,0]]});
   /* the three new cities (world 1c): Las Vegas with the Strip down its middle, Sacramento, San Jose */
-  makeTown('veg',CITY_VEG,'vegas',{kind:'vegas',du:130,dv:110,hw:7.5,phw:10,mu:65,mv:60,uw:{2:{hw:12,style:4}}});
-  makeTown('sac',CITY_SAC,'cap',{kind:'cap',du:120,dv:95,hw:7.5,phw:10,mu:55,mv:50});
-  makeTown('sj',CITY_SJ,'tech',{kind:'tech',du:150,dv:125,hw:7.5,phw:10,mu:85,mv:60});
+  /* batch 15: natural cities (20_organic.js): each split by its main avenue into two neighbourhoods at their own angles; Las Vegas's avenue is the Strip */
+  const gVeg=makeOrganicCity('veg',CITY_VEG,'vegas',{kind:'vegas',rk:.97,arm:.1,avenue:{ang:Math.PI/2,hw:12,style:4,off:20},hoods:[{ang:0,du:100,dv:92,on:70},{ang:.42,du:104,dv:94,on:66,oa:30}],gates:[[0,-1],[-1,0]]});
+  const gSac=makeOrganicCity('sac',CITY_SAC,'cap',{kind:'cap',rk:.97,arm:.1,avenue:{ang:0,hw:10,style:4,off:-10},hoods:[{ang:0,du:96,dv:80,on:62},{ang:-.3,du:96,dv:80,on:62,oa:20}],gates:[[-1,0],[0,1],[0,-1]]});
+  const gSj=makeOrganicCity('sj',CITY_SJ,'tech',{kind:'tech',rk:.97,arm:.1,avenue:{ang:.55,hw:10,style:4},hoods:[{ang:.55,du:118,dv:100,on:72},{ang:.97,du:120,dv:102,on:72}],gates:[[0,1],[-1,0]]});
   /* batch 8: four towns on the empty highways */
   /* batch 13: natural towns (20_organic.js): an irregular outline, bent streets, the main streets out to the gates the roads below join */
   const gGil=makeOrganic('gil',TOWN_GIL,'farm',{du:66,dv:62,gates:[[0,-1],[0,1],[-1,0]]});
@@ -830,16 +941,16 @@ function defineWorld(ring,sh,H){
   /* ---------- the roads to the new cities ---------- */
   /* Las Vegas: a desert highway from Barstow and a road from Mojave Works */
   buildCurvy({id:'vg1',hw:10,lanes:2,style:1,yFrom:'barp',to:'vegp',lift:.09,smooth:90,minR:60,wig:{a1:50,l1:420,a2:14,l2:170,seed:61,fade:120},
-    pts:gate(gBar,1,0).concat([[4010,1500],[4150,1680]]).concat(tIn(veg,4220,1700))});
+    pts:gate(gBar,1,0).concat([[4010,1500],[4150,1680]]).concat(gateIn(gVeg,0,-1))});
   buildCurvy({id:'vg2',hw:9,lanes:1,style:0,yFrom:'mojp',to:'vegp',lift:.092,smooth:70,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:62,fade:90},
-    pts:gate(gMoj,1,0).concat([[3790,2200]]).concat(tIn(veg,3900,2100))});
+    pts:gate(gMoj,1,0).concat([[3790,2200]]).concat(gateIn(gVeg,-1,0))});
   /* Sacramento: west to the north highway, south to the ring, north to the mountain pass */
-  buildCurvy({id:'sc1',hw:9,lanes:1,style:0,yFrom:'sacp',to:'nh1',lift:.08,smooth:50,minR:45,wig:{a1:10,l1:200,a2:3,l2:90,seed:63,fade:60,hold:50},pts:tOut(sac,0,-2025).concat(tIn(R_('nh1'),-60,-2025))});
-  buildCurvy({id:'sc2',hw:10,lanes:2,style:1,yFrom:'sacp',to:'ring',lift:.082,smooth:70,minR:50,wig:{a1:24,l1:260,a2:6,l2:110,seed:64,fade:80,hold:60},pts:tOut(sac,310,-1700).concat([[320,-1620]]).concat(tIn(ring,330,-1560))});
-  buildCurvy({id:'sc3',hw:9,lanes:1,style:0,yFrom:'sacp',to:'mp',lift:.084,smooth:50,grade:.12,minR:40,wig:{a1:10,l1:200,a2:3,l2:90,seed:65,fade:60,hold:50},pts:tOut(sac,310,-2320).concat(tIn(mp,300,-2420))});
+  buildCurvy({id:'sc1',hw:9,lanes:1,style:0,yFrom:'sacp',to:'nh1',lift:.08,smooth:50,minR:45,wig:{a1:10,l1:200,a2:3,l2:90,seed:63,fade:60,hold:50},pts:gate(gSac,-1,0).concat(tIn(R_('nh1'),-60,-2025))});
+  buildCurvy({id:'sc2',hw:10,lanes:2,style:1,yFrom:'sacp',to:'ring',lift:.082,smooth:70,minR:50,wig:{a1:24,l1:260,a2:6,l2:110,seed:64,fade:80,hold:60},pts:gate(gSac,0,1).concat([[320,-1620]]).concat(tIn(ring,330,-1560))});
+  buildCurvy({id:'sc3',hw:9,lanes:1,style:0,yFrom:'sacp',to:'mp',lift:.084,smooth:50,grade:.12,minR:40,wig:{a1:10,l1:200,a2:3,l2:90,seed:65,fade:60,hold:50},pts:gate(gSac,0,-1).concat(tIn(mp,300,-2420))});
   /* San Jose: south to the boulevard road, west to the ring */
-  buildCurvy({id:'sj1',hw:10,lanes:2,style:1,yFrom:'sjp',to:'bv',lift:.086,smooth:70,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:66,fade:90,hold:60},pts:tOut(sj,-70,-380).concat([[-60,-240]]).concat(tIn(bv,-50,-120))});
-  buildCurvy({id:'sj2',hw:9,lanes:1,style:0,yFrom:'sjp',to:'ring',lift:.088,smooth:60,minR:45,wig:{a1:12,l1:220,a2:4,l2:100,seed:67,fade:60,hold:50},pts:tOut(sj,-450,-690).concat(tIn(ring,-560,-860))});
+  buildCurvy({id:'sj1',hw:10,lanes:2,style:1,yFrom:'sjp',to:'bv',lift:.086,smooth:70,minR:50,wig:{a1:30,l1:300,a2:8,l2:120,seed:66,fade:90,hold:60},pts:gate(gSj,0,1).concat([[-60,-240]]).concat(tIn(bv,-50,-120))});
+  buildCurvy({id:'sj2',hw:9,lanes:1,style:0,yFrom:'sjp',to:'ring',lift:.088,smooth:60,minR:45,wig:{a1:12,l1:220,a2:4,l2:100,seed:67,fade:60,hold:50},pts:gate(gSj,-1,0).concat(tIn(ring,-560,-860))});
   /* ---------- batch 8: the new towns, each joined at two points ---------- */
   /* out / into: a join that leaves (or reaches) a road towards a given side (dx,dz); tOut / tIn guess the side from the point itself, which on a town's edge can send the road back into town.
      Every join on a town's edge is in line with one of its streets, so it makes a crossroads. */
@@ -1219,19 +1330,27 @@ const BRICK=[[168,112,92],[190,150,120],[150,120,104],[120,126,140]];
 /* every block of a rotated street grid: calls fn with its local extents */
 /* a natural town (batch 13): the cells between its bent streets; each gets its own turn (B.cs,B.sn: the frame bends with the streets), B.rr (0 in the centre, 1 at the edge)
    and B.ok(u,v,hx,hz): a lot fits there (inside the edge street, off every street) */
-function forOrganic(g,fn){const m=g.hw+3.8,pm=g.phw+4.5,rmax=Math.max(...g.us.map(Math.abs),...g.vs.map(Math.abs))+90,us=[-rmax].concat(g.us,[rmax]),vs=[-rmax].concat(g.vs,[rmax]);
+/* (batch 15) B.full: the whole block lies inside (a city builder fills only those); B.rank: the whole blocks in order from the centre (the landmarks take the first ones) */
+function forOrganic(g,fn){const m=g.hw+3.8,pm=g.phw+4.5,rmax=Math.max(...g.us.map(Math.abs),...g.vs.map(Math.abs))+90,us=[-rmax].concat(g.us,[rmax]),vs=[-rmax].concat(g.vs,[rmax]),cells=[];
   for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){const u0=us[i]+m,u1=us[i+1]-m,v0=vs[j]+m,v1=vs[j+1]-m;if(u1-u0<14||v1-v0<14)continue;const cu=(u0+u1)/2,cv=(v0+v1)/2;
-    const c=g.toW(cu,cv),a=g.toW(cu+1,cv),cs=a[0]-c[0],sn=a[1]-c[1],l=Math.hypot(cs,sn)||1,rr=Math.hypot(cu,cv)/g.R(Math.atan2(cv,cu));
+    const c=g.toW(cu,cv),a=g.toW(cu+1,cv),cs=a[0]-c[0],sn=a[1]-c[1],l=Math.hypot(cs,sn)||1,rr=g.rrL?g.rrL(cu,cv):Math.hypot(cu,cv)/g.R(Math.atan2(cv,cu));
     const ok=(u,v,hx,hz)=>{for(const[a,b]of[[u-hx,v-hz],[u+hx,v-hz],[u+hx,v+hz],[u-hx,v+hz],[u,v]]){if(!g.insL(a,b,pm))return false;const w=g.toW(a,b);if(nearRoadXZ(w[0],w[1],1.2))return false}return true};
-    if(!g.insL(Math.max(u0,Math.min(u1,0)),Math.max(v0,Math.min(v1,0)),pm))continue;
-    fn({i,j,u0,u1,v0,v1,W:g.toW,g,cs:cs/l,sn:sn/l,rr,ok})}}
+    const full=[[u0,v0],[u1,v0],[u1,v1],[u0,v1],[cu,v0],[cu,v1],[u0,cv],[u1,cv]].every(([a,b])=>g.insL(a,b,pm));
+    if(!full&&!g.insL(Math.max(u0,Math.min(u1,0)),Math.max(v0,Math.min(v1,0)),pm)&&!g.insL(cu,cv,pm))continue;
+    cells.push({i,j,u0,u1,v0,v1,W:g.toW,g,cs:cs/l,sn:sn/l,rr,ok,full})}
+  cells.filter(c=>c.full).sort((a,b)=>a.rr-b.rr).forEach((c,k)=>c.rank=k);
+  if(!g.fullSet){g.fullSet=new Set(cells.filter(c=>c.full).map(c=>c.i+','+c.j));g.fu=us;g.fv=vs}
+  for(const c of cells)fn(c)}
+/* is a point inside one of the whole blocks of a city's neighbourhoods (filled by the city builder)? */
+function inFullBlock(city,x,z){for(const h of city.hoods){if(!h.fullSet)continue;const[u,v]=h.toL(x,z);let i=-1,j=-1;for(let k=0;k<h.fu.length-1;k++)if(u>=h.fu[k]&&u<h.fu[k+1]){i=k;break}for(let k=0;k<h.fv.length-1;k++)if(v>=h.fv[k]&&v<h.fv[k+1]){j=k;break}
+    if(i>=0&&j>=0&&h.fullSet.has(i+','+j))return true}return false}
 function forBlocks(g,fn){if(g.organic)return forOrganic(g,fn);const hw=g.hw+3.8,pl=g.planes,Wd=(u,v)=>[g.ox+u*g.cs-v*g.sn,g.oz+u*g.sn+v*g.cs],sf=g.kind!='la';
   /* a town (g.box) also has blocks between its outer streets and the boulevard round it */
   const bx=g.box,ph=(g.phw||7)+3.8,us=bx?[bx.x0].concat(g.us,[bx.x1]):g.us,vs=bx?[bx.z0].concat(g.vs,[bx.z1]):g.vs,hv=(k,n)=>bx&&(k==0||k==n-1)?ph:hw,hu=(k,n)=>{const w=g.uw&&g.uw[bx?k-1:k];return w?w.hw+3.8:hv(k,n)};
   for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){const u0=us[i]+hu(i,us.length),u1=us[i+1]-hu(i+1,us.length),v0=vs[j]+hv(j,vs.length),v1=vs[j+1]-hv(j+1,vs.length);if(u1-u0<14||v1-v0<14)continue;
     let ok=true,x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const[u,v]of[[u0,v0],[u1,v0],[u1,v1],[u0,v1]]){const p=Wd(u,v);x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);z0=Math.min(z0,p[1]);z1=Math.max(z1,p[1]);
-      for(let k=0;k<pl.length;k++){const m=(sf&&k==4)?MARKET.hw+12:(bx?6:18);if(pl[k][0]*p[0]+pl[k][1]*p[1]>pl[k][2]-m)ok=false}}
+      for(let k=0;k<pl.length;k++){const m=(k===g.mkI)?MARKET.hw+12:(bx?6:18);if(pl[k][0]*p[0]+pl[k][1]*p[1]>pl[k][2]-m)ok=false}}
     if(g.cut)for(const R of g.cut)if(x1>R.x0&&x0<R.x1&&z1>R.z0&&z0<R.z1)ok=false;
     if(ok)fn({i,j,u0,u1,v0,v1,W:Wd,g})}}
 const URB=[CITY,VALLEY];
@@ -1241,15 +1360,15 @@ const inUrban=(x,z,m)=>{if(inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PAR
    In the old centre (the inner third) the lots are shops in a row; round it houses with gardens; towards the edge more and more lots stay empty; the edge street has houses on its
    outer side too (fewer), and the roads leading in carry a few houses for the first 250 m (the town thins out into the country instead of stopping at a line).
    A lot is used only if its corners are clear of every road and of the lots already used. */
-function organicTown(g,h){const{bld,tree,TH,SHOP,rng}=h,placed=[];
+function organicTown(g,h){const{bld,tree,TH,SHOP,rng}=h,placed=[],skip=h.skip||(()=>false);
   const free=(x,z,r)=>{for(let k=0;k<placed.length;k+=3){const dx=placed[k]-x,dz=placed[k+1]-z,q=placed[k+2]+r;if(dx*dx+dz*dz<q*q)return false}return true};
   const fits=(x,z,cs,sn,hx,hz)=>{if(SAFEHOUSES.some(q=>Math.hypot(q.x-x,q.z-z)<34+hx))return false;for(const[a,b]of[[0,0],[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz],[0,hz],[0,-hz]]){if(nearRoadXZ(x+a*cs-b*sn,z+a*sn+b*cs,1.4))return false}return true};
   const rrAt=(x,z)=>{const[u,v]=g.toL(x,z);return Math.hypot(u,v)/g.R(Math.atan2(v,u))};
   const house=(x,z,cs,sn,hx,hz)=>{const hh=3.2+rng()*1.5,col=TH.pal[(rng()*TH.pal.length)|0],gy=bld(x,z,hx,hz,cs,sn,hh,col,true);
     if(TH.rf==0)proofR(1,x,z,hx,hz,cs,sn,gy+hh,1.9+rng()*.7,150,92,76,true);else if(TH.rf==2)proofR(1,x,z,hx,hz,cs,sn,gy+hh,3.4+rng()*1.2,226,230,236,true);else pboxR(1,x,z,hx+.6,hz+.6,cs,sn,gy+hh,gy+hh+.4,226,214,190,false,1)};
-  const shop=(x,z,cs,sn,hx,hz)=>{const hh=4.6+rng()*3,col=SHOP[(rng()*SHOP.length)|0],gy=bld(x,z,hx,hz,cs,sn,hh,col,true);pboxR(1,x,z,hx+.3,hz+.3,cs,sn,gy+hh,gy+hh+.5,92,96,104,false,1)};
+  const shop=(x,z,cs,sn,hx,hz)=>{const hh=(h.shopH||4.6)+rng()*(h.shopH?8:3),col=SHOP[(rng()*SHOP.length)|0],gy=bld(x,z,hx,hz,cs,sn,hh,col,true);pboxR(1,x,z,hx+.3,hz+.3,cs,sn,gy+hh,gy+hh+.5,92,96,104,false,1)};
   /* the landmark (church, water tower or lodge) on a lot near the centre */
-  {const c=g.toW(0,0);let done=false;for(let k=0;k<24&&!done;k++){const a=k*.785+.39,d=26+Math.floor(k/8)*14,x=c[0]+Math.cos(a)*d,z=c[1]+Math.sin(a)*d,cs=g.cs,sn=g.sn,hx=g.theme=='desert'?6:10,hz=g.theme=='desert'?6:8;
+  if(!h.noLandmark){const c=g.toW(0,0);let done=false;for(let k=0;k<24&&!done;k++){const a=k*.785+.39,d=26+Math.floor(k/8)*14,x=c[0]+Math.cos(a)*d,z=c[1]+Math.sin(a)*d,cs=g.cs,sn=g.sn,hx=g.theme=='desert'?6:10,hz=g.theme=='desert'?6:8;
     if(!fits(x,z,cs,sn,hx+2,hz+2))continue;done=true;placed.push(x,z,Math.hypot(hx,hz)+2);const y=terrainH(x,z);
     if(g.theme=='desert'){for(const sx of[-3,3])for(const sz of[-3,3])pbox(1,x+sx,y-.4,z+sz,.35,y+12,.35,150,150,156,false,.8);pbox(1,x,y+12,z,5,y+19,5,196,196,200,false,.9);COLC.push(x,z,4.8,y-.5,y+19)}
     else if(g.theme=='pines'){const gy=bld(x,z,10,8,cs,sn,5.5,[122,90,66],true);proofR(1,x,z,10,8,cs,sn,gy+5.5,6,236,238,242,true)}
@@ -1261,16 +1380,17 @@ function organicTown(g,h){const{bld,tree,TH,SHOP,rng}=h,placed=[];
       const hx=k==2?5.5+rng()*2.5:4+rng()*2.5,hz=k==2?6+rng():4.5+rng()*1.5,off=r.hw+(r.sw||RSH)+back+hz,x=x0+nx*off,z=z0+nz*off;
       if(free(x,z,Math.hypot(hx,hz)+.5)&&fits(x,z,cs,sn,hx,hz)){placed.push(x,z,Math.hypot(hx,hz)+.5);if(k==2)shop(x,z,cs,sn,hx,hz);else{house(x,z,cs,sn,hx,hz);if(rng()<.55){const bx=x+nx*(hz+5),bz=z+nz*(hz+5);if(!nearRoadXZ(bx,bz,4)&&free(bx,bz,1.5))tree(bx,bz)}}
         s+=hx*2+(k==2?.6:4+rng()*6)}else s+=4}};
-  const inner=(x,z)=>{if(!g.ins(x,z,4))return 0;const rr=rrAt(x,z);if(rr<.36)return rng()<.92?2:1;return rng()<.93-sstep(.55,1,rr)*.5?1:0};
+  const inner=(x,z)=>{if(!g.ins(x,z,4)||skip(x,z))return 0;const rr=rrAt(x,z);if(rr<(h.shopR||.36))return rng()<.92?2:1;return rng()<.93-sstep(.55,1,rr)*.5?1:0};
   for(const r of g.roads)for(const sd of[-1,1])line(r,sd,1.5,inner);
   /* the edge street: houses inside it, and on its outer side fewer, further back */
-  for(const sd of[-1,1]){const r=g.per,i=Math.round(r.n/4),t=_tan(r,i),out=!g.ins(r.X[i]-t[1]*sd*20,r.Z[i]+t[0]*sd*20,0);line(r,sd,out?4:1.5,out?(()=>rng()<.42?1:0):inner)}
+  for(const sd of[-1,1]){const r=g.per,i=Math.round(r.n/4),t=_tan(r,i),out=!g.ins(r.X[i]-t[1]*sd*20,r.Z[i]+t[0]*sd*20,0);line(r,sd,out?4:1.5,out?((x,z)=>!inUrban(x,z,8)&&rng()<.42?1:0):inner)}
   /* the roads leading in: a few houses for the first 250 m out of town */
   for(const r of ROADS){if(r.city||r.style==1||r.style==2)continue;let near=false;for(let i=0;i<r.n;i+=8)if(inBox(r.X[i],r.Z[i],g.box,40)){near=true;break}if(!near)continue;
-    for(const sd of[-1,1])line(r,sd,5,(x,z)=>{if(g.ins(x,z,-10))return 0;const dd=-g.sd(x,z);return dd<250&&rng()<.5*(1-dd/250)?1:0})}
+    for(const sd of[-1,1])line(r,sd,5,(x,z)=>{if(g.ins(x,z,-10))return 0;const dd=-g.sd(x,z);return dd<250&&!inUrban(x,z,8)&&rng()<.5*(1-dd/250)?1:0})}
   /* trees in the gardens behind the lots */
-  forOrganic(g,B=>{const n=B.rr>.7?7:4;for(let k=0;k<n;k++){const u=lerp(B.u0+3,B.u1-3,rng()),v=lerp(B.v0+3,B.v1-3,rng()),p=B.W(u,v);if(!g.ins(p[0],p[1],8)||nearRoadXZ(p[0],p[1],5)||!free(p[0],p[1],2.5))continue;placed.push(p[0],p[1],1.5);tree(p[0],p[1])}})}
-function buildCity(){
+  if(!h.noTrees)forOrganic(g,B=>{const n=B.rr>.7?7:4;for(let k=0;k<n;k++){const u=lerp(B.u0+3,B.u1-3,rng()),v=lerp(B.v0+3,B.v1-3,rng()),p=B.W(u,v);if(!g.ins(p[0],p[1],8)||nearRoadXZ(p[0],p[1],5)||!free(p[0],p[1],2.5))continue;placed.push(p[0],p[1],1.5);tree(p[0],p[1])}})}
+const LMK=new Set();const lmk=(B,name,k,i,j)=>{if(!B.ok)return B.i==i&&B.j==j;if(!B.full||B.rank!==k||LMK.has(B.g.city+name))return false;LMK.add(B.g.city+name);return true};
+function buildCity(){LMK.clear();
   const rng=mulberry(1337);let nb=0,pyramid=false;const CORE={x:-870,z:310};
   const reg=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
   const NEONC=[[255,40,120],[40,220,255],[255,190,40],[130,90,255],[60,255,150],[255,90,40]],nrng=mulberry(7771);
@@ -1359,6 +1479,15 @@ function buildCity(){
       for(const r of g.roads.concat(ROADS.filter(q=>q.id=='psp'))){for(let i=3;i<r.n-3;i+=6){const a=(i+1<r.n?i+1:(i+1)%r.n),b=(i>0?i-1:r.n-1);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;if(r.mk[i]<.6)continue;
         for(const sd of[-1,1]){const px=r.X[i]-tz*sd*(r.hw+RSH+3.4),pz=r.Z[i]+tx*sd*(r.hw+RSH+3.4);if(nearRoadXZ(px,pz,1.5))continue;palmAt(px,pz)}}}
       continue}
+    if(g.kind=='outskirts'){/* batch 16: round Downtown, the Valley, Santa Cruz and Palm Springs: houses on the outer side of the boulevard and along the roads leading in */
+      const TH={pal:g.theme=='city'?BRICK.concat(PASTEL.slice(0,3)):PASTEL,rf:g.theme=='desert'||g.theme=='la'?1:0};
+      const tree=(x,z)=>{const y=terrainH(x,z);if(y<2)return;if(g.theme=='city')ptree(x,z,rng,y,true);else ppalm(x,z,rng,y);COLC.push(x,z,.5,y-.5,y+12)};
+      organicTown(g,{bld,tree,TH,SHOP:PASTEL,rng,skip:()=>true,noLandmark:1,noTrees:1});continue}
+    if(g.kind=='cityedge'){/* batch 15: a natural city's cut blocks and outskirts: lots along the streets, houses thinning out along the roads leading in */
+      const PAL={vegas:[[214,184,146],[226,200,160],[236,220,190],[200,170,140]],cap:BRICK,tech:[[236,238,240],[214,220,226],[200,206,214],[226,226,220]]}[g.theme]||PASTEL;
+      const TH={pal:PAL,rf:g.theme=='cap'?0:1},SHOPC=[[236,120,110],[250,200,96],[96,170,196],[240,240,232],[130,200,150],[214,150,90]];
+      const tree=(x,z)=>{const y=terrainH(x,z);if(y<2)return;if(g.theme=='vegas')ppalm(x,z,rng,y);else ptree(x,z,rng,y,true);COLC.push(x,z,.5,y-.5,y+12)};
+      organicTown(g,{bld,tree,TH,SHOP:SHOPC,rng,skip:(x,z)=>inFullBlock(g,x,z),noLandmark:1,noTrees:1,shopR:.7,shopH:7});continue}
     if(g.kind=='town'){/* a small town: houses, a row of shops, trees, one landmark (church, water tower or lodge) */
       const TH={coast:{pal:PASTEL,rf:0},farm:{pal:[[240,238,230],[230,226,214],[196,64,56],[186,198,206],[232,220,170]],rf:0},desert:{pal:[[214,184,146],[226,200,160],[196,164,128],[232,214,180]],rf:1},pines:{pal:[[110,80,60],[130,96,70],[92,70,56],[150,112,80]],rf:2}}[g.theme]||{pal:PASTEL,rf:0};
       const SHOP=[[236,120,110],[250,200,96],[96,170,196],[240,240,232],[130,200,150],[214,150,90]];let lm=false;
@@ -1392,10 +1521,11 @@ function buildCity(){
       const glow=(x,y,z,c,sz)=>NEONS.push(x,y,z,c[0]/255,c[1]/255,c[2]/255,sz),palmV=(x,z)=>{const y=terrainH(x,z);if(y<2||nearRoadXZ(x,z,.5))return;ppalm(x,z,vr,y);COLC.push(x,z,.5,y-.5,y+12)};
       /* a sign pylon by the street: a post and a lit panel */
       const pylon=(x,z,h,c)=>{const y=terrainH(x,z);pbox(1,x,y-.4,z,.45,y+h,.45,70,72,80,false,.8);pboxR(1,x,z,2.6,.35,cs,sn,y+h*.55,y+h,c[0],c[1],c[2],2,1);pboxR(1,x,z,2.9,.25,cs,sn,y+h,y+h+.5,250,240,200,2,1);COLC.push(x,z,.7,y-.5,y+h);glow(x,y+h*.78,z,c,5)};
-      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=vr(),c=HOT[(vr()*HOT.length)|0],c2=NEONC[(vr()*NEONC.length)|0];
-        if(!pyr&&B.i==1&&B.j==2){pyr=true;const hb=Math.min(wu,wv)*.4,gy=gmin(cx,cz,hb,hb,cs,sn);pboxR(1,cx,cz,hb+3,hb+3,cs,sn,gy-1.5,gy+1.2,60,58,56,false,.8);ppyramid(1,cx,cz,hb,gy+1.2,hb*1.3,cs,sn,[30,32,42]);reg(cx,cz,hb*.7,hb*.7,cs,sn,gy+hb);nb++;
+      forBlocks(g,B=>{if(B.ok&&!B.full)return;const cs=B.cs!=null?B.cs:g.cs,sn=B.sn!=null?B.sn:g.sn;   /* (a natural city: only whole blocks here, the cut ones are lined with lots by organicTown) */
+        const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=vr(),c=HOT[(vr()*HOT.length)|0],c2=NEONC[(vr()*NEONC.length)|0];
+        if(!pyr&&lmk(B,'pyr',1,1,2)){pyr=true;const hb=Math.min(wu,wv)*.4,gy=gmin(cx,cz,hb,hb,cs,sn);pboxR(1,cx,cz,hb+3,hb+3,cs,sn,gy-1.5,gy+1.2,60,58,56,false,.8);ppyramid(1,cx,cz,hb,gy+1.2,hb*1.3,cs,sn,[30,32,42]);reg(cx,cz,hb*.7,hb*.7,cs,sn,gy+hb);nb++;
           pbox(1,cx,gy+hb*1.3,cz,.5,gy+hb*1.3+70,.5,255,250,225,2,1);glow(cx,gy+hb*1.3+2,cz,[255,250,220],9);const[sx,sz]=B.W(B.u0+5,B.v1-5);pylon(sx,sz,13,[250,200,60]);return}
-        if(!ndl&&B.i==4&&B.j==1){ndl=true;const y=terrainH(cx,cz);pfrus(1,cx,y-.5,cz,3.4,1.5,104,214,214,220,8);pfrus(1,cx,y+100,cz,2,9.5,3,226,226,232,10);pfrus(1,cx,y+103,cz,9.5,8,3.2,90,170,220,10);pfrus(1,cx,y+106.2,cz,8,1,5,226,226,232,10);
+        if(!ndl&&lmk(B,'ndl',4,4,1)){ndl=true;const y=terrainH(cx,cz);pfrus(1,cx,y-.5,cz,3.4,1.5,104,214,214,220,8);pfrus(1,cx,y+100,cz,2,9.5,3,226,226,232,10);pfrus(1,cx,y+103,cz,9.5,8,3.2,90,170,220,10);pfrus(1,cx,y+106.2,cz,8,1,5,226,226,232,10);
           pbox(1,cx,y+111,cz,.3,y+132,.3,255,90,90,2,1);COLC.push(cx,cz,3.6,y-.5,y+100);glow(cx,y+105,cz,[90,190,255],10);glow(cx,y+131,cz,[255,60,60],5);
           for(const[du,dv]of[[-.3,-.3],[.3,.3]]){const[px,pz]=B.W(cu+wu*du,cv+wv*dv);bld(px,pz,wu*.16,wv*.16,cs,sn,7,HOT[(vr()*HOT.length)|0],true)}return}
         if(r<.55){/* a hotel: a slab tower on a podium, a lit crown, a pylon sign */
@@ -1415,8 +1545,9 @@ function buildCity(){
     if(g.kind=='cap'){/* Sacramento: red and brown brick blocks with stone cornices and shop awnings, a white capitol with a gold dome and columns in a park, brick row houses, oaks */
       const sr2=mulberry(4004),cs=g.cs,sn=g.sn,BR=[[150,74,58],[168,96,70],[132,70,60],[176,122,92],[120,84,70],[158,110,96]],AW=[[40,110,70],[150,40,44],[36,70,130],[220,180,60]];let capd=false;
       const oak=(x,z)=>{const y=terrainH(x,z);if(y<2||nearRoadXZ(x,z,1))return;let c0=0;const fr=()=>c0++==0?.8:sr2();ptree(x,z,fr,y,true);COLC.push(x,z,.5,y-.5,y+10)};
-      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=sr2();
-        if(!capd&&B.i==2&&B.j==2){capd=true;/* the capitol */const y=terrainH(cx,cz);pflat(1,cx,cz,wu/2-2,wv/2-2,cs,sn,y+.1,60,118,58);
+      forBlocks(g,B=>{if(B.ok&&!B.full)return;const cs=B.cs!=null?B.cs:g.cs,sn=B.sn!=null?B.sn:g.sn;   /* (a natural city: only whole blocks here, the cut ones are lined with lots by organicTown) */
+        const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=sr2();
+        if(!capd&&lmk(B,'cap',0,2,2)){capd=true;/* the capitol */const y=terrainH(cx,cz);pflat(1,cx,cz,wu/2-2,wv/2-2,cs,sn,y+.1,60,118,58);
           const gy=bld(cx,cz,wu*.3,wv*.17,cs,sn,13,[236,232,220],true);pboxR(1,cx,cz,wu*.3+.6,wv*.17+.6,cs,sn,gy+13,gy+14,226,222,210,false,1);
           for(const sd of[-1,1]){const[wx,wz]=B.W(cu+sd*wu*.3,cv);bld(wx,wz,wu*.08,wv*.22,cs,sn,10,[232,228,216],true)}
           pfrus(1,cx,gy+14,cz,7.4,7.4,7,232,228,216,14);pblob(1,cx,gy+19.5,cz,7.6,7.2,214,178,70,0);ptrunk(1,cx,gy+28,cz,.9,3.4,236,232,220);pcone(1,cx,gy+31.4,cz,1.1,2.2,214,178,70,8,0);
@@ -1437,8 +1568,9 @@ function buildCity(){
       const tq=mulberry(9009),cs=g.cs,sn=g.sn,GL=[[120,168,196],[136,184,176],[108,150,190],[150,176,200]];let ringd=false;
       const sap=(x,z)=>{const y=terrainH(x,z);if(y<2||nearRoadXZ(x,z,1))return;ptrunk(2,x,y-.2,z,.12,2.4,96,80,62);pcrown(2,x,y+3.6,z,1.5,1.6,1.5,5,2,((x*5.1+z*3.3)|0),70,128,58,0);COLC.push(x,z,.35,y-.5,y+5)};
       const solar=(px,pz,hx,hz)=>{const y=terrainH(px,pz);pflat(1,px,pz,hx,hz,cs,sn,y+.12,52,54,60);for(const k of[-1,1]){const lz=k*hz*.5,wx=px-lz*sn,wz=pz+lz*cs;pboxR(1,wx,wz,hx-1,2.6,cs,sn,y+3.1,y+3.3,26,44,96,false,1);for(const q of[-1,1]){const ex=wx+q*(hx-2)*cs,ez=wz+q*(hx-2)*sn;pbox(1,ex,y,ez,.14,y+3.1,.14,180,182,188,false,.8);COLC.push(ex,ez,.25,y-.5,y+3.1)}}};
-      forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=tq(),c=GL[(tq()*GL.length)|0];
-        if(!ringd&&B.i==2&&B.j==1){ringd=true;/* the ring */const y=terrainH(cx,cz),Rr=Math.min(wu,wv)*.4,N=18,sw=Rr*TAU/N*.56;pflat(1,cx,cz,wu/2-2,wv/2-2,cs,sn,y+.1,70,132,62);
+      forBlocks(g,B=>{if(B.ok&&!B.full)return;const cs=B.cs!=null?B.cs:g.cs,sn=B.sn!=null?B.sn:g.sn;   /* (a natural city: only whole blocks here, the cut ones are lined with lots by organicTown) */
+        const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,wu=B.u1-B.u0,wv=B.v1-B.v0,[cx,cz]=B.W(cu,cv),r=tq(),c=GL[(tq()*GL.length)|0];
+        if(!ringd&&lmk(B,'ring',0,2,1)){ringd=true;/* the ring */const y=terrainH(cx,cz),Rr=Math.min(wu,wv)*.4,N=18,sw=Rr*TAU/N*.56;pflat(1,cx,cz,wu/2-2,wv/2-2,cs,sn,y+.1,70,132,62);
           for(let k=0;k<N;k++){const a=k/N*TAU,px=cx+Math.cos(a)*Rr,pz=cz+Math.sin(a)*Rr,c2=Math.cos(a+Math.PI/2),s2=Math.sin(a+Math.PI/2),gy=gmin(px,pz,sw,5,c2,s2);pboxR(1,px,pz,sw,5,c2,s2,gy-1,gy+13,150,196,214,true,.72);pboxR(1,px,pz,sw+.2,5.5,c2,s2,gy+13,gy+13.7,240,240,244,false,1);reg(px,pz,sw,5,c2,s2,gy+13.7);nb++}
           for(let k=0;k<9;k++){const a=k/9*TAU+.3;sap(cx+Math.cos(a)*Rr*.5,cz+Math.sin(a)*Rr*.5)}return}
         if(r<.5){/* a campus: two low glass buildings with white bands, a lawn, a car park under solar roofs */
@@ -1529,7 +1661,7 @@ function buildCity(){
     const gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(W.D8[gj*W.N+gi]<5||pr()<.25||nearRoadXZ(px,pz,8))continue;ptree(px,pz,pr,terrainH(px,pz),true);COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);np++}}
   /* suburb: low houses on a loose grid around the city, clear of every road and of the districts */
   const sub=mulberry(77);let ns=0;
-  for(const[SB,mx,mz]of[[CITY,420,380],[VALLEY,380,380],[CITY_SAC,280,260],[CITY_SJ,300,280]])   /* (batch 14: the natural towns thin out along their own roads, organicTown) */
+  for(const[SB,mx,mz]of[])   /* (batch 16: every district now thins out along its own roads: organicTown, kinds 'cityedge' and 'outskirts') */   /* (batch 14: the natural towns thin out along their own roads, organicTown) */
   for(let x=SB.x0-mx;x<SB.x1+mx;x+=34)for(let z=SB.z0-mz;z<SB.z1+mz;z+=34){
     if(inUrban(x,z,50))continue;
     const px=x+(sub()-.5)*20,pz=z+(sub()-.5)*20,gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(gi<2||gj<2||gi>=W.N-2||gj>=W.N-2)continue;
@@ -3151,6 +3283,9 @@ function trThink(c,dt){
      Every car within 160 m of a red line is flagged (8) as waiting at a light, so a queue is not taken for a jam (stopT) and does not try to pass the car in front. */
   if(!c.L&&c.e&&!(c.kind===1&&c.cm>0)){const e=c.e,g=lgNextJ(e,c.u);if(g&&g.sig){let su=g.minFu;if(e.closed&&su<c.u-1e-6)su+=e.n;const d=trSu(e,su)-trSu(e,c.u);
     if(d>-.5&&d<160){const st=sigState(g.sig);if(st>0){c.flags|=8;const gap=d-c.hl-.3,need=v*v/(2*Math.max(gap,.1));if(gap>-.3&&(st==2?need<7.5:need<3.2))trTerm(c,v,gap<.15?.15:gap,0)}}}}
+  /* (batch 15) on a turn: a light just after it (a street that crosses another a few metres after leaving the edge street) is seen from the turn already */
+  else if(c.L&&!(c.kind===1&&c.cm>0)){const L=c.L,e=L.to,g=lgNextJ(e,L.tu);if(g&&g.sig){let su=g.minFu;if(e.closed&&su<L.tu-1e-6)su+=e.n;const d=L.len-trSu(L,c.lu||0)+trSu(e,su)-trSu(e,L.tu);
+    if(d>-.5&&d<60){const st=sigState(g.sig);if(st>0){c.flags|=8;const gap=d-c.hl-.3,need=v*v/(2*Math.max(gap,.1));if(gap>-.3&&(st==2?need<7.5:need<3.2))trTerm(c,v,gap<.15?.15:gap,0)}}}}
   /* neighbours */
   const st=++TR.stamp,cx=Math.floor(c.x/48),cz=Math.floor(c.z/48),cars=TR.cars;
   for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){const k=((Math.imul(cx+a+4096,73856093)^Math.imul(cz+b+4096,19349663))&4095);
@@ -3389,6 +3524,9 @@ function trPlace(e,u,type,col,v,seed){
   trPt(e,u);c.x=_pt.x;c.z=_pt.z;c.y=_pt.y;c.yaw=Math.atan2(_pt.tx,-_pt.tz);c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.v=v;c.vx=Math.sin(c.yaw)*v;c.vz=-Math.cos(c.yaw)*v;c.om=0;c.pitch=c.roll=0;
   c.acc=0;c.v0f=(.86+trHash(seed,7)*.22)*(T.v0||1);c.A=(1.9+trHash(seed,11)*.9)*(T.m>5000?.6:1);c.T=(1.0+trHash(seed,13)*.7)*(T.beh=='taxi'?.75:1);c.beh=T.beh||'';c.dwell=0;c.odo=0;c.halt=40+trHash(seed,19)*30;c.lastStop=-1e9;c.nh=0;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.pickL=null;c.role=0;c.ramCd=0;c.los=null;c.stk=0;
   TR.nAlive++;TR.stat.spawn++;return c}
+/* a red or yellow light too close ahead to stop for (the next two junctions: a T just before a light, as where two streets meet an avenue a few metres apart, used to hide it; batch 15) */
+function trLightAhead(e,u,v){let g=lgNextJ(e,u);for(let q=0;q<2&&g;q++){if(g.sig&&sigState(g.sig)>0){let su=g.minFu;if(e.closed&&su<u)su+=e.n;const d=trSu(e,su)-trSu(e,u);if(d>-2&&d<v*v/5+12)return true}
+    const g2=lgNextJ(e,g.foot+1);if(!g2||g2===g)break;g=g2}return false}
 function trSpawn(){
   const rng=TR.rng,P=C;
   for(let tries=0;tries<10;tries++){
@@ -3407,7 +3545,7 @@ function trSpawn(){
     let v=Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*.85;
     for(const c of TR.cars)if(c.alive&&c.e===e&&!c.L){const dd=(c.u-u)*e.ds;if(dd>0&&dd<45&&c.v<v)v=c.v}
     /* never put a car where it could not stop for a red (or soon red) light ahead */
-    {const g=lgNextJ(e,u);if(g&&g.sig&&sigState(g.sig)>0){let su=g.minFu;if(e.closed&&su<u)su+=e.n;const d=trSu(e,su)-trSu(e,u);if(d>-2&&d<v*v/5+12)continue}}
+    if(trLightAhead(e,u,v))continue;
     const c=trPlace(e,u,type,col,v,seed);return c}
   return null}
 /* the graphics tier scales how many cars the player sees (a stronger phone gets more) */
@@ -3884,6 +4022,7 @@ function trSpawnCop(chase,far){
     let u=e.dir>0?i+(TRP.t>.5?1:0):r0.n-1-i-(TRP.t>.5?1:0);if(e.closed)u=((u%e.n)+e.n)%e.n;else if(u<6||u>e.n-8)continue;
     trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz))continue;   /* never pops up in view (batch 5: patrols used to appear 230 m ahead) */
     let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
+    if(!chase&&trLightAhead(e,u,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*.85))continue;   /* (a patrol is not put where it could not stop for a red light) */
     const c=trPlace(e,u,copType(chase),12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*(chase?1.0:.85),Math.floor(rng()*1e9));if(!c)return null;
     c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;if(chase)copAlert(c);return c}
   return null}
@@ -3943,7 +4082,7 @@ function copTick(dt){
   if(COP.bust>=D.bustT){gameBusted();COP.bust=0}
   COP.sirenVol=COP.heat>0&&minChase<260?Math.pow(1-minChase/260,1.4):0}
 /* a ram or a collision with a cop: called from the player collision code */
-function copRammed(c,e,fault){c.ramCd=COP.D.ramCd*((STARS[COP.heat]||STARS[1]).ramMul||1);if(fault)copTrigger(c.cm>0?Math.max(2,COP.heat):2,'hit a cop');if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;copTrigger(4,'wrecked a cop')}}   /* a cop that runs into you is not your crime */
+function copRammed(c,e,fault){c.ramCd=COP.D.ramCd*((STARS[COP.heat]||STARS[1]).ramMul||1);if(fault)copTrigger(c.cm>0?Math.max(2,COP.heat):2,'hit a cop');if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;if(fault)copTrigger(4,'wrecked a cop')}}   /* (batch 15: only when it was your fault; a chaser that wrecks itself on you used to add two stars) */   /* a cop that runs into you is not your crime */
 /* ---- HUD: stars, the bust meter, the losing-them bar ---- */
 function copStar(c,x,y,r,fill,col){c.beginPath();for(let k=0;k<10;k++){const a=-PI/2+k*PI/5,rr=k&1?r*.45:r;k?c.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr):c.moveTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}c.closePath();if(fill){c.fillStyle=col;c.fill()}c.strokeStyle='rgba(255,255,255,.7)';c.lineWidth=1.4;c.stroke()}
 function copHud(c,W_,H_,u){
@@ -4288,7 +4427,7 @@ const EV_DEF=[
  {id:'t_north',type:'trial',name:'Northern Line',from:['nt1',.06],to:['nt2',.94]},
  {id:'t_coast',type:'trial',name:'Coast Highway',from:['cr',.08],to:['btp',.5]},
  {id:'t_pass',type:'trial',name:'Mountain Pass',from:['nh1',.08],to:['bigp',.5]},
- {id:'t_vegas',type:'trial',name:'Vegas Run',from:['vg1',.12],to:['vegp',.6]},
+ {id:'t_vegas',type:'trial',name:'Vegas Run',from:['vg1',.02],to:['vegm',.95]},
  {id:'t_south',type:'trial',name:'Southern Cross',from:['sh',.12],to:['sh',.88]},
  {id:'e_2',type:'escape',name:'Hot Pursuit',stars:2,secs:100,from:['ring',.55]},
  {id:'e_3',type:'escape',name:'Roadblocks',stars:3,secs:130,from:['bv',.5]},
