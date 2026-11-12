@@ -4454,3 +4454,42 @@ def test_kalshi_real_money_gate_needs_enough_days_a_solid_low_end_and_a_good_las
     title, msg, passing = kb.report(state, cfg, 3)
     assert passing == ["F1000"] and title.startswith("✅") and "F1000: $1,200.00" in msg and "none yet" in msg
     assert "Nothing is switched on" in msg
+
+
+def test_kalshi_brain_uses_only_what_was_known_then_and_corrects_for_many_slices():
+    from bot import kalshi_brain as kb
+    rows = [{"day": d, "station": "KMDW", "mu2": 70.0, "spread2": 1.0, "actual": a, "event": {"markets": []}}
+            for d, a in (("2026-10-01", 75.0), ("2026-10-02", 75.0), ("2026-10-03", 75.0), ("2026-10-04", 70.0))]
+    h = {r["day"]: r for r in kb.honest(rows)}
+    assert h["2026-10-01"]["bias"] == 0 and h["2026-10-02"]["bias"] == 0      # the day before isn't over at buy time
+    assert h["2026-10-03"]["bias"] > 0                                         # Oct 1 (ended 2 days before) is known
+    assert h["2026-10-03"]["mu"] == 70.0 + h["2026-10-03"]["bias"]             # the two-day-ahead forecast, corrected
+    s = {"q": {"A": (0.62, 0.60), "B": (0.30, 0.28)}, "fav": "A", "chance": {"A": 0.55, "B": 0.40}, "top": "A",
+         "result": {"A": "yes", "B": "no"}}
+    assert kb.rule_pick(s, kb.STRATS["F"])["ticker"] == "A"                    # favorite, models agree, 60-80c
+    assert kb.rule_pick({**s, "top": "B"}, kb.STRATS["F"]) is None
+    assert kb.rule_pick(s, kb.STRATS["G"], band=(0.65, 0.70)) is None          # outside the slice's band
+    c = kb.rule_pick({**s, "chance": {"A": 0.80, "B": 0.10}}, kb.STRATS["C"])
+    assert c["ticker"] == "A" and c["side"] == "yes"                           # an edge after fees of 5c+
+    assert kb.ret(0.62, True) > 0.5 and kb.ret(0.62, False) == -1.0
+
+    def trades(n_days, per_day, r, name):
+        return [{"day": f"2026-{9 + d // 30:02d}-{d % 30 + 1:02d}", "city": "X", "hour": 9, "ahead": 1, "price": 0.62,
+                 "won": True, "r": r + (0.02 if (d + j) % 2 else -0.02), "src": "history"}
+                for d in range(n_days) for j in range(per_day)]
+    slices = {"F": trades(40, 5, 0.08, "F"), "G": trades(40, 5, 0.0, "G"), "C": trades(10, 3, 0.20, "C")}
+    res = kb.judge(slices)
+    assert res["tested"] == 3 and res["approved"] == ["F"] and res["slices"]["F"]["oos_n"] >= 30
+    assert "only 30 trades" in res["slices"]["C"]["why"] and not res["slices"]["G"]["ok"]
+    many = kb.judge({**slices, **{f"F|x{i}": slices["G"] for i in range(200)}})
+    assert many["z"] > res["z"]                                                # more slices: a stricter bar
+    assert kb.same_dropped({"G": slices["G"], "G|price 60-65c": list(slices["G"]), "G|city X": slices["G"][:5]}).keys() \
+        == {"G", "G|city X"}
+    big = {"event": "KXHIGHCHI-26NOV09", "opened": 1794600000, "t": 1794700000, "price": 0.63, "cost": 99.0,
+           "profit": 58.0, "won": True}
+    small = {**big, "cost": 4.9, "profit": 2.8}
+    old = {"title": "Highest temperature in Chicago on Nov 9, 2026: 50° to 51°", "price": 0.62, "profit": 2.9, "won": True, "t": 0}
+    live = kb.live_trades({"F": [small, old], "F1000": [big]}, {"KXHIGHCHI": "KMDW"}, "2026-11-05", {"Chicago": "KMDW"})
+    assert len(live["F"]) == 1 and live["F"][0]["src"] == "live F1000" and live["F"][0]["city"] == "KMDW"
+    only_old = kb.live_trades({"C": [old]}, {}, "2026-11-05", {"Chicago": "KMDW"})["C"][0]
+    assert only_old["day"] == "2026-11-09" and only_old["hour"] is None and only_old["city"] == "KMDW"

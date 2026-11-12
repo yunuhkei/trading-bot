@@ -230,6 +230,15 @@ def cmd_callouts(args, cfg):
     run(args.settings, report=args.report)
 
 
+def cmd_kalshi_brain(args, cfg):
+    import logging
+
+    from .kalshi_brain import run
+
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    run()
+
+
 def cmd_kalshi_backtest(args, cfg):
     import logging
 
@@ -439,6 +448,7 @@ def main(argv=None):
     co = sub.add_parser("callouts", help="track meme-coin callouts (boosts, trending, Telegram) and how they did")
     co.add_argument("--settings", default="callouts.yaml")
     co.add_argument("--report", action="store_true", help="print the callout scoreboard")
+    sub.add_parser("kalshi-brain", help="the strict walk-forward test of Kalshi strategies F, G, C and their slices")
     kb = sub.add_parser("kalshi-backtest", help="test the Kalshi weather strategies on settled markets")
     kb.add_argument("--days", type=int, default=14)
     kb.add_argument("--sameday", action="store_true", help="same-day trading: collect readings + day-of prices, then test")
@@ -532,6 +542,8 @@ def main(argv=None):
         cmd_launch_lab(args, cfg)
     elif args.cmd == "callouts":
         cmd_callouts(args, cfg)
+    elif args.cmd == "kalshi-brain":
+        cmd_kalshi_brain(args, cfg)
     elif args.cmd == "kalshi-backtest":
         cmd_kalshi_backtest(args, cfg)
     elif args.cmd == "smart-wallets":
