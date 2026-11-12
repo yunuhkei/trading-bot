@@ -41,7 +41,7 @@ def sol_price(t):
 def curve_at(sigs, mint, t):
     """The coin's curve right after its last real trade at or before time t: (vsol, vtok, fee, seconds before t)."""
     for s in [x for x in sigs if x.get("blockTime") and x["blockTime"] <= t and not x.get("err")][:20]:
-        tx = rpc("getTransaction", [s["signature"], {"encoding": "json", "maxSupportedTransactionVersion": 0, "commitment": "confirmed"}])
+        tx = rpc("getTransaction", [s["signature"], {"encoding": "json", "maxSupportedTransactionVersion": 1, "commitment": "confirmed"}])
         evs = [e for e in ll.pump_events((tx or {}).get("meta", {}).get("logMessages") or [])
                if e["kind"] == "trade" and e["mint"] == mint]
         if evs:
