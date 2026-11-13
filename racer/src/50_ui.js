@@ -9,15 +9,15 @@ function uiInit(){
   const down=(id,x,y)=>{
     if(UI.paused){pauseTap(x,y);UI.touches.set(id,{type:'none'});return}
     if(UI.mapOpen){mapDown(id,x,y);UI.touches.set(id,{type:'map'});return}
-    if(MENU.open){menuTap(x,y);UI.touches.set(id,{type:'none'});return}
+    if(MENU.open){if(!menuTap(x,y))UI.touches.set(id,{type:'gcam',lx:x,ly:y});else UI.touches.set(id,{type:'none'});return}   /* (batch 21: a drag off the buttons turns the garage camera) */
     if(evTap(x,y)){UI.touches.set(id,{type:'none'});return}
     for(const b of UI.btn){const hit=b.circle?Math.hypot(x-b.cx,y-b.cy)<=b.circle:(x>=b.x-8&&x<=b.x+b.w+8&&y>=b.y-8&&y<=b.y+b.h+8);if(hit){UI.touches.set(id,{type:'btn',b});b.on=1;b.act&&b.act(1);return}}
     if(x<UI.w*.55){const t={type:'stick',x0:x,y0:y,x:x,y:y,lx:x,ly:y};UI.touches.set(id,t);UI.stickT=t;return}
     UI.touches.set(id,{type:'look',lx:x,ly:y})};   /* a drag on the free part of the right side looks around (when the car is stopped) */
-  const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&(t.type=='stick'||t.type=='look')){UI.lookDX=(UI.lookDX||0)+x-t.lx;UI.lookDY=(UI.lookDY||0)+y-t.ly;t.lx=x;t.ly=y}if(t&&t.type=='stick'){t.x=x;t.y=y}else if(t&&t.type=='map')mapMove(id,x,y)};
+  const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&t.type=='gcam'){MENU.userCam=1;MENU.camA-=(x-t.lx)*.009;MENU.camP=clamp((MENU.camP||0)+(y-t.ly)*.005,-.05,.75);t.lx=x;t.ly=y;return}if(t&&(t.type=='stick'||t.type=='look')){UI.lookDX=(UI.lookDX||0)+x-t.lx;UI.lookDY=(UI.lookDY||0)+y-t.ly;t.lx=x;t.ly=y}if(t&&t.type=='stick'){t.x=x;t.y=y}else if(t&&t.type=='map')mapMove(id,x,y)};
   const up=(id)=>{const t=UI.touches.get(id);if(t&&t.type=='map')mapUp(id);if(t&&t.type=='btn'){t.b.on=0;t.b.act&&t.b.act(0)}if(t&&t===UI.stickT)UI.stickT=null;UI.touches.delete(id)};
   const opt={passive:false};
-  cv.addEventListener('wheel',e=>{if(UI.mapOpen){e.preventDefault();mapWheel(e.offsetX,e.offsetY,e.deltaY)}},opt);
+  cv.addEventListener('wheel',e=>{if(UI.mapOpen){e.preventDefault();mapWheel(e.offsetX,e.offsetY,e.deltaY)}else if(MENU.open){e.preventDefault();MENU.userCam=1;MENU.camD=clamp((MENU.camD||8.4)*(e.deltaY>0?1.08:1/1.08),4.5,9)}},opt);
   cv.addEventListener('touchstart',e=>{tp(e);for(const t of e.changedTouches)down(t.identifier,t.cx,t.cy);audioStart()},opt);
   cv.addEventListener('touchmove',e=>{tp(e);for(const t of e.changedTouches)move(t.identifier,t.cx,t.cy)},opt);
   cv.addEventListener('touchend',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);cv.addEventListener('touchcancel',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);
@@ -115,7 +115,7 @@ function hudDraw(){
    else if(C.dLast){const age=C.t-C.dLast.t;if(age<2.4)toast('DRIFT  '+C.dLast.pts,'#7fd4ff',H_*.31,age,1.8)}
    /* air: counting while flying, then the jump, held and floated away */
    if(!C.grounded&&C.air>.3)toast('AIR  '+C.air.toFixed(1)+' s','#ffd24a',H_*.31+u*.5,-Math.min(.16,C.air-.3)-.0001,1);
-   else if(C.jump){const age=C.t-C.jump.t;if(age<2.8)toast('JUMP  '+Math.round(C.jump.d*3.281)+' ft  ·  '+C.jump.air.toFixed(1)+' s','#ffd24a',H_*.31+u*.5,age,2.2)}}
+   else if(C.jump){const age=C.t-C.jump.t;if(age<2.8)toast('JUMP  '+fmtShort(C.jump.d)+'  ·  '+C.jump.air.toFixed(1)+' s','#ffd24a',H_*.31+u*.5,age,2.2)}}
   /* minimap */
   const mm=UI.mm;drawMap(c,mm.cx,mm.cy,mm.r,420,-C.yaw);c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.85)';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText('MAP',mm.cx,mm.cy+mm.r+u*.3);c.restore();
   /* location banner */

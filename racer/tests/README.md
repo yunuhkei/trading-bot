@@ -250,3 +250,5 @@ Small differences from rounding are fine; a change of more than about 10 percent
 ## Upgrades baseline (batch 20)
 
 * `rupg` (new, in `run_quick.sh`): stage-1 prices for the Kestrel S 2,500 / 2,000 / 1,750 / 2,000 / 1,500 (the fastest car's engine 24,250); no money -> "NEED $2,500"; engine +4 % top speed and +7 % pull per stage (x1.12 at stage 3), MAX after three; tyres +4 % grip, brakes +9 % braking, saved per car; nitro stage 2 burns 0.19 of the tank in a second of boost instead of 0.29; armour stage 3 leaves 0.83 health for the same damage instead of 0.73; the garage page draws and its BUY keys work.
+
+* Batch 21: `rdash` 2 expects the MPH rocker in the console. The tests start with `?fixed`, so they keep the ring start (the game itself starts at a random spot). `rcam` driftHold failed once while ten tests ran in a row (jerk 0.028 m) and passed on its own (0.020 m).

@@ -24,7 +24,7 @@ function spotTick(dt){if(GAME.state||TUM.on){SPOTS.zone=null;return}if(SPOTS.fla
   for(const s of SPOTS.list){
     if(s.type=='trap'){const dx=C.x-s.x,dz=C.z-s.z;if(dx*dx+dz*dz>(s.hw+6)**2||Math.abs(C.y-s.y)>5){s.inside=0;continue}if(s.inside)continue;s.inside=1;if(C.speed<8)continue;
       const k=Math.round(C.kmh),o=spotRecord(s,k,'kmh',(a,b)=>a>b);SPOTS.flash=.25;s.flashT=EV.t;
-      if(!run)safeToast('SPEED TRAP  '+k+' km/h'+(o.pay?(o.prev!=null?'  NEW BEST':'')+'  +'+evMoney(o.pay):'  (best '+o.prev+')'),2.4)}
+      if(!run)safeToast('SPEED TRAP  '+fmtKmh(k)+(o.pay?(o.prev!=null?'  NEW BEST':'')+'  +'+evMoney(o.pay):'  (best '+fmtKmh(o.prev)+')'),2.4)}
     else if(s.type=='drift'){const r=ROADS[s.ri];const sn=Math.hypot(C.x-s.x,C.z-s.z)<r.hw+8;
       if(!SPOTS.zone&&sn&&!run){SPOTS.zone=s;SPOTS.zpts=C.driftScore||0;SPOTS.zstart=EV.t}
       if(SPOTS.zone===s){const at=Math.hypot(C.x-s.x1,C.z-s.z1)<r.hw+8,sn2=navSnap(C.x,C.z,30);
@@ -32,7 +32,7 @@ function spotTick(dt){if(GAME.state||TUM.on){SPOTS.zone=null;return}if(SPOTS.fla
         else if(!sn2||sn2.ri!==s.ri||EV.t-SPOTS.zstart>120)SPOTS.zone=null}}}
   /* a jump: C.jump is set on landing; was the take-off on a jump spot? */
   if(C.jump&&C.jump.t!==SPOTS.lastJump){SPOTS.lastJump=C.jump.t;for(const s of SPOTS.list){if(s.type!='jump')continue;if(Math.hypot((C.jx||0)-s.x,(C.jz||0)-s.z)>s.r)continue;const d=Math.round(C.jump.d);if(d<8)break;
-      const o=spotRecord(s,d,'m',(a,b)=>a>b);if(!run)safeToast('JUMP  '+d+' m'+(o.pay?(o.prev!=null?'  NEW BEST':'')+'  +'+evMoney(o.pay):'  (best '+o.prev+' m)'),2.6);break}}}
+      const o=spotRecord(s,d,'m',(a,b)=>a>b);if(!run)safeToast('JUMP  '+fmtShort(d)+(o.pay?(o.prev!=null?'  NEW BEST':'')+'  +'+evMoney(o.pay):'  (best '+fmtShort(o.prev)+')'),2.6);break}}}
 function spotFx(flat,sprite,stage){if(EV.run)return;const t=EV.t;
   for(const s of SPOTS.list){const d=Math.hypot(s.x-C.x,s.z-C.z);if(d>600)continue;const c=SPOT_COL[s.type];
     if(stage==5){if(s.type!='drift')flat(s.x,s.y+.07,s.z,s.type=='trap'?4:7,s.type=='trap'?4:7,c[0],c[1],c[2],.45)}

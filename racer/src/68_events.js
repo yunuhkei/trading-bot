@@ -114,9 +114,9 @@ function evMarkers(){if(GAME.state||MENU.open)return;let near=null;for(const ev 
   /* a garage you own: the list of every event */
   if(!EV.card&&SAFE.at&&SAFE.owned[SAFE.at.id]&&SAFE.visit===SAFE.at.id&&C.speed<2&&EV.dismiss!==SAFE.at)EV.card=evListCard();
   if(EV.card&&EV.card.garage&&!SAFE.at)EV.card=null}
-function evInfo(ev){const rec=EV.rec[ev.id]||{};if(ev.type=='trial')return[(ev.len/1000).toFixed(1)+' km  ·  gold '+evFmt(ev.gold)+'  ·  prize '+evMoney(ev.prize),rec.t?'best '+evFmt(rec.t)+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not run yet'];
-  if(ev.type=='race')return[(ev.len/1000).toFixed(1)+' km against '+ev.n+' racers  ·  1st wins '+evMoney(ev.prize),rec.m?'best: '+['','3rd','2nd','1st'][rec.m]:'not raced yet'];
-  if(ev.type=='death')return[(ev.len/1000).toFixed(1)+' km, '+ev.n+' racers who ram you  ·  500 a wreck  ·  gold '+ev.goals[2]+' pts  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' pts'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not raced yet'];
+function evInfo(ev){const rec=EV.rec[ev.id]||{};if(ev.type=='trial')return[fmtLen(ev.len)+'  ·  gold '+evFmt(ev.gold)+'  ·  prize '+evMoney(ev.prize),rec.t?'best '+evFmt(rec.t)+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not run yet'];
+  if(ev.type=='race')return[fmtLen(ev.len)+' against '+ev.n+' racers  ·  1st wins '+evMoney(ev.prize),rec.m?'best: '+['','3rd','2nd','1st'][rec.m]:'not raced yet'];
+  if(ev.type=='death')return[fmtLen(ev.len)+', '+ev.n+' racers who ram you  ·  500 a wreck  ·  gold '+ev.goals[2]+' pts  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' pts'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not raced yet'];
   if(ev.type=='rage')return['wreck cars: 60 s, +4 s a wreck  ·  bronze '+ev.goals[0]+' / silver '+ev.goals[1]+' / gold '+ev.goals[2]+'  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' wrecks'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not done yet'];
   return[ev.stars+' stars  ·  lose them within '+evFmt(ev.secs).replace(/\.00$/,'')+'  ·  prize '+evMoney(ev.prize),rec.done?'escaped '+rec.done+'x, best '+evFmt(rec.t):'not done yet']}
 function evOfferCard(ev,fromGarage){const inf=evInfo(ev);return{offer:1,title:{trial:'TIME TRIAL',rage:'ROAD RAGE',race:'RACE',death:'DEATH RACE'}[ev.type]||'ESCAPE THE COPS',sub:ev.name,lines:[[inf[0],'#fff'],[inf[1],'#9cc8ff']],

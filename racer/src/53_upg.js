@@ -32,7 +32,8 @@ function upgTap(k){const d=CAR_ROSTER[MENU.i];if(!carOwned(MENU.i)){safeToast('B
 function upgDraw(c,W_,H_,u){const L=upgLayout(W_,H_,u),d=CAR_ROSTER[MENU.i],own=carOwned(MENU.i);MENU.btns=L.b;
   c.save();{const g=c.createLinearGradient(0,L.py,0,L.py+L.ph);g.addColorStop(0,'rgba(42,43,46,.96)');g.addColorStop(1,'rgba(24,25,27,.96)');c.fillStyle=g}rr(c,L.px,L.py,L.pw,L.ph,u*.24);c.fill();
   c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,L.px+.5,L.py+.5,L.pw-1,L.ph-1,u*.24);c.stroke();
-  if(MENU.garage){c.font=dLcd(u*.3);const gt=MENU.garage.toUpperCase(),gw=c.measureText(gt).width+u*.6;dLcdBox(c,u*.3,u*.3,gw,u*.55,u*.08);dLcdText(c,gt,u*.6,u*.3+u*.39,u*.3)}
+  if(MENU.garage){c.font=dLcd(u*.3);const gt=MENU.garage.toUpperCase(),gw=c.measureText(gt).width+u*.6;dLcdBox(c,u*.3,u*.3,gw,u*.55,u*.08);dLcdText(c,gt,u*.6,u*.3+u*.39,u*.3);
+    c.font=dLcd(u*.26);const mt=evMoney(ECON.money),mw=c.measureText(mt).width+u*.5;dLcdBox(c,u*.3,u*.95,mw,u*.46,u*.07);dLcdText(c,mt,u*.55,u*.95+u*.33,u*.26)}   /* (batch 21: your money under the garage name) */
   c.textAlign='left';c.fillStyle='#fff';c.font=dFont(u*.44,700);{const wmax=L.iw-u*2.2,wn=c.measureText(d.name).width;if(wn>wmax)c.font=dFont(u*.44*wmax/wn,700)}c.fillText(d.name,L.x0,L.py+u*.6);
   c.textAlign='right';c.font=dLcd(u*.24);dLcdText(c,'UPGRADES',L.px+L.pw-L.m,L.py+u*.55,u*.24,'right');
   c.textAlign='left';c.fillStyle='#9b9ea4';c.font=dFont(u*.19,600);c.fillText(own?'Three stages per part. Bought for this car only.':'Buy this car first, then upgrade it.',L.x0,L.py+u*.95);

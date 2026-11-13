@@ -70,8 +70,8 @@ function navBeacon(sprite){
   if(!NAV.wp)return;const w=NAV.wp,gy=w.y;for(let k=0;k<9;k++)sprite(w.x,gy+1.5+k*7,w.z,3.2+k*.25,.2,.85,1,.55-.04*k)}
 /* ---------------- HUD: distance to the waypoint and a pointer ---------------- */
 function navHud(c,W_,H_,u){
-  if(!NAV.wp)return;const w=NAV.wp,dx=w.x-C.x,dz=w.z-C.z,d=Math.hypot(dx,dz),rel=angd(Math.atan2(dx,-dz),C.camYaw),km=NAV.remain>=1000?(NAV.remain/1000).toFixed(1)+' km':Math.round(NAV.remain/10)*10+' m';
-  c.save();const x=UI.mm.cx-UI.mm.r,y=UI.mm.cy+UI.mm.r+u*.62,wd=u*2.3,h=u*.34;c.fillStyle='rgba(8,20,32,.7)';rr(c,x,y,wd,h,h/2);c.fill();c.strokeStyle='rgba(60,210,255,.8)';c.lineWidth=1.5;c.stroke();
+  if(!NAV.wp)return;const w=NAV.wp,dx=w.x-C.x,dz=w.z-C.z,d=Math.hypot(dx,dz),rel=angd(Math.atan2(dx,-dz),C.camYaw),km=fmtLen(NAV.remain);
+  c.save();const x=UI.mm.cx-UI.mm.r,y=UI.mm.cy+UI.mm.r+u*.98,wd=u*2.3,h=u*.34;c.fillStyle='rgba(8,20,32,.7)';rr(c,x,y,wd,h,h/2);c.fill();c.strokeStyle='rgba(60,210,255,.8)';c.lineWidth=1.5;c.stroke();
   c.fillStyle='#7fe3ff';c.font='800 '+Math.round(u*.22)+'px -apple-system,Roboto,sans-serif';c.textAlign='left';c.fillText('WAYPOINT  '+km,x+h*.6,y+h*.68);
   /* an arrow along the top edge when it is not in front of you */
   if(Math.abs(rel)>.55){const ax=W_*.5+Math.max(-1,Math.min(1,rel/1.5))*W_*.34,ay=u*2.2;c.translate(ax,ay);c.rotate(Math.abs(rel)>1.9?PI:rel>0?PI/2:-PI/2);c.fillStyle='#7fe3ff';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;c.beginPath();c.moveTo(0,-u*.26);c.lineTo(u*.2,u*.2);c.lineTo(0,u*.1);c.lineTo(-u*.2,u*.2);c.closePath();c.fill()}
@@ -84,7 +84,7 @@ function navMapOverlay(ctx,pxm,s){
 /* ---------------- the touchable world map ---------------- */
 const MAPV={x:0,z:0,k:1,k0:1,kMax:2.6,g:new Map(),mt:0,btns:[],moved:0,t0:0,sx:0,sy:0};
 function mapFit(W_,H_){const S=UI.mapCv.width;MAPV.k0=Math.min(W_,H_)*.98/S;if(!MAPV.k||MAPV.k<MAPV.k0)MAPV.k=MAPV.k0}
-function mapOpenNow(){UI.mapOpen=true;const W_=UI.w,H_=UI.h;mapFit(W_,H_);MAPV.k=Math.max(MAPV.k0,Math.min(MAPV.kMax,MAPV.k0*2.4));MAPV.x=C.x;MAPV.z=C.z;MAPV.g.clear();NAV.pend=null;NAV.pendMsg=''}
+function mapOpenNow(){UI.mapOpen=true;MAPV.pop=null;const W_=UI.w,H_=UI.h;mapFit(W_,H_);MAPV.k=Math.max(MAPV.k0,Math.min(MAPV.kMax,MAPV.k0*2.4));MAPV.x=C.x;MAPV.z=C.z;MAPV.g.clear();NAV.pend=null;NAV.pendMsg=''}
 const mapToWorld=(sx,sy)=>{const S=UI.mapCv.width,pxm=S/W.size;return[(sx-UI.w/2)/MAPV.k/pxm+MAPV.x,(sy-UI.h/2)/MAPV.k/pxm+MAPV.z]};
 function mapClamp(){const h=W.half;MAPV.x=Math.max(-h,Math.min(h,MAPV.x));MAPV.z=Math.max(-h,Math.min(h,MAPV.z));MAPV.k=Math.max(MAPV.k0,Math.min(MAPV.kMax,MAPV.k))}
 function mapDown(id,x,y){
@@ -99,7 +99,8 @@ function mapMove(id,x,y){const g=MAPV.g.get(id);if(!g||g.btn)return;
   g.x=x;g.y=y;mapClamp()}
 function mapUp(id){const g=MAPV.g.get(id);MAPV.g.delete(id);if(!g||g.btn)return;
   /* a tap (little movement, short) puts a pin; navSet snaps it to a road when you choose SET */
-  if(g.moved<14&&performance.now()-g.t0<450){const w=mapToWorld(g.x0,g.y0);NAV.pickR=Math.max(40,60/MAPV.k/(UI.mapCv.width/W.size)*.7);const sn=navSnap(w[0],w[1],NAV.pickR);
+  if(g.moved<14&&performance.now()-g.t0<450){if(mapPick(g.x0,g.y0,UI.btnU)){NAV.pend=null;NAV.pendMsg='';return}   /* (batch 21: an icon opens its card) */
+    const w=mapToWorld(g.x0,g.y0);NAV.pickR=Math.max(40,60/MAPV.k/(UI.mapCv.width/W.size)*.7);const sn=navSnap(w[0],w[1],NAV.pickR);
     if(sn){NAV.pend={x:sn.x,z:sn.z};NAV.pendMsg=''}else{NAV.pend=null;NAV.pendMsg='No road near there - tap closer to a road'}}}
 function mapWheel(x,y,dy){const wb=mapToWorld(x,y);MAPV.k*=dy<0?1.18:1/1.18;mapClamp();const wa=mapToWorld(x,y);MAPV.x+=wb[0]-wa[0];MAPV.z+=wb[1]-wa[1];mapClamp()}
 function drawWorldMap(c,W_,H_,u){
@@ -119,13 +120,14 @@ function drawWorldMap(c,W_,H_,u){
   c.restore();
   /* the screen furniture: title, hint, buttons */
   c.textAlign='left';c.fillStyle='#fff';c.font='800 '+Math.round(u*.4)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('COUNTY MAP',u*.35,u*.75);
-  c.font='700 '+Math.round(u*.22)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.8)';c.fillText('drag to move  ·  pinch to zoom  ·  tap a road to place a waypoint',u*.35,u*1.1);
+  c.font='700 '+Math.round(u*.22)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.8)';c.fillText('drag to move  ·  pinch to zoom  ·  tap an icon to see what it is  ·  tap a road for a waypoint',u*.35,u*1.1);
   if(NAV.pendMsg){c.fillStyle='#ffb36b';c.fillText(NAV.pendMsg,u*.35,u*1.4)}c.shadowBlur=0;
   const b=[],bw=u*2.5,bh=u*.62,bx=W_-bw-u*.3;let by=H_-bh-u*.3;const add=(label,col,act,show)=>{if(show===false)return;b.push({x:bx,y:by,w:bw,h:bh,label,col,act});by-=bh+u*.16};
   add('CLOSE MAP','rgba(255,255,255,.2)',()=>{UI.mapOpen=false;MAPV.g.clear()});
   add('MY CAR','rgba(255,255,255,.2)',()=>{MAPV.x=C.x;MAPV.z=C.z;MAPV.k=Math.max(MAPV.k,MAPV.k0*2)});
   add('CLEAR WAYPOINT','rgba(255,90,70,.7)',()=>{navClear()},!!NAV.wp);
-  add('SET WAYPOINT','#ff7a1a',()=>{if(!NAV.pend)return;const r=navSet(NAV.pend.x,NAV.pend.z);if(r.ok){UI.mapOpen=false;MAPV.g.clear();safeToast('Waypoint set  -  '+(r.len>=1000?(r.len/1000).toFixed(1)+' km':Math.round(r.len)+' m')+'  -  follow the blue path',3)}else NAV.pendMsg=r.msg},!!NAV.pend);
-  MAPV.btns=b;for(const q of b){c.fillStyle=q.col;rr(c,q.x,q.y,q.w,q.h,u*.14);c.fill();c.fillStyle=q.col=='#ff7a1a'?'#111':'#fff';c.textAlign='center';c.font='800 '+Math.round(u*.25)+'px -apple-system,Roboto,sans-serif';c.fillText(q.label,q.x+q.w/2,q.y+q.h*.66)}
-  if(NAV.pend){const d=Math.hypot(NAV.pend.x-C.x,NAV.pend.z-C.z);c.textAlign='center';c.fillStyle='#ffd24a';c.font='800 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('Pin: '+(d>=1000?(d/1000).toFixed(1)+' km':Math.round(d)+' m')+' away (straight line) - tap SET WAYPOINT',W_*.5-u*1.2,H_-u*.4);c.shadowBlur=0}
-  else if(NAV.wp&&NAV.route){c.textAlign='center';c.fillStyle='#7fe3ff';c.font='800 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('Route: '+(NAV.remain>=1000?(NAV.remain/1000).toFixed(1)+' km':Math.round(NAV.remain)+' m')+' to go',W_*.5-u*1.2,H_-u*.4);c.shadowBlur=0}}
+  add('SET WAYPOINT','#ff7a1a',()=>{if(!NAV.pend)return;const r=navSet(NAV.pend.x,NAV.pend.z);if(r.ok){UI.mapOpen=false;MAPV.g.clear();safeToast('WAYPOINT SET  ·  '+fmtLen(r.len),3)}else NAV.pendMsg=r.msg},!!NAV.pend);
+  mapLegend(c,W_,H_,u);mapPopDraw(c,W_,H_,u,b);
+  MAPV.btns=b;for(const q of b){if(q.own)continue;c.fillStyle=q.col;rr(c,q.x,q.y,q.w,q.h,u*.14);c.fill();c.fillStyle=q.col=='#ff7a1a'?'#111':'#fff';c.textAlign='center';c.font='800 '+Math.round(u*.25)+'px -apple-system,Roboto,sans-serif';c.fillText(q.label,q.x+q.w/2,q.y+q.h*.66)}
+  if(NAV.pend){const d=Math.hypot(NAV.pend.x-C.x,NAV.pend.z-C.z);c.textAlign='center';c.fillStyle='#ffd24a';c.font='800 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('Pin: '+fmtLen(d)+' away (straight line) - tap SET WAYPOINT',W_*.5-u*1.2,H_-u*.4);c.shadowBlur=0}
+  else if(NAV.wp&&NAV.route){c.textAlign='center';c.fillStyle='#7fe3ff';c.font='800 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('Route: '+fmtLen(NAV.remain)+' to go',W_*.5-u*1.2,H_-u*.4);c.shadowBlur=0}}

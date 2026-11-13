@@ -29,9 +29,9 @@ function dKey(c,x,y,w,h,r,down,top,bot){c.save();const d=down?h*.04:0;c.fillStyl
 function dLcdBox(c,x,y,w,h,r){c.save();c.fillStyle='#0b0b0a';rr(c,x,y,w,h,r);c.fill();c.strokeStyle='rgba(255,173,31,.18)';c.lineWidth=1;rr(c,x+.5,y+.5,w-1,h-1,r);c.stroke();c.restore()}
 function dLcdText(c,t,x,y,px,al){c.save();c.font=dLcd(px);c.textAlign=al||'left';c.fillStyle=DASH.amber;c.shadowColor='rgba(255,173,31,.6)';c.shadowBlur=px*.5;c.fillText(t,x,y);c.restore()}
 /* ---------- the speedometer ---------- */
-function dashSpeedo(c,u,dt){const S=UI.sp,R=S.R,cx=S.cx,cy=S.cy,mph=C.speed*2.23694;
+function dashSpeedo(c,u,dt){const S=UI.sp,R=S.R,cx=S.cx,cy=S.cy,mph=C.speed*spdK();
   /* the scale fits the car: up to its top speed and a bit */
-  const top=(CAR_ROSTER[CARSEL.cur]&&CAR_ROSTER[CARSEL.cur].real.top||300)/1.609;DASH.maxMph=Math.max(160,Math.ceil((top+15)/20)*20);const MX=DASH.maxMph,maj=MX>180?40:20;
+  const top=(CAR_ROSTER[CARSEL.cur]&&upgReal(CAR_ROSTER[CARSEL.cur]).top||300)/(UNITS.imp?1.609:1);DASH.maxMph=Math.max(UNITS.imp?160:260,Math.ceil((top+15)/20)*20);const MX=DASH.maxMph,maj=MX>(UNITS.imp?180:300)?(UNITS.imp?40:50):(UNITS.imp?20:25);
   /* the needle: a spring, so it overshoots a little and settles */
   const tgt=-2.094+Math.min(MX*1.04,mph)/MX*4.189;DASH.ndlV+=((tgt-DASH.ndl)*90-DASH.ndlV*13)*dt;DASH.ndl+=DASH.ndlV*dt;
   c.save();
@@ -39,10 +39,10 @@ function dashSpeedo(c,u,dt){const S=UI.sp,R=S.R,cx=S.cx,cy=S.cy,mph=C.speed*2.23
   const bz=c.createLinearGradient(cx-R,cy-R,cx+R,cy+R);bz.addColorStop(0,'#9da1a7');bz.addColorStop(.5,'#4a4d52');bz.addColorStop(1,'#8d9196');c.fillStyle=bz;c.beginPath();c.arc(cx,cy,R*1.04,0,TAU);c.fill();
   const fc=c.createRadialGradient(cx,cy-R*.25,R*.1,cx,cy,R);fc.addColorStop(0,'#26272a');fc.addColorStop(1,'#101112');c.fillStyle=fc;c.beginPath();c.arc(cx,cy,R*.97,0,TAU);c.fill();
   if(C.boosting){c.strokeStyle='rgba(255,173,31,.55)';c.lineWidth=R*.05;c.shadowColor=DASH.amber;c.shadowBlur=R*.3;c.beginPath();c.arc(cx,cy,R*.9,2.62,.52+TAU);c.stroke();c.shadowBlur=0}
-  for(let v=0;v<=MX;v+=5){const a=-2.094+v/MX*4.189,mj=v%maj==0,mid=v%10==0,r1=R*(mj?.74:mid?.79:.83),r2=R*.88;c.strokeStyle=v>=MX-maj*.75?DASH.red:DASH.ink;c.lineWidth=mj?R*.03:R*.013;
+  for(let v=0;v<=MX;v+=UNITS.imp?5:maj/5){const a=-2.094+v/MX*4.189,mj=v%maj==0,mid=v%(UNITS.imp?10:maj/2)==0,r1=R*(mj?.74:mid?.79:.83),r2=R*.88;c.strokeStyle=v>=MX-maj*.75?DASH.red:DASH.ink;c.lineWidth=mj?R*.03:R*.013;
     c.beginPath();c.moveTo(cx+Math.sin(a)*r1,cy-Math.cos(a)*r1);c.lineTo(cx+Math.sin(a)*r2,cy-Math.cos(a)*r2);c.stroke();
     if(mj){c.fillStyle=DASH.ink;c.font=dFont(R*.125,600);c.textAlign='center';c.fillText(String(v),cx+Math.sin(a)*R*.6,cy-Math.cos(a)*R*.6+R*.045)}}
-  c.fillStyle='#9b9ea4';c.font=dFont(R*.095,600);c.textAlign='center';c.fillText('MPH',cx,cy+R*.36);
+  c.fillStyle='#9b9ea4';c.font=dFont(R*.095,600);c.textAlign='center';c.fillText(spdU().toUpperCase(),cx,cy+R*.36);
   const lw=R*.56,lh=R*.2;dLcdBox(c,cx-lw/2,cy+R*.45,lw,lh,R*.03);dLcdText(c,String(Math.round(mph)),cx,cy+R*.45+lh*.78,lh*.8,'center');
   c.save();c.translate(cx,cy);c.rotate(DASH.ndl);c.fillStyle=DASH.red;c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=R*.05;c.beginPath();c.moveTo(-R*.025,R*.08);c.lineTo(0,-R*.8);c.lineTo(R*.025,R*.08);c.closePath();c.fill();c.restore();
   const hb=c.createRadialGradient(cx-R*.03,cy-R*.03,0,cx,cy,R*.1);hb.addColorStop(0,'#6a6d73');hb.addColorStop(1,'#2a2c30');c.fillStyle=hb;c.beginPath();c.arc(cx,cy,R*.09,0,TAU);c.fill();
@@ -107,7 +107,7 @@ function pauseLayout(W_,H_,u){const m=u*.3,cw=Math.min(W_*.9,u*13.4),ch=Math.min
   L.lcd={x:x+pad,y:y+pad,w:cw-pad*2,h:u*.72};const top=L.lcd.y+L.lcd.h+u*.32,bot=y+ch-pad,lw=(cw-pad*3)*.54;L.left={x:x+pad,y:top,w:lw,h:bot-top};L.right={x:x+pad*2+lw,y:top,w:cw-pad*3-lw,h:bot-top};
   const add=(id,x,y,w,h,act,ex)=>{const o=Object.assign({id,x,y,w,h,act},ex||{});L.b.push(o);return o};
   const dr=Math.min(L.left.h*.36,u*1.05);add('drive',L.left.x,L.left.y+u*.05,dr*2,dr*2,()=>pauseClose(),{round:dr});
-  const rx0=L.left.x+dr*2+u*.35,rw=(L.left.x+L.left.w-rx0)/2;['fps','assist'].forEach((id,i)=>add(id,rx0+i*rw+rw/2-u*.32,L.left.y+u*.1,u*.64,u*.86,()=>{if(id=='fps')UI.showStats=!UI.showStats;else IN.auto=!IN.auto},{rocker:1}));
+  const rx0=L.left.x+dr*2+u*.25,rw=(L.left.x+L.left.w-rx0)/3;['fps','assist','units'].forEach((id,i)=>add(id,rx0+i*rw+rw/2-u*.3,L.left.y+u*.1,u*.6,u*.86,()=>{if(id=='fps')UI.showStats=!UI.showStats;else if(id=='units')unitsSet(!UNITS.imp);else IN.auto=!IN.auto},{rocker:1}));
   const ky=L.left.y+L.left.h-u*.62,kw=(L.left.w-u*.3*2)/3;['garage','map','reset'].forEach((id,i)=>add(id,L.left.x+i*(kw+u*.3),ky,kw,u*.6,()=>pauseKey(id),{key:1}));
   const kr=Math.min(L.right.w*.2,L.right.h*.27,u*.75);[['gfx',GFX_LBL],['sky',['DAY','OVERCAST','SUNSET']]].forEach(([id,lb],i)=>{const cx=L.right.x+L.right.w*(i?.77:.23),cy=L.right.y+L.right.h*.5;
     const kb=add(id,cx-kr,cy-kr,kr*2,kr*2,()=>pauseKnob(id,(PAUSE.k[id]+1)%lb.length),{knob:kr,cx,cy,labels:lb});
@@ -131,10 +131,10 @@ function pauseDraw(c,W_,H_,u){pauseSync();const L=pauseLayout(W_,H_,u),dt=dashDt
       const rg=c.createRadialGradient(cx-r*.15,cy-r*.25,r*.1,cx,cy,r*.88);rg.addColorStop(0,'#3d3f44');rg.addColorStop(1,'#141517');c.fillStyle=rg;c.beginPath();c.arc(cx,cy,r*.88,0,TAU);c.fill();
       c.strokeStyle='rgba(255,173,31,'+(.25+.25*Math.sin(performance.now()/400))+')';c.lineWidth=r*.06;c.beginPath();c.arc(cx,cy,r*.88,0,TAU);c.stroke();
       c.textAlign='center';c.fillStyle='#9b9ea4';c.font=dFont(r*.16,600);c.fillText('PRESS TO',cx,cy-r*.08);dLcdText(c,'DRIVE',cx,cy+r*.26,r*.32,'center')}
-    else if(b.rocker){const on=b.id=='fps'?UI.showStats:IN.auto;c.fillStyle='#0d0e0f';rr(c,b.x,b.y,b.w,b.h,u*.1);c.fill();
+    else if(b.rocker){const on=b.id=='fps'?UI.showStats:b.id=='units'?UNITS.imp:IN.auto;c.fillStyle='#0d0e0f';rr(c,b.x,b.y,b.w,b.h,u*.1);c.fill();
       const ix=b.x+b.w*.12,iy=b.y+b.h*.08,iw=b.w*.76,ih=b.h*.84,hi=on?iy+ih*.5:iy,lo=on?iy:iy+ih*.5;c.fillStyle='#2a2c30';rr(c,ix,iy,iw,ih,u*.07);c.fill();c.fillStyle='#3d3f44';rr(c,ix,lo,iw,ih*.5,u*.07);c.fill();
       c.fillStyle=on?'#5dff7a':'#24342a';if(on){c.shadowColor='#5dff7a';c.shadowBlur=u*.25}c.beginPath();c.arc(b.x+b.w/2,b.y+b.h*.24,u*.06,0,TAU);c.fill();c.shadowBlur=0;
-      c.fillStyle='#b5b2a8';c.font=dFont(u*.17,600);c.textAlign='center';c.fillText(b.id=='fps'?'FPS':'ASSIST',b.x+b.w/2,b.y+b.h+u*.24)}
+      c.fillStyle='#b5b2a8';c.font=dFont(u*.17,600);c.textAlign='center';c.fillText(b.id=='fps'?'FPS':b.id=='units'?(UNITS.imp?'MPH':'KM/H'):'ASSIST',b.x+b.w/2,b.y+b.h+u*.24)}
     else if(b.key){const d=dKey(c,b.x,b.y,b.w,b.h,u*.1,pr(b.id));c.fillStyle=b.id=='reset'?'#ff8a70':DASH.ink;c.font=dFont(u*.19,700);c.textAlign='center';c.fillText(b.id=='reset'?'RESET CAR':b.id.toUpperCase(),b.x+b.w/2,b.y+b.h*.64+d)}
     else if(b.knob){const r=b.knob,j=PAUSE.k[b.id],tg=pauseKnobAng(j,b.labels.length);PAUSE.ka[b.id]+=(tg-PAUSE.ka[b.id])*Math.min(1,dt*16);
       c.fillStyle='rgba(0,0,0,.5)';c.beginPath();c.arc(b.cx,b.cy+r*.08,r*1.04,0,TAU);c.fill();c.fillStyle='#0e0f10';c.beginPath();c.arc(b.cx,b.cy,r*1.02,0,TAU);c.fill();

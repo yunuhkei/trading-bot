@@ -187,7 +187,7 @@ function copHud(c,W_,H_,u){
     for(const k of TR.cars){if(!k.alive||k.kind!==1||k.cm<1||k.cm>2||k.state===1||n>=4)continue;const dx=k.x-C.x,dz=k.z-C.z,d=Math.hypot(dx,dz);if(d>320)continue;const rel=angd(Math.atan2(dx,-dz),cy);if(Math.abs(rel)<.62&&d<260)continue;   /* in front of you: you can see it */
       const x=W_*.5+Math.max(-1,Math.min(1,rel/1.6))*W_*.4,y=u*1.55,fl=((C.t*6+n)|0)%2==0;n++;
       c.fillStyle=fl?'#ff4a3a':'#4a7aff';c.beginPath();const s=u*.2,beh=Math.abs(rel)>1.9;if(beh){c.moveTo(x-s,y-s*.7);c.lineTo(x+s,y-s*.7);c.lineTo(x,y+s*.8)}else if(rel>0){c.moveTo(x-s*.7,y-s);c.lineTo(x-s*.7,y+s);c.lineTo(x+s*.9,y)}else{c.moveTo(x+s*.7,y-s);c.lineTo(x+s*.7,y+s);c.lineTo(x-s*.9,y)}c.closePath();c.fill();
-      c.fillStyle='#fff';c.fillText(Math.round(d)+' m',x,y+u*.5)}c.restore()}
+      c.fillStyle='#fff';c.fillText(fmtShort(d),x,y+u*.5)}c.restore()}
   if(COP.bust>.05){const k=Math.min(1,COP.bust/COP.D.bustT),w=u*3,h=u*.2,y=H_*.74;c.save();c.fillStyle='rgba(0,0,0,.55)';c.fillRect(W_*.5-w/2,y,w,h);c.fillStyle=((C.t*8)|0)%2?'#ff4a3a':'#4a7aff';c.fillRect(W_*.5-w/2,y,w*k,h);c.textAlign='center';c.font='800 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#fff';c.fillText('BUSTED?  keep moving!',W_*.5,y-u*.12);c.restore()}
   if(COP.spikeWarn>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ff8a3a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('SPIKE STRIP AHEAD',W_*.5,H_*.36);c.restore()}
   if(COP.warnT>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('ROADBLOCK AHEAD',W_*.5,H_*.3);c.restore()}}

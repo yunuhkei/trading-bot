@@ -71,7 +71,7 @@ function racerOffer(c){/* a town 1.2-3.5 km away that you can reach */let best=n
   const pr=ROADS.find(q=>q.id==best.P.road);if(!pr)return;const gi=Math.floor(pr.n/2),gx=pr.X[gi],gz=pr.Z[gi];
   const me={x:C.x,z:C.z,yaw:Math.atan2(C.vx,-C.vz)},Rp=evRoute(me,gx,gz),Rr=evRoute({x:c.x,z:c.z,yaw:c.yaw},gx,gz);if(!Rp||!Rr||Rp.len<800)return;
   const prize=Math.round(Rp.len/1000*1800/100)*100;
-  EV.card={offer:1,street:1,title:'STREET RACE',sub:'Race to '+best.P.name,lines:[[(Rp.len/1000).toFixed(1)+' km  ·  first there wins '+evMoney(prize),'#fff'],['the yellow car is waiting for your answer','#9cc8ff']],
+  EV.card={offer:1,street:1,title:'STREET RACE',sub:'Race to '+best.P.name,lines:[[fmtLen(Rp.len)+'  ·  first there wins '+evMoney(prize),'#fff'],['the yellow car is waiting for your answer','#9cc8ff']],
     btns:[{label:'RACE!',col:'#ff7a1a',act:()=>racerStreetStart(c,Rp,Rr,best.P.name,prize)},{label:'NO',col:'#8a94a6',act:()=>{EV.card=null;c.chal=-8}}]}}
 function racerStreetStart(c,Rp,Rr,name,prize){EV.card=null;if(!c.alive)return;const ev={id:'street',type:'race',street:1,name:'Street race to '+name,prize,R:Rp,cps:[],len:Rp.len,s:{x:C.x,z:C.z,y:C.y,yaw:C.yaw}};
   const n=Math.max(2,Math.round(Rp.len/300));for(let k=1;k<=n;k++){const S=Rp.len*k/n;let j=0;while(j<Rp.n-2&&Rp.S[j+1]<S)j++;const x=Rp.pts[j*3],y=Rp.pts[j*3+1],z=Rp.pts[j*3+2],dx=Rp.pts[j*3+3]-x,dz=Rp.pts[j*3+5]-z,l=Math.hypot(dx,dz)||1;ev.cps.push({x,y,z,nx:-dz/l,nz:dx/l})}
