@@ -20,7 +20,7 @@ async function boot(){
     if(QS.has('start')){const q=QS.get('start').split(',').map(Number);sx=q[0];sz=q[1];a=(q[2]||0)}
     else{/* start on the ring, in the right-hand carriageway */const nx=-Math.cos(a+0),nz=Math.sin(a);sx+=Math.cos(a)*5.6;sz+=Math.sin(a)*5.6}
     carPlace(sx,sz,a,sp.Y[i0]+.5);camStep(0,true);
-    TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.base=TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();safeInit();ECON.load();evInit();spotInit();
+    TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.base=TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();safeInit();ECON.load();upgLoad();carHandling(CAR_ROSTER[CARSEL.cur]);evInit();spotInit();
     if(QS.has('cops')){const q=QS.get('cops');if(q=='off')COP.on=false;else copSetDiff(q)}if(QS.get('safe')=='all')for(const k in SAFE.owned)SAFE.owned[k]=true;
     if(QS.get('cars')=='all')CAROWN.all=true;if(QS.has('car')){const n=parseInt(QS.get('car'));if(n>=0&&n<CAR_ROSTER.length){CAROWN.all=true;carSelect(n)}}
     BOOT.genMs=performance.now()-t0;

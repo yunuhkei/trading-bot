@@ -109,6 +109,7 @@ function carHandling(def){
   if(r.drive=='AWD'){HND.aBase*=1.03;HND.betaFast=B.betaFast*.85;HND.betaSlow=B.betaSlow*.9;HND.gripDrift=B.gripDrift*1.2;HND.driftFric=B.driftFric*1.08;HND.powerOS=0}
   else if(r.drive=='FR'||r.drive=='RWD'){HND.betaFast=B.betaFast*.95;HND.powerOS=_cl((hpkg-ref)*1.0,0,.22)}
   else if(r.drive=='MR'){HND.betaFast=B.betaFast*1.08;HND.gripDrift=B.gripDrift*.92;HND.omLow=HND.omLow*1.04;HND.powerOS=_cl((hpkg-ref)*.6,0,.15)}
+  upgApply(def);   /* (batch 20: the car's upgrades) */
   return HND}
 /* make car number i the car: body and handling */
 function carSelect(i){i=_cl(i|0,0,CAR_ROSTER.length-1);CARSEL.cur=i;const def=CAR_ROSTER[i];carHandling(def);if(G.gl){carInstall(def,carPaintOf(i));CARM.idx=i}

@@ -16,9 +16,9 @@ const carOwned=i=>CAROWN.all||!!CAROWN.owned[CAR_ROSTER[i].id];
 function carUnlock(id){if(CAR_ROSTER.some(d=>d.id==id)){CAROWN.owned[id]=true;carSave();if(ECON.onCarUnlock)ECON.onCarUnlock(id);return true}return false}
 const carPaintOf=i=>{const k=CAROWN.color[CAR_ROSTER[i].id]|0;return k>0?CAR_PAINTS[k]:null};
 /* the figures a car is described by, as 0..1 bars */
-function carStats(d){const r=d.real;return[['TOP SPEED',_cl((r.top-240)/200,.05,1),Math.round(r.top)+' km/h'],['ACCEL',_cl((4.9-r.t100)/2.8,.05,1),r.t100.toFixed(1)+' s to 100'],['GRIP',_cl((r.lat-.9)/.65,.05,1),r.lat.toFixed(2)+' g'],['BRAKES',_cl((41-r.brk)/18,.05,1),r.brk+' m from 100'],['LIGHTNESS',_cl((2000-r.kg)/1500,.05,1),r.kg+' kg']]}
+function carStats(d){const r=upgReal(d);return[['TOP SPEED',_cl((r.top-240)/200,.05,1),Math.round(r.top)+' km/h'],['ACCEL',_cl((4.9-r.t100)/2.8,.05,1),r.t100.toFixed(1)+' s to 100'],['GRIP',_cl((r.lat-.9)/.65,.05,1),r.lat.toFixed(2)+' g'],['BRAKES',_cl((41-r.brk)/18,.05,1),r.brk+' m from 100'],['LIGHTNESS',_cl((2000-r.kg)/1500,.05,1),r.kg+' kg']]}
 const DRV={RR:'rear-engine RWD',MR:'mid-engine RWD',FR:'front-engine RWD',AWD:'AWD',RWD:'RWD'};
-function menuOpen(){if(MENU.open)return;MENU.open=1;MENU.prevEnv=ENV.name;envApply('studio');MENU.i=CARSEL.cur;MENU.t=0;MENU.pi=CARSEL.cur;UI.stickT=null;IN.thr=IN.brk=IN.hand=IN.nitro=0}
+function menuOpen(){if(MENU.open)return;MENU.open=1;MENU.tab=0;MENU.prevEnv=ENV.name;envApply('studio');MENU.i=CARSEL.cur;MENU.t=0;MENU.pi=CARSEL.cur;UI.stickT=null;IN.thr=IN.brk=IN.hand=IN.nitro=0}
 function menuPreview(i){MENU.i=_cl(i,0,CAR_ROSTER.length-1);if(MENU.i!=CARM.idx){carInstall(CAR_ROSTER[MENU.i],carPaintOf(MENU.i));CARM.idx=MENU.i}}
 function menuClose(){if(MENU.garage&&MENU.open){garageLeave();return}menuCloseNow()}   /* (batch 19: out of the garage through the fade) */
 function menuCloseNow(){if(!MENU.open)return;MENU.garage=null;MENU.open=0;if(MENU.prevEnv)envApply(MENU.prevEnv);if(CARM.idx!=CARSEL.cur){carInstall(CAR_ROSTER[CARSEL.cur],carPaintOf(CARSEL.cur));CARM.idx=CARSEL.cur}}
@@ -32,11 +32,12 @@ function menuLayout(W_,H_,u){
   const b=[],m=u*.3,pw=Math.min(W_*.47,u*8.4),px=W_-pw-m,py=m,ph=H_-m*2,add=(id,x,y,w,h,act)=>b.push({id,x,y,w,h,act});
   add('prev',m,H_*.5-u*.45,u*.9,u*.9,()=>menuPreview(MENU.i-1));add('next',W_-pw-m*2-u*.9,H_*.5-u*.45,u*.9,u*.9,()=>menuPreview(MENU.i+1));
   const x0=px+m,iw=pw-m*2;let y=py+u*1.34;const L={px,py,pw,ph,m,x0,iw};
-  L.stats=y;y+=u*.3*5+u*.34;L.dotsLabel=y;y+=u*.1;const gs=u*.3,gap=(iw-15*gs)/14;L.gy=y;for(let k=0;k<CAR_ROSTER.length;k++)add('dot'+k,x0+(k%15)*(gs+gap),y+((k/15)|0)*(gs+u*.06),gs,gs,()=>menuPreview(k));L.gs=gs;y+=Math.ceil(CAR_ROSTER.length/15)*(gs+u*.06)+u*.2;
+  L.stats=y;y+=u*.27*5+u*.3;L.dotsLabel=y;y+=u*.08;const gs=u*.26,gap=(iw-15*gs)/14;L.gy=y;for(let k=0;k<CAR_ROSTER.length;k++)add('dot'+k,x0+(k%15)*(gs+gap),y+((k/15)|0)*(gs+u*.05),gs,gs,()=>menuPreview(k));L.gs=gs;y+=Math.ceil(CAR_ROSTER.length/15)*(gs+u*.05)+u*.18;
   L.paintLabel=y;y+=u*.08;L.sy=y;for(let k=0;k<CAR_PAINTS.length;k++)add('paint'+k,x0+k*(u*.385),y,u*.34,u*.34,()=>menuPaint(k));y+=u*.5;
-  {const hw2=(iw-m)/2;add('all',x0,y,hw2,u*.34,()=>menuUnlockAll());add('hnd',x0+hw2+m,y,hw2,u*.34,()=>{physSetClassic(!PHYS.classic);safeToast('Handling: '+(PHYS.classic?'CLASSIC (the old one)':'NEW'),2.5)})}y+=u*.42;L.by=y;const bw=(iw-m)/2;add('select',x0,y,bw,u*.5,()=>menuChoose());add('close',x0+bw+m,y,bw,u*.5,()=>menuClose());
+  {const hw2=(iw-m)/2;add('all',x0,y,hw2,u*.34,()=>menuUnlockAll());add('hnd',x0+hw2+m,y,hw2,u*.34,()=>{physSetClassic(!PHYS.classic);safeToast('Handling: '+(PHYS.classic?'CLASSIC (the old one)':'NEW'),2.5)})}y+=u*.42;L.by=y;if(MENU.garage){const bw=(iw-m*2)/3;add('select',x0,y,bw,u*.5,()=>menuChoose());add('upg',x0+bw+m,y,bw,u*.5,()=>{MENU.tab=1});add('close',x0+(bw+m)*2,y,bw,u*.5,()=>menuClose())}   /* (batch 20: UPGRADES, in a garage) */
+  else{const bw=(iw-m)/2;add('select',x0,y,bw,u*.5,()=>menuChoose());add('close',x0+bw+m,y,bw,u*.5,()=>menuClose())}
   L.b=b;return L}
-function menuDraw(c,W_,H_,u){
+function menuDraw(c,W_,H_,u){if(MENU.tab==1){upgDraw(c,W_,H_,u);return}
   const L=menuLayout(W_,H_,u),d=CAR_ROSTER[MENU.i],own=carOwned(MENU.i),cur=MENU.i==CARSEL.cur;MENU.btns=L.b;
   c.save();{const g=c.createLinearGradient(0,L.py,0,L.py+L.ph);g.addColorStop(0,'rgba(42,43,46,.96)');g.addColorStop(1,'rgba(24,25,27,.96)');c.fillStyle=g}rr(c,L.px,L.py,L.pw,L.ph,u*.24);c.fill();c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,L.px+.5,L.py+.5,L.pw-1,L.ph-1,u*.24);c.stroke();c.textAlign='left';
   if(MENU.garage){c.font=dLcd(u*.3);const gt=MENU.garage.toUpperCase(),gw=c.measureText(gt).width+u*.6;dLcdBox(c,u*.3,u*.3,gw,u*.55,u*.08);dLcdText(c,gt,u*.6,u*.3+u*.39,u*.3)}
@@ -45,7 +46,7 @@ function menuDraw(c,W_,H_,u){
   c.textAlign='right';c.fillStyle=own?(cur?'#7dffb0':'#9cc8ff'):'#ff9a4a';c.font=fs(.26,800);c.fillText(own?(cur?'YOUR CAR':'OWNED'):evMoney(ECON.carPrice(d.id)),L.px+L.pw-L.m,L.py+u*.62);c.textAlign='left';
   /* the figures */
   const st=carStats(d),bx=x0+L.iw*.3,bw=L.iw*.3,tx=x0+L.iw*.64;let y=L.stats+u*.14;
-  for(const[n,v,t]of st){c.fillStyle='rgba(255,255,255,.7)';c.font=fs(.19);c.fillText(n,x0,y);c.fillStyle='rgba(255,255,255,.12)';rr(c,bx,y-u*.16,bw,u*.15,u*.05);c.fill();c.fillStyle=DASH.amber;rr(c,bx,y-u*.16,Math.max(u*.1,bw*v),u*.15,u*.05);c.fill();c.fillStyle='rgba(255,255,255,.85)';c.font=fs(.18);c.fillText(t,tx,y);y+=u*.3}
+  for(const[n,v,t]of st){c.fillStyle='rgba(255,255,255,.7)';c.font=fs(.19);c.fillText(n,x0,y);c.fillStyle='rgba(255,255,255,.12)';rr(c,bx,y-u*.16,bw,u*.15,u*.05);c.fill();c.fillStyle=DASH.amber;rr(c,bx,y-u*.16,Math.max(u*.1,bw*v),u*.15,u*.05);c.fill();c.fillStyle='rgba(255,255,255,.85)';c.font=fs(.18);c.fillText(t,tx,y);y+=u*.27}
   c.fillStyle='rgba(255,255,255,.5)';c.font=fs(.18);c.fillText('CARS  (green = yours)',x0,L.dotsLabel);
   for(let k=0;k<CAR_ROSTER.length;k++){const bt=L.b.find(q=>q.id=='dot'+k),o=carOwned(k);c.fillStyle=k==MENU.i?'#fff':o?'#4be07a':'rgba(255,255,255,.25)';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,k==MENU.i?bt.w*.55:bt.w*.38,0,TAU);c.fill()}
   c.fillStyle='rgba(255,255,255,.5)';c.font=fs(.18);{const kk=CAROWN.color[d.id]|0,fn=CAR_FIN_NAME[kk>0?(CAR_PAINTS[kk].fin|0):(d.fin|0)]||'SOLID';c.fillText('PAINT  \u00b7  '+fn,x0,L.paintLabel)}
@@ -53,9 +54,10 @@ function menuDraw(c,W_,H_,u){
   const sb=L.b.find(q=>q.id=='all');c.fillStyle=CAROWN.all?'#4be07a':'rgba(255,255,255,.18)';rr(c,sb.x,sb.y,sb.w,sb.h,u*.1);c.fill();c.fillStyle=CAROWN.all?'#102016':'rgba(255,255,255,.85)';c.font=fs(.19,700);c.textAlign='center';c.fillText(CAROWN.all?'ALL CARS UNLOCKED':'UNLOCK ALL CARS',sb.x+sb.w/2,sb.y+sb.h*.68);
   {const hb=L.b.find(q=>q.id=='hnd');c.fillStyle=PHYS.classic?DASH.amber:'rgba(255,255,255,.18)';rr(c,hb.x,hb.y,hb.w,hb.h,u*.1);c.fill();c.fillStyle=PHYS.classic?'#201408':'rgba(255,255,255,.85)';c.fillText('HANDLING: '+(PHYS.classic?'CLASSIC':'NEW'),hb.x+hb.w/2,hb.y+hb.h*.68)}
   for(const id of['select','close']){const bt=L.b.find(q=>q.id==id),sel=id=='select';c.fillStyle=sel&&(own||ECON.money>=ECON.carPrice(d.id))?DASH.amber:'rgba(255,255,255,.18)';rr(c,bt.x,bt.y,bt.w,bt.h,u*.14);c.fill();c.fillStyle=sel&&(own||ECON.money>=ECON.carPrice(d.id))?'#111':'#fff';c.font=fs(.26,800);c.fillText(sel?(own?(cur?'DRIVE IT':'DRIVE THIS'):(ECON.money>=ECON.carPrice(d.id)?'BUY':'LOCKED')):'BACK',bt.x+bt.w/2,bt.y+bt.h*.66)}
+  {const bt=L.b.find(q=>q.id=='upg');if(bt){const dd=dKey(c,bt.x,bt.y,bt.w,bt.h,u*.14,DASH.press.upg&&performance.now()-DASH.press.upg<160);c.fillStyle=own?DASH.ink:'#6f6c66';c.font=fs(.24,800);c.textAlign='center';c.fillText('UPGRADES',bt.x+bt.w/2,bt.y+bt.h*.66+dd)}}
   if(!own){c.fillStyle='#ff9a4a';c.font=fs(.18);c.fillText('You have '+evMoney(ECON.money)+'  -  win events to earn more',L.px+L.pw/2,L.by+u*.66)}
   /* the arrows next to the car */
   c.textAlign='center';for(const id of['prev','next']){const bt=L.b.find(q=>q.id==id);c.fillStyle='rgba(8,10,16,.55)';c.beginPath();c.arc(bt.x+bt.w/2,bt.y+bt.h/2,bt.w/2,0,TAU);c.fill();c.fillStyle='#fff';c.font=fs(.55,800);c.fillText(id=='prev'?'‹':'›',bt.x+bt.w/2,bt.y+bt.h*.72)}
   c.restore()}
-function menuTap(x,y){for(let k=MENU.btns.length-1;k>=0;k--){const b=MENU.btns[k];if(x>=b.x-4&&x<=b.x+b.w+4&&y>=b.y-4&&y<=b.y+b.h+4){b.act();return true}}return false}
+function menuTap(x,y){for(let k=MENU.btns.length-1;k>=0;k--){const b=MENU.btns[k];if(x>=b.x-4&&x<=b.x+b.w+4&&y>=b.y-4&&y<=b.y+b.h+4){DASH.press[b.id]=performance.now();b.act();return true}}return false}
 function menuKey(code){if(code=='Escape'||code=='KeyC')menuClose();else if(code=='ArrowLeft')menuPreview(MENU.i-1);else if(code=='ArrowRight')menuPreview(MENU.i+1);else if(code=='Enter'||code=='Space')menuChoose()}

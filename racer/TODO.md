@@ -15,6 +15,7 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 3: police overhaul (`64_cops.js` fault rule, `STARS`, `copAhead`, stuck recovery; `67_police.js` helicopters and spike strips; interceptor, SUV, SWAT truck; minimap police only), tests `rheat.js`, `rpolice.js`. **Waiting for approval: a spike strip halves the grip for 4 s (the one exception to "damage never affects driving").**
 - Batch 4: supercars and looks (`CAR_STYLE`, creases / end shapes in `cgBody`, new lamps, `cgPlate` block font, paint finishes `uPt`, shader seams `uSm`, test `rlooks.js`); traffic: walking-pace bumps are not wrecks.
 
+- Batch 20: upgrades in the garage (engine, tyres, brakes, nitro, armour; three stages each, per car; `53_upg.js`).
 - Batch 19: the dashboard UI (instrument-cluster HUD, pause console with everything from the top-right bar), cars changed inside a garage room you drive into (`52_dash.js`).
 - Batch 18: landing a jump does no damage.
 - Batch 17: wild crashes become a slow-motion cinematic, then the car is back on the road where it was 1.5 s before, with a 3 s spawn shield (`43_crash.js`).
@@ -33,7 +34,6 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 5: flat tyres 7.8 s, car order, look-around camera, police you can lose (last seen place, own top speeds, lights off on patrol), taps do no damage, more traffic.
 
 ## Next (agreed with the owner, in this order)
-- Upgrades in the garage (to be talked through first).
 - Later: online multiplayer (an update or a part 2).
 
 ## Known, not fixed

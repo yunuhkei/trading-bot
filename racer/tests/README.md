@@ -246,3 +246,7 @@ Small differences from rounding are fine; a change of more than about 10 percent
 
 * `rdash` (new, in `run_quick.sh`): the HUD has only the hazard pause, the pedals, drift, nitro and the map; the pause console has DRIVE, the FPS and assist rockers, GARAGE / MAP / RESET CAR and the graphics and sky knobs, and each works; GARAGE on the road sets the route; parked on the home pad the card offers ENTER GARAGE / EVENTS / DRIVE ON; inside, the car is in the garage room with the car menu; leaving puts it back on the pad; the car menu does not open on the road.
 * `renv` and `rgfx` check the sky and graphics knobs of the console (the SKY and GFX buttons are gone); `revents` 6 opens EVENTS from the garage card.
+
+## Upgrades baseline (batch 20)
+
+* `rupg` (new, in `run_quick.sh`): stage-1 prices for the Kestrel S 2,500 / 2,000 / 1,750 / 2,000 / 1,500 (the fastest car's engine 24,250); no money -> "NEED $2,500"; engine +4 % top speed and +7 % pull per stage (x1.12 at stage 3), MAX after three; tyres +4 % grip, brakes +9 % braking, saved per car; nitro stage 2 burns 0.19 of the tank in a second of boost instead of 0.29; armour stage 3 leaves 0.83 health for the same damage instead of 0.73; the garage page draws and its BUY keys work.

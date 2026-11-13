@@ -115,13 +115,13 @@ function carStep(dt){
   let thr=IN.thr,brk=IN.brk;if(IN.auto&&!IN.brk)thr=1;
   /* nitro is a latch: one tap starts it, it runs until the tank is empty (or you brake / tap again), and it pushes even if you are not on the gas */
   if(IN.nitro&&(C.nos<=.015||brk>0))IN.nitro=0;
-  const nitroOn=IN.nitro?1:0;C.boosting=nitroOn;if(nitroOn){C.nos=Math.max(0,C.nos-dt*.30);thr=1}
+  const nitroOn=IN.nitro?1:0;C.boosting=nitroOn;if(nitroOn){C.nos=Math.max(0,C.nos-dt*.30*UPG.nosDrain);thr=1}
   /* the boost fades in and out (about 0.15 s in, 0.3 s out) instead of switching: the push, the top speed and the camera all follow this one number */
   C.boostK+=((nitroOn?1:0)-C.boostK)*(1-Math.exp(-dt*(nitroOn?13:6)));
-  const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*C.boostK)*DMG.spd,surf=C.onRoad?1:HND.grass;
+  const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*UPG.boost*C.boostK)*DMG.spd,surf=C.onRoad?1:HND.grass;
   /* ---- longitudinal: weighty launch, strong but not instant braking ---- */
   if(gr){
-    let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(PHYS.classic?(f<14?1:0):1-sstep(9,19,f)))*(1+.9*C.boostK)*DMG.acc}
+    let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(PHYS.classic?(f<14?1:0):1-sstep(9,19,f)))*(1+.9*UPG.boost*C.boostK)*DMG.acc}
     if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8*(PHYS.classic?1:clamp(1+f/PHYS.revMax,0,1))}   /* brake, then reverse (up to PHYS.revMax m/s) */
     a-=Math.sign(f)*(.35+af*af*.0004);                 /* rolling + air drag */
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */

@@ -14,7 +14,7 @@ function dmgInit(){const B=CARM.body;if(!B||!B.ab)return;DMG.pris=new Uint8Array
   /* the four lamps: the body vertex nearest each (their dent moves the glow with them) */
   const L=[[-CARL.hx,CARL.hy,CARL.hz],[CARL.hx,CARL.hy,CARL.hz],[-CARL.tx,CARL.ty,CARL.tz],[CARL.tx,CARL.ty,CARL.tz]],pf=DMG.pf16;DMG.lampV=L.map(p=>{let bi=0,bd=1e9;for(let v=0;v<B.nv;v++){const o=v*8,dx=pf[o]/8192-p[0],dy=pf[o+1]/8192-p[1],dz=pf[o+2]/8192-p[2],d=dx*dx+dy*dy+dz*dz;if(d<bd){bd=d;bi=v}}return bi});DMG.lampD.fill(0)}
 function dmgLamps(){const B=CARM.body;if(!DMG.lampV||!B||!B.f16)return;for(let i=0;i<4;i++){const o=DMG.lampV[i]*8;for(let a=0;a<3;a++)DMG.lampD[i*3+a]=(B.f16[o+a]-DMG.pf16[o+a])/8192}}
-function dmgHp(){return Math.max(0,1-DMG.total/DMG_POOL)}
+function dmgHp(){return Math.max(0,1-DMG.total/(DMG_POOL*(typeof UPG!='undefined'?UPG.arm:1)))}   /* (batch 20: armour makes the pool bigger) */
 /* damage is health and looks (dents, smoke) only: it NEVER changes how the car drives. The multipliers stay at 1 / 0 so the physics code does not have to know. */
 function dmgEffects(){const z=DMG.z,f=z[0],r=z[1];DMG.hp=dmgHp();
   DMG.spd=1;DMG.acc=1;DMG.pull=0;DMG.leak=0;DMG.fire=DMG.hp<.3?1:0;
