@@ -25,9 +25,9 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   const B=await T.ev(()=>{place('ring',.42,26,5);tumbleStart(0,0,-9,5,'test');return watch(16)});
   console.log('     roll     '+JSON.stringify(B));
   ok(B.tilt>150&&B.end>0&&B.end<14&&B.upright,'2 a roll at 26 m/s ends upside down or on a side (up to '+B.tilt+' degrees) and the car is a car again after '+B.end+' s');
-  /* 3 sliding sideways onto a kerb downtown at 24 m/s trips the car */
+  /* 3 sliding sideways onto a kerb downtown at 24 m/s: (batch 27) it does not trip the car any more */
   const Cc=await T.ev(()=>{const a=place('sfnu3',.5,0,4.5);C.vx=Math.cos(a)*24;C.vz=Math.sin(a)*24;return watch(12)});
-  ok(Cc.start>=0&&Cc.tilt>60&&Cc.end>0,'3 sliding sideways at 86 km/h into a kerb rolls the car ('+Cc.tilt+' degrees), it recovers after '+Cc.end+' s');
+  ok(Cc.start<0&&Cc.tilt<15,'3 sliding sideways at 86 km/h into a kerb no longer rolls the car (batch 27: a curb is only a rumble; tilt '+Cc.tilt+' degrees)');
   /* 4 normal driving does not tumble: flat out on the ring, braking hard, a hard drift */
   const D=await T.ev(()=>{const o={};const lane=()=>{const sn=navSnap(C.x,C.z,30);return sn?navLane(sn,C.x,C.z,Math.sin(C.yaw),-Math.cos(C.yaw)):null};
     const drive=(id,f,vmax,secs,drift)=>{place(id,f,15,5);const n0=TUM.n;let dist=0;for(let s=0;s<secs*120;s++){const ln=lane();let st=0;if(ln){const e=ln.e;trPt(e,Math.min(e.n-1,ln.u+Math.max(2,Math.round(C.speed*.5/e.ds+2))));st=clamp(angd(Math.atan2(_pt.x-C.x,-(_pt.z-C.z)),C.yaw)*1.6,-1,1)}

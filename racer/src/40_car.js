@@ -68,7 +68,7 @@ function deflect(nx,nz,vn,e,mu){
 const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5};
 function carPlace(x,z,yaw,yh){TUM.on=0;C.shield=0;CC.on=0;CC.scale=1;CC.fadeIn=0;TUM.rightT=0;C.flatT=0;C.orbY=C.orbP=0;C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6;C.flatT=0}
 function respawn(){TUM.on=0;TUM.rightT=0;IN.nitro=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1;C.dActive=0;C.dLast=null;C.grounded=1;C.air=0;C.liftT=0;C.kv=0;C.drift=0;C.slideT=0;C.tapN=0;C.tapT=0;C.dbK=0}
-const gw=(x,z,y)=>groundAt(x,z,y);
+const gw=(x,z,y)=>{RQS.soft=1;const g=groundAt(x,z,y);RQS.soft=0;return g};
 function carStep(dt){
   if(TUM.on){tumbleStep(dt);return}   /* a crash that rolls the car: a free rigid body until it is back on its wheels (42_tumble.js) */
   C.px=C.x;C.py=C.y;C.pz=C.z;C.pyaw=C.yaw;C.ppitch=C.pitch;C.proll=C.roll;
@@ -78,9 +78,9 @@ function carStep(dt){
   const hw=CD.hw,fo=CD.fo,ro=CD.ro;let sum=0,g0,g1,g2,g3;
   g0=gw(C.x+fx*fo-rx*hw,C.z+fz*fo-rz*hw,C.y);const on0=RQ.on;let nCb=RQ.cb;g1=gw(C.x+fx*fo+rx*hw,C.z+fz*fo+rz*hw,C.y);const on1=RQ.on;nCb+=RQ.cb;
   g2=gw(C.x-fx*ro-rx*hw,C.z-fz*ro-rz*hw,C.y);const on2=RQ.on;nCb+=RQ.cb;g3=gw(C.x-fx*ro+rx*hw,C.z-fz*ro+rz*hw,C.y);const on3=RQ.on;nCb+=RQ.cb;
-  /* CURBS: a wheel that climbs onto a sidewalk jolts the car and costs a little speed (0.7 % a wheel, on top of what the step itself takes); dropping off one is a smaller bump. The 15 cm step itself is in the ground heights above. */
-  if(nCb!=C.cbN){if(nCb>C.cbN&&C.grounded&&Math.abs(s)>17&&Math.abs(s)>.55*C.speed&&!PHYS.classic&&tumbleTrip(s,'curb'))return;if(C.grounded&&C.speed>1.5){const k=Math.abs(nCb-C.cbN),up=nCb>C.cbN,a=Math.min(1,.3+C.speed/25);C.shake=Math.min(1,C.shake+(up?.07:.035)*k*a);C.bob=Math.min(C.bob,up?-.035:-.02);if(up){const l=1-Math.min(.03,.007*k);f*=l;s*=l}C.curbT=C.t}C.cbN=nCb}
-  const gy=(g0+g1+g2+g3)*.25,wasOn=C.onRoad;C.onRoad=(on0+on1+on2+on3)>=2;if(wasOn&&!C.onRoad&&C.grounded&&Math.abs(s)>19&&Math.abs(s)>.6*C.speed&&!PHYS.classic&&tumbleTrip(s*.9,'road edge'))return;
+  /* CURBS (batch 27): the wheels roll up a curb as a gentle ramp (groundAt with RQS.soft), and a wheel going onto or off a sidewalk is only a light rumble */
+  if(nCb!=C.cbN){if(C.grounded&&C.speed>1.5){const k=Math.abs(nCb-C.cbN),up=nCb>C.cbN,a=Math.min(1,.3+C.speed/25);C.shake=Math.min(1,C.shake+(up?.025:.012)*k*a);C.curbT=C.t}C.cbN=nCb}   /* (batch 27) a curb is a rumble only: no speed lost, no jolt, no trip into a roll */
+  const gy=(g0+g1+g2+g3)*.25,wasOn=C.onRoad;C.onRoad=(on0+on1+on2+on3)>=2;
   const slope=((g0+g1)-(g2+g3))*.5/(fo+ro);       /* >0 nose up */
   const mr=((g1+g3)-(g0+g2))*.5/(2*hw),m2=1+slope*slope+mr*mr;   /* ground gradient: along the car (slope) and to its right (mr) */
   const tp=Math.atan2((g0+g1)*.5-(g2+g3)*.5,fo+ro),tr=Math.atan2((g1+g3)*.5-(g0+g2)*.5,hw*2);

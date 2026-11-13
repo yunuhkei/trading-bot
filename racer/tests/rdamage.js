@@ -48,23 +48,25 @@ const L=require('./rlib.js');
   /* 5. wrecked -> the end screen -> back at the garage, repaired */
   const W=await T.ev(()=>{const {IN,UI}=RACER;const r=ROADS.find(q=>q.id=='ring'),i=Math.round(r.n*.5);RACER.carPlace(r.X[i],r.Z[i],0,r.Y[i]+.5);dmgReset();
     const home=SAFE.pads.find(s=>s.id=='home'),d0=Math.hypot(C.x-home.pad.x,C.z-home.pad.z);
-    for(let k=0;k<4;k++){impactAdd(0,30,0,0,C.x,C.z,0,1);dmgConsume()}dmgEffects();const wr=DMG.wrecked,st=(gameStep(.01),GAME.state);let locked=GAME.lock;
+    for(let k=0;k<5;k++){impactAdd(0,30,0,0,C.x,C.z,0,1);dmgConsume();C.t+=3}dmgEffects();   /* (batch 27: five separate crashes; one crash takes at most 24 %) */const wr=DMG.wrecked,st=(gameStep(.01),GAME.state);let locked=GAME.lock;
     for(let s=0;s<120*4;s++)RACER.worldStep(1/120);
     return{wr,st,locked,after:GAME.state,lockAfter:GAME.lock,hp:DMG.hp,dist:Math.hypot(C.x-home.pad.x,C.z-home.pad.z),d0:Math.round(d0),speed:C.speed,toast:SAFE.msg}});
-  ok(W.wr===1&&W.st===1,'5 four 30 m/s wall hits wreck the car (wrecked '+W.wr+', end screen state '+W.st+')');
+  ok(W.wr===1&&W.st===1,'5 five separate 30 m/s wall hits wreck the car (wrecked '+W.wr+', end screen state '+W.st+')');
   ok(W.after===0&&W.hp===1,'5 four seconds later the game is running again with the car repaired (health '+W.hp+')');
   ok(W.dist<6,'5 and it is on the Home Garage pad ('+W.dist.toFixed(1)+' m from its centre, it was '+W.d0+' m away): "'+W.toast+'"');
   /* 6. the health bar is ONE pool of crash energy: it follows the energy, and a crushed front alone does not wreck you */
-  const H=await T.ev(()=>{RACER.carPlace(4000,-3000,0,100);dmgReset();GAME.state=0;GAME.lock=0;const out={};
+  const H=await T.ev(()=>{RACER.carPlace(4000,-3000,0,100);dmgReset();GAME.state=0;GAME.lock=0;const out={};CC.enabled=false;   /* (no crash movie here: no world steps run, it would hold one crash open) */
     impactAdd(0,25,190e3,0,C.x,C.z,0,1);dmgConsume();dmgEffects();out.one=DMG.hp;
     dmgReset();DMG.z[0]=1;DMG.z[1]=1;dmgEffects();out.zones={hp:DMG.hp,wr:DMG.wrecked};
     dmgReset();impactAdd(0,60,1.16e6,0,C.x,C.z,0,1);dmgConsume();dmgEffects();out.big={hp:DMG.hp,wr:DMG.wrecked,front:DMG.z[0]};
-    impactAdd(0,60,1.16e6,0,C.x,C.z,0,1);dmgConsume();dmgEffects();out.two={hp:DMG.hp,wr:DMG.wrecked};
-    dmgReset();for(let k=0;k<9;k++){impactAdd(0,25,190e3,0,C.x,C.z,0,1);dmgConsume()}dmgEffects();out.nine={hp:DMG.hp,wr:DMG.wrecked};dmgReset();return out});
+    impactAdd(0,60,1.16e6,0,C.x,C.z,0,1);dmgConsume();dmgEffects();out.same={hp:DMG.hp,wr:DMG.wrecked};                       /* a second big hit in the same crash (within 2 s) */
+    dmgReset();const four=[];for(let k=0;k<5;k++){impactAdd(0,60,1.16e6,0,C.x,C.z,0,1);dmgConsume();dmgEffects();four.push(+DMG.hp.toFixed(2));C.t+=3}out.four=four;out.two={wr:DMG.wrecked};
+    dmgReset();for(let k=0;k<9;k++){impactAdd(0,25,190e3,0,C.x,C.z,0,1);dmgConsume();C.t+=3}dmgEffects();out.nine={hp:DMG.hp,wr:DMG.wrecked};dmgReset();CC.enabled=true;return out});
   ok(H.one>.88&&H.one<.94,'6 one 25 m/s hit into a parked car (190 kJ) costs about 9 % of the health bar (left '+H.one.toFixed(2)+')');
   ok(H.zones.hp===1&&H.zones.wr===0,'6 crushed front and rear zones alone do not wreck you (health '+H.zones.hp+', wrecked '+H.zones.wr+')');
-  ok(H.big.wr===0&&H.big.hp>.4&&H.big.front===1,'6 one 60 m/s hit into a car (1.16 MJ) crushes the front but leaves '+(H.big.hp*100).toFixed(0)+' % health, not wrecked');
-  ok(H.two.wr===1,'6 a second one wrecks you (health '+H.two.hp.toFixed(2)+')');
+  ok(H.big.wr===0&&Math.abs(H.big.hp-.76)<.01&&H.big.front===1,'6 one 60 m/s hit into a car (1.16 MJ) crushes the front but takes only 24 % (batch 27: the most one crash can take): '+(H.big.hp*100).toFixed(0)+' % left');
+  ok(Math.abs(H.same.hp-.76)<.01,'6 a second big hit in the same crash adds nothing ('+(H.same.hp*100).toFixed(0)+' %)');
+  ok(H.four[3]>.03&&H.four[3]<.06&&H.two.wr===1,'6 four bad crashes leave you at '+Math.round(H.four[3]*100)+' %, the fifth wrecks you ('+H.four.join(', ')+')');
   ok(H.nine.wr===0&&H.nine.hp>.2,'6 nine 25 m/s hits in a row are survived ('+(H.nine.hp*100).toFixed(0)+' % left)');
   console.log('errs',T.errs);ok(T.errs.length==0,'no page errors');await T.close();process.exit(bad?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});

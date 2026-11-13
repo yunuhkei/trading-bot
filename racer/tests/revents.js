@@ -13,7 +13,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
       const vt=Math.min(vmax,bend>.05?Math.sqrt(9*45/bend):vmax);C.steer=clamp(angd(h0,C.yaw)*1.8,-1,1);IN.thr=C.speed<vt?1:0;IN.brk=C.speed>vt+3?1:0}});
   /* 1 the list */
   const A=await T.ev(()=>({n:EV.list.length,tr:EV.list.filter(e=>e.type=='trial').map(e=>[e.id,Math.round(e.len),e.cps.length]),es:EV.list.filter(e=>e.type=='escape').length,rg:EV.list.filter(e=>e.type=='rage').length,onRoad:EV.list.every(e=>roadAt(e.s.x,e.s.z,e.s.y+1))}));
-  ok(A.n==20&&A.tr.length==8&&A.es==4&&A.rg==3&&A.tr.every(t=>t[1]>1000&&t[2]>=4)&&A.onRoad,'1 20 events: 8 time trials ('+A.tr.map(t=>t[0]+' '+(t[1]/1000).toFixed(1)+' km').join(', ')+') 4 escapes, 3 road rages, 3 races and 2 death races, every start on a road');
+  ok(A.n==20&&A.tr.length==8&&A.es==4&&A.rg==3&&A.tr.every(t=>t[1]>1000&&t[2]>=4)&&A.onRoad,'1 20 events: 8 time trials ('+A.tr.map(t=>t[0]+' '+(t[1]/1000).toFixed(1)+' km').join(', ')+') 4 escapes, 3 takedowns, 3 races and 2 death races, every start on a road');
   /* 2 the marker card */
   const B=await T.ev(()=>{const ev=EV.list[0];RACER.carPlace(ev.s.x,ev.s.z,ev.s.yaw,ev.s.y+.5);for(let s=0;s<30;s++)RACER.worldStep(1/120);const o={title:EV.card&&EV.card.title,sub:EV.card&&EV.card.sub};EV.card.btns[1].act();for(let s=0;s<30;s++)RACER.worldStep(1/120);o.after=!!EV.card;return o});
   ok(B.title=='TIME TRIAL'&&B.sub=='Ring Sprint'&&!B.after,'2 stopping on a marker offers the event ("'+B.title+': '+B.sub+'"); NOT NOW puts it away');
@@ -53,14 +53,26 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(G.free==0&&G.cheap<G.dear,'6 prices follow speed: the starter is free, the slowest car '+G.cheap+', the fastest '+G.dear);
   ok(G.garage&&G.left==5000,'6 stopping on a locked garage with 20,000 buys it for 15,000');
   console.log(JSON.stringify(G.dbg));ok(G.garage=='ENTER GARAGE/EVENTS/DRIVE ON'&&G.list=='EVENTS'&&G.items==21,'6 parked in your garage, the garage card ('+G.garage+'), EVENTS lists all 20 events (and BACK)');
-  /* 7 road rage: a row of parked cars down the ring; every wreck counts and adds 4 s */
-  const H=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='r_ring');const m0=ECON.money;evStart(ev);for(let s=0;s<120*3.2;s++)RACER.worldStep(1/120);const r=ROADS.find(q=>q.id=='ring'),e=LG.ofRoad[ROADS.indexOf(r)][0][0];const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw);
-    const sn=navSnap(C.x,C.z,30),la=navLane(sn,C.x,C.z,fx,fz);for(let k=0;k<8;k++){const c=trPlace(la.e,Math.min(la.e.n-2,(la.u+10+k*11)%la.e.n),0,1,0,900+k);if(c){c.v0f=0;c.v=0}}   /* standing cars in your lane */
-    const row=TR.cars.filter(c=>c.alive&&c.seed>=900&&c.seed<908);const w0=EV.run.wrecks;for(let s=0;s<120*25&&EV.run;s++){const tg=row.find(c=>c.state==0&&((c.x-C.x)*Math.sin(C.yaw)-(c.z-C.z)*Math.cos(C.yaw))>-2);if(tg)C.steer=clamp(angd(Math.atan2(tg.x-C.x,-(tg.z-C.z)),C.yaw)*2,-1,1);IN.thr=C.speed<17?1:0;RACER.worldStep(1/120)}const o={wrecks:EV.run?EV.run.wrecks:-1,bonus:EV.run?EV.run.bonus:-1,cops:COP.on};
-    for(let s=0;s<120*120&&EV.run;s++){IN.thr=0;RACER.worldStep(1/120)}IN.thr=0;o.card=EV.card&&EV.card.title;o.lines=EV.card&&EV.card.lines.map(l=>l[0]);o.paid=ECON.money-m0;o.copsAfter=COP.on;return o});
+  /* 7 TAKEDOWN (batch 27, it replaced road rage): a pack of 6 racers sets off ahead of you; only racers count, +5 s each; light traffic while it runs; a racer stuck for 5 s is put back on the route */
+  const H=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='k_ring');const m0=ECON.money;const o={};o.tgt0=trTarget();evStart(ev);const r=EV.run;o.n=r.racers.length;
+    o.ahead=r.racers.map(c=>Math.round(c.race.s)).sort((a,b)=>a-b);o.tgt=trTarget();o.cops=COP.on;
+    for(let s=0;s<120*3.5;s++)RACER.worldStep(1/120);o.go=r.racers.every(c=>c.race.go);
+    /* a traffic car wrecked in front of you does not count */
+    {const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),sn=navSnap(C.x,C.z,30),la=navLane(sn,C.x,C.z,fx,fz),c=trPlace(la.e,Math.min(la.e.n-2,la.u+3),0,1,0,901);if(c){evTakedown(c)}o.civ=r.wrecks}
+    /* ram the nearest racer from behind at speed */
+    const tg=r.racers.filter(c=>c.alive&&c.state==3).sort((a,b)=>a.race.s-b.race.s)[0],hx=Math.sin(tg.yaw),hz=-Math.cos(tg.yaw);RACER.carPlace(tg.x-hx*14,tg.z-hz*14,tg.yaw,tg.y+.5);const v=tg.v+30;C.vx=hx*v;C.vz=hz*v;
+    for(let s=0;s<120*2&&tg.state==3;s++){C.steer=clamp(angd(Math.atan2(tg.x-C.x,-(tg.z-C.z)),C.yaw)*2,-1,1);IN.thr=1;RACER.worldStep(1/120)}IN.thr=0;o.wrecks=r.wrecks;o.bonus=r.bonus;o.tgState=tg.state;
+    /* a racer held still for 5.5 s is put back on the route further on */
+    const st=r.racers.find(c=>c.alive&&c.state==3&&c!==tg);const s0=st.race.s;let moved=-1;for(let s=0;s<120*6;s++){if(moved<0){st.v=0;st.vx=st.vz=0;st.x=st.px;st.z=st.pz}const was=st.race.s;RACER.worldStep(1/120);if(moved<0&&st.race.s>was+15)moved=+(s/120).toFixed(1)}o.respot=moved;o.respotGain=Math.round(st.race.s-s0);
+    /* the rest get away: wreck them out of the event and it ends */
+    for(const c of r.racers)if(c.alive&&c.state==3&&c.race)c.race.done=EV.t;for(let s=0;s<30;s++)RACER.worldStep(1/120);
+    o.card=EV.card&&EV.card.title;o.lines=EV.card&&EV.card.lines.map(l=>l[0]);o.paid=ECON.money-m0;o.copsAfter=COP.on;EV.card=null;return o});
   console.log('     '+JSON.stringify(H));
-  ok(H.wrecks>=3&&H.bonus==H.wrecks*4&&!H.cops,'7 road rage: driving down a row of cars wrecks '+H.wrecks+' (+'+H.bonus+' s on the clock), no police');
-  ok(H.card=='TIME UP'&&H.copsAfter,'7 at the end: '+(H.lines||[]).join(', ')+', the police are back');
+  ok(H.n==6&&H.ahead[0]>=50&&H.ahead[5]<=320&&H.go&&!H.cops,'7 takedown: 6 racers set off '+H.ahead[0]+'-'+H.ahead[5]+' m ahead of you, no police');
+  ok(H.tgt<H.tgt0*.75,'7 light traffic while racers race: '+H.tgt+' cars wanted round you, '+H.tgt0+' before');
+  ok(H.civ==0&&H.wrecks==1&&H.bonus==5&&H.tgState==1,'7 a wrecked traffic car does not count; ramming a racer takes it down: '+H.wrecks+' (+'+H.bonus+' s)');
+  ok(H.respot>=4.9&&H.respot<6&&H.respotGain>=20,'7 a racer stuck for '+H.respot+' s is put back on the route '+H.respotGain+' m further on');
+  ok(H.card=='TAKEDOWN OVER'&&H.copsAfter&&/1 OF 6/.test((H.lines||[]).join()),'7 when the rest get away: '+(H.lines||[]).join(', ')+', the police are back');
   /* 8 speed trap, jump spot, drift zone */
   const K=await T.ev(()=>{const o={};EV.card=null;for(const sp of SPOTS.list)delete EV.rec[sp.id];const m0=ECON.money;
     const tr=SPOTS.list.find(s=>s.type=='trap');const yaw=Math.atan2(tr.t[0],-tr.t[1]);RACER.carPlace(tr.x-tr.t[0]*120,tr.z-tr.t[1]*120,yaw,tr.y+.5);C.vx=tr.t[0]*50;C.vz=tr.t[1]*50;

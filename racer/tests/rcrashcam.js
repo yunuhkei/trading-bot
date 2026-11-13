@@ -21,7 +21,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     place();drive(1);C.vx*=.15;C.vz*=.15;tumbleStart(0,0,1.6,1.2,'slow');let wild=false;for(let s=0;s<120*3;s++){RACER.worldStep(1/120);if(CC.on)wild=true}o.slow={wild,tum:TUM.on||TUM.rightT>0};
     /* 6 (batch 25) a medium crash (a roll that starts at 20 m/s) does not start it; a tap skips it, but not in the first 1.5 s */
     place();C.vx*=20/28;C.vz*=20/28;tumbleStart(0,0,9,7,'medium');let med=false;for(let s=0;s<120*2;s++){RACER.worldStep(1/120);if(CC.on)med=true}o.med=med;for(let s=0;s<120*8&&(TUM.on||CC.on);s++)RACER.worldStep(1/120);
-    place();drive(3);tumbleStart(0,0,9,7,'skip');for(let s=0;s<120*.6;s++)RACER.worldStep(1/120);o.skipEarly=CC.on?crashSkip():null;let k=0;while(CC.on&&CC.t<1.6&&k++<2000)RACER.worldStep(1/120);o.skipLate=crashSkip();
+    place();drive(3);tumbleStart(0,0,9,7,'skip');for(let s=0;s<120*.3;s++)RACER.worldStep(1/120);   /* (batch 27: the movie starts with the tumble; 0.3 s of slow motion is 1 s of real time) */o.skipEarly=CC.on?crashSkip():null;let k=0;while(CC.on&&CC.t<1.6&&k++<2000)RACER.worldStep(1/120);o.skipLate=crashSkip();
     const t0=CC.t;k=0;while(CC.on&&k++<2000)RACER.worldStep(1/120);o.skipEnds=+(CC.t-t0).toFixed(2);o.skipOn=CC.on;C.shield=0;
     /* 5 off: the old righting only */
     CC.enabled=false;place();drive(2);tumbleStart(0,0,9,7,'off');let on5=false;for(let s=0;s<120*2;s++){RACER.worldStep(1/120);if(CC.on)on5=true}o.off=on5;CC.enabled=true;

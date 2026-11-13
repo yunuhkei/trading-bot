@@ -15,20 +15,29 @@ const COPD={
    attempts, roadblocks of 6 with heavy trucks. types: the police vehicles that chase at that level (4 patrol, 20 interceptor, 21 SUV, 22 SWAT truck). */
 const STARS=[{types:[4]},{types:[4],pit:0,block:0,heli:0,spikes:0,ramMul:1},{types:[4,20],pit:0,block:0,heli:0,spikes:0,ramMul:1},{types:[4,20,21],pit:1,block:4,heli:0,spikes:0,ramMul:.85},
   {types:[20,21,4],pit:1,block:5,heli:1,spikes:1,ramMul:.7},{types:[20,21,22],pit:1,block:6,heli:3,spikes:1,ramMul:.4}];
+/* (batch 27) LOCK-ON: cops have to be close to see you (a crime counts only with a cop within 60 m, or 120 m in clear sight; a patrol notices you the same way), but once they
+   are after you they always know where you are while any police car (chasing, wrecked or in a roadblock) is within a mile (COP_LOCK); reinforcements come only while one is within
+   600 m. Put a mile between you and the nearest one and within about 5 s the heat is gone. */
+const COP_LOCK=1609,COP_SEE=120,COP_NEAR=60;
+/* the call that goes out with a crime: when and where it happened (for 20 s they know you are near there; reinforcements are sent there for 15 s) */
+function copCall(){COP.callT=0;COP.callX=C.x;COP.callZ=C.z}
+const copCallD=()=>COP.callX===undefined?1e9:Math.hypot(C.x-COP.callX,C.z-COP.callZ);
+function copWitness(){for(const c of TR.cars){if(!c.alive||c.kind!==1)continue;const d=Math.hypot(c.x-C.x,c.z-C.z);if(d<COP_NEAR||(d<COP_SEE&&c.state!==1&&copLos(c)))return true}
+  for(const h of HELI.list)if(!h.leave&&Math.hypot(h.x-C.x,h.z-C.z)<220)return true;return false}
 const COP={on:true,D:COPD.forgiving,diff:'forgiving',heat:0,w:0,t:0,sightT:99,minD:1e9,bust:0,spawnT:2,nC:0,nP:0,sirenVol:0,lastBlock:-99,warnT:0,heatT:0,seenNow:false,rbN:0};
 function copSetDiff(n){if(COPD[n]){COP.D=COPD[n];COP.diff=n}}
 /* ---- heat ---- */
 function copLevelOf(){const t=COP.D.thr;let L=0;for(let i=1;i<6;i++)if(COP.w>=t[i]*(i<=COP.heat?.7:1))L=i;return L}
 /* what gets you chased (and nothing else does): you hit a cop car, you blow past a cop at 120 mph or more, you crash into another car. level = the number of stars it is worth at least */
 function copTrigger(level,why){
-  if(!COP.on||GAME.state||!TR.on)return;(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:why||'?',level});if(COP.crimes.length>40)COP.crimes.shift();const t=COP.D.thr;
+  if(!COP.on||GAME.state||!TR.on)return;if(why!=='hit a cop'&&why!=='event'&&!copWitness())return;(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:why||'?',level});if(COP.crimes.length>40)COP.crimes.shift();const t=COP.D.thr;
   if(COP.w<t[level]+1)COP.w=t[level]+1;else COP.w+=(t[Math.min(5,level+1)]-t[level])*.3;
-  if(COP.w>t[5]*1.3)COP.w=t[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=0}
+  if(COP.w>t[5]*1.3)COP.w=t[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=0;copCall()}
 /* how fast a chaser may go: it matches you (a little more), never less than the difficulty's top, and gets a boost the further behind it falls, so it keeps coming */
 /* how fast a police car can go (batch 5): its own top speed, the difficulty's top (Forgiving 58 m/s, 130 mph) times its type (interceptor 1.25, SUV 0.95, SWAT truck 0.8). They no longer match your speed: a fast car
    driven flat out pulls away, and out of sight you lose them. Within 45 m and in sight one may push a little past it to make a ram. */
 function copTop(c){const D=COP.D;let t=D.top*(c?(TTYPES[c.type]&&TTYPES[c.type].vtop)||1:1);if(c&&COP.sightT<1.5&&Math.hypot(c.x-C.x,c.z-C.z)<45)t=Math.max(t,Math.min(C.speed+6,t*1.12));return Math.min(115,t)}
-function heatAdd(p){if(!COP.on||GAME.state||!TR.on)return;COP.w+=p*COP.D.ev;if(COP.w>COP.D.thr[5]*1.3)COP.w=COP.D.thr[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=Math.min(COP.sightT,.2)}
+function heatAdd(p){if(!COP.on||GAME.state||!TR.on)return;COP.w+=p*COP.D.ev;if(COP.w>COP.D.thr[5]*1.3)COP.w=COP.D.thr[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=Math.min(COP.sightT,.2);copCall()}
 /* wipe the heat and send the chasers home (full: they disappear, as when you reach a garage) */
 function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;SPIKE.list.length=0;if(full)HELI.list.length=0;
   for(const c of TR.cars){if(!c.alive||c.kind!==1)continue;if(c.cm==3||(full&&c.cm>0))trKill(c,0);else if(c.cm>0)copStandDown(c)}}
@@ -136,35 +145,36 @@ function copRoadblock(){
 /* ---- the tick: sight, heat, who chases, spawns, boxing in ---- */
 function copTick(dt){
   if(!COP.on||!TR.on||GAME.state)return;
-  const D=COP.D,cars=TR.cars;COP.t+=dt;COP.heatT+=dt;if(COP.warnT>0)COP.warnT-=dt;if(COP.spawnT>0)COP.spawnT-=dt;
-  const ps=C.speed;let nC=0,nP=0,seen=false,minD=1e9,nNear=0,nFree=0,minChase=1e9;
+  const D=COP.D,cars=TR.cars;COP.t+=dt;COP.heatT+=dt;COP.callT=(COP.callT||0)+dt;if(COP.warnT>0)COP.warnT-=dt;if(COP.spawnT>0)COP.spawnT-=dt;
+  const ps=C.speed;let nC=0,nP=0,seen=false,minD=1e9,nNear=0,nFree=0,minChase=1e9,lockD=1e9;
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive||c.kind!==1)continue;
+    {const d=Math.hypot(c.x-C.x,c.z-C.z);if(c.cm>=1&&d<lockD)lockD=d}   /* (batch 27) the nearest police car that is after you, of any kind */
     if(c.cm==3){if(c.life!==undefined&&Math.hypot(c.x-C.x,c.z-C.z)>330&&((c.x-C.x)*C.vx+(c.z-C.z)*C.vz)<0)trKill(c,0);continue}
     if(c.state==1)continue;                                 /* a wrecked cop is out of it */
     const d=Math.hypot(c.x-C.x,c.z-C.z);if(c.cm==0)nP++;else{nC++;if(d<minChase)minChase=d}
     if(d<minD)minD=d;
     if(((TR.tk|0)+i)%15==0||c.los===null)c.los=d<300&&copLos(c);
-    if((c.los&&d<300)||(c.cm>=1&&d<60))seen=true;      /* in sight, or a chaser right on you (it used to be anything within loseD, so they always knew where you were) */
-    if(c.cm>=1&&d>520){trKill(c,0);if(COP.sightT<2.5)COP.farSpawn=1;continue}  /* a chaser that fell hopelessly behind is replaced by a fresh one 260-350 m behind you */
+    if(c.cm>=1&&d>COP_LOCK+250){trKill(c,0);continue}  /* (batch 27) a chaser more than a mile behind has lost you for good (it is no longer replaced by a fresh one close behind you) */
     if(c.cm==0&&ps>=D.passV&&d<55&&COP.t-(c.clk||-99)>14){c.clk=COP.t;copTrigger(1,'speeding past a cop')}   /* you blow past a cop at 120 mph or more */
     if(c.cm>=1&&d<10)nNear++;
     if(c.state==3)nFree++;
     /* alert: a patrol within earshot joins the chase once the heat has been on for a moment */
-    if(COP.heat>0&&c.cm==0&&COP.heatT>D.react&&(d<120||(c.los&&d<300)))copAlert(c);   /* a patrol joins when it sees you (it used to join from anywhere within 520 m, so a patrol ahead of you always turned into a chaser) */
+    if(COP.heat>0&&c.cm==0&&COP.heatT>D.react&&(d<COP_NEAR||(c.los&&d<COP_SEE)))copAlert(c);   /* a patrol joins when it sees you (it used to join from anywhere within 520 m, so a patrol ahead of you always turned into a chaser) */
     if(c.cm>=1){
       if(COP.heat==0||COP.sightT>D.loseT+2){copStandDown(c);continue}
       if(c.state==0){if((d<115&&c.los)||d<40)copDetach(c)}
       else if(c.state==3){if(d>210||c.stk>3.2)copAttach(c)}}}
+  if(COP.heat>0&&(lockD<COP_LOCK||(COP.callT<20&&copCallD()<COP_LOCK)))seen=true;COP.lockD=lockD;   /* (for 20 s after a crime the call says where you are, before any car has arrived) */
   COP.nC=nC;COP.nP=nP;COP.minD=minD;COP.seenNow=seen;
   /* roles for the free chasers, nearest first */
   if(nFree){let k=0;const free=[];for(let i=0;i<TRN;i++){const c=cars[i];if(c.alive&&c.kind===1&&c.state==3)free.push(c)}free.sort((a,b)=>Math.hypot(a.x-C.x,a.z-C.z)-Math.hypot(b.x-C.x,b.z-C.z));for(const c of free)c.role=k++}
   COP.snapT=(COP.snapT||0)-dt;if(COP.snapT<=0){COP.snapT=.35;NAV.pl=navSnap(C.x,C.z,70)}        /* where you are on the road network, for the chasers' routes and spawns */
   if(seen)COP.sightT=0;else COP.sightT+=dt;
   if(COP.sightT<1||COP.lkx===undefined){COP.lkx=C.x;COP.lkz=C.z;COP.lkyaw=C.yaw;COP.lkPl=NAV.pl}   /* the last place they saw you */
-  if(COP.heat>0&&COP.sightT>D.loseT&&minChase>40){COP.w=Math.max(0,COP.w-D.decay*dt);COP.heat=copLevelOf()}
+  if(COP.heat>0&&COP.sightT>3){COP.w=Math.max(0,COP.w-Math.max(D.decay,COP.w*.8)*dt);if(COP.w<1)COP.w=0;COP.heat=copLevelOf()}   /* (batch 27) a mile clear: gone within about 5 s */
   /* spawns */
   if(COP.spawnT<=0){
-    if(COP.heat>0){const want=D.chaseN[COP.heat];if(nC<want&&(COP.sightT<2.5||COP.heatT<15)){   /* sent while they can see you, and for 15 s after a new crime (the call goes out with where it happened) */if(trSpawnCop(true,COP.farSpawn)){COP.spawnT=1.4;COP.farSpawn=0}else COP.spawnT=.5}}
+    if(COP.heat>0){const want=D.chaseN[COP.heat];if(nC<want&&(lockD<600||(COP.callT<15&&copCallD()<600))){   /* (batch 27) reinforcements while a police car is within 600 m of you, and for 15 s after a new crime (the call goes out) */if(trSpawnCop(true,false)){COP.spawnT=1.4}else COP.spawnT=.5}}
     else if(nP<D.patrol&&TR.nAlive<TRN-8&&COP.t-(COP.lastPatrol||-99)>110&&DISTRICT_BOXES.some(B=>inBox(C.x,C.z,B,350))){if(trSpawnCop(false)){COP.spawnT=1.6;COP.lastPatrol=COP.t}else COP.spawnT=1}}   /* patrols are rare (batch 9): one at a time (two on Hard), a new one at most every 110 s, and only in or near a town or city: none on the country highways */
   /* roadblock */
   if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>40&&COP.sightT<1.5&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<6)copRoadblock()}
@@ -181,13 +191,13 @@ function copHud(c,W_,H_,u){
   if(!COP.on||!TR.on)return;const L=COP.heat;
   if(L>0||COP.w>0){const r=u*.2,gap=r*2.3,x0=W_*.5-gap*2,y=u*.62,flash=COP.sightT<.4&&((C.t*5)|0)%2==0;c.save();c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;
     for(let i=0;i<5;i++)copStar(c,x0+i*gap,y,r,i<L,i<L?(COP.sightT<.4?(flash?'#ff4a3a':'#4a7aff'):'#ffd24a'):'rgba(0,0,0,0)');c.restore();
-    if(L>0&&COP.sightT>.6){const k=Math.min(1,COP.sightT/COP.D.loseT),w=u*2.6,h=u*.12;c.save();c.fillStyle='rgba(0,0,0,.5)';c.fillRect(W_*.5-w/2,y+r*1.8,w,h);c.fillStyle='#7dffb0';c.fillRect(W_*.5-w/2,y+r*1.8,w*k,h);c.textAlign='center';c.font='800 '+Math.round(u*.2)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.85)';c.fillText('LOSING THEM',W_*.5,y+r*1.8+h+u*.2);c.restore()}}
+    /* (batch 27) the bar: how far you are from the nearest police car, out of the mile it takes */if(L>0){const ld=Math.min(COP.lockD||0,COP_LOCK),k=COP.sightT>3?1:ld/COP_LOCK,w=u*2.6,h=u*.12;c.save();c.fillStyle='rgba(0,0,0,.5)';c.fillRect(W_*.5-w/2,y+r*1.8,w,h);c.fillStyle='#7dffb0';c.fillRect(W_*.5-w/2,y+r*1.8,w*k,h);c.textAlign='center';c.font='800 '+Math.round(u*.2)+'px '+UIF;c.fillStyle='rgba(255,255,255,.85)';c.fillText(COP.sightT>3?'LOSING THEM':'GET A MILE AWAY  ·  '+fmtLen(ld),W_*.5,y+r*1.8+h+u*.2);c.restore()}}
   /* where the chasing cops are when you cannot see them: a flashing marker along the top edge, left or right of the middle for the side they are on, at the ends if they are behind, with the distance */
-  if(L>0){const cy=C.camYaw;let n=0;c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;
+  if(L>0){const cy=C.camYaw;let n=0;c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px '+UIF;c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;
     for(const k of TR.cars){if(!k.alive||k.kind!==1||k.cm<1||k.cm>2||k.state===1||n>=4)continue;const dx=k.x-C.x,dz=k.z-C.z,d=Math.hypot(dx,dz);if(d>320)continue;const rel=angd(Math.atan2(dx,-dz),cy);if(Math.abs(rel)<.62&&d<260)continue;   /* in front of you: you can see it */
       const x=W_*.5+Math.max(-1,Math.min(1,rel/1.6))*W_*.4,y=u*1.55,fl=((C.t*6+n)|0)%2==0;n++;
       c.fillStyle=fl?'#ff4a3a':'#4a7aff';c.beginPath();const s=u*.2,beh=Math.abs(rel)>1.9;if(beh){c.moveTo(x-s,y-s*.7);c.lineTo(x+s,y-s*.7);c.lineTo(x,y+s*.8)}else if(rel>0){c.moveTo(x-s*.7,y-s);c.lineTo(x-s*.7,y+s);c.lineTo(x+s*.9,y)}else{c.moveTo(x+s*.7,y-s);c.lineTo(x+s*.7,y+s);c.lineTo(x-s*.9,y)}c.closePath();c.fill();
       c.fillStyle='#fff';c.fillText(fmtShort(d),x,y+u*.5)}c.restore()}
-  if(COP.bust>.05){const k=Math.min(1,COP.bust/COP.D.bustT),w=u*3,h=u*.2,y=H_*.74;c.save();c.fillStyle='rgba(0,0,0,.55)';c.fillRect(W_*.5-w/2,y,w,h);c.fillStyle=((C.t*8)|0)%2?'#ff4a3a':'#4a7aff';c.fillRect(W_*.5-w/2,y,w*k,h);c.textAlign='center';c.font='800 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#fff';c.fillText('BUSTED?  keep moving!',W_*.5,y-u*.12);c.restore()}
-  if(COP.spikeWarn>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ff8a3a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('SPIKE STRIP AHEAD',W_*.5,H_*.36);c.restore()}
-  if(COP.warnT>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('ROADBLOCK AHEAD',W_*.5,H_*.3);c.restore()}}
+  if(COP.bust>.05){const k=Math.min(1,COP.bust/COP.D.bustT),w=u*3,h=u*.2,y=H_*.74;c.save();c.fillStyle='rgba(0,0,0,.55)';c.fillRect(W_*.5-w/2,y,w,h);c.fillStyle=((C.t*8)|0)%2?'#ff4a3a':'#4a7aff';c.fillRect(W_*.5-w/2,y,w*k,h);c.textAlign='center';c.font='800 '+Math.round(u*.26)+'px '+UIF;c.fillStyle='#fff';c.fillText('BUSTED?  keep moving!',W_*.5,y-u*.12);c.restore()}
+  if(COP.spikeWarn>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px '+UIF;c.fillStyle='#ff8a3a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('SPIKE STRIP AHEAD',W_*.5,H_*.36);c.restore()}
+  if(COP.warnT>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px '+UIF;c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('ROADBLOCK AHEAD',W_*.5,H_*.3);c.restore()}}

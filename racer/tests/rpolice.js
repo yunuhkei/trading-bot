@@ -13,7 +13,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
       drive(){const r=P3.ring,n=r.n;let bi=P3.idx,bd=1e18;for(let k=-6;k<=30;k++){const i=((P3.idx+k)%n+n)%n,d=(r.X[i]-C.x)**2+(r.Z[i]-C.z)**2;if(d<bd){bd=d;bi=i}}P3.idx=bi;
         const look=Math.max(6,C.speed*.7),ti=((bi+Math.round(look/r.ds))%n+n)%n,tj=(ti+1)%n,ta=Math.atan2(r.X[tj]-r.X[ti],-(r.Z[tj]-r.Z[ti])),tx=r.X[ti]+Math.cos(ta)*5.5,tz=r.Z[ti]+Math.sin(ta)*5.5;
         C.steer=Math.max(-1,Math.min(1,angd(Math.atan2(tx-C.x,-(tz-C.z)),C.yaw)*2.2));IN.thr=C.speed<P3.spd?1:0;IN.brk=C.speed>P3.spd+4?1:0},
-      pin(Lv){const t=COP.D.thr;COP.heat=Lv;COP.w=t[Lv]+(Lv<5?(t[Lv+1]-t[Lv])*.3:20);COP.sightT=0;COP.bust=0;if(GAME.state){GAME.state=0;GAME.lock=0}},
+      pin(Lv){const t=COP.D.thr;copCall();COP.heat=Lv;COP.w=t[Lv]+(Lv<5?(t[Lv+1]-t[Lv])*.3:20);COP.sightT=0;COP.bust=0;if(GAME.state){GAME.state=0;GAME.lock=0}},
       noCivs(){for(const c of TR.cars)if(c.alive&&c.kind==0)trKill(c,0)},
       /* a car out of the pool, parked dist metres ahead (or behind) of the player in its lane; kind 0 civilian, 1 cop */
       mk(dist,kind,v){let c=null;for(const q of TR.cars)if(!q.alive){c=q;break}const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),ty=kind?4:0,TT=TTYPES[ty];c.alive=1;TR.nAlive++;c.kind=kind;c.cm=0;c.siren=0;c.type=ty;c.state=1;c.dmg=0;c.dn=null;
@@ -29,11 +29,12 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   const F=await T.ev(()=>{const o={};const run=(n)=>{for(let s=0;s<n;s++){COP.spawnT=99;RACER.worldStep(1/120)}};
     P3.reset(.3,0);let c=P3.mk(-7,1,14);c.cm=0;run(160);o.copHitsMe=COP.heat;o.copHitsMeImp=c.hitT>0;                         /* a patrol runs into the back of the parked player */
     P3.reset(.3,0);c=P3.mk(-7,0,14);run(160);o.civHitsMe=COP.heat;o.civHitsMeImp=c.hitT>0;                                     /* a civilian does */
-    P3.reset(.3,22);c=P3.mk(7,0,0);run(160);o.iHitCiv=COP.heat;                                                               /* the player drives into a stopped car at 22 m/s */
+    P3.reset(.3,22);c=P3.mk(7,0,0);run(160);o.iHitCivUnseen=COP.heat;                                                         /* the player drives into a stopped car at 22 m/s, no police car near: nobody saw it (batch 27) */
+    P3.reset(.3,22);c=P3.mk(7,0,0);{const w=P3.mk(40,1,0);w.cm=0;w.v0f=0}run(160);o.iHitCiv=COP.heat;                                  /* the same with a patrol parked 40 m on */
     P3.reset(.3,22);c=P3.mk(7,1,0);run(160);o.iHitCop=COP.heat;o.crimes=COP.crimes.slice(-4).map(q=>q.why);P3.clear();return o});
   ok(F.copHitsMeImp&&F.copHitsMe===0,'2 a police car that runs into you is not your crime (heat '+F.copHitsMe+')');
   ok(F.civHitsMeImp&&F.civHitsMe===0,'2 a civilian that runs into you is not your crime (heat '+F.civHitsMe+')');
-  ok(F.iHitCiv>=1&&F.iHitCop>=2&&F.iHitCop>=F.iHitCiv,'2 driving into a car is (heat '+F.iHitCiv+'), into a police car more so (heat '+F.iHitCop+'); logged: '+F.crimes.join(' | '));
+  ok(F.iHitCivUnseen===0&&F.iHitCiv>=1&&F.iHitCop>=2&&F.iHitCop>=F.iHitCiv,'2 driving into a car with no police car near is not seen (heat '+F.iHitCivUnseen+'); with a patrol 40 m away it is (heat '+F.iHitCiv+'), into a police car more so (heat '+F.iHitCop+'); logged: '+F.crimes.join(' | '));
   /* ---- 3 a 45 s chase on the ring at every star (the heat is held there) ---- */
   const CH=await T.ev(()=>{const out=[],trig=copTrigger;window.copTrigger=function(){};   /* crimes are switched off here, so the heat really stays at the star under test */
     for(let Lv=1;Lv<=5;Lv++){P3.reset(.3,34);P3.pin(Lv);const types=new Set();let maxC=0,maxH=0,strips=0,maxB=0,blockTypes=new Set(),rams=0,nan=0,pit=0;const imp0=IMP.n,seen=new Set();
@@ -113,11 +114,11 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     P3.reset(.5,0,'sfnu3');let inView=0,spawned=0,lightsOn=0;const seen0=new Set();
     for(let s=0;s<120*120;s++){RACER.worldStep(1/120);C.vx=C.vz=0;if(s%30==0)for(const c of TR.cars){if(!c.alive||c.kind!==1)continue;if(c.siren)lightsOn++;if(!seen0.has(c.seed)){seen0.add(c.seed);spawned++;if(Math.hypot(c.x-C.x,c.z-C.z)<TR.visMin*.7)inView++}}}
     o.spawned=spawned;o.inView=inView;o.lightsOn=lightsOn;
-    const trig=copTrigger;P3.reset(.3,62);P3.spd=72;copTrigger(1,'test');window.copTrigger=function(){};let t0=-1,tLost=-1,maxC=0,lostAt=-1;
+    const trig=copTrigger;P3.reset(.3,62);P3.spd=72;copTrigger(1,'event');window.copTrigger=function(){};let t0=-1,tLost=-1,maxC=0,lostAt=-1;
     for(let s=0;s<120*150;s++){P3.drive();if(!(s%30))P3.noCivs();RACER.worldStep(1/120);const t=s/120;let n=0;for(const c of TR.cars)if(c.alive&&c.kind==1&&c.cm>0)n++;maxC=Math.max(maxC,n);if(COP.heat==0&&tLost<0){tLost=t;break}}
     window.copTrigger=trig;o.tLost=+tLost.toFixed(1);o.maxC=maxC;o.loseT=COP.D.loseT;P3.clear();return o});
   ok(E.country==0,'8 two minutes parked on the ring (country): no patrol at all ('+E.country+')');
   ok(E.spawned>=1&&E.spawned<=2&&E.inView==0,'8 '+E.spawned+' patrol car(s) in 2 minutes parked downtown (one every 110 s at most), none appeared within sight distance');
   ok(E.lightsOn==0,'8 patrols drive with their light bar off (no siren or flashing samples: '+E.lightsOn+')');
-  ok(E.tLost>0&&E.tLost<120,'8 one star, driving away flat out (72 m/s) round the ring: the police lose you after '+E.tLost+' s ('+E.maxC+' chasers at most; out of sight for '+E.loseT+' s is enough)');
+  ok(E.tLost>20&&E.tLost<150,'8 one star, driving away flat out (72 m/s) round the ring: the police lose you after '+E.tLost+' s ('+E.maxC+' chasers at most; a mile from the nearest is enough, batch 27)');
   console.log('errs',T.errs.length?T.errs.slice(0,3):0);await T.close();console.log(bad?bad+' FAILED':'all passed');process.exit(bad||T.errs.length?1:0)})().catch(e=>{console.error(e);process.exit(1)});

@@ -7,7 +7,7 @@
    two clicky knobs (graphics, sky) and push keys (garage, map, reset car). Everything that used to sit along the top right lives here now.
    GARAGE: cars are changed inside a garage. Park on the pad of a garage you own and ENTER GARAGE; the screen fades and you are inside (the car menu). The pause console's GARAGE key
    takes you in when you are on the pad, otherwise it sets the route to the nearest garage you own. */
-const DASH={amber:'#ffad1f',ink:'#e9e6dc',red:'#ff4b2b',lab:'"Barlow","Roboto Condensed","Arial Narrow",-apple-system,Roboto,sans-serif',lcd:'"Share Tech Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace',
+const DASH={amber:'#ffad1f',ink:'#e9e6dc',red:'#ff4b2b',lab:UIF,lcd:LCDF,
   ndl:0,ndlV:0,last:0,cov:0,maxMph:180,press:{},pz:null,pT0:0,fade:0,fadeFn:null,fadeDir:0};
 const dFont=(px,w)=>(w||700)+' '+Math.round(px)+'px '+DASH.lab,dLcd=px=>Math.round(px)+'px '+DASH.lcd;
 /* the time since the last HUD frame (the HUD draws at 30-60 Hz) */
@@ -109,14 +109,14 @@ function pauseLayout(W_,H_,u){const m=u*.3,cw=Math.min(W_*.9,u*13.4),ch=Math.min
   const add=(id,x,y,w,h,act,ex)=>{const o=Object.assign({id,x,y,w,h,act},ex||{});L.b.push(o);return o};
   const dr=Math.min(L.left.h*.36,u*1.05);add('drive',L.left.x,L.left.y+u*.05,dr*2,dr*2,()=>pauseClose(),{round:dr});
   const rx0=L.left.x+dr*2+u*.2,rw=(L.left.x+L.left.w-rx0)/4;['fps','assist','lane','units'].forEach((id,i)=>add(id,rx0+i*rw+rw/2-u*.27,L.left.y+u*.1,u*.54,u*.86,()=>{if(id=='fps')UI.showStats=!UI.showStats;else if(id=='units')unitsSet(!UNITS.imp);else if(id=='lane')laneSet(!IN.lane);else IN.auto=!IN.auto},{rocker:1}));   /* (batch 22: 'assist' is the auto gas; LANE is lane assist) */
-  const ky=L.left.y+L.left.h-u*.62,kw=(L.left.w-u*.3*2)/3;['garage','map','reset'].forEach((id,i)=>add(id,L.left.x+i*(kw+u*.3),ky,kw,u*.6,()=>pauseKey(id),{key:1}));
+  const ky=L.left.y+L.left.h-u*.62,kw=(L.left.w-u*.3*2)/3;(EV.run?['quit','map','reset']:['garage','map','reset']).forEach((id,i)=>add(id,L.left.x+i*(kw+u*.3),ky,kw,u*.6,()=>pauseKey(id),{key:1}));
   const kr=Math.min(L.right.w*.2,L.right.h*.27,u*.75);[['gfx',GFX_LBL],['sky',['DAY','OVERCAST','SUNSET']]].forEach(([id,lb],i)=>{const cx=L.right.x+L.right.w*(i?.77:.23),cy=L.right.y+L.right.h*.5;
     const kb=add(id,cx-kr,cy-kr,kr*2,kr*2,()=>pauseKnob(id,(PAUSE.k[id]+1)%lb.length),{knob:kr,cx,cy,labels:lb});
     lb.forEach((t,j)=>{const a=pauseKnobAng(j,lb.length),lx=cx+Math.sin(a)*kr*1.5,ly=cy-Math.cos(a)*kr*1.5;add(id+'_'+j,lx-u*.45,ly-u*.2,u*.9,u*.4,()=>pauseKnob(id,j),{klabel:t,kid:id,kj:j})})});
   return L}
 const pauseKnobAng=(j,n)=>n==3?[-.95,0,.95][j]:-1.1+j*2.2/(n-1);
 function pauseKnob(id,j){PAUSE.k[id]=j;if(id=='gfx'){gfxSetMode(GFX_OPTS[j]);safeToast('GRAPHICS '+GFX_LBL[j]+(j==0?'  (NOW '+GFX.cur.name.toUpperCase()+')':''),1.8)}else{envApply(ENV_NAMES[j]);try{localStorage.setItem('racer.env',ENV_NAMES[j])}catch(e){}}}
-function pauseKey(id){if(id=='reset'){pauseClose();IN.respawn=1}else if(id=='map'){pauseClose();mapOpenNow()}else if(id=='garage'){pauseClose();garageGo()}}
+function pauseKey(id){if(id=='quit'){pauseClose();evQuit()}else if(id=='reset'){pauseClose();IN.respawn=1}else if(id=='map'){pauseClose();mapOpenNow()}else if(id=='garage'){pauseClose();garageGo()}}
 function pauseSync(){PAUSE.k.gfx=Math.max(0,GFX_OPTS.indexOf(GFX.mode));PAUSE.k.sky=Math.max(0,ENV_NAMES.indexOf(ENV.name))}
 function pauseDraw(c,W_,H_,u){pauseSync();const L=pauseLayout(W_,H_,u),dt=dashDt();PAUSE.btns=L.b;c.save();
   c.fillStyle='rgba(5,5,6,'+(.55*L.p)+')';c.fillRect(0,0,W_,H_);
@@ -136,7 +136,7 @@ function pauseDraw(c,W_,H_,u){pauseSync();const L=pauseLayout(W_,H_,u),dt=dashDt
       const ix=b.x+b.w*.12,iy=b.y+b.h*.08,iw=b.w*.76,ih=b.h*.84,hi=on?iy+ih*.5:iy,lo=on?iy:iy+ih*.5;c.fillStyle='#2a2c30';rr(c,ix,iy,iw,ih,u*.07);c.fill();c.fillStyle='#3d3f44';rr(c,ix,lo,iw,ih*.5,u*.07);c.fill();
       c.fillStyle=on?'#5dff7a':'#24342a';if(on){c.shadowColor='#5dff7a';c.shadowBlur=u*.25}c.beginPath();c.arc(b.x+b.w/2,b.y+b.h*.24,u*.06,0,TAU);c.fill();c.shadowBlur=0;
       c.fillStyle='#b5b2a8';c.font=dFont(u*.17,600);c.textAlign='center';c.fillText(b.id=='fps'?'FPS':b.id=='units'?(UNITS.imp?'MPH':'KM/H'):b.id=='lane'?'LANE':'AUTO',b.x+b.w/2,b.y+b.h+u*.24)}
-    else if(b.key){const d=dKey(c,b.x,b.y,b.w,b.h,u*.1,pr(b.id));c.fillStyle=b.id=='reset'?'#ff8a70':DASH.ink;c.font=dFont(u*.19,700);c.textAlign='center';c.fillText(b.id=='reset'?'RESET CAR':b.id.toUpperCase(),b.x+b.w/2,b.y+b.h*.64+d)}
+    else if(b.key){const d=dKey(c,b.x,b.y,b.w,b.h,u*.1,pr(b.id));c.fillStyle=b.id=='reset'||b.id=='quit'?'#ff8a70':DASH.ink;c.font=dFont(u*.19,700);c.textAlign='center';c.fillText(b.id=='reset'?'RESET CAR':b.id=='quit'?'QUIT EVENT':b.id.toUpperCase(),b.x+b.w/2,b.y+b.h*.64+d)}
     else if(b.knob){const r=b.knob,j=PAUSE.k[b.id],tg=pauseKnobAng(j,b.labels.length);PAUSE.ka[b.id]+=(tg-PAUSE.ka[b.id])*Math.min(1,dt*16);
       c.fillStyle='rgba(0,0,0,.5)';c.beginPath();c.arc(b.cx,b.cy+r*.08,r*1.04,0,TAU);c.fill();c.fillStyle='#0e0f10';c.beginPath();c.arc(b.cx,b.cy,r*1.02,0,TAU);c.fill();
       c.save();c.translate(b.cx,b.cy);c.rotate(PAUSE.ka[b.id]);for(let k=0;k<30;k++){c.fillStyle=k%2?'#2a2c30':'#3b3d41';c.beginPath();c.moveTo(0,0);c.arc(0,0,r*.95,k*TAU/30,(k+1)*TAU/30);c.closePath();c.fill()}

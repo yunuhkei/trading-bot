@@ -3,7 +3,7 @@
    EVENTS start from markers on the map (drive into one and stop: a card offers it) or from a garage (park on your garage's pad: the card lists every event; choosing one takes you to its start).
    TIME TRIALS: a route between two places along the roads, checkpoints every 300 m (gates of light), the route drawn on the road and the minimap, a 3-2-1 start, bronze / silver / gold times,
      the ghost of your best run (the same car only), no police while it runs.
-   ROAD RAGE (batch 11): wreck as many cars as you can; 60 s on the clock, +4 s a wreck; no police.
+   TAKEDOWN (batch 27, was ROAD RAGE): a pack of racers sets off ahead of you; wreck as many as you can before they get away; +5 s a takedown; no police.
    ESCAPE THE COPS: you start with 2 to 5 stars and a clock; lose them (heat back to 0) before it runs out. Busted, wrecked or out of time: failed.
    MONEY (ECON in 63_safe.js): events pay (a medal pays its full prize the first time it is won, then the difference when you beat it, and a tenth of the prize for a repeat), it buys cars (the car menu) and
    garages (park on a locked garage's pad), and BUSTED costs 8 % of it (at most 10,000). Records (best times, medals, the ghost) are saved in localStorage. */
@@ -17,14 +17,16 @@ const EV_DEF=[
  {id:'t_pass',type:'trial',name:'Mountain Pass',from:['nh1',.08],to:['bigp',.5]},
  {id:'t_vegas',type:'trial',name:'Vegas Run',from:['sh3',.88],to:['vegm',.99]},
  {id:'t_south',type:'trial',name:'Southern Cross',from:['sh',.12],to:['sh',.88]},
- {id:'e_2',type:'escape',name:'Hot Pursuit',stars:2,secs:100,from:['ring',.55]},
- {id:'e_3',type:'escape',name:'Roadblocks',stars:3,secs:130,from:['bv',.5]},
- {id:'e_4',type:'escape',name:'Eye in the Sky',stars:4,secs:160,from:['eh',.55]},
- {id:'e_5',type:'escape',name:'Most Wanted',stars:5,secs:200,from:['sfp',.3]},
- /* batch 11: ROAD RAGE: wreck as many cars as you can; the clock starts at 60 s and every wreck adds 4 s; medals by the number of wrecks */
- {id:'r_city',type:'rage',name:'Road Rage: Downtown',secs:60,goals:[6,12,20],prize:7000,from:['sfp',.62]},
- {id:'r_ring',type:'rage',name:'Road Rage: The Ring',secs:60,goals:[5,10,16],prize:6000,from:['ring',.2]},
- {id:'r_vegas',type:'rage',name:'Road Rage: Las Vegas',secs:60,goals:[6,12,20],prize:7000,from:['vegp',.3]},
+ /* (batch 27) longer clocks: getting away now means a mile between you and the nearest police car */
+ {id:'e_2',type:'escape',name:'Hot Pursuit',stars:2,secs:180,from:['ring',.55]},
+ {id:'e_3',type:'escape',name:'Roadblocks',stars:3,secs:210,from:['bv',.5]},
+ {id:'e_4',type:'escape',name:'Eye in the Sky',stars:4,secs:240,from:['eh',.55]},
+ {id:'e_5',type:'escape',name:'Most Wanted',stars:5,secs:280,from:['sfp',.3]},
+ /* (batch 27) TAKEDOWN (type 'rage'; it replaced ROAD RAGE, which counted any traffic you wrecked): a pack of 6 AI racers sets off ahead of you along a route; wreck as many as you can
+    before they reach the end of it or the clock runs out; every takedown adds 5 s; medals by the number taken down */
+ {id:'k_ring',type:'rage',name:'Takedown: The Ring',secs:150,goals:[2,4,6],prize:7000,n:6,from:['ring',.2],to:['ring',.7]},
+ {id:'k_coast',type:'rage',name:'Takedown: Coast',secs:150,goals:[2,4,6],prize:7000,n:6,from:['cr',.1],to:['btp',.5]},
+ {id:'k_south',type:'rage',name:'Takedown: Southern Cross',secs:160,goals:[2,4,6],prize:8000,n:6,from:['sh',.1],to:['sh',.88]},
  /* batch 12: RACES against 4 AI racers (prizes for 1st / 2nd / 3rd) and DEATH RACES against 5 that ram you (points for every racer you wreck and for your place) */
  {id:'x_coast',type:'race',name:'Coast Race',from:['cr',.15],to:['btp',.5],n:4,prize:9000},
  {id:'x_desert',type:'race',name:'Desert Race',from:['eh',.15],to:['barp',.75],n:4,prize:8000},
@@ -48,7 +50,7 @@ function evRefTime(R){const n=R.n,p=R.pts,v=new Float32Array(n);for(let i=0;i<n;
   let t=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];t+=ds/Math.max(2,(v[i]+v[i-1])/2)}return t}
 function evInit(){EV.list.length=0;evLoad();
   for(const d of EV_DEF){const s=evAt(d.from[0],d.from[1]);if(!s)continue;const ev=Object.assign({},d,{s});
-    if(d.type=='trial'||d.type=='race'||d.type=='death'){const t=evAt(d.to[0],d.to[1]);if(!t)continue;const R=evRoute(s,t.x,t.z);if(!R||R.len<500)continue;ev.len=R.len;ev.cps=[];
+    if(d.type=='trial'||d.type=='race'||d.type=='death'||d.type=='rage'){const t=evAt(d.to[0],d.to[1]);if(!t)continue;const R=evRoute(s,t.x,t.z);if(!R||R.len<500)continue;ev.len=R.len;ev.cps=[];
       const n=Math.max(2,Math.round(R.len/300));for(let k=1;k<=n;k++){const S=R.len*k/n;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const a=Math.min(R.n-2,j),x=R.pts[a*3],y=R.pts[a*3+1],z=R.pts[a*3+2],dx=R.pts[a*3+3]-x,dz=R.pts[a*3+5]-z,l=Math.hypot(dx,dz)||1;
         ev.cps.push({x,y,z,nx:-dz/l,nz:dx/l})}
       ev.ref=evRefTime(R);ev.gold=ev.ref*1.06+2;ev.silver=ev.ref*1.2+3;ev.bronze=ev.ref*1.4+4;ev.R=R;if(d.type=='trial')ev.prize=Math.max(1500,Math.round(ev.len/1000*2600/100)*100)}
@@ -62,8 +64,8 @@ function evStart(ev){EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=
   if(racing){/* the grid: you on the front row, on the right, 24 m along the route */const R=ev.R;let j=0;while(j<R.n-2&&R.S[j+1]<24)j++;const dx=R.pts[j*3+3]-R.pts[j*3],dz=R.pts[j*3+5]-R.pts[j*3+2],l=Math.hypot(dx,dz)||1;syaw=Math.atan2(dx/l,-dz/l);sx=R.pts[j*3]+(-dz/l)*3.4;sz=R.pts[j*3+2]+(dx/l)*3.4;sy=R.pts[j*3+1];
     for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<80)trKill(c,0)}
   carPlace(sx,sz,syaw,sy+.5);C.camYaw=syaw;camStep(0,true);dmgReset();C.nos=1;
-  EV.run={ev,t:-3,cp:0,ghost:[],gt:0,copsWas:COP.on,best:(EV.rec[ev.id]||{}).t,lastBeep:4,racers:racing?racerGrid(ev.R,ev.n,ev.type=='death'):[],ps:0,fi:0};
-  if(ev.type!='escape'){COP.on=false;if(ev.cps)navSetPt(ev.cps[0])}else{COP.on=true}EV.run.bonus=0;EV.run.wrecks=0;EV.run.pop=0;
+  EV.run={ev,t:-3,cp:0,ghost:[],gt:0,copsWas:COP.on,best:(EV.rec[ev.id]||{}).t,lastBeep:4,racers:racing?racerGrid(ev.R,ev.n,ev.type=='death'):ev.type=='rage'?racerPack(ev.R,ev.n):[],ps:0,fi:0};
+  if(ev.type!='escape'){COP.on=false;if(ev.cps)navSetPt(ev.type=='rage'?ev.cps[ev.cps.length-1]:ev.cps[0])}else{COP.on=true}EV.run.bonus=0;EV.run.wrecks=0;EV.run.pop=0;
   evBeep(440,.12)}
 function navSetPt(p){navSet(p.x,p.z)}
 function evQuit(){const r=EV.run;if(!r)return;COP.on=r.copsWas;navClear();EV.run=null;racerClear();safeToast('EVENT ABANDONED',2)}
@@ -72,7 +74,7 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
   if(GAME.state){/* busted or wrecked: the event is lost */COP.on=r.copsWas;navClear();EV.run=null;racerClear();EV.pending=evResultCard(r.ev,false,GAME.state==2?'BUSTED':'WRECKED');return}
   const ev=r.ev;
   if(r.t<0){r.t+=dt;C.vx=C.vz=0;C.x=C.px=ev.s.x;C.z=C.pz=ev.s.z;C.yaw=C.pyaw=ev.s.yaw;C.wyaw=0;const k=Math.ceil(-r.t);if(k<r.lastBeep&&k>0){r.lastBeep=k;evBeep(440,.12)}
-    if(r.t>=0){evBeep(880,.25);for(const c of r.racers)if(c.race)c.race.go=true;if(ev.type=='escape'){const t=COP.D.thr,L=ev.stars;COP.w=t[L]+(L<5?(t[L+1]-t[L])*.3:20);COP.heat=L;COP.heatT=99;COP.sightT=0;(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:'event',level:L})}}return}
+    if(r.t>=0){evBeep(880,.25);for(const c of r.racers)if(c.race)c.race.go=true;if(ev.type=='escape'){const t=COP.D.thr,L=ev.stars;COP.w=t[L]+(L<5?(t[L+1]-t[L])*.3:20);COP.heat=L;COP.heatT=0;COP.sightT=0;copCall();(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:'event',level:L})}}return}
   r.t+=dt;
   if(r.racers&&r.racers.length&&ev.R){/* your progress along the race route (for the order) */const R=ev.R,p=R.pts;let bi=r.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(R.n,bi+50);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
   if(ev.type=='race'||ev.type=='death'){const p=ev.cps[r.cp],R=Math.max(14,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+5);if(Math.hypot(C.x-p.x,C.z-p.z)<R&&Math.abs(C.y-p.y)<6){r.cp++;if(r.cp>=ev.cps.length){evFinish(true);return}evBeep(660,.08);navSetPt(ev.cps[r.cp])}
@@ -81,10 +83,10 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
     const p=ev.cps[r.cp],R=Math.max(14,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+5);if(Math.hypot(C.x-p.x,C.z-p.z)<R&&Math.abs(C.y-p.y)<6){r.cp++;
       if(r.cp>=ev.cps.length){evFinish(true);return}evBeep(660,.08);navSetPt(ev.cps[r.cp])}
     if(r.t>Math.max(ev.bronze*2.2,ev.bronze+120))evFinishFail('TOO SLOW')}
-  else if(ev.type=='rage'){if(r.t>=ev.secs+r.bonus)evFinish(true)}
+  else if(ev.type=='rage'){/* over when the clock runs out or no racer is left on the road (all taken down or through the end) */if(r.t>=ev.secs+r.bonus||!r.racers.some(c=>c.alive&&c.race&&c.state==3&&c.race.done<0))evFinish(true)}
   else{if(COP.heat==0&&r.t>1){evFinish(true);return}if(r.t>=ev.secs)evFinishFail('OUT OF TIME')}}
 /* a car you wrecked (from trPlayerCollide): in road rage it counts and adds 4 s */
-function evTakedown(c){const r=EV.run;if(!r||r.t<0)return;if(r.ev.type=='death'&&c.kind==2){r.wrecks++;r.pop=1.2;evBeep(900,.15);safeToast('RACER WRECKED  +500',1.5);return}if(r.ev.type!='rage')return;r.wrecks++;r.bonus+=4;r.pop=1.2;evBeep(700+r.wrecks*20,.1)}
+function evTakedown(c){const r=EV.run;if(!r||r.t<0||c.kind!==2)return;if(r.ev.type=='death'){r.wrecks++;r.pop=1.2;evBeep(900,.15);safeToast('RACER WRECKED  +500',1.5,1);return}if(r.ev.type!='rage')return;r.wrecks++;r.bonus+=5;r.pop=1.2;evBeep(700+r.wrecks*20,.1)}   /* (batch 27) only racers count: a takedown adds 5 s */
 function evFinishFail(why){const r=EV.run;COP.on=r.copsWas;navClear();EV.run=null;racerClear();copClear(true);EV.card=evResultCard(r.ev,false,why)}
 function evPlace(r){return 1+r.racers.filter(c=>c.race&&c.race.done>=0).length}
 function evFinish(ok){const r=EV.run,ev=r.ev;COP.on=r.copsWas;navClear();EV.run=null;const place=r.racers&&r.racers.length?evPlace(r):0;racerClear();const rec=EV.rec[ev.id]||(EV.rec[ev.id]={});let pay=0,medal=0,best=false;
@@ -101,11 +103,11 @@ function evFinish(ok){const r=EV.run,ev=r.ev;COP.on=r.copsWas;navClear();EV.run=
 function evResultCard(ev,ok,why,o){const lines=[];o=o||{};
   if(ok&&ev.type=='trial'){lines.push(['TIME '+evFmt(o.t)+(o.best?'   NEW BEST':''),'#fff']);lines.push([o.medal?EV_MEDAL[o.medal]+' MEDAL':'NO MEDAL  (bronze '+evFmt(ev.bronze)+')',EV_MCOL[o.medal]])}
   else if(ok&&(ev.type=='race'||ev.type=='death')){const ord=['','1ST','2ND','3RD','4TH','5TH','6TH'];lines.push([ord[o.place]+' OF '+o.n+'   ·   '+evFmt(o.t),o.place==1?'#ffd23a':'#fff']);if(ev.type=='death')lines.push([o.w+' RACERS WRECKED  ·  '+o.score+' POINTS  ·  '+(o.medal?EV_MEDAL[o.medal]:'NO MEDAL'),EV_MCOL[o.medal]])}
-  else if(ok&&ev.type=='rage'){lines.push([o.w+' CARS WRECKED'+(o.best?'   NEW BEST':''),'#fff']);lines.push([o.medal?EV_MEDAL[o.medal]+' MEDAL':'NO MEDAL  (bronze '+ev.goals[0]+')',EV_MCOL[o.medal]])}
+  else if(ok&&ev.type=='rage'){lines.push([o.w+' OF '+ev.n+' RACERS TAKEN DOWN'+(o.best?'   NEW BEST':''),'#fff']);lines.push([o.medal?EV_MEDAL[o.medal]+' MEDAL':'NO MEDAL  (bronze '+ev.goals[0]+')',EV_MCOL[o.medal]])}
   else if(ok){lines.push(['LOST THEM IN '+evFmt(o.t),'#fff'])}
   else lines.push([why,'#ff7a5a']);
   if(ok)lines.push([o.pay>0?'+'+evMoney(o.pay):'no prize this time','#7dffb0']);
-  const ok_=[{label:'OK',col:'#8a94a6',act:()=>{EV.card=null}}];return{title:ok?(ev.type=='trial'||ev.type=='race'||ev.type=='death'?'FINISHED':ev.type=='rage'?'TIME UP':'ESCAPED'):'FAILED',sub:ev.name,lines,btns:ev.street?ok_:[{label:'RETRY',col:'#ff7a1a',act:()=>evStart(ev)}].concat(ok_)}}
+  const ok_=[{label:'OK',col:'#8a94a6',act:()=>{EV.card=null}}];return{title:ok?(ev.type=='trial'||ev.type=='race'||ev.type=='death'?'FINISHED':ev.type=='rage'?'TAKEDOWN OVER':'ESCAPED'):'FAILED',sub:ev.name,lines,btns:ev.street?ok_:[{label:'RETRY',col:'#ff7a1a',act:()=>evStart(ev)}].concat(ok_)}}
 /* ---- markers on the map: stop in one and a card offers the event ---- */
 function evMarkers(){if(GAME.state||MENU.open)return;let near=null;for(const ev of EV.list){const d=Math.hypot(C.x-ev.s.x,C.z-ev.s.z);if(d<10&&Math.abs(C.y-ev.s.y)<5){near=ev;break}}
   if(EV.dismiss&&(!near||near!==EV.dismiss))EV.dismiss=null;
@@ -117,17 +119,17 @@ function evMarkers(){if(GAME.state||MENU.open)return;let near=null;for(const ev 
 function evInfo(ev){const rec=EV.rec[ev.id]||{};if(ev.type=='trial')return[fmtLen(ev.len)+'  ·  gold '+evFmt(ev.gold)+'  ·  prize '+evMoney(ev.prize),rec.t?'best '+evFmt(rec.t)+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not run yet'];
   if(ev.type=='race')return[fmtLen(ev.len)+' against '+ev.n+' racers  ·  1st wins '+evMoney(ev.prize),rec.m?'best: '+['','3rd','2nd','1st'][rec.m]:'not raced yet'];
   if(ev.type=='death')return[fmtLen(ev.len)+', '+ev.n+' racers who ram you  ·  500 a wreck  ·  gold '+ev.goals[2]+' pts  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' pts'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not raced yet'];
-  if(ev.type=='rage')return['wreck cars: 60 s, +4 s a wreck  ·  bronze '+ev.goals[0]+' / silver '+ev.goals[1]+' / gold '+ev.goals[2]+'  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' wrecks'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not done yet'];
+  if(ev.type=='rage')return['wreck the '+ev.n+' racers before they get away  ·  '+Math.round(ev.secs)+' s, +5 s a takedown  ·  bronze '+ev.goals[0]+' / silver '+ev.goals[1]+' / gold '+ev.goals[2]+'  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' takedowns'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not done yet'];
   return[ev.stars+' stars  ·  lose them within '+evFmt(ev.secs).replace(/\.00$/,'')+'  ·  prize '+evMoney(ev.prize),rec.done?'escaped '+rec.done+'x, best '+evFmt(rec.t):'not done yet']}
-function evOfferCard(ev,fromGarage){const inf=evInfo(ev);return{offer:1,title:{trial:'TIME TRIAL',rage:'ROAD RAGE',race:'RACE',death:'DEATH RACE'}[ev.type]||'ESCAPE THE COPS',sub:ev.name,lines:[[inf[0],'#fff'],[inf[1],'#9cc8ff']],
+function evOfferCard(ev,fromGarage){const inf=evInfo(ev);return{offer:1,title:{trial:'TIME TRIAL',rage:'TAKEDOWN',race:'RACE',death:'DEATH RACE'}[ev.type]||'ESCAPE THE COPS',sub:ev.name,lines:[[inf[0],'#fff'],[inf[1],'#9cc8ff']],
   btns:[{label:'START',col:'#ff7a1a',act:()=>evStart(ev)},{label:fromGarage?'BACK':'NOT NOW',col:'#8a94a6',act:()=>{if(fromGarage)EV.card=evEventsCard();else{EV.card=null;EV.dismiss=ev}}}]}}
 /* the garage card (batch 19): go inside, the events, or drive on */
 function evListCard(){const nm=SAFE.at?SAFE.at.name.toUpperCase():'GARAGE';return{garage:1,title:nm,sub:'Repaired and saved',lines:[['Cars are changed inside the garage.','rgba(233,230,220,.75)']],
   btns:[{label:'ENTER GARAGE',col:'#ffad1f',act:()=>garageEnter()},{label:'EVENTS',col:'#8a94a6',act:()=>{EV.card=evEventsCard()}},{label:'DRIVE ON',col:'#8a94a6',act:()=>{EV.card=null;EV.dismiss=SAFE.at}}]}}
-function evEventsCard(){const b=EV.list.map(ev=>{const rec=EV.rec[ev.id]||{};return{label:ev.name.replace('Road Rage: ','Rage: ').replace('Death Race: ','Death: ')+(ev.type!='escape'?(rec.m?'  '+'★'.repeat(rec.m):''):'  '+ev.stars+'★'),col:{trial:'#d9a020',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#d04848',act:()=>{EV.card=Object.assign(evOfferCard(ev,true),{garage:1})},small:1}});
+function evEventsCard(){const b=EV.list.map(ev=>{const rec=EV.rec[ev.id]||{};return{label:ev.name.replace('Takedown: ','Takedown: ').replace('Death Race: ','Death: ')+(ev.type!='escape'?(rec.m?'  '+'★'.repeat(rec.m):''):'  '+ev.stars+'★'),col:{trial:'#d9a020',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#d04848',act:()=>{EV.card=Object.assign(evOfferCard(ev,true),{garage:1})},small:1}});
   b.push({label:'BACK',col:'#8a94a6',act:()=>{EV.card=evListCard()},small:1});return{garage:1,cols:3,title:'EVENTS',sub:'your money: '+evMoney(ECON.money),lines:[],btns:b,grid:1}}
 /* ---- the card and the event HUD ---- */
-function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px -apple-system,Roboto,sans-serif';c.save();
+function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF;c.save();
   /* money, under the minimap */
   if(!MENU.open){const t=evMoney(ECON.money);c.font=dLcd(u*.26);const tw=c.measureText(t).width+u*.4,bx=UI.mm.cx-tw/2,by=UI.mm.cy+UI.mm.r+u*.42;dLcdBox(c,bx,by,tw,u*.42,u*.06);dLcdText(c,t,UI.mm.cx,by+u*.31,u*.26,'center')}   /* (batch 19: money on a small amber display under the map) */
   EV.btns.length=0;const r=EV.run;
@@ -139,9 +141,9 @@ function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px -appl
       c.font=fs(.42,900);c.fillStyle=pos==1?'#ffd23a':'#fff';c.fillText('POS '+pos+' / '+n,W_/2,u*1.82);c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(ev.type=='death'?'  ·  wrecked '+r.wrecks:''),W_/2,u*2.1)}
     else if(ev.type=='trial'){c.fillText(evFmt(Math.max(0,r.t)),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(r.best?'  ·  best '+evFmt(r.best):''),W_/2,u*1.7);
       const m=evMedal(ev,Math.max(0,r.t));c.fillStyle=EV_MCOL[m];c.fillText(m?EV_MEDAL[m]+' PACE':'NO MEDAL PACE',W_/2,u*2.0)}
-    else if(ev.type=='rage'){const left=ev.secs+r.bonus-Math.max(0,r.t);c.fillStyle=left<10?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.36,900);c.fillStyle='#ffb04a';c.fillText(r.wrecks+' WRECKED',W_/2,u*1.8);if(r.pop>0){r.pop-=1/60;c.font=fs(.45,900);c.fillStyle='#7dffb0';c.globalAlpha=Math.min(1,r.pop);c.fillText('+4 s',W_/2+u*2.4,u*1.35);c.globalAlpha=1}}
+    else if(ev.type=='rage'){const left=ev.secs+r.bonus-Math.max(0,r.t);c.fillStyle=left<10?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.36,900);c.fillStyle='#ffb04a';c.fillText('TAKEDOWNS '+r.wrecks+' / '+ev.n,W_/2,u*1.8);{const away=r.racers.filter(q=>q.race&&q.race.done>=0).length;if(away){c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.75)';c.fillText(away+' GOT AWAY',W_/2,u*2.12)}}if(r.pop>0){r.pop-=1/60;c.font=fs(.45,900);c.fillStyle='#7dffb0';c.globalAlpha=Math.min(1,r.pop);c.fillText('+5 s',W_/2+u*2.4,u*1.35);c.globalAlpha=1}}
     else{const left=ev.secs-Math.max(0,r.t);c.fillStyle=left<20?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  lose the police before the clock runs out',W_/2,u*1.7)}
-    c.shadowBlur=0;const bw=u*1.2,bh=u*.42,bx=W_/2-bw/2,by=u*2.25;c.fillStyle='rgba(20,24,32,.6)';rr(c,bx,by,bw,bh,u*.1);c.fill();c.fillStyle='#fff';c.font=fs(.2,800);c.fillText('QUIT EVENT',W_/2,by+bh*.66);EV.btns.push({x:bx,y:by,w:bw,h:bh,act:evQuit})}
+    c.shadowBlur=0}   /* (batch 27) QUIT EVENT lives in the pause console now */
   const k=EV.card;if(k&&!GAME.state){const nc=k.cols||2,cw=Math.min(W_*(nc>2?.86:.62),u*(nc>2?13:9.5)),nb=k.btns.length,rows=k.grid?Math.ceil(nb/nc):1,rh=nc>2?.5:.62,ch=u*(1.35+k.lines.length*.42+(k.grid?rows*rh:.8)),cx=W_/2-cw/2,cy=Math.max(u*.6,H_*.5-ch/2);
     {const g=c.createLinearGradient(0,cy,0,cy+ch);g.addColorStop(0,'rgba(42,43,46,.97)');g.addColorStop(1,'rgba(24,25,27,.97)');c.fillStyle=g}rr(c,cx,cy,cw,ch,u*.24);c.fill();c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,cx+.5,cy+.5,cw-1,ch-1,u*.24);c.stroke();c.textAlign='left';
     c.font=dLcd(u*.24);{const tw=c.measureText(k.title).width+u*.4;dLcdBox(c,cx+u*.25,cy+u*.17,tw,u*.4,u*.06);dLcdText(c,k.title,cx+u*.45,cy+u*.45,u*.24)}c.fillStyle='#fff';c.font=fs(.42,900);c.fillText(k.sub,cx+u*.35,cy+u*.95);

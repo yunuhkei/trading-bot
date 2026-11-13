@@ -22,7 +22,7 @@ function spotRecord(s,val,unit,better){const rec=EV.rec[s.id]||(EV.rec[s.id]={})
   return{prev,pay}}
 function spotTick(dt){if(GAME.state||TUM.on){SPOTS.zone=null;return}if(SPOTS.flash>0)SPOTS.flash-=dt;const run=EV.run;
   for(const s of SPOTS.list){
-    if(s.type=='trap'){const dx=C.x-s.x,dz=C.z-s.z;if(dx*dx+dz*dz>(s.hw+6)**2||Math.abs(C.y-s.y)>5){s.inside=0;continue}if(s.inside)continue;s.inside=1;if(C.speed<8)continue;
+    if(s.type=='trap'){const dx=C.x-s.x,dz=C.z-s.z;if(dx*dx+dz*dz>(s.hw+6)**2||Math.abs(C.y-s.y)>5){s.inside=0;continue}if(s.inside)continue;s.inside=1;if(C.speed<8||run)continue;
       const k=Math.round(C.kmh),o=spotRecord(s,k,'kmh',(a,b)=>a>b);SPOTS.flash=.25;s.flashT=EV.t;
       if(!run)safeToast('SPEED TRAP  '+fmtKmh(k)+(o.pay?(o.prev!=null?'  NEW BEST':'')+'  +'+evMoney(o.pay):'  (best '+fmtKmh(o.prev)+')'),2.4)}
     else if(s.type=='drift'){const r=ROADS[s.ri];const sn=Math.hypot(C.x-s.x,C.z-s.z)<r.hw+8;

@@ -61,7 +61,7 @@ function pstar(cat,cx,y0,cz,rad,h,r,g,b,n,rot){
   for(let i=0;i<n;i++){m.t(ring[i],ap[i],ring[i+1]);m.t(ring[i],ring[i+1],ap[i])}}
 /* the greens of the broadleaf trees: a few desaturated shades and the odd autumn one, so no two stands look the same */
 const TGREEN=[[52,100,46],[62,112,50],[44,88,52],[78,116,48],[66,98,42],[40,82,58],[86,112,56]],TFALL=[[176,128,44],[190,100,46],[156,90,52]];
-function ptree(x,z,rng,y,hero){const t=rng(),sc=.8+rng()*.7,rot=rng()*6,hh=Math.sin(x*12.9898+z*78.233)*43758.5453,cl=hh-Math.floor(hh),h2=Math.sin(x*39.346+z*11.135)*24634.6345,pk=h2-Math.floor(h2),seed=(x*13.7+z*7.1)|0;
+function ptree(x,z,rng,y,hero){if(inGarageLot(x,z))return;const t=rng(),sc=.8+rng()*.7,rot=rng()*6,hh=Math.sin(x*12.9898+z*78.233)*43758.5453,cl=hh-Math.floor(hh),h2=Math.sin(x*39.346+z*11.135)*24634.6345,pk=h2-Math.floor(h2),seed=(x*13.7+z*7.1)|0;
   if(y>110||t<.55){
     if(hero){const h=11*sc,g=[26+cl*16,66+cl*24,38+cl*14];ptrunk(2,x,y-.2,z,.3,2.8*sc,70,52,36);                                          /* a fir: three ragged tiers */
       pstar(2,x,y+1.5*sc,z,3*sc,h*.5,g[0]*.9,g[1]*.9,g[2]*.9,12,rot);pstar(2,x,y+h*.32,z,2.35*sc,h*.46,g[0],g[1],g[2],12,rot+.3);pstar(2,x,y+h*.56,z,1.6*sc,h*.46,g[0]*1.12,g[1]*1.12,g[2]*1.1,10,rot+.6)}
@@ -73,11 +73,13 @@ function ptree(x,z,rng,y,hero){const t=rng(),sc=.8+rng()*.7,rot=rng()*6,hh=Math.
       pcrown(2,x,y+5.2*sc,z,3.6*sc,2.9*sc,3.6*sc,12,3.1*sc,seed,c[0],c[1],c[2],0)}
     else{ptrunk(2,x,y-.2,z,.3,3*sc,72,54,38);pcrown(2,x,y+4.6*sc,z,3.3*sc,2.7*sc,3.3*sc,5,3.7*sc,seed,48+q2*26,86+q1*44,40,0)}}}
 /* a tuft of tall grass: two crossed cards of the blade tile, darker at the root, swaying in the wind */
-function ptuft(x,y,z,yaw,w,h,r,g,b){const m=pmb(x,z,2,8);for(let k=0;k<2;k++){const a=yaw+k*1.5708,ca=Math.cos(a),sa=Math.sin(a),ids=[];
+/* (batch 27) no grass, bush or tree inside or against a garage building */
+const inGarageLot=(x,z)=>SAFEHOUSES.some(s=>(s.x-x)**2+(s.z-z)**2<17*17);
+function ptuft(x,y,z,yaw,w,h,r,g,b){if(inGarageLot(x,z))return;const m=pmb(x,z,2,8);for(let k=0;k<2;k++){const a=yaw+k*1.5708,ca=Math.cos(a),sa=Math.sin(a),ids=[];
     for(const[sx,sv]of[[-1,0],[1,0],[1,1],[-1,1]]){const uv=FTILE(3,sx<0?0:1,sv),sh=sv?1:.5;ids.push(m.v(x+ca*sx*w/2,y+sv*h,z+sa*sx*w/2,-sa*.45,.89,ca*.45,Math.min(255,r*sh),Math.min(255,g*sh),Math.min(255,b*sh),uv[0],uv[1],3,sv?255:0))}
     m.q(ids[0],ids[1],ids[2],ids[3]);m.q(ids[0],ids[3],ids[2],ids[1])}}
 /* a bush: five leaf cards in a heap; a rock or boulder: a low squashed blob that sits on the ground */
-function pbush(x,z,y,rx,ry,r,g,b,rot){pcrown(2,x,y+ry*.55,z,rx*1.05,ry*.7,rx*1.05,5,rx*1.5,((x*7.3+z*3.1)|0),r,g,b,2,150)}
+function pbush(x,z,y,rx,ry,r,g,b,rot){if(inGarageLot(x,z))return;pcrown(2,x,y+ry*.55,z,rx*1.05,ry*.7,rx*1.05,5,rx*1.5,((x*7.3+z*3.1)|0),r,g,b,2,150)}
 function prock(x,z,y,rx,ry,r,g,b,rot){pblob(2,x,y-.4*ry,z,rx,ry,r,g,b,rot)}
 /* a bar of square section between two points (wires, rails, cactus arms, turbine parts); drawn from both sides so it never disappears */
 function pbar(cat,x0,y0,z0,x1,y1,z1,w,r,g,b){const m=pmb((x0+x1)/2,(z0+z1)/2,cat,8);let dx=x1-x0,dy=y1-y0,dz=z1-z0;const l=Math.hypot(dx,dy,dz)||1;dx/=l;dy/=l;dz/=l;
@@ -501,10 +503,34 @@ function buildCity(){LMK.clear();buildGarageRoom();
     p=Wd(-16,10);{const y=terrainH(p[0],p[1]);ptrunk(1,p[0],y-.4,p[1],2.4,11,200,200,204);pcone(1,p[0],y+11,p[1],2.8,2.4,170,60,52,8,0);COLC.push(p[0],p[1],2.6,y-.5,y+13)}
     p=Wd(14,14);gy=bld(p[0],p[1],5,4.2,cs,sn,4.4,[238,234,226],true);proofR(1,p[0],p[1],5,4.2,cs,sn,gy+4.4,2.2,150,90,76,true);
     p=Wd(-8,-16);bld(p[0],p[1],4,3,cs,sn,3,[160,150,140],false)}
-  /* safe houses: a small garage with a tall green sign you can see from far away */
-  for(const s of SAFEHOUSES){const cs=s.cs,sn=s.sn,gy=bld(s.x,s.z,8,6,cs,sn,4.2,[196,198,204],false);pboxR(1,s.x,s.z,8.6,6.6,cs,sn,gy+4.2,gy+4.8,40,200,120,false,1);
-    pboxR(1,s.x+(s.side||-1)*sn*6.1,s.z-(s.side||-1)*cs*6.1,4.5,.2,cs,sn,gy,gy+3.4,60,66,76,false,1);          /* the roller door, on the side that faces the road */
-    const px=s.x+cs*11,pz=s.z+sn*11,y=terrainH(px,pz);pbox(1,px,y-.4,pz,.3,y+13,.3,200,200,206,false,.8);pbox(1,px,y+10,pz,2.4,y+14,.45,60,235,130,false,1);COLC.push(px,pz,.5,y-.5,y+13)}
+  /* safe houses (batch 27): a real garage BUILDING you drive into: 20 x 16 m, 6.5 m high, brick walls, a wide open roller door on the side that faces the road with a green neon band over it,
+     a lit concrete bay inside (the pad you park on to save and repair, SAFE.pad in 63_safe.js), a workbench and tool chests along the walls, and the tall green sign by it. Local frame: a along
+     the road (cs, sn), b towards the road (f = 1) or away from it. */
+  for(const s of SAFEHOUSES){const cs=s.cs,sn=s.sn,nx=-sn,nz=cs,f=-(s.side||-1),Wd=(a,b)=>[s.x+cs*a+nx*b*f,s.z+sn*a+nz*b*f],HA=10,B0=-7,B1=9,H=6.5,DW=3.9;
+    let gy=-1e9,g0=1e9;for(const a of[-HA,0,HA])for(const b of[B0,1,B1]){const q=Wd(a,b),t=terrainH(q[0],q[1]);gy=Math.max(gy,t);g0=Math.min(g0,t)}
+    const wall=(a,b,ha,hb,y0,y1,c,col)=>{const q=Wd(a,b);pboxR(1,q[0],q[1],ha,hb,cs,sn,y0,y1,c[0],c[1],c[2],false,.72);if(col)COLO.push(q[0],q[1],ha,hb,cs,sn,y1)};
+    const BR=[150,74,58],TR=[205,200,190],DK=[52,54,60];
+    wall(0,B0,HA+.3,.3,g0-1.5,gy+H,BR,1);                                                              /* back wall */
+    for(const sa of[-1,1])wall(sa*HA,(B0+B1)/2,.3,(B1-B0)/2,g0-1.5,gy+H,BR,1);                            /* side walls */
+    for(const sa of[-1,1])wall(sa*(DW+HA)/2,B1,(HA-DW)/2,.3,g0-1.5,gy+H,BR,1);                            /* the front, either side of the door */
+    wall(0,B1,DW,.3,gy+4.4,gy+H,BR,0);                                                                 /* over the door */
+    wall(0,B1+.35,DW+.2,.35,gy+4.1,gy+4.6,DK,0);                                                       /* the rolled-up door in its housing */
+    wall(0,(B0+B1)/2,HA+.6,(B1-B0)/2+.6,gy+H,gy+H+.45,TR,0);                                           /* the roof, with a pale trim */
+    for(const sa of[-1,1])wall(sa*(HA+.05),(B0+B1)/2,.08,(B1-B0)/2+.05,gy+H-.5,gy+H,TR,0);
+    wall(0,B1+.05,HA+.05,.08,gy+H-.5,gy+H,TR,0);
+    {const q=Wd(0,B1+.42);pboxR(1,q[0],q[1],DW+.6,.06,cs,sn,gy+4.75,gy+5.05,60,240,130,2,1);NEONS.push(q[0],gy+4.9,q[1],.24,.94,.5,4.2)}   /* the green neon band over the door */
+    for(const sa of[-1,1]){const q=Wd(sa*(DW+.9),B1+.4);pboxR(1,q[0],q[1],.22,.1,cs,sn,gy+3.4,gy+3.7,255,240,200,2,1);NEONS.push(q[0],gy+3.55,q[1],1,.92,.75,2.4)}   /* lamps by the door */
+    for(const sa of[-1,1]){const q=Wd(sa*6.2,B1+.33);pboxR(1,q[0],q[1],1.6,.05,cs,sn,gy+1.4,gy+3.3,40,46,58,1,1)}                     /* office windows */
+    /* inside: a concrete floor, strip lights, a workbench and tool chests */
+    for(let a=-HA+1.25;a<HA;a+=2.5)for(let b=B0+1.25;b<B1;b+=2.5){const q=Wd(a,b),t=terrainH(q[0],q[1]);pboxR(1,q[0],q[1],1.25,1.25,cs,sn,t+.02,t+.05,92,92,96,false,1)}
+    for(const sa of[-1,0,1]){const q=Wd(sa*5.5,(B0+B1)/2);pboxR(1,q[0],q[1],.12,5,cs,sn,gy+H-.1,gy+H-.04,190,186,172,2,1)}
+    {const q=Wd(0,B0+.9);const t=terrainH(q[0],q[1]);pboxR(1,q[0],q[1],4,.55,cs,sn,t,t+1,120,96,70,false,.8);COLO.push(q[0],q[1],4,.55,cs,sn,t+1)}
+    for(const sa of[-1,1]){const q=Wd(sa*(HA-.8),B0+2.5),t=terrainH(q[0],q[1]);pboxR(1,q[0],q[1],.5,1.2,cs,sn,t,t+1.6,200,40,36,false,.8);COLO.push(q[0],q[1],.5,1.2,cs,sn,t+1.6)}
+    /* a concrete apron from the door to the road */
+    for(let b=B1+1;b<B1+6;b+=2){const q=Wd(0,b),t=terrainH(q[0],q[1]);pboxR(1,q[0],q[1],DW+.6,1,cs,sn,t+.015,t+.045,112,112,116,false,1)}
+    /* the tall green sign you can see from far away */
+    const pq=Wd(HA+3.5,B1-2),px=pq[0],pz=pq[1],y=terrainH(px,pz);pbox(1,px,y-.4,pz,.3,y+13,.3,200,200,206,false,.8);pbox(1,px,y+10,pz,2.4,y+14,.45,60,235,130,false,1);COLC.push(px,pz,.5,y-.5,y+13);
+    s.gy=gy}
   /* drive-through repair shops (batch 7): two long walls and a roof over a bay you drive straight through, a blue and white striped front, a big glowing white cross on a blue sign, a dark floor */
   for(const p of REPAIRS){const cs=p.cs,sn=p.sn,nx=-sn,nz=cs,hl=p.L/2,hw=p.W/2,Wd=(a,b)=>[p.x+cs*a+nx*b,p.z+sn*a+nz*b];let gy=1e9;for(const a of[-hl,0,hl])for(const b of[-hw,hw]){const q=Wd(a,b);gy=Math.min(gy,terrainH(q[0],q[1]))}
     for(const sd of[-1,1]){const q=Wd(0,sd*(hw+.25));pboxR(1,q[0],q[1],hl,.25,cs,sn,gy-1.5,gy+4.6,226,230,236,false,.7);COLO.push(q[0],q[1],hl,.3,cs,sn,gy+4.6);
@@ -728,6 +754,8 @@ function roadAt(x,z,yh){
   return found}
 /* ground height under a point (road surface if on a road at that level, else terrain) */
 /* RQ.cb = 1 when the spot is up on a sidewalk (behind a curb) */
+/* (batch 27) RQ.soft: the car's wheels (gw in 40_car.js) take the curb as a gentle 1 m ramp, and no curb at all on another road's asphalt (a junction), so the car rolls onto a sidewalk with only a rumble */
+const RQS={soft:0};
 function groundAt(x,z,yh){const ty=terrainH(x,z);RQ.on=0;RQ.cb=0;if(roadAt(x,z,yh)){const over=Math.abs(RQ.lat)-RQ.hw;let y=RQ.y;
-    if(over>0){const r=ROADS[RQ.ri];if(r.sw&&swOn(r,RQ.lat>0?1:0,RQ.ds)){y+=CURB_H*Math.min(1,over/.04);RQ.cb=1}else y-=Math.min(over,RSH)/RSH*.12}
+    if(over>0){const r=ROADS[RQ.ri];if(r.sw&&swOn(r,RQ.lat>0?1:0,RQ.ds)&&!(RQS.soft&&otherAsphalt(x,z,r,y,.2))){y+=CURB_H*Math.min(1,over/(RQS.soft?1:.04));RQ.cb=1}else y-=Math.min(over,RSH)/RSH*.12}
     if(y>ty-2.2){RQ.on=1;return y}}return ty}

@@ -20,6 +20,8 @@ function racerStep(c,dt){
   /* where it is along the route */
   let bi=R.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(Rt.n,bi+40);k++){const d=(p[k*3]-c.x)**2+(p[k*3+2]-c.z)**2;if(d<bd){bd=d;bi=k}}R.fi=bi;R.s=Rt.S[bi];
   if(R.done<0&&R.s>=Rt.len-10&&R.go)R.done=EV.t;
+  /* (batch 27) stuck for 5 s (a jam, a pile-up, a wall): it is put back on the route a little further on, on a clear spot */
+  if(R.go&&R.done<0){R.still=c.v<2.5?(R.still||0)+dt:0;if(R.still>5&&racerRespot(c))return}
   if(!R.go||R.done>=0){const k=Math.exp(-dt*(R.done>=0?.8:20));c.v*=k;}
   else{
     const v=c.v,sk=R.skill,ahead=_ra(Rt,bi,R.s+Math.max(8,v*.7));
@@ -54,6 +56,13 @@ function racerStep(c,dt){
 const racerSkill=(k,n,hard)=>{const f=n>1?k/(n-1):0;return{grip:8.6+1.4*(1-f)+(hard?.4:0),vmax:64+12*(1-f)+(hard?3:0),acc:6.5+1.5*(1-f)}};
 /* the field for an event: n racers on the grid behind the start line, two abreast */
 function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m along the route); the racers: beside you on the left, then two by two behind */const G=[[24,-3.4],[15,3.4],[15,-3.4],[6,3.4],[6,-3.4],[0,0]];const out=[];for(let k=0;k<n;k++){const c=racerSpawn(Rt,G[k][0],G[k][1],k,racerSkill(k,n,aggr),aggr);if(c)out.push(c)}return out}
+/* (batch 27) TAKEDOWN: the pack sets off 70-300 m ahead of you, two abreast, a little slower than race racers (top 50-60 m/s), not ramming */
+function racerPack(Rt,n){const out=[];for(let k=0;k<n;k++){const f=n>1?k/(n-1):0,c=racerSpawn(Rt,300-(k>>1)*90-(k&1)*25,(k&1)?-3.4:3.4,k,{grip:8.3+.9*(1-f),vmax:50+10*(1-f),acc:5+1.2*(1-f)},0);if(c)out.push(c)}return out}
+function racerRespot(c){const R=c.race,Rt=R.Rt,p=Rt.pts;R.still=0;
+  for(let d=25;d<=145;d+=20)for(const lat of[R.off<0?-3.4:3.4,0,R.off<0?3.4:-3.4]){const S=Math.min(Rt.len-15,R.s+d);let j=0;while(j<Rt.n-2&&Rt.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;
+    if(Math.hypot(x-C.x,z-C.z)<18)continue;if(TR.cars.some(o=>o.alive&&o!==c&&Math.hypot(o.x-x,o.z-z)<9))continue;if(trStatic(x,z,c.hw+.3,p[j*3+1]))continue;
+    c.x=c.px=x;c.z=c.pz=z;c.y=c.py=groundAt(x,z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=10;c.vx=ux*10;c.vz=uz*10;c.om=0;c.rev=0;c.stk=0;c.roll=c.pitch=0;R.fi=j;R.s=Rt.S[j];R.off=R.offT=lat;return true}
+  return false}
 function racerClear(){for(const c of TR.cars)if(c.alive&&c.kind==2&&c.race){c.race=null;trKill(c,0)}}
 /* ---- street racers ---- */
 function racerTick(dt){
@@ -76,7 +85,7 @@ function racerOffer(c){/* a town 1.2-3.5 km away that you can reach */let best=n
 function racerStreetStart(c,Rp,Rr,name,prize){EV.card=null;if(!c.alive)return;const ev={id:'street',type:'race',street:1,name:'Street race to '+name,prize,R:Rp,cps:[],len:Rp.len,s:{x:C.x,z:C.z,y:C.y,yaw:C.yaw}};
   const n=Math.max(2,Math.round(Rp.len/300));for(let k=1;k<=n;k++){const S=Rp.len*k/n;let j=0;while(j<Rp.n-2&&Rp.S[j+1]<S)j++;const x=Rp.pts[j*3],y=Rp.pts[j*3+1],z=Rp.pts[j*3+2],dx=Rp.pts[j*3+3]-x,dz=Rp.pts[j*3+5]-z,l=Math.hypot(dx,dz)||1;ev.cps.push({x,y,z,nx:-dz/l,nz:dx/l})}
   c.state=3;c.kind=2;c.L=null;c.sr=0;c.race={Rt:Rr,fi:0,s:0,go:true,done:-1,skill:{grip:9.6,vmax:72,acc:7.5},aggr:0,off:0,offT:0,ramCd:9,name:'Street racer'};RACE.sr=null;
-  EV.run={ev,t:0,cp:0,ghost:[],gt:0,copsWas:COP.on,racers:[c],bonus:0,wrecks:0,pop:0,ps:0,fi:0,lastBeep:0};COP.on=false;navSet(ev.cps[0].x,ev.cps[0].z);evBeep(880,.25);safeToast('GO!',1.2)}
+  EV.run={ev,t:0,cp:0,ghost:[],gt:0,copsWas:COP.on,racers:[c],bonus:0,wrecks:0,pop:0,ps:0,fi:0,lastBeep:0};COP.on=false;navSet(ev.cps[0].x,ev.cps[0].z);evBeep(880,.25);safeToast('GO!',1.2,1)}
 /* the yellow light over a street racer, and the racers on the minimap */
 function racerFx(sprite){const s=RACE.sr;if(s&&s.alive){const d=Math.hypot(s.x-C.x,s.z-C.z);if(d<500){const on=Math.sin(EV.t*8)>0;sprite(s.x,s.y+2.2,s.z,(on?.7:.35)+d*.004,1,.85,.1,on?.95:.5)}}}
 function racerMapIcons(ctx,px,pz,r){const s=RACE.sr;if(s&&s.alive){ctx.fillStyle=((EV.t*4|0)&1)?'#ffd23a':'#a08000';ctx.beginPath();ctx.arc(px(s.x),pz(s.z),r*.75,0,TAU);ctx.fill()}

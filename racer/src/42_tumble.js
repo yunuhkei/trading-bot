@@ -19,11 +19,13 @@ function tumMul(R,x,y,z){_tv[0]=R[0]*x+R[3]*y+R[6]*z;_tv[1]=R[1]*x+R[4]*y+R[7]*z
 function tumOrtho(R){/* Gram-Schmidt on the columns */let l=Math.hypot(R[0],R[1],R[2]);R[0]/=l;R[1]/=l;R[2]/=l;let d=R[3]*R[0]+R[4]*R[1]+R[5]*R[2];R[3]-=d*R[0];R[4]-=d*R[1];R[5]-=d*R[2];l=Math.hypot(R[3],R[4],R[5]);R[3]/=l;R[4]/=l;R[5]/=l;
   R[6]=R[1]*R[5]-R[2]*R[4];R[7]=R[2]*R[3]-R[0]*R[5];R[8]=R[0]*R[4]-R[1]*R[3]}
 /* start a tumble. w: a spin in the CAR's frame (x right: pitch, y up: yaw, z back: roll), vy: a kick upwards */
+/* (batch 27) the car only ever rolls in a crash big enough for the crash movie: at 25 m/s (56 mph) or more, and the movie starts with it; anything smaller does not roll it
+   (with the movie switched off, CC.enabled=false in the physics tests, every tumble plays as before) */
 function tumbleStart(wbx,wby,wbz,vy,why){
-  if(TUM.on||GAME.state||!CARM.body||C.shield>0)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
+  if(TUM.on||GAME.state||!CARM.body||C.shield>0)return false;const big=Math.hypot(C.vx,C.vz)>=25;if(CC.enabled&&!big)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
   const w=tumMul(R,wbx,wby,wbz);TUM.w[0]=w[0];TUM.w[1]=w[1]+C.wyaw;TUM.w[2]=w[2];const cm=tumMul(R,0,TUM_COM,0);TUM.p[0]=C.x+cm[0];TUM.p[1]=C.y+cm[1];TUM.p[2]=C.z+cm[2];
   C.vy=Math.max(C.vy||0,vy);TUM.on=1;TUM.rest=0;TUM.slow=0;TUM.rightT=0;TUM.t=0;TUM.n++;TUM.why=why;TUM.touch.fill(0);TUM.maxTilt=0;C.grounded=0;C.drift=0;C.dActive=0;C.slideT=0;IN.nitro=0;C.wyaw=0;
-  C.shake=Math.min(1,C.shake+.6);return true}
+  C.shake=Math.min(1,C.shake+.6);if(CC.enabled){CC.tn=TUM.n;CC.tv=Math.hypot(C.vx,C.vz);crashStart(why)}return true}
 const _tm16=new Float32Array(16);
 /* the ten touch points of the body (model frame: x right, y up from the road, z towards the back) */
 function tumPoints(){const hw=(CARM.hw||.95)*.96,hl=(CARM.hl||2.25)*.97,H=TUM_H;

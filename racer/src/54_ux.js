@@ -17,7 +17,7 @@ const fmtMass=kg=>UNITS.imp?Math.round(kg*2.20462)+' lb':Math.round(kg)+' kg';
 
 /* ---------------- the map: what each icon is ---------------- */
 const MAPKEY=[['GARAGE (YOURS)','#3cf08c','dot'],['GARAGE (FOR SALE)','#8d97a3','dot'],['REPAIR SHOP','#2a6be0','cross'],['TIME TRIAL','#ffb000','flag'],['RACE','#2a9be0','flag'],['DEATH RACE','#e04a2a','flag'],
-  ['ROAD RAGE','#a050e0','flag'],['ESCAPE','#e03030','flag'],['SPEED TRAP','rgb(76,153,255)','dot'],['JUMP','rgb(76,255,115)','dot'],['DRIFT ZONE','rgb(204,89,255)','dot'],['STREET RACER','#ffd23a','dot']];
+  ['TAKEDOWN','#a050e0','flag'],['ESCAPE','#e03030','flag'],['SPEED TRAP','rgb(76,153,255)','dot'],['JUMP','rgb(76,255,115)','dot'],['DRIFT ZONE','rgb(204,89,255)','dot'],['STREET RACER','#ffd23a','dot']];
 function mapKeyIcon(c,x,y,r,col,shape){c.fillStyle=col;c.beginPath();c.arc(x,y,r,0,TAU);c.fill();if(shape=='flag'){c.fillStyle='#111';c.fillRect(x-r*.45,y-r*.45,r*.45,r*.45);c.fillRect(x,y,r*.45,r*.45)}
   else if(shape=='cross'){c.fillStyle='#fff';c.fillRect(x-r*.62,y-r*.18,r*1.24,r*.36);c.fillRect(x-r*.18,y-r*.62,r*.36,r*1.24)}}
 function mapLegend(c,W_,H_,u){const fs=u*.17,row=u*.27,cols=2,rows=Math.ceil(MAPKEY.length/cols),cw=u*2.15,pw=cw*cols+u*.3,ph=rows*row+u*.5,x=u*.3,y=H_-ph-u*.3;
@@ -29,7 +29,7 @@ function mapLegend(c,W_,H_,u){const fs=u*.17,row=u*.27,cols=2,rows=Math.ceil(MAP
 function mapBlips(){const B=[];
   for(const h of SAFEHOUSES){const own=SAFE.owned[h.id];B.push({x:h.x,z:h.z,col:own?'#3cf08c':'#8d97a3',title:h.name,lines:own?['Your garage. Stop on the pad: repaired and saved,','then go inside to change cars and buy upgrades.']:['For sale: '+evMoney(SAFE.price[h.id]||0)+'. Stop on its pad to buy it.']})}
   for(const p of REPAIRS)B.push({x:p.x,z:p.z,col:'#2a6be0',title:p.name||'Repair shop',lines:['Drive straight through the bay: the car is fixed','at once, for free.']});
-  const TN={trial:'TIME TRIAL',race:'RACE',death:'DEATH RACE',rage:'ROAD RAGE',escape:'ESCAPE'};
+  const TN={trial:'TIME TRIAL',race:'RACE',death:'DEATH RACE',rage:'TAKEDOWN',escape:'ESCAPE'};
   for(const ev of EV.list)B.push({x:ev.s.x,z:ev.s.z,col:{trial:'#ffb000',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#e03030',title:ev.name,tag:TN[ev.type]||'EVENT',lines:evInfo(ev).concat(['Stop in the ring at the start to begin.'])});
   for(const s of SPOTS.list){const rec=(EV.rec[s.id]||{}).v;
     if(s.type=='trap')B.push({x:s.x,z:s.z,col:'rgb(76,153,255)',title:'Speed trap',lines:['Drive past it as fast as you can: your best speed is kept.',rec!=null?'Best '+fmtKmh(rec):'Not set yet']});

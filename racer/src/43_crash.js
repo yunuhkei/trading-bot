@@ -22,7 +22,7 @@ function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0
 function crashTick(dt){if(C.shield>0){C.shield=Math.max(0,C.shield-dt);COP.bust=Math.max(0,COP.bust-dt*3)}
   if(TUM.on&&TUM.n!==CC.tn){CC.tn=TUM.n;CC.tv=Math.hypot(C.vx,C.vz)}           /* the speed the tumble started at */
   crashHistory();if(!CC.enabled)return;
-  if(!CC.on&&crashWild())crashStart(TUM.why||'roll');
+  if(!CC.on&&crashWild())crashStart(TUM.why||'roll');   /* (batch 27: a tumble now starts the movie itself, in tumbleStart) */
   if(CC.on){IN.thr=IN.brk=0;IN.nitro=0;COP.bust=0;
     /* the clock of the cinematic runs in real time: the world step is slowed by CC.scale */
     /* (batch 24) it plays until the car has stopped: slow motion for the first moments, then the rest of the tumble at full speed; it ends 0.7 s after the car comes to rest
@@ -45,7 +45,7 @@ function crashReset(){CC.on=0;CC.scale=1;CC.fade=0;CC.fadeIn=1;const H=CC.hist;l
   /* clear the traffic round the spot (not the racers in a race, not a chasing cop) */
   for(const c of TR.cars){if(!c.alive)continue;if(c.kind==2&&c.race)continue;if(c.kind==1&&c.cm>0&&c.state==3)continue;if(Math.hypot(c.x-C.x,c.z-C.z)<40)trKill(c,0)}
   dmgSoften();   /* (batch 23: back on the road lightly knocked about, never a wreck) */
-  C.shield=3;safeToast('BACK ON THE ROAD  -  SHIELD 3 s',2.2);camStep(0,true)}
+  C.shield=3;   /* (batch 27: no toast; the blinking says it) */camStep(0,true)}
 /* the cinematic camera (from camStep) */
 function crashCam(){const a=R.alpha,x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a);CAM.x=CC.cam[0];CAM.y=CC.cam[1];CAM.z=CC.cam[2];CAM.tx=x;CAM.ty=y+.6;CAM.tz=z;
   const d=Math.hypot(x-CAM.x,z-CAM.z);CAM.fov=clamp(1.2-d*.006-CC.t*.05,.55,1.1)}
@@ -56,8 +56,8 @@ function crashFx(sprite){if(!(C.shield>0))return;const k=Math.min(1,C.shield),t=
 /* the black bars, the label and the fades (from hudDraw) */
 function crashHud(c,W_,H_,u){if(!CC.on&&!(CC.fadeIn>0))return;c.save();
   if(CC.on){const b=H_*.11*sstep(0,.35,CC.t);c.fillStyle='#000';c.fillRect(0,0,W_,b);c.fillRect(0,H_-b,W_,b);
-    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);c.fillStyle='#fff';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.textAlign='center';c.fillText('CRASH',W_/2,H_-b*.38)}
-    if(CC.t>=1.5&&CC.endT==null){c.globalAlpha=sstep(1.5,1.9,CC.t)*.75;c.fillStyle='#fff';c.font='600 '+Math.round(u*.2)+'px -apple-system,Roboto,sans-serif';c.textAlign='right';c.fillText('TAP TO SKIP',W_-u*.4,H_-b*.42)}}
+    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);c.fillStyle='#fff';c.font='800 '+Math.round(u*.55)+'px '+UIF;c.textAlign='center';c.fillText('CRASH',W_/2,H_-b*.38)}
+    if(CC.t>=1.5&&CC.endT==null){c.globalAlpha=sstep(1.5,1.9,CC.t)*.75;c.fillStyle='#fff';c.font='600 '+Math.round(u*.2)+'px '+UIF;c.textAlign='right';c.fillText('TAP TO SKIP',W_-u*.4,H_-b*.42)}}
   const f=CC.on?CC.fade:CC.fadeIn;if(f>0){c.globalAlpha=f;c.fillStyle='#000';c.fillRect(0,0,W_,H_)}c.restore()}
 /* (batch 25) a tap skips the movie, but not in its first 1.5 s: the fade starts at once */
 function crashSkip(){if(!CC.on||CC.t<1.5||CC.endT!=null)return false;CC.endT=CC.t;return true}

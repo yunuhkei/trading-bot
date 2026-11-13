@@ -1,5 +1,8 @@
 'use strict';
 /* ===== math, noise, small helpers (no per-frame allocation in anything the game loop calls) ===== */
+/* (batch 27) the UI fonts, embedded by build.py: RUI = Barlow Condensed (600, 700, 800, 800 italic), RLCD = Share Tech Mono; loaded at once so the canvas HUD can use them */
+const UIF='"RUI","Barlow Condensed","Arial Narrow",-apple-system,Roboto,sans-serif',LCDF='"RLCD","Share Tech Mono",ui-monospace,Menlo,monospace';
+try{if(document.fonts){for(const w of ['600','700','800','italic 800'])document.fonts.load(w+' 20px RUI').catch(()=>{});document.fonts.load('20px RLCD').catch(()=>{})}}catch(e){}
 const TAU=6.283185307179586,PI=Math.PI;
 const clamp=(x,a,b)=>x<a?a:x>b?b:x,lerp=(a,b,t)=>a+(b-a)*t;
 const sstep=(a,b,x)=>{const t=a===b?(x<a?0:1):clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};

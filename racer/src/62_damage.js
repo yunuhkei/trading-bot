@@ -7,7 +7,7 @@
 const DZ_CAP=[650e3,520e3,420e3,420e3,320e3];
 const DZ_NAME=['front','rear','left','right','roof'];
 /* the HEALTH BAR is one pool of crash energy (2.2 MJ: ten 25 m/s hits into a parked car, four into a wall at 30 m/s, two at 60 m/s into a car); the five zones above only decide where the dents, the hanging parts and the smoke are. You are wrecked when the bar is empty, not when one zone is crushed. */
-const DMG_POOL=2.2e6;
+const DMG_POOL=2.2e6,DMG_CRASH=.24;
 const DMG={lampD:new Float32Array(12),lampV:null,z:[0,0,0,0,0],hp:1,wrecked:0,spd:1,acc:1,pull:0,leak:0,cur:0,scale:1,minE:8000,pend:[],pendT:0,dentN:0,pf16:null,pi8:null,pris:null,ready:0,fire:0,total:0,lastHit:-9,dirty:0};
 function dmgInit(){const B=CARM.body;if(!B||!B.ab)return;DMG.pris=new Uint8Array(B.ab.slice(0));DMG.pf16=new Int16Array(DMG.pris.buffer);DMG.pi8=new Int8Array(DMG.pris.buffer);
   B.f16=new Int16Array(B.ab);B.i8=new Int8Array(B.ab);B.u8=new Uint8Array(B.ab);B.nv=B.ab.byteLength/16;DMG.ready=1;DMG.cur=IMP.n;
@@ -19,7 +19,7 @@ function dmgHp(){return Math.max(0,1-DMG.total/(DMG_POOL*(typeof UPG!='undefined
 function dmgEffects(){const z=DMG.z,f=z[0],r=z[1];DMG.hp=dmgHp();
   DMG.spd=1;DMG.acc=1;DMG.pull=0;DMG.leak=0;DMG.fire=DMG.hp<.3?1:0;
   DMG.wrecked=DMG.hp<=.03?1:0}
-function dmgReset(){DMG.z.fill(0);DMG.pend.length=0;DMG.cur=IMP.n;DMG.total=0;dmgEffects();DMG.wrecked=0;if(typeof partsReset==='function'&&CARM.parts)partsReset();
+function dmgReset(){DMG.z.fill(0);DMG.pend.length=0;DMG.cur=IMP.n;DMG.total=0;DMG.crashE=0;dmgEffects();DMG.wrecked=0;if(typeof partsReset==='function'&&CARM.parts)partsReset();
   if(DMG.ready&&DMG.dirty){const B=CARM.body;new Uint8Array(B.ab).set(DMG.pris);dentUpload();DMG.dirty=0}DMG.lampD.fill(0)}
 /* read the new impacts and turn them into damage */
 function dmgConsume(){
@@ -31,7 +31,10 @@ function dmgApply(r){
   if(r.src==2){/* the suspension bottoms out: the axles and the roof take it */z[0]+=E*.3/DZ_CAP[0];z[1]+=E*.3/DZ_CAP[1];z[4]+=E*.4/DZ_CAP[4];zone=4}
   else if(zone>=0){z[zone]+=E/DZ_CAP[zone];
     /* a hit also shakes the neighbours */const sp=E*.14;if(zone<2){z[2]+=sp/DZ_CAP[2];z[3]+=sp/DZ_CAP[3]}else{z[0]+=sp/DZ_CAP[0];z[1]+=sp/DZ_CAP[1]}}
-  for(let i=0;i<5;i++)if(z[i]>1)z[i]=1;DMG.total+=E;DMG.lastHit=C.t;
+  for(let i=0;i<5;i++)if(z[i]>1)z[i]=1;
+  /* (batch 27) one crash (every hit within 2 s of the last, or the whole crash movie) takes at most DMG_CRASH of the health bar: you live through four bad crashes, the fifth wrecks you */
+  if(!(typeof CC!='undefined'&&CC.on)&&Math.abs(C.t-DMG.lastHit)>2)DMG.crashE=0;const lim=DMG_CRASH*DMG_POOL*(typeof UPG!='undefined'?UPG.arm:1),add=Math.max(0,Math.min(E,lim-(DMG.crashE||0)));DMG.crashE=(DMG.crashE||0)+E;
+  DMG.total+=add;DMG.lastHit=C.t;
   r.Ed=E;DMG.pend.push(r);if(DMG.pend.length>12)DMG.pend.shift();partsHit(zone,E,r.src)}
 /* the dents are applied at once for a big hit and at most every 0.2 s for a run of small ones */
 function dmgDents(dt){if(!DMG.ready||!DMG.pend.length)return;DMG.pendT-=dt;let big=false;for(const r of DMG.pend)if(r.E>25000)big=true;if(!big&&DMG.pendT>0)return;DMG.pendT=.2;
@@ -62,14 +65,14 @@ function dentApply(cx,cy,cz,dx,dy,dz,E){
 /* (batch 23) how deep a dent may go at a point of the body: the car must always look drivable, except while the crash cam shows a crash
    (then anything goes); the front (the model's -z end) may crumple a little more than the sides and the roof */
 function dmgCap(pz){if(typeof CC!='undefined'&&CC.on)return .5;return pz<-(CARM.hl||2.2)*.35?.1:.065}
-/* after the crash cam: the car comes back lightly knocked about: dents eased to a slightly smashed front (6 cm) and small marks elsewhere (3 cm), the paint
+/* after the crash cam: the car comes back lightly knocked about: dents eased to scratches (1.5 cm at the front, 8 mm elsewhere; batch 27), the paint
    and the creases mostly back, every part back on, the doors left ajar and the bonnet a little up; the health stays as it was */
 function dmgSoften(){if(DMG.ready&&DMG.dirty){const B=CARM.body,f=B.f16,i8=B.i8,u8=B.u8,pf=DMG.pf16,pn=DMG.pi8,pu=DMG.pris,nv=B.nv,hl=CARM.hl||2.2;
     for(let v=0;v<nv;v++){const o=v*8,px=pf[o],py=pf[o+1],pz=pf[o+2],mx=f[o]-px,my=f[o+1]-py,mz=f[o+2]-pz,ml=Math.hypot(mx,my,mz)/8192;if(ml<1e-4)continue;
-      const cap=pz/8192<-hl*.35?.06:.03;if(ml>cap){const s=cap/ml;f[o]=Math.round(px+mx*s);f[o+1]=Math.round(py+my*s);f[o+2]=Math.round(pz+mz*s)}
-      const nb=v*16+8,cb=v*16+12;for(let a=0;a<3;a++){i8[nb+a]=Math.round(i8[nb+a]*.35+pn[nb+a]*.65);u8[cb+a]=Math.round(u8[cb+a]*.3+pu[cb+a]*.7)}}
+      const cap=pz/8192<-hl*.35?.015:.008;   /* (batch 27: scratches, was 6 / 3 cm) */if(ml>cap){const s=cap/ml;f[o]=Math.round(px+mx*s);f[o+1]=Math.round(py+my*s);f[o+2]=Math.round(pz+mz*s)}
+      const nb=v*16+8,cb=v*16+12;for(let a=0;a<3;a++){i8[nb+a]=Math.round(i8[nb+a]*.12+pn[nb+a]*.88);u8[cb+a]=Math.round(u8[cb+a]*.18+pu[cb+a]*.82)}}
     dentUpload();dmgLamps()}
-  if(typeof partsReset==='function'&&CARM.parts){partsReset();const big=DMG.total>250e3;if(PP[3]&&PP[3].d)PP[3].min=big?.32:.18;if(PP[4]&&PP[4].d)PP[4].min=big?-.32:-.18;if(PP[1]&&PP[1].d)PP[1].min=.1}}
+  if(typeof partsReset==='function'&&CARM.parts){partsReset();const big=DMG.total>250e3;if(PP[3]&&PP[3].d)PP[3].min=big?.2:.12;if(PP[4]&&PP[4].d)PP[4].min=big?-.2:-.12;if(PP[1]&&PP[1].d)PP[1].min=.03}}
 function dentUpload(){const B=CARM.body;if(!B||!B.vb)return;const gl=G.gl;gl.bindBuffer(gl.ARRAY_BUFFER,B.vb);gl.bufferSubData(gl.ARRAY_BUFFER,0,new Uint8Array(B.ab))}
 /* ---- smoke and fire from the engine ---- */
 let _dmgCool=0;
@@ -84,4 +87,4 @@ function dmgHud(c,x,y,w,u){
   const h=u*.17,hp=Math.max(0,Math.min(1,DMG.hp)),col=hp>.5?'#4be07a':hp>.25?'#ffc23d':'#ff4a3a';
   c.save();c.fillStyle='rgba(0,0,0,.45)';c.fillRect(x-2,y-2,w+4,h+4);c.fillStyle=col;c.fillRect(x,y,w*hp,h);
   if(hp<.25&&((C.t*5)|0)%2==0){c.strokeStyle='#ff3b3b';c.lineWidth=2;c.strokeRect(x-3,y-3,w+6,h+6)}
-  c.textAlign='left';c.fillStyle='rgba(255,255,255,.75)';c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillText('HEALTH',x,y-5);c.restore()}
+  c.textAlign='left';c.fillStyle='rgba(255,255,255,.75)';c.font='700 '+Math.round(u*.3)+'px '+UIF;c.fillText('HEALTH',x,y-5);c.restore()}

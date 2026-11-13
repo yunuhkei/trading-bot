@@ -17,7 +17,7 @@ const SAFE={owned:{},price:{},pads:[],t:0,svc:0,at:null,msg:'',msgT:0,last:'home
 /* the pad in front of each garage door: centre, half sizes, and the heading that leaves the garage towards the road */
 function safeInit(){
   SAFE.pads.length=0;
-  for(const s of SAFEHOUSES){const sd=s.side||-1,nx=-s.sn,nz=s.cs,dx=-sd*nx,dz=-sd*nz,hl=4.6,hw=4.4,cx=s.x+dx*(6.7+hl),cz=s.z+dz*(6.7+hl);
+  for(const s of SAFEHOUSES){const sd=s.side||-1,nx=-s.sn,nz=s.cs,dx=-sd*nx,dz=-sd*nz,hl=4.6,hw=4.4,cx=s.x+dx*3.2,cz=s.z+dz*3.2;   /* (batch 27) the pad is the bay inside the garage building */
     /* pad axes: along the door direction (dd) and along the wall (t) */
     s.dd=[dx,dz];s.t=[s.cs,s.sn];s.pad={x:cx,z:cz,hl,hw};s.yaw=Math.atan2(dx,-dz);
     s.y=terrainH(cx,cz);for(const[a,b]of[[1,1],[1,-1],[-1,1],[-1,-1]])s.y=Math.max(s.y,terrainH(cx+dx*hl*a+s.cs*hw*b,cz+dz*hl*a+s.sn*hw*b));s.y+=.08;
@@ -28,14 +28,14 @@ function safeSave(){try{localStorage.setItem(SAFE.key,JSON.stringify({owned:SAFE
 /* the hook for the money system: call this once a house has been paid for */
 function safeUnlock(id){if(id in SAFE.owned){SAFE.owned[id]=true;safeSave();ECON.onUnlock(id);return true}return false}
 function safeNear(x,z,ownedOnly){let b=null,bd=1e18;for(const s of SAFE.pads){if(ownedOnly&&!SAFE.owned[s.id])continue;const d=(s.x-x)**2+(s.z-z)**2;if(d<bd){bd=d;b=s}}return b}
-function safeToast(t,sec){SAFE.msg=t;SAFE.msgT=sec||2.6}
+function safeToast(t,sec,evMsg){if(EV.run&&!evMsg)return;SAFE.msg=t;SAFE.msgT=sec||2.6}   /* (batch 27) mid-event, nothing pops up but the event's own messages */
 /* is the car on the pad, and slow enough? */
 function safeOnPad(s){const dx=C.x-s.pad.x,dz=C.z-s.pad.z,a=dx*s.dd[0]+dz*s.dd[1],b=dx*s.t[0]+dz*s.t[1];return Math.abs(a)<s.pad.hl-.4&&Math.abs(b)<s.pad.hw-.4&&Math.abs(C.y-s.y)<2.5}
 /* called every fixed step: servicing while parked on a pad */
 /* drive-through repair (batch 7): inside the bay of a repair shop the car is fixed at once (body, dents, parts, lamps, tyres), at any speed; once per pass */
 function repairStep(dt){if(GAME.state||TUM.on)return;for(const p of REPAIRS){const dx=C.x-p.x,dz=C.z-p.z;if(dx*dx+dz*dz>400){if(SAFE.rpIn===p)SAFE.rpIn=null;continue}
     const a=dx*p.cs+dz*p.sn,b=-dx*p.sn+dz*p.cs,inside=Math.abs(a)<p.L/2-.8&&Math.abs(b)<p.W/2-.2;if(!inside){if(SAFE.rpIn===p&&Math.abs(a)>p.L/2+2)SAFE.rpIn=null;continue}
-    if(SAFE.rpIn===p)continue;SAFE.rpIn=p;const hurt=DMG.total>0||DMG.z.some(v=>v>0)||C.flatT>0;dmgReset();C.flatT=0;SAFE.rpT=1.2;SAFE.repairs=(SAFE.repairs||0)+1;
+    if(SAFE.rpIn===p)continue;SAFE.rpIn=p;const hurt=DMG.total>0||DMG.z.some(v=>v>0)||C.flatT>0;dmgReset();C.flatT=0;C.nos=1;SAFE.rpT=1.2;   /* (batch 27: a repair shop fills the nitro too) */SAFE.repairs=(SAFE.repairs||0)+1;
     safeToast(hurt?'REPAIRED':'ALL GOOD',2);if(hurt&&typeof sparkAt==='function')for(let k=0;k<3;k++)sparkAt(C.x,C.y+1,C.z,0,0,8,3)}}
 function safeStep(dt){
   SAFE.t+=dt;if(SAFE.msgT>0)SAFE.msgT-=dt;repairStep(dt);if(SAFE.rpT>0)SAFE.rpT-=dt;
@@ -76,10 +76,10 @@ function safePads(quad){
 function safeHud(c,W_,H_,u){
   /* servicing ring */
   if(SAFE.at&&SAFE.svc>0&&!GAME.state&&!MENU.open){const k=Math.min(1,SAFE.svc/1.5),cx=W_*.5,cy=H_*.62,rad=u*.5;c.save();c.lineWidth=u*.09;c.strokeStyle='rgba(255,255,255,.25)';c.beginPath();c.arc(cx,cy,rad,0,TAU);c.stroke();
-    c.strokeStyle=SAFE.owned[SAFE.at.id]?'#4be07a':'#ff6a4a';c.beginPath();c.arc(cx,cy,rad,-PI/2,-PI/2+TAU*k);c.stroke();c.fillStyle='#fff';c.textAlign='center';c.font='800 '+Math.round(u*.28)+'px -apple-system,Roboto,sans-serif';c.fillText(SAFE.owned[SAFE.at.id]?'SERVICING':'LOCKED',cx,cy+rad+u*.4);c.restore()}
-  else if(SAFE.at&&!GAME.state&&C.speed>=9&&SAFE.msgT<=0){c.save();c.textAlign='center';c.fillStyle='rgba(255,255,255,.85)';c.font='700 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;c.fillText('slow down to use the garage',W_*.5,H_*.62);c.restore()}
+    c.strokeStyle=SAFE.owned[SAFE.at.id]?'#4be07a':'#ff6a4a';c.beginPath();c.arc(cx,cy,rad,-PI/2,-PI/2+TAU*k);c.stroke();c.fillStyle='#fff';c.textAlign='center';c.font='800 '+Math.round(u*.28)+'px '+UIF;c.fillText(SAFE.owned[SAFE.at.id]?'SERVICING':'LOCKED',cx,cy+rad+u*.4);c.restore()}
+  else if(SAFE.at&&!GAME.state&&C.speed>=9&&SAFE.msgT<=0){c.save();c.textAlign='center';c.fillStyle='rgba(255,255,255,.85)';c.font='700 '+Math.round(u*.26)+'px '+UIF;c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;c.fillText('slow down to use the garage',W_*.5,H_*.62);c.restore()}
   if(SAFE.msgT>0)dashToast(c,W_,H_,u,SAFE.msg,Math.min(1,SAFE.msgT*1.5));   /* (batch 19: an amber trip-computer line) */
   /* wrecked / busted screen */
-  if(GAME.state){const k=Math.min(1,GAME.t/1.2),f=GAME.t>2.6?Math.min(1,(GAME.t-2.6)/.7):0;c.save();c.fillStyle='rgba(0,0,0,'+(.35*k+.65*f)+')';c.fillRect(0,0,W_,H_);c.globalAlpha=k;c.textAlign='center';c.font='900 '+Math.round(u*1.1)+'px -apple-system,Roboto,sans-serif';
-    c.fillStyle=GAME.state==2?'#7fb4ff':'#ff6a4a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=10;c.fillText(GAME.msg,W_*.5,H_*.5);if(GAME.state==2&&GAME.fine>0){c.font='800 '+Math.round(u*.32)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffb0a0';c.fillText('FINE  -'+evMoney(GAME.fine),W_*.5,H_*.5+u*.6)}
-    c.font='700 '+Math.round(u*.3)+'px -apple-system,Roboto,sans-serif';c.fillStyle='rgba(255,255,255,.85)';c.fillText(GAME.state==2?'The cops got you.':'The car is finished.',W_*.5,H_*.5+u*.55);c.restore()}}
+  if(GAME.state){const k=Math.min(1,GAME.t/1.2),f=GAME.t>2.6?Math.min(1,(GAME.t-2.6)/.7):0;c.save();c.fillStyle='rgba(0,0,0,'+(.35*k+.65*f)+')';c.fillRect(0,0,W_,H_);c.globalAlpha=k;c.textAlign='center';c.font='900 '+Math.round(u*1.1)+'px '+UIF;
+    c.fillStyle=GAME.state==2?'#7fb4ff':'#ff6a4a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=10;c.fillText(GAME.msg,W_*.5,H_*.5);if(GAME.state==2&&GAME.fine>0){c.font='800 '+Math.round(u*.32)+'px '+UIF;c.fillStyle='#ffb0a0';c.fillText('FINE  -'+evMoney(GAME.fine),W_*.5,H_*.5+u*.6)}
+    c.font='700 '+Math.round(u*.3)+'px '+UIF;c.fillStyle='rgba(255,255,255,.85)';c.fillText(GAME.state==2?'The cops got you.':'The car is finished.',W_*.5,H_*.5+u*.55);c.restore()}}

@@ -298,7 +298,7 @@ function trDent(c,wx,wz,E){
 function trBack(B,c,E){
   trDent(c,HIT.cx,HIT.cz,E);
   if(c.state==3&&(c.kind==1||c.kind==2)&&(c.dmg||0)>=.92){/* (batch 24) a chasing cop or a racer worn down by hits is destroyed, like a car taken out by one big hit */E=Math.max(E,c.kind==1||TR.hitP?140000:230000);if(c.kind==1){c.cm=2;c.siren=0;c.block=0}}
-  if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>110000&&c.kind==1){c.state=1;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;trFlipKick(c,E)}if(E>(TR.hitP?70000:220000)&&c.kind==2){c.state=1;c.wt=0;TR.stat.wrecks++;trFlipKick(c,E)}return}   /* a racer wrecked by a big hit is out of the race */
+  if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>(TR.hitP?110000:300000)&&c.kind==1){c.state=1;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;trFlipKick(c,E)}if(E>(TR.hitP?70000:220000)&&c.kind==2){c.state=1;c.wt=0;TR.stat.wrecks++;trFlipKick(c,E)}return}   /* a racer wrecked by a big hit is out of the race */
   if(c.state==0&&E<2500){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.v=Math.max(0,B.vx*hx+B.vz*hz);c.x=B.x;c.z=B.z;return}
   if(c.state==0){c.state=1;c.wt=0;c.brake=0;c.L=null;TR.stat.wrecks++;c.rec=(c.kind==0&&E<32000&&(c.dmg||0)<.72)?1:0}      /* a knock spins it round and it drives on, limping; a big hit finishes it */
   c.x=B.x;c.z=B.z;c.vx=B.vx;c.vz=B.vz;c.om=B.om>5?5:B.om<-5?-5:B.om;c.v=Math.hypot(c.vx,c.vz);trFlipKick(c,E)}   /* batch 6: a big hit throws it up and rolls it */
@@ -319,7 +319,7 @@ function trPlayerCollide(){
         /* WHO WAS AT FAULT: only a crash YOU drive into is a crime. The normal points from the car to you: your speed into it against its speed into you (being rear-ended, or a patrol nudging you at a standstill, used to make you wanted) */
         const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
         const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
-        TR.hitP=1;TR.hitF=fault?1:0;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1)evTakedown(c);if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic)tumbleFromCar(hnx,hnz,vn,e,c.m)}
+        TR.hitP=1;TR.hitF=fault?1:0;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1){evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic)tumbleFromCar(hnx,hnz,vn,e,c.m)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){
@@ -344,10 +344,12 @@ function trProbe(x,z){TRP.ri=-1;const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)
     const d=Math.hypot(x-ax-dx*t,z-az-dz*t);if(d<bd){bd=d;TRP.ri=ri;TRP.i=i;TRP.t=t;TRP.d=d}}
   return TRP.ri>=0&&bd<ROADS[TRP.ri].hw*.8}
 /* how busy the roads are at a place (0..1) */
-function trDens(x,z,cls){
+/* (batch 27) light traffic while you race AI racers (they and you get through), a little more on the highways */
+function trDens(x,z,cls){const d=trDens0(x,z,cls);return EV.run&&EV.run.racers&&EV.run.racers.length?d*.4:d}
+function trDens0(x,z,cls){
   if(inBox(x,z,CITY,60))return 1;if(inBox(x,z,VALLEY,60))return .9;if(inBox(x,z,BEACH,60)||inBox(x,z,RESORT,60))return .65;
   for(const zn of ZONES)if(inZone(x,z,zn,60))return zn.d||.6;
-  return cls>=3?.55:cls==2?.45:.36}   /* batch 5: more traffic out of town (was .4 / .3 / .22) */
+  return cls>=3?.68:cls==2?.45:.36}   /* batch 5: more traffic out of town (was .4 / .3 / .22) */
 function trSeen(x,z){const dx=x-C.x,dz=z-C.z,d=Math.hypot(dx,dz);if(d<TR.visMin)return true;if(d>TR.visFar)return false;
   const hx=Math.sin(C.yaw),hz=-Math.cos(C.yaw);return(dx*hx+dz*hz)/d>.4}
 /* which vehicle: on highways mostly the family cars and the Close Call cars, some vans and pickups; in town also taxis (more downtown and in Las Vegas), buses on the
@@ -423,7 +425,7 @@ function trTick(dt){
   const pyx=Math.sin(C.yaw),pyz=-Math.cos(C.yaw);
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const dx=c.x-C.x,dz=c.z-C.z,d=Math.hypot(dx,dz);
     if(c.kind==2&&c.race)continue;   /* racers stay until the race ends */
-    if(d>(c.kind==1&&c.cm>0?760:TR.rDespawn)||(d>300&&c.cm<1&&(dx*pyx+dz*pyz)/d<.2)||(c.state==0&&(c.wait>40||c.stopT>45)))trKill(c,0);
+    if(d>(c.kind==1&&c.cm>0?COP_LOCK+300:TR.rDespawn)||(d>300&&c.cm<1&&(dx*pyx+dz*pyz)/d<.2)||(c.state==0&&(c.wait>40||c.stopT>45)))trKill(c,0);
     else if(c.state==0&&c.stopT>12&&d>30&&!trSeen(c.x,c.z))trKill(c,2);                  /* a jam out of sight dissolves */
     else if(c.state==0&&c.stopT>22&&d>60)trKill(c,2);                                     /* and a jam that stays for 22 s dissolves even in view, if it is not right next to the player */
     else if(c.state==1&&!c.block&&c.wt>14&&d>35&&!trSeen(c.x,c.z))trKill(c,1)}
@@ -433,4 +435,4 @@ function trTick(dt){
   copTick(dt);
   if(TR.prof){const ms=performance.now()-t0;TR.ms+=(ms-TR.ms)*.03;TR.stat.msSum+=ms;TR.stat.ticks++;if(ms>TR.stat.msMax)TR.stat.msMax=ms}}
 /* the fixed-step world: the player at 120 Hz (collisions with traffic included), traffic at 60 Hz */
-function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);crashTick(dt);if(TR.on&&TR.nAlive&&!(C.shield>0))trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);evTick(dt);spotTick(dt);racerTick(dt);if(!(++TR.sub&1))trTick(dt*2)}
+function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);crashTick(dt);boostTick(dt);if(TR.on&&TR.nAlive&&!(C.shield>0))trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);evTick(dt);spotTick(dt);racerTick(dt);if(!(++TR.sub&1))trTick(dt*2)}
