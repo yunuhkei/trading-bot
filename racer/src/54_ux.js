@@ -59,3 +59,6 @@ function randomStart(){const ok=ROADS.filter(r=>r.style!=2&&r.len>300&&!/^(pier|
     const i=Math.max(10,Math.min(r.n-11,Math.floor(Math.random()*r.n)));if(r.br&&r.br[i])continue;const x=r.X[i],z=r.Z[i];if(JUNC.some(J=>Math.hypot(J.x-x,J.z-z)<50))continue;if(r.Y[i]<2)continue;
     const tg=_tan(r,i),li=laneInfo(r.hw,r.style),off=li.x0+li.lw*.5,nx=-tg[1],nz=tg[0];return{x:x+nx*off,z:z+nz*off,yaw:Math.atan2(tg[0],-tg[1]),y:r.Y[i]+.5,road:r.id}}
   return null}
+/* lane assist on or off (batch 22), saved; the game starts with it on */
+function laneSet(on){IN.lane=!!on;try{localStorage.setItem('racer.lane',on?'1':'0')}catch(e){}}
+function laneLoad(){let v=null;try{v=localStorage.getItem('racer.lane')}catch(e){}IN.lane=v==null?true:v==='1'}

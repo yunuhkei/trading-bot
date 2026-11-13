@@ -5,7 +5,7 @@
 cd "$(dirname "$0")/../.." || exit 1
 python3 racer/build.py | tail -1
 T=racer/tests
-for t in rnet netcheck lanecheck raudit rload rfinal rtouch2 renergy rdrift2 rdrift3 rhandle rturn rjump rpen rtrhit rdamage rsafe rcops rparts rscenery renv rcarlook rgfx rcam rcars rnav rphys rsig rbudget rheat rpolice rlooks rccars rvar rcrash rcrashcam rdash rupg rrepair revents; do
+for t in rnet netcheck lanecheck raudit rload rfinal rtouch2 renergy rdrift2 rdrift3 rhandle rturn rjump rpen rtrhit rdamage rsafe rcops rparts rscenery renv rcarlook rgfx rcam rcars rnav rphys rsig rbudget rheat rpolice rlooks rccars rvar rcrash rcrashcam rdash rupg rlane rrepair revents; do
   echo; echo "=============== $t"; timeout 600 node $T/$t.js 2>&1 | tail -${LINES_PER_TEST:-40}
 done
 if [ "$1" = "--bots" ]; then

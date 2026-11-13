@@ -92,6 +92,7 @@ function dashDraw(c,W_,H_,u){const dt=dashDt();
   dashSpeedo(c,u,dt);const G=UI.gg,hp=typeof dmgHp=='function'?dmgHp():1;
   dashGauge(c,G.x,G.y1,G.w,G.h,hp,'HEALTH',hp>.25?DASH.ink:DASH.red,hp<.25);dashGauge(c,G.x,G.y2,G.w,G.h,C.nos,'NITRO',DASH.amber,UI.nosFlash>C.t);
   dashMapRing(c,UI.mm);
+  if(IN.lane){const G2=UI.gg,lw=u*.78,lh=u*.32,lx=G2.x+G2.w-lw,ly=G2.y1-lh-u*.12;dLcdBox(c,lx,ly,lw,lh,u*.05);c.save();c.globalAlpha=C.laneOn?1:.35;dLcdText(c,'LANE',lx+lw/2,ly+lh*.74,lh*.62,'center');c.restore()}   /* (batch 22: bright while lane assist is steering) */
   for(const b of UI.btn){if(b.pedal)dashPedal(c,b,u);else if(b.circle&&b.id=='drift')dashRound(c,b,u);else if(b.guard)dashGuard(c,b,u,dt);else if(b.haz)dashHazard(c,b,u)}}
 /* the toast (from safeHud): an amber trip-computer line */
 function dashToast(c,W_,H_,u,msg,al){c.save();c.globalAlpha=al;c.font=dLcd(u*.36);const tw=c.measureText(msg).width,bw=tw+u*.7,bh=u*.62,bx=W_/2-bw/2,by=H_*.4-bh*.7;
@@ -107,7 +108,7 @@ function pauseLayout(W_,H_,u){const m=u*.3,cw=Math.min(W_*.9,u*13.4),ch=Math.min
   L.lcd={x:x+pad,y:y+pad,w:cw-pad*2,h:u*.72};const top=L.lcd.y+L.lcd.h+u*.32,bot=y+ch-pad,lw=(cw-pad*3)*.54;L.left={x:x+pad,y:top,w:lw,h:bot-top};L.right={x:x+pad*2+lw,y:top,w:cw-pad*3-lw,h:bot-top};
   const add=(id,x,y,w,h,act,ex)=>{const o=Object.assign({id,x,y,w,h,act},ex||{});L.b.push(o);return o};
   const dr=Math.min(L.left.h*.36,u*1.05);add('drive',L.left.x,L.left.y+u*.05,dr*2,dr*2,()=>pauseClose(),{round:dr});
-  const rx0=L.left.x+dr*2+u*.25,rw=(L.left.x+L.left.w-rx0)/3;['fps','assist','units'].forEach((id,i)=>add(id,rx0+i*rw+rw/2-u*.3,L.left.y+u*.1,u*.6,u*.86,()=>{if(id=='fps')UI.showStats=!UI.showStats;else if(id=='units')unitsSet(!UNITS.imp);else IN.auto=!IN.auto},{rocker:1}));
+  const rx0=L.left.x+dr*2+u*.2,rw=(L.left.x+L.left.w-rx0)/4;['fps','assist','lane','units'].forEach((id,i)=>add(id,rx0+i*rw+rw/2-u*.27,L.left.y+u*.1,u*.54,u*.86,()=>{if(id=='fps')UI.showStats=!UI.showStats;else if(id=='units')unitsSet(!UNITS.imp);else if(id=='lane')laneSet(!IN.lane);else IN.auto=!IN.auto},{rocker:1}));   /* (batch 22: 'assist' is the auto gas; LANE is lane assist) */
   const ky=L.left.y+L.left.h-u*.62,kw=(L.left.w-u*.3*2)/3;['garage','map','reset'].forEach((id,i)=>add(id,L.left.x+i*(kw+u*.3),ky,kw,u*.6,()=>pauseKey(id),{key:1}));
   const kr=Math.min(L.right.w*.2,L.right.h*.27,u*.75);[['gfx',GFX_LBL],['sky',['DAY','OVERCAST','SUNSET']]].forEach(([id,lb],i)=>{const cx=L.right.x+L.right.w*(i?.77:.23),cy=L.right.y+L.right.h*.5;
     const kb=add(id,cx-kr,cy-kr,kr*2,kr*2,()=>pauseKnob(id,(PAUSE.k[id]+1)%lb.length),{knob:kr,cx,cy,labels:lb});
@@ -131,10 +132,10 @@ function pauseDraw(c,W_,H_,u){pauseSync();const L=pauseLayout(W_,H_,u),dt=dashDt
       const rg=c.createRadialGradient(cx-r*.15,cy-r*.25,r*.1,cx,cy,r*.88);rg.addColorStop(0,'#3d3f44');rg.addColorStop(1,'#141517');c.fillStyle=rg;c.beginPath();c.arc(cx,cy,r*.88,0,TAU);c.fill();
       c.strokeStyle='rgba(255,173,31,'+(.25+.25*Math.sin(performance.now()/400))+')';c.lineWidth=r*.06;c.beginPath();c.arc(cx,cy,r*.88,0,TAU);c.stroke();
       c.textAlign='center';c.fillStyle='#9b9ea4';c.font=dFont(r*.16,600);c.fillText('PRESS TO',cx,cy-r*.08);dLcdText(c,'DRIVE',cx,cy+r*.26,r*.32,'center')}
-    else if(b.rocker){const on=b.id=='fps'?UI.showStats:b.id=='units'?UNITS.imp:IN.auto;c.fillStyle='#0d0e0f';rr(c,b.x,b.y,b.w,b.h,u*.1);c.fill();
+    else if(b.rocker){const on=b.id=='fps'?UI.showStats:b.id=='units'?UNITS.imp:b.id=='lane'?IN.lane:IN.auto;c.fillStyle='#0d0e0f';rr(c,b.x,b.y,b.w,b.h,u*.1);c.fill();
       const ix=b.x+b.w*.12,iy=b.y+b.h*.08,iw=b.w*.76,ih=b.h*.84,hi=on?iy+ih*.5:iy,lo=on?iy:iy+ih*.5;c.fillStyle='#2a2c30';rr(c,ix,iy,iw,ih,u*.07);c.fill();c.fillStyle='#3d3f44';rr(c,ix,lo,iw,ih*.5,u*.07);c.fill();
       c.fillStyle=on?'#5dff7a':'#24342a';if(on){c.shadowColor='#5dff7a';c.shadowBlur=u*.25}c.beginPath();c.arc(b.x+b.w/2,b.y+b.h*.24,u*.06,0,TAU);c.fill();c.shadowBlur=0;
-      c.fillStyle='#b5b2a8';c.font=dFont(u*.17,600);c.textAlign='center';c.fillText(b.id=='fps'?'FPS':b.id=='units'?(UNITS.imp?'MPH':'KM/H'):'ASSIST',b.x+b.w/2,b.y+b.h+u*.24)}
+      c.fillStyle='#b5b2a8';c.font=dFont(u*.17,600);c.textAlign='center';c.fillText(b.id=='fps'?'FPS':b.id=='units'?(UNITS.imp?'MPH':'KM/H'):b.id=='lane'?'LANE':'AUTO',b.x+b.w/2,b.y+b.h+u*.24)}
     else if(b.key){const d=dKey(c,b.x,b.y,b.w,b.h,u*.1,pr(b.id));c.fillStyle=b.id=='reset'?'#ff8a70':DASH.ink;c.font=dFont(u*.19,700);c.textAlign='center';c.fillText(b.id=='reset'?'RESET CAR':b.id.toUpperCase(),b.x+b.w/2,b.y+b.h*.64+d)}
     else if(b.knob){const r=b.knob,j=PAUSE.k[b.id],tg=pauseKnobAng(j,b.labels.length);PAUSE.ka[b.id]+=(tg-PAUSE.ka[b.id])*Math.min(1,dt*16);
       c.fillStyle='rgba(0,0,0,.5)';c.beginPath();c.arc(b.cx,b.cy+r*.08,r*1.04,0,TAU);c.fill();c.fillStyle='#0e0f10';c.beginPath();c.arc(b.cx,b.cy,r*1.02,0,TAU);c.fill();

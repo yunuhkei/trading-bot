@@ -19,7 +19,7 @@ async function boot(){
     const sp=roadById('ring'),i0=Math.floor(sp.n*.3);let sx=sp.X[i0],sz=sp.Z[i0],a=Math.atan2(sp.X[i0+1]-sp.X[i0],-(sp.Z[i0+1]-sp.Z[i0]));
     if(QS.has('start')){const q=QS.get('start').split(',').map(Number);sx=q[0];sz=q[1];a=(q[2]||0)}
     else{/* start on the ring, in the right-hand carriageway */const nx=-Math.cos(a+0),nz=Math.sin(a);sx+=Math.cos(a)*5.6;sz+=Math.sin(a)*5.6}
-    let sy=sp.Y[i0]+.5;unitsLoad();
+    let sy=sp.Y[i0]+.5;unitsLoad();if(!QS.has('fixed'))laneLoad();
     if(!QS.has('start')&&!QS.has('fixed')){const q=randomStart();if(q){sx=q.x;sz=q.z;a=q.yaw;sy=q.y}}   /* (batch 21: a random start, until there is a story for where you begin) */
     carPlace(sx,sz,a,sy);camStep(0,true);
     TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.base=TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();safeInit();ECON.load();upgLoad();carHandling(CAR_ROSTER[CARSEL.cur]);evInit();spotInit();

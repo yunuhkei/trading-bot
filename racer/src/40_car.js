@@ -31,7 +31,7 @@ const CARS_RENDER=null;
 const GRAV=24;
 const C={cbN:0,curbT:-9,dActive:0,dCombo:0,dTime:0,dGrace:0,dStart:0,dEnd:0,dLast:null,jump:null,jx:0,jz:0,slideT:0,kv:0,liftT:0,ke:0,E:0,handT:0,hk:0,handOn:0,slideDir:1,lastSteer:1,airMax:0,x:0,y:0,z:0,yaw:0,vx:0,vz:0,vy:0,pitch:0,roll:0,px:0,py:0,pz:0,pyaw:0,ppitch:0,proll:0,spin:0,steerVis:0,wyaw:0,bob:0,
   gs:0,gsp:0,gf:0,ax:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0,boostK:0,camDr:0,camYV:0,fovV:0,distV:0,tapN:0,tapT:0,dbK:0,slideMax:.45};
-const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
+const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,lane:false,respawn:0};   /* lane: LANE ASSIST (batch 22; the game turns it on at start, the tests leave it off) */
 /* impacts: everything the car hits (src 0 a building/pole/tree, 1 a steep bank, 2 a hard landing, 3 traffic) is recorded with its energy for the damage system.
    E = energy lost in the crash in joules (1/2 m v^2 style: for a wall 1/2 m_player (1-e^2) vn^2, for a car 1/2 mu (1-e^2) vn^2 with mu the reduced mass), zone 0 front 1 rear 2 left 3 right (-1 unknown/underside) */
 const IMP={q:[],n:0,total:0,last:null,max:24};
@@ -169,7 +169,16 @@ function carStep(dt){
     const ratio=Math.min(1.2,Math.abs(C.wyaw)*af/Math.max(A,1));f-=Math.sign(f)*HND.scrub*A*ratio*ratio*(1-dr)*dt;
     let wt=lerp(omN,omD,dr);
     /* steering assist: with the thumb off the stick the car quietly follows the road (fades out as you steer) */
-    if(IN.assist&&C.onRoad&&dr<.2&&af>12&&f>0&&roadAt(C.x,C.z,C.y)){const ang=Math.atan2(RQ.tx,-RQ.tz),dd=angd(ang,C.yaw);if(Math.abs(dd)<.9){/* follow the road's direction, and lean back towards the middle when you drift towards an edge */
+    C.laneOn=0;
+    /* LANE ASSIST (batch 22): with the thumb off the stick the car follows the road and steers to the middle of the nearest lane on its own side (either way along the road);
+       steer and it lets go at once; let go again and it settles into whichever lane you are nearest, so a lane change is just a steer across */
+    if(IN.lane&&C.onRoad&&dr<.2&&af>8&&f>0&&roadAt(C.x,C.z,C.y)&&ROADS[RQ.ri]){const sg=angd(Math.atan2(RQ.tx,-RQ.tz),C.yaw),s=Math.abs(sg)<Math.PI/2?1:-1,angT=s>0?Math.atan2(RQ.tx,-RQ.tz):Math.atan2(-RQ.tx,RQ.tz),dd=angd(angT,C.yaw);
+      if(Math.abs(dd)<1.05){const r=ROADS[RQ.ri],li=laneInfo(r.hw,r.style),latR=RQ.lat*s;let tg=li.x0+li.lw*.5,bd=1e9;for(let k=0;k<li.nl;k++){const cl=li.x0+li.lw*(k+.5),d=Math.abs(cl-latR);if(d<bd){bd=d;tg=cl}}
+        /* aim at the lane centre a little way ahead (pure pursuit: it looks into the bend, as a driver does) */
+        const ld=Math.max(9,af*.75),n=r.n,i0=Math.round(RQ.ds/r.ds);let i2=i0+s*Math.round(ld/r.ds);if(r.closed)i2=((i2%n)+n)%n;else i2=clamp(i2,0,n-1);
+        const t2=_tan(r,i2),px=r.X[i2]+(-t2[1])*s*tg,pz=r.Z[i2]+t2[0]*s*tg,al=angd(Math.atan2(px-C.x,-(pz-C.z)),C.yaw),dl=Math.hypot(px-C.x,pz-C.z)||ld;
+        const fade=PHYS.classic?1-Math.min(1,Math.abs(steer)/.22):1-sstep(.015,.05,Math.abs(steer));wt+=2*af*Math.sin(clamp(al,-.6,.6))/dl*fade;C.laneOn=fade>.5?1:0}}
+    else if(IN.assist&&C.onRoad&&dr<.2&&af>12&&f>0&&roadAt(C.x,C.z,C.y)){const ang=Math.atan2(RQ.tx,-RQ.tz),dd=angd(ang,C.yaw);if(Math.abs(dd)<.9){/* follow the road's direction, and lean back towards the middle when you drift towards an edge */
       const edge=clamp((Math.abs(RQ.lat)-.55*RQ.hw)/(.45*RQ.hw),0,1),want=dd-Math.sign(RQ.lat)*edge*.2;
       wt+=want*1.6*Math.min(1,af/35)*(PHYS.classic?1-Math.min(1,Math.abs(steer)/.22):1-sstep(.015,.05,Math.abs(steer)))}}   /* only with the thumb off the stick: it used to fade out at 22 % of the stick and cancelled small corrections */
     wt+=DMG.pull*Math.min(1,af/12);                       /* a damaged side drags the car towards it (0 when undamaged) */

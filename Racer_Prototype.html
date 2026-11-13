@@ -2417,7 +2417,7 @@ const CARS_RENDER=null;
 const GRAV=24;
 const C={cbN:0,curbT:-9,dActive:0,dCombo:0,dTime:0,dGrace:0,dStart:0,dEnd:0,dLast:null,jump:null,jx:0,jz:0,slideT:0,kv:0,liftT:0,ke:0,E:0,handT:0,hk:0,handOn:0,slideDir:1,lastSteer:1,airMax:0,x:0,y:0,z:0,yaw:0,vx:0,vz:0,vy:0,pitch:0,roll:0,px:0,py:0,pz:0,pyaw:0,ppitch:0,proll:0,spin:0,steerVis:0,wyaw:0,bob:0,
   gs:0,gsp:0,gf:0,ax:0,grounded:1,onRoad:1,nos:.6,boosting:0,braking:0,drift:0,slip:0,speed:0,kmh:0,fwd:0,lat:0,hit:0,air:0,safeX:0,safeZ:0,safeY:0,safeYaw:0,safeT:0,wet:0,t:0,distance:0,driftScore:0,driftTime:0,shake:0,steer:0,thr:0,camYaw:0,camDist:7.5,camY:3,fov:1.08,flash:0,boostK:0,camDr:0,camYV:0,fovV:0,distV:0,tapN:0,tapT:0,dbK:0,slideMax:.45};
-const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,respawn:0};
+const IN={steer:0,thr:0,brk:0,hand:0,nitro:0,auto:false,assist:true,lane:false,respawn:0};   /* lane: LANE ASSIST (batch 22; the game turns it on at start, the tests leave it off) */
 /* impacts: everything the car hits (src 0 a building/pole/tree, 1 a steep bank, 2 a hard landing, 3 traffic) is recorded with its energy for the damage system.
    E = energy lost in the crash in joules (1/2 m v^2 style: for a wall 1/2 m_player (1-e^2) vn^2, for a car 1/2 mu (1-e^2) vn^2 with mu the reduced mass), zone 0 front 1 rear 2 left 3 right (-1 unknown/underside) */
 const IMP={q:[],n:0,total:0,last:null,max:24};
@@ -2555,7 +2555,16 @@ function carStep(dt){
     const ratio=Math.min(1.2,Math.abs(C.wyaw)*af/Math.max(A,1));f-=Math.sign(f)*HND.scrub*A*ratio*ratio*(1-dr)*dt;
     let wt=lerp(omN,omD,dr);
     /* steering assist: with the thumb off the stick the car quietly follows the road (fades out as you steer) */
-    if(IN.assist&&C.onRoad&&dr<.2&&af>12&&f>0&&roadAt(C.x,C.z,C.y)){const ang=Math.atan2(RQ.tx,-RQ.tz),dd=angd(ang,C.yaw);if(Math.abs(dd)<.9){/* follow the road's direction, and lean back towards the middle when you drift towards an edge */
+    C.laneOn=0;
+    /* LANE ASSIST (batch 22): with the thumb off the stick the car follows the road and steers to the middle of the nearest lane on its own side (either way along the road);
+       steer and it lets go at once; let go again and it settles into whichever lane you are nearest, so a lane change is just a steer across */
+    if(IN.lane&&C.onRoad&&dr<.2&&af>8&&f>0&&roadAt(C.x,C.z,C.y)&&ROADS[RQ.ri]){const sg=angd(Math.atan2(RQ.tx,-RQ.tz),C.yaw),s=Math.abs(sg)<Math.PI/2?1:-1,angT=s>0?Math.atan2(RQ.tx,-RQ.tz):Math.atan2(-RQ.tx,RQ.tz),dd=angd(angT,C.yaw);
+      if(Math.abs(dd)<1.05){const r=ROADS[RQ.ri],li=laneInfo(r.hw,r.style),latR=RQ.lat*s;let tg=li.x0+li.lw*.5,bd=1e9;for(let k=0;k<li.nl;k++){const cl=li.x0+li.lw*(k+.5),d=Math.abs(cl-latR);if(d<bd){bd=d;tg=cl}}
+        /* aim at the lane centre a little way ahead (pure pursuit: it looks into the bend, as a driver does) */
+        const ld=Math.max(9,af*.75),n=r.n,i0=Math.round(RQ.ds/r.ds);let i2=i0+s*Math.round(ld/r.ds);if(r.closed)i2=((i2%n)+n)%n;else i2=clamp(i2,0,n-1);
+        const t2=_tan(r,i2),px=r.X[i2]+(-t2[1])*s*tg,pz=r.Z[i2]+t2[0]*s*tg,al=angd(Math.atan2(px-C.x,-(pz-C.z)),C.yaw),dl=Math.hypot(px-C.x,pz-C.z)||ld;
+        const fade=PHYS.classic?1-Math.min(1,Math.abs(steer)/.22):1-sstep(.015,.05,Math.abs(steer));wt+=2*af*Math.sin(clamp(al,-.6,.6))/dl*fade;C.laneOn=fade>.5?1:0}}
+    else if(IN.assist&&C.onRoad&&dr<.2&&af>12&&f>0&&roadAt(C.x,C.z,C.y)){const ang=Math.atan2(RQ.tx,-RQ.tz),dd=angd(ang,C.yaw);if(Math.abs(dd)<.9){/* follow the road's direction, and lean back towards the middle when you drift towards an edge */
       const edge=clamp((Math.abs(RQ.lat)-.55*RQ.hw)/(.45*RQ.hw),0,1),want=dd-Math.sign(RQ.lat)*edge*.2;
       wt+=want*1.6*Math.min(1,af/35)*(PHYS.classic?1-Math.min(1,Math.abs(steer)/.22):1-sstep(.015,.05,Math.abs(steer)))}}   /* only with the thumb off the stick: it used to fade out at 22 % of the stick and cancelled small corrections */
     wt+=DMG.pull*Math.min(1,af/12);                       /* a damaged side drags the car towards it (0 when undamaged) */
@@ -3284,6 +3293,7 @@ function dashDraw(c,W_,H_,u){const dt=dashDt();
   dashSpeedo(c,u,dt);const G=UI.gg,hp=typeof dmgHp=='function'?dmgHp():1;
   dashGauge(c,G.x,G.y1,G.w,G.h,hp,'HEALTH',hp>.25?DASH.ink:DASH.red,hp<.25);dashGauge(c,G.x,G.y2,G.w,G.h,C.nos,'NITRO',DASH.amber,UI.nosFlash>C.t);
   dashMapRing(c,UI.mm);
+  if(IN.lane){const G2=UI.gg,lw=u*.78,lh=u*.32,lx=G2.x+G2.w-lw,ly=G2.y1-lh-u*.12;dLcdBox(c,lx,ly,lw,lh,u*.05);c.save();c.globalAlpha=C.laneOn?1:.35;dLcdText(c,'LANE',lx+lw/2,ly+lh*.74,lh*.62,'center');c.restore()}   /* (batch 22: bright while lane assist is steering) */
   for(const b of UI.btn){if(b.pedal)dashPedal(c,b,u);else if(b.circle&&b.id=='drift')dashRound(c,b,u);else if(b.guard)dashGuard(c,b,u,dt);else if(b.haz)dashHazard(c,b,u)}}
 /* the toast (from safeHud): an amber trip-computer line */
 function dashToast(c,W_,H_,u,msg,al){c.save();c.globalAlpha=al;c.font=dLcd(u*.36);const tw=c.measureText(msg).width,bw=tw+u*.7,bh=u*.62,bx=W_/2-bw/2,by=H_*.4-bh*.7;
@@ -3299,7 +3309,7 @@ function pauseLayout(W_,H_,u){const m=u*.3,cw=Math.min(W_*.9,u*13.4),ch=Math.min
   L.lcd={x:x+pad,y:y+pad,w:cw-pad*2,h:u*.72};const top=L.lcd.y+L.lcd.h+u*.32,bot=y+ch-pad,lw=(cw-pad*3)*.54;L.left={x:x+pad,y:top,w:lw,h:bot-top};L.right={x:x+pad*2+lw,y:top,w:cw-pad*3-lw,h:bot-top};
   const add=(id,x,y,w,h,act,ex)=>{const o=Object.assign({id,x,y,w,h,act},ex||{});L.b.push(o);return o};
   const dr=Math.min(L.left.h*.36,u*1.05);add('drive',L.left.x,L.left.y+u*.05,dr*2,dr*2,()=>pauseClose(),{round:dr});
-  const rx0=L.left.x+dr*2+u*.25,rw=(L.left.x+L.left.w-rx0)/3;['fps','assist','units'].forEach((id,i)=>add(id,rx0+i*rw+rw/2-u*.3,L.left.y+u*.1,u*.6,u*.86,()=>{if(id=='fps')UI.showStats=!UI.showStats;else if(id=='units')unitsSet(!UNITS.imp);else IN.auto=!IN.auto},{rocker:1}));
+  const rx0=L.left.x+dr*2+u*.2,rw=(L.left.x+L.left.w-rx0)/4;['fps','assist','lane','units'].forEach((id,i)=>add(id,rx0+i*rw+rw/2-u*.27,L.left.y+u*.1,u*.54,u*.86,()=>{if(id=='fps')UI.showStats=!UI.showStats;else if(id=='units')unitsSet(!UNITS.imp);else if(id=='lane')laneSet(!IN.lane);else IN.auto=!IN.auto},{rocker:1}));   /* (batch 22: 'assist' is the auto gas; LANE is lane assist) */
   const ky=L.left.y+L.left.h-u*.62,kw=(L.left.w-u*.3*2)/3;['garage','map','reset'].forEach((id,i)=>add(id,L.left.x+i*(kw+u*.3),ky,kw,u*.6,()=>pauseKey(id),{key:1}));
   const kr=Math.min(L.right.w*.2,L.right.h*.27,u*.75);[['gfx',GFX_LBL],['sky',['DAY','OVERCAST','SUNSET']]].forEach(([id,lb],i)=>{const cx=L.right.x+L.right.w*(i?.77:.23),cy=L.right.y+L.right.h*.5;
     const kb=add(id,cx-kr,cy-kr,kr*2,kr*2,()=>pauseKnob(id,(PAUSE.k[id]+1)%lb.length),{knob:kr,cx,cy,labels:lb});
@@ -3323,10 +3333,10 @@ function pauseDraw(c,W_,H_,u){pauseSync();const L=pauseLayout(W_,H_,u),dt=dashDt
       const rg=c.createRadialGradient(cx-r*.15,cy-r*.25,r*.1,cx,cy,r*.88);rg.addColorStop(0,'#3d3f44');rg.addColorStop(1,'#141517');c.fillStyle=rg;c.beginPath();c.arc(cx,cy,r*.88,0,TAU);c.fill();
       c.strokeStyle='rgba(255,173,31,'+(.25+.25*Math.sin(performance.now()/400))+')';c.lineWidth=r*.06;c.beginPath();c.arc(cx,cy,r*.88,0,TAU);c.stroke();
       c.textAlign='center';c.fillStyle='#9b9ea4';c.font=dFont(r*.16,600);c.fillText('PRESS TO',cx,cy-r*.08);dLcdText(c,'DRIVE',cx,cy+r*.26,r*.32,'center')}
-    else if(b.rocker){const on=b.id=='fps'?UI.showStats:b.id=='units'?UNITS.imp:IN.auto;c.fillStyle='#0d0e0f';rr(c,b.x,b.y,b.w,b.h,u*.1);c.fill();
+    else if(b.rocker){const on=b.id=='fps'?UI.showStats:b.id=='units'?UNITS.imp:b.id=='lane'?IN.lane:IN.auto;c.fillStyle='#0d0e0f';rr(c,b.x,b.y,b.w,b.h,u*.1);c.fill();
       const ix=b.x+b.w*.12,iy=b.y+b.h*.08,iw=b.w*.76,ih=b.h*.84,hi=on?iy+ih*.5:iy,lo=on?iy:iy+ih*.5;c.fillStyle='#2a2c30';rr(c,ix,iy,iw,ih,u*.07);c.fill();c.fillStyle='#3d3f44';rr(c,ix,lo,iw,ih*.5,u*.07);c.fill();
       c.fillStyle=on?'#5dff7a':'#24342a';if(on){c.shadowColor='#5dff7a';c.shadowBlur=u*.25}c.beginPath();c.arc(b.x+b.w/2,b.y+b.h*.24,u*.06,0,TAU);c.fill();c.shadowBlur=0;
-      c.fillStyle='#b5b2a8';c.font=dFont(u*.17,600);c.textAlign='center';c.fillText(b.id=='fps'?'FPS':b.id=='units'?(UNITS.imp?'MPH':'KM/H'):'ASSIST',b.x+b.w/2,b.y+b.h+u*.24)}
+      c.fillStyle='#b5b2a8';c.font=dFont(u*.17,600);c.textAlign='center';c.fillText(b.id=='fps'?'FPS':b.id=='units'?(UNITS.imp?'MPH':'KM/H'):b.id=='lane'?'LANE':'AUTO',b.x+b.w/2,b.y+b.h+u*.24)}
     else if(b.key){const d=dKey(c,b.x,b.y,b.w,b.h,u*.1,pr(b.id));c.fillStyle=b.id=='reset'?'#ff8a70':DASH.ink;c.font=dFont(u*.19,700);c.textAlign='center';c.fillText(b.id=='reset'?'RESET CAR':b.id.toUpperCase(),b.x+b.w/2,b.y+b.h*.64+d)}
     else if(b.knob){const r=b.knob,j=PAUSE.k[b.id],tg=pauseKnobAng(j,b.labels.length);PAUSE.ka[b.id]+=(tg-PAUSE.ka[b.id])*Math.min(1,dt*16);
       c.fillStyle='rgba(0,0,0,.5)';c.beginPath();c.arc(b.cx,b.cy+r*.08,r*1.04,0,TAU);c.fill();c.fillStyle='#0e0f10';c.beginPath();c.arc(b.cx,b.cy,r*1.02,0,TAU);c.fill();
@@ -3494,6 +3504,9 @@ function randomStart(){const ok=ROADS.filter(r=>r.style!=2&&r.len>300&&!/^(pier|
     const i=Math.max(10,Math.min(r.n-11,Math.floor(Math.random()*r.n)));if(r.br&&r.br[i])continue;const x=r.X[i],z=r.Z[i];if(JUNC.some(J=>Math.hypot(J.x-x,J.z-z)<50))continue;if(r.Y[i]<2)continue;
     const tg=_tan(r,i),li=laneInfo(r.hw,r.style),off=li.x0+li.lw*.5,nx=-tg[1],nz=tg[0];return{x:x+nx*off,z:z+nz*off,yaw:Math.atan2(tg[0],-tg[1]),y:r.Y[i]+.5,road:r.id}}
   return null}
+/* lane assist on or off (batch 22), saved; the game starts with it on */
+function laneSet(on){IN.lane=!!on;try{localStorage.setItem('racer.lane',on?'1':'0')}catch(e){}}
+function laneLoad(){let v=null;try{v=localStorage.getItem('racer.lane')}catch(e){}IN.lane=v==null?true:v==='1'}
 
 'use strict';
 /* ===== traffic: cars that follow the lane graph (23_lanes.js) ===== */
@@ -5771,7 +5784,7 @@ async function boot(){
     const sp=roadById('ring'),i0=Math.floor(sp.n*.3);let sx=sp.X[i0],sz=sp.Z[i0],a=Math.atan2(sp.X[i0+1]-sp.X[i0],-(sp.Z[i0+1]-sp.Z[i0]));
     if(QS.has('start')){const q=QS.get('start').split(',').map(Number);sx=q[0];sz=q[1];a=(q[2]||0)}
     else{/* start on the ring, in the right-hand carriageway */const nx=-Math.cos(a+0),nz=Math.sin(a);sx+=Math.cos(a)*5.6;sz+=Math.sin(a)*5.6}
-    let sy=sp.Y[i0]+.5;unitsLoad();
+    let sy=sp.Y[i0]+.5;unitsLoad();if(!QS.has('fixed'))laneLoad();
     if(!QS.has('start')&&!QS.has('fixed')){const q=randomStart();if(q){sx=q.x;sz=q.z;a=q.yaw;sy=q.y}}   /* (batch 21: a random start, until there is a story for where you begin) */
     carPlace(sx,sz,a,sy);camStep(0,true);
     TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.base=TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();safeInit();ECON.load();upgLoad();carHandling(CAR_ROSTER[CARSEL.cur]);evInit();spotInit();
