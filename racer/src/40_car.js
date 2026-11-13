@@ -170,10 +170,10 @@ function carStep(dt){
     let wt=lerp(omN,omD,dr);
     /* steering assist: with the thumb off the stick the car quietly follows the road (fades out as you steer) */
     C.laneOn=0;
-    /* LANE ASSIST (batch 22): with the thumb off the stick the car follows the road and steers to the middle of the nearest lane on its own side (either way along the road);
+    /* LANE ASSIST (batch 22): with the thumb off the stick the car follows the road and steers to the middle of the nearest lane, yours or (batch 29) an oncoming one (either way along the road);
        steer and it lets go at once; let go again and it settles into whichever lane you are nearest, so a lane change is just a steer across */
     if(IN.lane&&C.onRoad&&dr<.2&&af>8&&f>0&&roadAt(C.x,C.z,C.y)&&ROADS[RQ.ri]){const sg=angd(Math.atan2(RQ.tx,-RQ.tz),C.yaw),s=Math.abs(sg)<Math.PI/2?1:-1,angT=s>0?Math.atan2(RQ.tx,-RQ.tz):Math.atan2(-RQ.tx,RQ.tz),dd=angd(angT,C.yaw);
-      if(Math.abs(dd)<1.05){const r=ROADS[RQ.ri],li=laneInfo(r.hw,r.style),latR=RQ.lat*s;let tg=li.x0+li.lw*.5,bd=1e9;for(let k=0;k<li.nl;k++){const cl=li.x0+li.lw*(k+.5),d=Math.abs(cl-latR);if(d<bd){bd=d;tg=cl}}
+      if(Math.abs(dd)<1.05){const r=ROADS[RQ.ri],li=laneInfo(r.hw,r.style),latR=RQ.lat*s;let tg=li.x0+li.lw*.5,bd=1e9;for(let k=0;k<li.nl;k++)for(const sd of[1,-1]){const cl=sd*(li.x0+li.lw*(k+.5)),d=Math.abs(cl-latR);if(d<bd){bd=d;tg=cl}}   /* (batch 29) the oncoming lanes too: cross over for nitro and it holds you there */
         /* aim at the lane centre a little way ahead (pure pursuit: it looks into the bend, as a driver does) */
         const ld=Math.max(9,af*.75),n=r.n,i0=Math.round(RQ.ds/r.ds);let i2=i0+s*Math.round(ld/r.ds);if(r.closed)i2=((i2%n)+n)%n;else i2=clamp(i2,0,n-1);
         const t2=_tan(r,i2),px=r.X[i2]+(-t2[1])*s*tg,pz=r.Z[i2]+t2[0]*s*tg,al=angd(Math.atan2(px-C.x,-(pz-C.z)),C.yaw),dl=Math.hypot(px-C.x,pz-C.z)||ld;

@@ -2598,10 +2598,10 @@ function carStep(dt){
     let wt=lerp(omN,omD,dr);
     /* steering assist: with the thumb off the stick the car quietly follows the road (fades out as you steer) */
     C.laneOn=0;
-    /* LANE ASSIST (batch 22): with the thumb off the stick the car follows the road and steers to the middle of the nearest lane on its own side (either way along the road);
+    /* LANE ASSIST (batch 22): with the thumb off the stick the car follows the road and steers to the middle of the nearest lane, yours or (batch 29) an oncoming one (either way along the road);
        steer and it lets go at once; let go again and it settles into whichever lane you are nearest, so a lane change is just a steer across */
     if(IN.lane&&C.onRoad&&dr<.2&&af>8&&f>0&&roadAt(C.x,C.z,C.y)&&ROADS[RQ.ri]){const sg=angd(Math.atan2(RQ.tx,-RQ.tz),C.yaw),s=Math.abs(sg)<Math.PI/2?1:-1,angT=s>0?Math.atan2(RQ.tx,-RQ.tz):Math.atan2(-RQ.tx,RQ.tz),dd=angd(angT,C.yaw);
-      if(Math.abs(dd)<1.05){const r=ROADS[RQ.ri],li=laneInfo(r.hw,r.style),latR=RQ.lat*s;let tg=li.x0+li.lw*.5,bd=1e9;for(let k=0;k<li.nl;k++){const cl=li.x0+li.lw*(k+.5),d=Math.abs(cl-latR);if(d<bd){bd=d;tg=cl}}
+      if(Math.abs(dd)<1.05){const r=ROADS[RQ.ri],li=laneInfo(r.hw,r.style),latR=RQ.lat*s;let tg=li.x0+li.lw*.5,bd=1e9;for(let k=0;k<li.nl;k++)for(const sd of[1,-1]){const cl=sd*(li.x0+li.lw*(k+.5)),d=Math.abs(cl-latR);if(d<bd){bd=d;tg=cl}}   /* (batch 29) the oncoming lanes too: cross over for nitro and it holds you there */
         /* aim at the lane centre a little way ahead (pure pursuit: it looks into the bend, as a driver does) */
         const ld=Math.max(9,af*.75),n=r.n,i0=Math.round(RQ.ds/r.ds);let i2=i0+s*Math.round(ld/r.ds);if(r.closed)i2=((i2%n)+n)%n;else i2=clamp(i2,0,n-1);
         const t2=_tan(r,i2),px=r.X[i2]+(-t2[1])*s*tg,pz=r.Z[i2]+t2[0]*s*tg,al=angd(Math.atan2(px-C.x,-(pz-C.z)),C.yaw),dl=Math.hypot(px-C.x,pz-C.z)||ld;
@@ -3910,11 +3910,13 @@ function trPlayerCollide(){
         /* the player: velocity and a share of the spin (the driving model keeps its own yaw) */
         C.vx=BA.vx;C.vz=BA.vz;C.wyaw+=clamp((BA.om-C.wyaw),-1.6,1.6)*.55;C.x=BA.x;C.z=BA.z;
         const vn=HIT.vn;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.04);C.flash=Math.max(C.flash,Math.min(.25,vn*.01));
-        impactAdd(3,vn,e,c.m,HIT.cx,HIT.cz,HIT.nx,HIT.nz);if(C.t-c.hitT>.5)TR.stat.hits++;const hnx=HIT.nx,hnz=HIT.nz;
+        /* (batch 29) RAMMING a racer or a cop (you drive into it) costs you nothing, at any speed: no damage, no roll, no crash movie; their rams on you still hurt */
+        const ram=(c.kind==1||c.kind==2)&&-(C.vx*HIT.nx+C.vz*HIT.nz)>2.5;
+        if(!ram)impactAdd(3,vn,e,c.m,HIT.cx,HIT.cz,HIT.nx,HIT.nz);if(C.t-c.hitT>.5)TR.stat.hits++;const hnx=HIT.nx,hnz=HIT.nz;
         /* WHO WAS AT FAULT: only a crash YOU drive into is a crime. The normal points from the car to you: your speed into it against its speed into you (being rear-ended, or a patrol nudging you at a standstill, used to make you wanted) */
         const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
         const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
-        TR.hitP=1;TR.hitF=fault?1:0;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1){evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic)tumbleFromCar(hnx,hnz,vn,e,c.m)}
+        TR.hitP=1;TR.hitF=fault?1:0;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1){evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic&&!ram)tumbleFromCar(hnx,hnz,vn,e,c.m)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){

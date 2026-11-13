@@ -315,11 +315,13 @@ function trPlayerCollide(){
         /* the player: velocity and a share of the spin (the driving model keeps its own yaw) */
         C.vx=BA.vx;C.vz=BA.vz;C.wyaw+=clamp((BA.om-C.wyaw),-1.6,1.6)*.55;C.x=BA.x;C.z=BA.z;
         const vn=HIT.vn;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.04);C.flash=Math.max(C.flash,Math.min(.25,vn*.01));
-        impactAdd(3,vn,e,c.m,HIT.cx,HIT.cz,HIT.nx,HIT.nz);if(C.t-c.hitT>.5)TR.stat.hits++;const hnx=HIT.nx,hnz=HIT.nz;
+        /* (batch 29) RAMMING a racer or a cop (you drive into it) costs you nothing, at any speed: no damage, no roll, no crash movie; their rams on you still hurt */
+        const ram=(c.kind==1||c.kind==2)&&-(C.vx*HIT.nx+C.vz*HIT.nz)>2.5;
+        if(!ram)impactAdd(3,vn,e,c.m,HIT.cx,HIT.cz,HIT.nx,HIT.nz);if(C.t-c.hitT>.5)TR.stat.hits++;const hnx=HIT.nx,hnz=HIT.nz;
         /* WHO WAS AT FAULT: only a crash YOU drive into is a crime. The normal points from the car to you: your speed into it against its speed into you (being rear-ended, or a patrol nudging you at a standstill, used to make you wanted) */
         const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
         const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
-        TR.hitP=1;TR.hitF=fault?1:0;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1){evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic)tumbleFromCar(hnx,hnz,vn,e,c.m)}
+        TR.hitP=1;TR.hitF=fault?1:0;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1){evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic&&!ram)tumbleFromCar(hnx,hnz,vn,e,c.m)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){
