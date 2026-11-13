@@ -86,18 +86,37 @@ function laneInfo(hw,style){const div=style==1||style==4,x0=div?1.35:.2,nl=Math.
 'use strict';
 /* ===== WebGL1 helpers + all shaders. One program per material class, no per-frame allocation. ===== */
 const G={gl:null,cv:null,w:1,h:1,P:{},ext:{},maxAniso:1};
-const PRE='#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n';
+/* (batch 31, a test) LOOK: an experimental art direction picked with ?look=real or ?look=cine (0 is the normal look); compiled into every shader */
+const LOOK=(()=>{try{const m=/[?&]look=(\w+)/.exec(location.search);return m?({real:1,cine:2}[m[1]]||0):0}catch(e){return 0}})();
+const PRE='#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n#define LOOK '+LOOK+'\n';
 /* shared lighting / fog / tone chunk (fragment) */
 const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uFogP,uGr;/* uGr: x saturation, y warm/cool split, z contrast, w exposure */\n'+
 /* grade (set by the weather preset): exposure, a filmic curve, saturation, cool shadows and warm highlights, an S-curve of contrast */
+'\n#if LOOK==1\n'+
+/* realistic: exposure a touch up, a natural saturation (the weather's boost held back), the filmic curve, only a mild contrast curve, no split toning */
+'vec3 tone(vec3 c){c*=uGr.w*1.06;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.05)*.84),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));return mix(c,c*c*(3.-2.*c),.22);}\n'+
+'\n#elif LOOK==2\n'+
+/* cinematic: teal shadows, orange highlights, a strong S-curve, lifted blacks, a little less saturation */
+'vec3 tone(vec3 c){c*=uGr.w*1.04;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,uGr.x*.88),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));'+
+ 'float g=dot(c,vec3(.3333));c*=mix(vec3(.80,.98,1.10),vec3(1.12,.99,.80),smoothstep(.1,.75,g));c=c*c*(3.-2.*c)*.7+c*.3;return c*.93+vec3(.025,.035,.045);}\n'+
+'\n#else\n'+
 'vec3 tone(vec3 c){c*=uGr.w;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,uGr.x),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));'+
  'float g=dot(c,vec3(.3333));c*=mix(mix(vec3(1.),vec3(.90,.99,1.10),uGr.y),mix(vec3(1.),vec3(1.04,1.0,.95),uGr.y),smoothstep(.05,.8,g));return c*c*(3.-2.*c)*uGr.z+c*(1.-uGr.z);}\n'+
+'\n#endif\n'+
 /* the sky as a mip-mapped cube map (rendered at start-up and when the weather changes, see skyCubeUpdate): reflections of the real sky, clouds and sun. Stored as sqrt(colour / 4). */
 'uniform samplerCube uEnv;vec3 envl(vec3 r,float rough){vec3 d=textureCube(uEnv,r,rough*7.).rgb;return d*d*4.;}\n'+
 'vec3 skyc(vec3 r){vec3 d=textureCube(uEnv,r,2.).rgb;return d*d*4.;}\n'+
 /* thick haze: distance fog towards the horizon colour, thinning with height above the camera */
+'\n#if LOOK>0\n'+
+/* aerial perspective: blue-grey in-scattering that builds with distance even in clear air, then the haze; a glow round the sun (Mie) that is warm, stronger in the cinematic look */
+'vec3 fogm(vec3 c,vec3 wp){vec3 d=wp-uCam;float L=length(d);vec3 v=d/max(L,1e-3);float k=uFogP.x;float hf=exp(-max(wp.y-uCam.y,0.)*uFogP.y*.8);float f=(1.-exp(-L*L*k*k))*hf;'+
+ 'float mu=max(dot(v,uSun),0.);float mie=pow(mu,6.)*.5+pow(mu,48.)*.7;vec3 air=mix(uHor,uZen,.45);float ray=(1.-exp(-L*.00055))*hf;'+
+ '\n#if LOOK==2\nvec3 fc=mix(uHor,uHor*.6+uSunC*.4,clamp(mie*1.6+.15,0.,1.));f=min(1.,f*1.15+ray*.25);c=mix(c,air,ray*.25);\n#else\nvec3 fc=mix(uHor,uHor*.75+uSunC*.22,clamp(mie*uFogP.z*1.3,0.,1.));c=mix(c,air*.95,ray*.5);\n#endif\n'+
+ 'return mix(c,fc,clamp(f,0.,1.));}\n'+
+'\n#else\n'+
 'vec3 fogm(vec3 c,vec3 wp){vec3 d=wp-uCam;float L=length(d);vec3 v=d/max(L,1e-3);float k=uFogP.x;float f=1.-exp(-L*L*k*k);f*=exp(-max(wp.y-uCam.y,0.)*uFogP.y);'+
- 'float sg=pow(max(dot(v,uSun),0.),4.);vec3 fc=mix(uHor,uHor*.8+uSunC*.12,sg*uFogP.z);return mix(c,fc,clamp(f,0.,1.));}\n';
+ 'float sg=pow(max(dot(v,uSun),0.),4.);vec3 fc=mix(uHor,uHor*.8+uSunC*.12,sg*uFogP.z);return mix(c,fc,clamp(f,0.,1.));}\n'+
+'\n#endif\n';
 /* heightmap fetch (RGBA8: R/G = 16-bit height). Hn: exact grid point; Hb: bilinear */
 const HSRC='uniform sampler2D uH;uniform vec4 uMap;/* x=half size, y=0.5/N, z=height range, w=height offset */\n'+
 'float hdec(vec4 t){return (t.r*255.*256.+t.g*255.)/65535.*uMap.z+uMap.w;}\n'+
@@ -146,6 +165,10 @@ const SH={
   '\n#ifdef DET\nfloat gr=smoothstep(.0,.07,a.g-a.r*1.05);float hp=texture2D(uNz,vW.xz*.0043).b,hq=texture2D(uNz,vW.xz*.019).r;a=mix(a,a*mix(vec3(1.1,1.0,.76),vec3(.84,1.0,1.08),hp),gr*.7*(.5+.5*dt));a*=1.+(hq-.5)*.35*gr;\n'+
   'float bl=texture2D(uNz,vW.xz*2.3).g,bl2=texture2D(uNz,vW.xz*6.1).r;a*=1.+((bl-.5)*.55+(bl2-.5)*.4)*exp(-dist*.03)*(.35+.65*gr);\n'+
   'vec2 bp=vW.xz*1.35;float b0=texture2D(uNz,bp).r;n=normalize(n+vec3((b0-texture2D(uNz,bp+vec2(.03,0.)).r)*4.,0.,(b0-texture2D(uNz,bp+vec2(0.,.03)).r)*4.)*exp(-dist*.04)*.6);\n#endif\n'+
+  /* (LOOK) natural ground: grass towards olive and less lime, patches of dry earth and darker clumps at several scales, a stronger bump close up */
+  '\n#if LOOK>0\n{float gg=smoothstep(.0,.06,a.g-a.r);float pt=texture2D(uNz,vW.xz*.0026).r,pt2=texture2D(uNz,vW.xz*.041).g,pt3=texture2D(uNz,vW.xz*.17).b;vec3 nat=vec3(dot(a,vec3(.3,.5,.2)));'+
+  'a=mix(a,nat*vec3(.95,1.0,.66),gg*.5);a=mix(a,vec3(.20,.16,.11)*(.75+.6*pt2),gg*smoothstep(.58,.78,pt)*.6);a*=mix(1.,.62+.6*pt3,gg*.6);a*=.82;'+
+  'vec2 bq=vW.xz*.6;float c0=texture2D(uNz,bq).g;n=normalize(n+vec3((c0-texture2D(uNz,bq+vec2(.05,0.)).g)*3.,0.,(c0-texture2D(uNz,bq+vec2(0.,.05)).g)*3.)*exp(-dist*.012));}\n#endif\n'+
   'float rk=smoothstep(.78,.52,n.y);a=mix(a,vec3(.2,.185,.17)*(.7+.7*n1),rk*.8);'+
   'float ds=clamp((uGr.x-.72)/.4,0.,1.);a=mix(vec3(dot(a,vec3(.33))),a,mix(.78,1.,ds))*mix(vec3(.80,.83,.82),vec3(.95,.92,.86),ds);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=a*irr;\n#ifdef SHADOW\ncol*=shadowAt(vW);\n#endif\ncol*=csh(vW.xz);col+=skyc(reflect(normalize(vW-uCam),n))*.035*(1.-n.y*.4);col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- water: one big quad that follows the camera, depth from the height texture ---- */
@@ -215,7 +238,7 @@ const SH={
  prF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;uniform sampler2D uWin,uFol;uniform float uNight;\n'+ENVSRC+
  'void main(){vec3 n=normalize(vN);float isw=step(.8,vE),em=step(vE,-.5),fol=step(.3,vE)*step(vE,.7);vec4 w=texture2D(uWin,vU);vec3 alb=vC*mix(vec3(1.),w.rgb,isw);\n'+
   /* foliage: the leaf atlas, cut out; lit like a ball (wrapped), glowing a little when the sun is behind it */
-  'if(fol>.5){vec4 f=texture2D(uFol,vU);if(f.a<.5)discard;alb=vC*f.rgb*1.9;}\n'+
+  'if(fol>.5){vec4 f=texture2D(uFol,vU);if(f.a<.5)discard;alb=vC*f.rgb*1.9;\n#if LOOK>0\nalb=mix(vec3(dot(alb,vec3(.3,.5,.2))),alb,.72)*vec3(.95,1.,.78)*.8;\n#endif\n}\n'+
   'float nl=max(dot(n,uSun),0.);nl=mix(nl,clamp(dot(n,uSun)*.8+.3,0.,1.),fol);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=alb*irr;col+=alb*uSunC*pow(max(dot(normalize(vW-uCam),uSun),0.),3.)*.3*fol;'+
   /* a window is lit if its hash says so (about uNight of them); warm or cool light */
   'vec2 wc=floor(vU)+floor(vW.xz*.5);float hs=fract(sin(dot(wc,vec2(12.9898,78.233))+floor(vW.y*.29)*7.31)*43758.5453);float lit=isw*w.a*step(hs,uNight);'+
@@ -2195,7 +2218,7 @@ function renderInit(){
   R.fxN=0;
   carGLInit();trGLInit();gfxInit();envInit();skyCubeInit();
 }
-function setEnvU(P){const gl=G.gl,u=P.u,E=ENV;gl.uniform3f(u.uCam,R.cx,R.cy,R.cz);if(u.uSun!=null){gl.uniform3fv(u.uSun,E.sun);gl.uniform3fv(u.uSunC,E.sunC);gl.uniform3fv(u.uAmbT,E.ambT);gl.uniform3fv(u.uAmbB,E.ambB);gl.uniform3fv(u.uHor,E.hor);gl.uniform3fv(u.uZen,E.zen);gl.uniform4f(u.uFogP,E.fog,E.fogY,E.fogSun,R.time);gl.uniform4fv(u.uGr,E.gr);if(u.uEnv!=null&&R.cube){gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_CUBE_MAP,R.cube.tex);gl.uniform1i(u.uEnv,5)}if(u.uSk!=null)gl.uniform4fv(u.uSk,E.sk);if(u.uStu!=null)gl.uniform1f(u.uStu,E.stu);if(u.uClA!=null){gl.uniform3fv(u.uClA,E.clA);gl.uniform3fv(u.uClB,E.clB);gl.uniform4fv(u.uSd,E.sd)}}}
+function setEnvU(P){const gl=G.gl,u=P.u,E=ENV;gl.uniform3f(u.uCam,R.cx,R.cy,R.cz);if(u.uSun!=null){gl.uniform3fv(u.uSun,E.sun);if(LOOK){const ks=LOOK==1?1.12:1.08,ka=LOOK==1?.82:.9;gl.uniform3f(u.uSunC,E.sunC[0]*ks,E.sunC[1]*ks,E.sunC[2]*ks);gl.uniform3f(u.uAmbT,E.ambT[0]*ka,E.ambT[1]*ka,E.ambT[2]*ka*(LOOK==2?1.08:1));gl.uniform3f(u.uAmbB,E.ambB[0]*ka,E.ambB[1]*ka,E.ambB[2]*ka)}else{gl.uniform3fv(u.uSunC,E.sunC);gl.uniform3fv(u.uAmbT,E.ambT);gl.uniform3fv(u.uAmbB,E.ambB)}   /* (LOOK: a harder sun, less fill) */gl.uniform3fv(u.uHor,E.hor);gl.uniform3fv(u.uZen,E.zen);gl.uniform4f(u.uFogP,E.fog,E.fogY,E.fogSun,R.time);gl.uniform4fv(u.uGr,E.gr);if(u.uEnv!=null&&R.cube){gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_CUBE_MAP,R.cube.tex);gl.uniform1i(u.uEnv,5)}if(u.uSk!=null)gl.uniform4fv(u.uSk,E.sk);if(u.uStu!=null)gl.uniform1f(u.uStu,E.stu);if(u.uClA!=null){gl.uniform3fv(u.uClA,E.clA);gl.uniform3fv(u.uClB,E.clB);gl.uniform4fv(u.uSd,E.sd)}}}
 function setMapU(P){const gl=G.gl,u=P.u;gl.uniform4f(u.uMap,W.half,.5/W.N,W.hrange,W.hmin)}
 /* camera + frame */
 function viewSet(cx,cy,cz,tx,ty,tz,fov,w,h){R.cx=cx;R.cy=cy;R.cz=cz;R.fov=fov;R.pxm=2*Math.tan(fov/2)/Math.max(1,h);   /* the size of a pixel, in metres per metre of distance (for lines that must stay a pixel wide) */M4.look(R.V,cx,cy,cz,tx,ty,tz);M4.persp(R.Pm,fov,w/h,.8,12000);M4.mul(R.VP,R.Pm,R.V);M4.planes(R.PL,R.VP);

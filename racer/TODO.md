@@ -21,6 +21,7 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 28: realistic coasting (engine braking instead of a 4.5 m/s2 stop).
 - Batch 29: lane assist holds oncoming lanes; ramming racers and cops is free.
 - Batch 30: dirt trails off the highways; chasers only spawn behind; cops chase across the grass; fewer roadblocks.
+- Batch 31: test looks (?look=real / ?look=cine) for choosing the art direction; not in the game yet.
 - Batch 24: the crash movie plays until the car stops; harder crash damage in it; cops and racers wear down and are destroyed (test `rwear`).
 - Batch 23: damage looks light on the road (wild only in the crash cam); after the crash cam the car comes back slightly smashed at the front with the doors ajar.
 - Batch 22: lane assist (LANE rocker, on by default; test `rlane`).
