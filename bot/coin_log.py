@@ -78,7 +78,7 @@ class Track:
 
     __slots__ = ("mint", "t0", "creator", "mayhem", "ctx", "n", "nb", "ns", "bsol", "ssol", "maxb", "wallets", "t5",
                  "dev", "cs", "p", "e0", "tf", "e60", "snaps", "hi1", "lo1", "hi", "lo", "marks", "x0", "x60", "grad",
-                 "last", "f0", "told")
+                 "last", "f0", "told", "pf")
 
     def __init__(self, mint: str, t0: float, creator: str | None, mayhem: bool, ctx: dict):
         self.mint, self.t0, self.creator, self.mayhem, self.ctx = mint, t0, creator, mayhem, ctx
@@ -87,6 +87,7 @@ class Track:
         self.wallets: dict = {}                   # other buyers in the first minute -> SOL each bought
         self.t5 = self.cs = self.p = self.e0 = self.tf = self.e60 = self.grad = self.f0 = None
         self.told = False
+        self.pf = None                            # seconds after launch it first showed up promoted on DEX Screener
         self.snaps: dict = {}
         self.hi1 = self.lo1 = self.hi = self.lo = None
         self.marks: dict = {}
@@ -185,6 +186,8 @@ class Track:
                       "x60": {th_key(k): [round(v[0], 1), rnd(v[1])] for k, v in self.x60.items()},
                       "e60": rnd(self.e60 / self.e0, 4) if self.e60 and self.e0 else None,
                       "g": rnd(self.grad, 1), "cs": rnd(self.cs, 1), "f0": rnd(self.f0, 3)})
+        if self.pf is not None:
+            d["pf"] = round(self.pf)              # promoted on DEX Screener this long after launch
         if cut is not None:
             d["cut"] = round(cut)                 # the run ended this many seconds after launch: later marks missing
         return {k: v for k, v in d.items() if v not in (None, {}, [None, None])}
@@ -202,6 +205,10 @@ class CoinLog:
         self.stats = Counter()
         self._next_tick = 0.0
         self.on_snap = None                       # (track, now): called once, when a coin's 60-s snapshot is in
+        # the news and the naming waves, known at each moment (only what was fetched or launched BEFORE a coin)
+        self.headlines: deque = deque()           # (fetched at, source, title), the last 12 hours
+        self.topics: dict = {}                    # news topic word -> one headline (bot/news.py's rules)
+        self.waves = {300: (deque(), Counter()), 1800: (deque(), Counter())}   # launches' name words, 5 and 30 min
 
     def to_state(self) -> dict:
         return {"creators": dict(list(self.creators.items())[-50000:])}
@@ -230,7 +237,88 @@ class CoinLog:
         d = {"mi": mi, "hr": hr, "lr": self.launch_rate(now), "st": st, "sv": sv}
         if coin is not None:
             d.update(ag=round(coin.age(now), 1), v=round(sum(x[2] for x in coin.trades), 2), nb=len(coin.buyers))
+            tr = self.tracks.get(coin.mint)               # what was known about its name at launch
+            if tr is not None:
+                d.update(tw=tr.ctx.get("tw"), wv=tr.ctx.get("wv"))
         return {k: v for k, v in d.items() if v is not None}
+
+    def tags(self, mint: str) -> dict:
+        """A coin's news match and naming wave at launch (empty if it isn't being followed)."""
+        tr = self.tracks.get(mint)
+        return {"tw": tr.ctx.get("tw"), "wv": tr.ctx.get("wv")} if tr is not None else {}
+
+    # ---- the news and the naming waves ----
+    @staticmethod
+    def name_words(name: str, symbol: str) -> set:
+        import re
+
+        from .news import STOP, _norm
+        words = {w for w in re.findall(r"[a-z0-9]+", (name or "").lower()) if len(w) >= 4 and w not in STOP}
+        sym = _norm(symbol or "")
+        return words | ({sym} if len(sym) >= 3 and sym not in STOP else set())
+
+    def wave(self, now: float, words: set) -> dict:
+        """How many launches in the last 5 and 30 minutes share a name word with this one (then counts it)."""
+        out = {}
+        for span, (q, cnt) in self.waves.items():
+            while q and now - q[0][0] > span:
+                for w in q.popleft()[1]:
+                    cnt[w] -= 1
+                    if cnt[w] <= 0:
+                        del cnt[w]
+            out[span] = max((cnt[w] for w in words), default=0)
+            q.append((now, words))
+            for w in words:
+                cnt[w] += 1
+        return out
+
+    def news_match(self, name: str, symbol: str) -> str | None:
+        from .news import coin_matches
+        return coin_matches(name, symbol, self.topics) if self.topics else None
+
+    async def poll_news(self, session, stop_at: float, every: float = 300):
+        """Headlines and Google trends every 5 minutes (the same feeds as bot/news.py), kept 12 hours."""
+        import asyncio
+
+        from .news import FEEDS, _parse_rss, news_topics
+        while time.time() < stop_at:
+            now = time.time()
+            for source, url in FEEDS.items():
+                try:
+                    async with session.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"}) as r:
+                        text = await r.text()
+                    seen = {(s, t) for _, s, t in self.headlines}
+                    for title, _ in _parse_rss(source, text):
+                        if (source, title) not in seen:
+                            self.headlines.append((now, source, title))
+                except Exception:
+                    self.stats["news feed failed"] += 1
+            while self.headlines and now - self.headlines[0][0] > 12 * 3600:
+                self.headlines.popleft()
+            try:
+                self.topics = news_topics([(s, t) for _, s, t in self.headlines])
+            except Exception:
+                pass
+            await asyncio.sleep(every)
+
+    async def poll_promos(self, session, stop_at: float, every: float = 120):
+        """Coins being followed that show up on DEX Screener's paid profiles or boosts: when, after launch."""
+        import asyncio
+
+        urls = ("https://api.dexscreener.com/token-profiles/latest/v1", "https://api.dexscreener.com/token-boosts/latest/v1")
+        while time.time() < stop_at:
+            for url in urls:
+                try:
+                    async with session.get(url, timeout=20) as r:
+                        items = await r.json(content_type=None)
+                    now = time.time()
+                    for it in items if isinstance(items, list) else []:
+                        tr = self.tracks.get(it.get("tokenAddress")) if it.get("chainId") == "solana" else None
+                        if tr is not None and tr.pf is None:
+                            tr.pf = now - tr.t0
+                except Exception:
+                    self.stats["promo feed failed"] += 1
+            await asyncio.sleep(every)
 
     # ---- the feed ----
     @safe
@@ -243,6 +331,12 @@ class CoinLog:
             hr, mi = local_hm(now)
             st, sv = self.sol_ctx(now)
             ctx = {"hr": hr, "mi": mi, "lr": self.launch_rate(now), "cp": c[0], "cd": c[1], "cg": c[2], "st": st, "sv": sv}
+            words = self.name_words(e.get("name", ""), e.get("symbol", ""))
+            w = self.wave(now, words)
+            ctx.update(wv=w[1800], wv5=w[300])            # a copycat wave on pump.fun: a hot story, news or not
+            topic = self.news_match(e.get("name", ""), e.get("symbol", ""))
+            if topic:
+                ctx.update(tw=1, tk=topic[:24])           # named after a current headline or Google trend
             self.launches.append(now)
             if e["mint"] not in self.tracks and len(self.tracks) < MAX_TRACKS:
                 self.tracks[e["mint"]] = Track(e["mint"], now, creator, bool(e.get("mayhem")),

@@ -675,3 +675,19 @@ these hold, and even then it needs the owner's word and a change by hand (nothin
 3. A profit lock: once the account doubles, the original money is moved out and only winnings stay in play.
 4. Small first: the sniper's limits (`sniper.yaml`), tighter slippage (see bot/TODO.md), the 2 am-style condition.
 The weekly summary says how far it is from point 1.
+
+**Mayhem coins, real-price check (Nov 12, research only):** mayhem coins (pump.fun's own agent trades them) are now
+about 43% of launches and look much better than normal coins in the research log, but on Nov 9 real prices showed
+them losing 10% a bet. Two research ghosts trade them so the lab's numbers can be checked against real ones:
+"Mayhem coins: buy at launch, hold 30 min" and "Mayhem coins: buy at launch, +50%/-25%, 5 min" (up to 40 coins at
+once each). A random 1 in 4 of their trades is test-run on pump.fun (nothing sent), and the hourly ping shows each at
+real prices next to the lab's. Nothing copies them (no super bot, not the brain), and they're kept out of the
+strategy counts and "every signal", until real prices show the lab's mayhem numbers are honest.
+
+**News and naming waves (Nov 12):** the research log also records, for every new coin, whether its name or ticker
+matches a current headline or Google trend (the same feeds and rules as `bot/news.py`, only headlines fetched before
+the launch), how many coins with the same name word launched in the last 5 and 30 minutes (a copycat wave: a hot
+story on pump.fun, news or not; filler words like "pepe" or "moon" don't count), and when a coin it follows shows up
+on DEX Screener's paid profiles or boosts. The coin model and the launch rug filter use them, and the strict test
+judges every strategy on news-named coins and on wave coins as windows of their own. An earlier test (3,000+ coins)
+found news-named coins lost money on average, so this is a question to answer, not an edge assumed.
