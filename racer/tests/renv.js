@@ -29,9 +29,9 @@ const L=require('./rlib.js');
   /* the button, the saved choice, and foliage / wind / shadows */
   const T=await L.launch({q:'go=1&scale=.4&fixed=1&tier=2&env=day',w:400,h:225,mobile:false,traffic:true});
   await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:180000});
-  const B=await T.ev(()=>{const a=ENV.name,b=envCycle(),c=envCycle(),d=envCycle();let saved='';try{saved=localStorage.getItem('racer.env')}catch(e){}return{a,b,c,d,saved,btn:!!UI.bn.sky,label:UI.bn.sky&&UI.bn.sky.label}});
+  const B=await T.ev(()=>{const a=ENV.name,b=envCycle(),c=envCycle(),d=envCycle();let saved='';try{saved=localStorage.getItem('racer.env')}catch(e){}pauseKnob('sky',1);const kn=ENV.name;pauseKnob('sky',0);return{a,b,c,d,saved,btn:kn=='overcast'&&ENV.name=='day',label:'SKY knob'}});
   ok(B.a=='day'&&B.b=='overcast'&&B.c=='sunset'&&B.d=='day','the SKY button cycles DAY, OVERCAST, SUNSET and back ('+[B.a,B.b,B.c,B.d].join(' > ')+'), choice saved: '+B.saved);
-  ok(B.btn,'there is a SKY button on the HUD ("'+B.label+'")');
+  ok(B.btn,'the pause console has a SKY knob (it sets OVERCAST and back to DAY)');
   const F=await T.ev(()=>{const gl=G.gl;const t=R.tex.fol;gl.bindTexture(gl.TEXTURE_2D,t);const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);const px=new Uint8Array(128*128*4);gl.readPixels(0,0,128,128,gl.RGBA,gl.UNSIGNED_BYTE,px);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
     const tile=(tx,ty)=>{let a=0,n=0,lum=0;for(let y=0;y<64;y++)for(let x=0;x<64;x++){const k=((ty*64+y)*128+tx*64+x)*4;n++;if(px[k+3]>127){a++;lum+=px[k+1]}}return{cover:a/n,lum:a?lum/a/255:0}};
     return{leaf:tile(0,0),fir:tile(1,0),bush:tile(0,1),grass:tile(1,1),stats:R.stats.scenery,shadowTier:GFXT[2].shadow}});

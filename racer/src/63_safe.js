@@ -74,10 +74,10 @@ function safePads(quad){
     quad(p.x-a[0]*p.hl-b[0]*p.hw,y,p.z-a[1]*p.hl-b[1]*p.hw,p.x+a[0]*p.hl-b[0]*p.hw,y,p.z+a[1]*p.hl-b[1]*p.hw,p.x+a[0]*p.hl+b[0]*p.hw,y,p.z+a[1]*p.hl+b[1]*p.hw,p.x-a[0]*p.hl+b[0]*p.hw,y,p.z-a[1]*p.hl+b[1]*p.hw,r,g,bl,al)}}
 function safeHud(c,W_,H_,u){
   /* servicing ring */
-  if(SAFE.at&&SAFE.svc>0&&!GAME.state){const k=Math.min(1,SAFE.svc/1.5),cx=W_*.5,cy=H_*.62,rad=u*.5;c.save();c.lineWidth=u*.09;c.strokeStyle='rgba(255,255,255,.25)';c.beginPath();c.arc(cx,cy,rad,0,TAU);c.stroke();
+  if(SAFE.at&&SAFE.svc>0&&!GAME.state&&!MENU.open){const k=Math.min(1,SAFE.svc/1.5),cx=W_*.5,cy=H_*.62,rad=u*.5;c.save();c.lineWidth=u*.09;c.strokeStyle='rgba(255,255,255,.25)';c.beginPath();c.arc(cx,cy,rad,0,TAU);c.stroke();
     c.strokeStyle=SAFE.owned[SAFE.at.id]?'#4be07a':'#ff6a4a';c.beginPath();c.arc(cx,cy,rad,-PI/2,-PI/2+TAU*k);c.stroke();c.fillStyle='#fff';c.textAlign='center';c.font='800 '+Math.round(u*.28)+'px -apple-system,Roboto,sans-serif';c.fillText(SAFE.owned[SAFE.at.id]?'SERVICING':'LOCKED',cx,cy+rad+u*.4);c.restore()}
   else if(SAFE.at&&!GAME.state&&C.speed>=9&&SAFE.msgT<=0){c.save();c.textAlign='center';c.fillStyle='rgba(255,255,255,.85)';c.font='700 '+Math.round(u*.26)+'px -apple-system,Roboto,sans-serif';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;c.fillText('slow down to use the garage',W_*.5,H_*.62);c.restore()}
-  if(SAFE.msgT>0){c.save();c.globalAlpha=Math.min(1,SAFE.msgT*1.5);c.textAlign='center';c.font='800 '+Math.round(u*.5)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#7dffb0';c.shadowColor='rgba(0,0,0,.75)';c.shadowBlur=6;c.fillText(SAFE.msg,W_*.5,H_*.44);c.restore()}
+  if(SAFE.msgT>0)dashToast(c,W_,H_,u,SAFE.msg,Math.min(1,SAFE.msgT*1.5));   /* (batch 19: an amber trip-computer line) */
   /* wrecked / busted screen */
   if(GAME.state){const k=Math.min(1,GAME.t/1.2),f=GAME.t>2.6?Math.min(1,(GAME.t-2.6)/.7):0;c.save();c.fillStyle='rgba(0,0,0,'+(.35*k+.65*f)+')';c.fillRect(0,0,W_,H_);c.globalAlpha=k;c.textAlign='center';c.font='900 '+Math.round(u*1.1)+'px -apple-system,Roboto,sans-serif';
     c.fillStyle=GAME.state==2?'#7fb4ff':'#ff6a4a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=10;c.fillText(GAME.msg,W_*.5,H_*.5);if(GAME.state==2&&GAME.fine>0){c.font='800 '+Math.round(u*.32)+'px -apple-system,Roboto,sans-serif';c.fillStyle='#ffb0a0';c.fillText('FINE  -'+evMoney(GAME.fine),W_*.5,H_*.5+u*.6)}

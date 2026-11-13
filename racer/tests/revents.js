@@ -48,11 +48,11 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     ECON.money=p-1;menuOpen();menuPreview(i);menuChoose();o.poor=!CAROWN.owned.m1;ECON.money=p+500;menuChoose();o.bought=!!CAROWN.owned.m1&&ECON.money==500;menuClose();RACER.carSelect(carIndex('k1'));
     o.free=ECON.carPrice('k1');o.cheap=ECON.carPrice(CAR_ROSTER[0].id);o.dear=ECON.carPrice(CAR_ROSTER[CAR_ROSTER.length-1].id);
     const s=SAFE.pads.find(q=>!SAFE.owned[q.id]);ECON.money=20000;RACER.carPlace(s.pad.x,s.pad.z,s.yaw,s.y+.4);for(let k=0;k<120*3;k++){IN.thr=0;IN.brk=0;C.vx=C.vz=0;RACER.worldStep(1/120)}o.garage=SAFE.owned[s.id];o.left=ECON.money;
-    SAFE.visit=null;for(let k=0;k<120*3;k++){IN.thr=0;IN.brk=0;C.vx=C.vz=0;RACER.worldStep(1/120)}o.list=EV.card&&EV.card.title;o.dbg=[!!SAFE.at,SAFE.visit,SAFE.at&&SAFE.at.id,C.speed,EV.dismiss&&EV.dismiss.id,GAME.state];o.items=EV.card&&EV.card.btns.length;SAFE.owned[s.id]=false;delete CAROWN.owned.m1;EV.card=null;return o});
+    SAFE.visit=null;for(let k=0;k<120*3;k++){IN.thr=0;IN.brk=0;C.vx=C.vz=0;RACER.worldStep(1/120)}o.garage=EV.card&&EV.card.btns.map(q=>q.label).join('/');if(EV.card&&EV.card.btns[1])EV.card.btns[1].act();o.list=EV.card&&EV.card.title;o.dbg=[!!SAFE.at,SAFE.visit,SAFE.at&&SAFE.at.id,C.speed,EV.dismiss&&EV.dismiss.id,GAME.state];o.items=EV.card&&EV.card.btns.length;SAFE.owned[s.id]=false;delete CAROWN.owned.m1;EV.card=null;return o});
   ok(G.poor&&G.bought,'6 a car costs money: the Mac Seven-Twenty is '+G.price+' (one short: still locked; with enough: bought, 500 left)');
   ok(G.free==0&&G.cheap<G.dear,'6 prices follow speed: the starter is free, the slowest car '+G.cheap+', the fastest '+G.dear);
   ok(G.garage&&G.left==5000,'6 stopping on a locked garage with 20,000 buys it for 15,000');
-  console.log(JSON.stringify(G.dbg));ok(G.list=='EVENTS'&&G.items==21,'6 parked in your garage, the card lists all 20 events (and CLOSE)');
+  console.log(JSON.stringify(G.dbg));ok(G.garage=='ENTER GARAGE/EVENTS/DRIVE ON'&&G.list=='EVENTS'&&G.items==21,'6 parked in your garage, the garage card ('+G.garage+'), EVENTS lists all 20 events (and BACK)');
   /* 7 road rage: a row of parked cars down the ring; every wreck counts and adds 4 s */
   const H=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='r_ring');const m0=ECON.money;evStart(ev);for(let s=0;s<120*3.2;s++)RACER.worldStep(1/120);const r=ROADS.find(q=>q.id=='ring'),e=LG.ofRoad[ROADS.indexOf(r)][0][0];const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw);
     const sn=navSnap(C.x,C.z,30),la=navLane(sn,C.x,C.z,fx,fz);for(let k=0;k<8;k++){const c=trPlace(la.e,Math.min(la.e.n-2,(la.u+10+k*11)%la.e.n),0,1,0,900+k);if(c){c.v0f=0;c.v=0}}   /* standing cars in your lane */

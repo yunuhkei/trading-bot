@@ -87,7 +87,7 @@ let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
   ok(pr.probes==1&&pr.work>0&&pr.err==0,`the timing probe runs (8 frames with a GPU wait), the governor is called with the median (${pr.work.toFixed(1)} ms in software GL)`);
 
   /* ---- 7 the setting: Auto / High / Low button, URL, saved choice ---- */
-  const ui=await ev(()=>{const {UI,GFX}=RACER;const b=UI.bn.qual;const l0=b&&b.label;RACER.gfxSetMode('high');const h=[GFX.tier,GFX.mode];RACER.gfxSetMode('low');const lo=[GFX.tier,GFX.mode];RACER.gfxSetMode('auto');const au=[GFX.tier,GFX.mode];let saved=null;try{saved=localStorage.getItem('racer.gfx')}catch(e){}
+  const ui=await ev(()=>{const {UI,GFX}=RACER;const b={act(){pauseKnob('gfx',(GFX_OPTS.indexOf(GFX.mode)+1)%3)},get label(){return 'GFX '+GFX.mode.toUpperCase()}};const l0=b&&b.label;   /* (batch 19: the GRAPHICS knob in the pause console) */RACER.gfxSetMode('high');const h=[GFX.tier,GFX.mode];RACER.gfxSetMode('low');const lo=[GFX.tier,GFX.mode];RACER.gfxSetMode('auto');const au=[GFX.tier,GFX.mode];let saved=null;try{saved=localStorage.getItem('racer.gfx')}catch(e){}
     if(b)b.act(1);const l1=b&&b.label;return{has:!!b,l0,l1,h,lo,au,saved}});
   ok(ui.has&&ui.h[0]==2&&ui.lo[0]==0&&ui.au[0]==1&&ui.au[1]=='auto',`the GFX button: High -> tier ${ui.h[0]}, Low -> tier ${ui.lo[0]}, Auto -> starts at tier ${ui.au[0]} and adapts (label "${ui.l0}" -> "${ui.l1}")`);
   await T.close();

@@ -281,7 +281,7 @@ function organicTown(g,h){const{bld,tree,TH,SHOP,rng}=h,placed=[],skip=h.skip||(
   /* trees in the gardens behind the lots */
   if(!h.noTrees)forOrganic(g,B=>{const n=B.rr>.7?7:4;for(let k=0;k<n;k++){const u=lerp(B.u0+3,B.u1-3,rng()),v=lerp(B.v0+3,B.v1-3,rng()),p=B.W(u,v);if(!g.ins(p[0],p[1],8)||nearRoadXZ(p[0],p[1],5)||!free(p[0],p[1],2.5))continue;placed.push(p[0],p[1],1.5);tree(p[0],p[1])}})}
 const LMK=new Set();const lmk=(B,name,k,i,j)=>{if(!B.ok)return B.i==i&&B.j==j;if(!B.full||B.rank!==k||LMK.has(B.g.city+name))return false;LMK.add(B.g.city+name);return true};
-function buildCity(){LMK.clear();
+function buildCity(){LMK.clear();buildGarageRoom();
   const rng=mulberry(1337);let nb=0,pyramid=false;const CORE={x:-870,z:310};
   const reg=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
   const NEONC=[[255,40,120],[40,220,255],[255,190,40],[130,90,255],[60,255,150],[255,90,40]],nrng=mulberry(7771);

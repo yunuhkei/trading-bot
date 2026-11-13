@@ -241,3 +241,8 @@ Small differences from rounding are fine; a change of more than about 10 percent
 * `rcrash` runs with `CC.enabled=false` (it measures the tumble physics itself).
 
 * Batch 18: `rdamage` 2 and 3 now check that a hard landing (16 m/s) does no damage and moves no vertex.
+
+## Dashboard baseline (batch 19)
+
+* `rdash` (new, in `run_quick.sh`): the HUD has only the hazard pause, the pedals, drift, nitro and the map; the pause console has DRIVE, the FPS and assist rockers, GARAGE / MAP / RESET CAR and the graphics and sky knobs, and each works; GARAGE on the road sets the route; parked on the home pad the card offers ENTER GARAGE / EVENTS / DRIVE ON; inside, the car is in the garage room with the car menu; leaving puts it back on the pad; the car menu does not open on the road.
+* `renv` and `rgfx` check the sky and graphics knobs of the console (the SKY and GFX buttons are gone); `revents` 6 opens EVENTS from the garage card.
