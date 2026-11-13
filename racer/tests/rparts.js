@@ -19,13 +19,18 @@ const L=require('./rlib.js');
   const U=await T.ev(()=>{RACER.UI.paused=true;RACER.carPlace(4000,-3000,0,100);dmgReset();for(let i=0;i<60;i++)partsStep(1/60);return{angs:PP.slice(1).map(p=>p.a),off:PP.slice(1).map(p=>p.off),cr:PDM.cr.slice(),head:PDM.head.slice(),tail:PDM.tail.slice(),deb:DEB.length}});
   ok(U.angs.every(a=>a===0)&&U.off.every(o=>!o)&&U.cr.every(c=>c===0)&&!U.head[0]&&!U.head[1]&&!U.tail[0]&&!U.tail[1]&&U.deb===0,'2 undamaged: every part shut and on the car, no cracks, all four lights on');
   /* 3. a front hit opens the bonnet and breaks the front lights, a bigger one tears it off and the bumper goes */
-  const F=await T.ev(()=>{const out={};const hit=(vn,nx,nz)=>{impactAdd(0,vn,0,0,C.x,C.z,nx,nz);dmgConsume();dmgDents(1);for(let i=0;i<90;i++)partsStep(1/60)};
+  /* batch 23: on the road (no crash cam) the same six hard front hits leave the bonnet and the bumper hanging but on, and the dents shallow */
+  const RD=await T.ev(()=>{dmgReset();RACER.carPlace(4000,-3000,0,100);CC.on=0;for(let k=0;k<6;k++){impactAdd(0,24,0,0,C.x,C.z,0,1);dmgConsume();dmgDents(1);for(let i=0;i<90;i++)partsStep(1/60)}
+    const B=CARM.body;let md=0;for(let v=0;v<B.nv;v++){const o=v*8;md=Math.max(md,Math.hypot(B.f16[o]-DMG.pf16[o],B.f16[o+1]-DMG.pf16[o+1],B.f16[o+2]-DMG.pf16[o+2])/8192)}
+    const o={hood:PP[1].off,fb:PP[5].off,hoodA:+PP[1].a.toFixed(2),md:+md.toFixed(3)};dmgReset();return o});
+  ok(!RD.hood&&!RD.fb&&RD.hoodA>.05&&RD.hoodA<=.29&&RD.md<=.101,'3 on the road six hard front hits leave the bonnet up ('+RD.hoodA+' rad) and the bumper hanging, both still on; the deepest dent '+RD.md+' m');
+  const F=await T.ev(()=>{const out={};CC.on=1;   /* (in the crash cam parts may come off) */const hit=(vn,nx,nz)=>{CC.on=1;impactAdd(0,vn,0,0,C.x,C.z,nx,nz);dmgConsume();dmgDents(1);for(let i=0;i<90;i++)partsStep(1/60)};
     RACER.carPlace(4000,-3000,0,100);dmgReset();hit(18,0,1);out.hit1={z:DMG.z[0],hood:PP[1].a,hoodOff:PP[1].off,fb:PP[5].a,fbOff:PP[5].off,cr:PDM.cr[0],head:PDM.head.slice()};
     hit(22,0,1);out.hit2={z:DMG.z[0],hood:PP[1].a,hoodOff:PP[1].off,fbOff:PP[5].off,cr:PDM.cr[0],head:PDM.head.slice(),deb:DEB.length};
-    for(let k=0;k<4;k++)hit(24,0,1);out.hit6={z:DMG.z[0],hoodOff:PP[1].off,fbOff:PP[5].off,deb:DEB.length,head:PDM.head.slice()};return out});
+    for(let k=0;k<4;k++)hit(24,0,1);out.hit6={z:DMG.z[0],hoodOff:PP[1].off,fbOff:PP[5].off,deb:DEB.length,head:PDM.head.slice()};CC.on=0;return out});
   ok(F.hit1.z>.2&&F.hit1.hood>.05,'3 an 18 m/s front hit (front damage '+F.hit1.z.toFixed(2)+'): bonnet lifted to '+(F.hit1.hood*57.3).toFixed(0)+' deg');
   ok(F.hit2.hood>.3||F.hit2.hoodOff,'3 after a second hit (damage '+F.hit2.z.toFixed(2)+') the bonnet is '+(F.hit2.hoodOff?'torn off':(F.hit2.hood*57.3).toFixed(0)+' deg up')+', windscreen cracks '+F.hit2.cr.toFixed(2));
-  ok(F.hit6.hoodOff&&F.hit6.fbOff&&F.hit6.deb>=2,'3 after six hard front hits the bonnet and the front bumper have come off ('+F.hit6.deb+' pieces on the road), headlights '+(F.hit6.head[0]&&F.hit6.head[1]?'both dead':'not both dead'));
+  ok(F.hit6.hoodOff&&F.hit6.fbOff&&F.hit6.deb>=2,'3 in the crash cam, after six hard front hits the bonnet and the front bumper have come off ('+F.hit6.deb+' pieces on the road), headlights '+(F.hit6.head[0]&&F.hit6.head[1]?'both dead':'not both dead'));
   ok(F.hit2.head[0]||F.hit2.head[1]||F.hit6.head[0],'3 front lights go dark as the front takes damage');
   /* 4. the pieces fall to the road and settle; they do not sink or fly off to infinity */
   const D=await T.ev(()=>{for(let i=0;i<60*5;i++)partsStep(1/60);return DEB.map(d=>({k:d.k,y:d.y,g:groundAt(d.x,d.z,d.y+1.5),rest:d.rest,dist:Math.hypot(d.x-C.x,d.z-C.z),fin:Number.isFinite(d.x+d.y+d.z+d.R[0])}))});
@@ -34,20 +39,20 @@ const L=require('./rlib.js');
   const D2=await T.ev(()=>{for(let i=0;i<60*16;i++)partsStep(1/60);return DEB.length});
   ok(D2===0,'4 after about 20 s the pieces are removed ('+D2+' left)');
   /* 5. doors and mirrors on the side that was hit */
-  const S=await T.ev(()=>{const out={};const hit=(vn,nx,nz)=>{impactAdd(0,vn,0,0,C.x,C.z,nx,nz);dmgConsume();for(let i=0;i<90;i++)partsStep(1/60)};
+  const S=await T.ev(()=>{const out={};CC.on=1;const hit=(vn,nx,nz)=>{CC.on=1;impactAdd(0,vn,0,0,C.x,C.z,nx,nz);dmgConsume();for(let i=0;i<90;i++)partsStep(1/60)};
     RACER.carPlace(4000,-3000,0,100);dmgReset();hit(20,-1,0);                                    /* pushed towards -x: a hit on the RIGHT side */
     out.right={zone:DMG.z.map(v=>+v.toFixed(2)),dR:PP[3].a,dL:PP[4].a,dRoff:PP[3].off,mRoff:PP[7].off,crR:PDM.cr[3],crL:PDM.cr[2]};
     for(let k=0;k<3;k++)hit(24,-1,0);out.right4={dRoff:PP[3].off,dL:PP[4].a,deb:DEB.length};
-    RACER.carPlace(4000,-3000,0,100);dmgReset();hit(20,1,0);out.left={dL:PP[4].a,dR:PP[3].a,crL:PDM.cr[2]};return out});
+    RACER.carPlace(4000,-3000,0,100);dmgReset();hit(20,1,0);out.left={dL:PP[4].a,dR:PP[3].a,crL:PDM.cr[2]};CC.on=0;return out});
   ok(S.right.zone[3]>S.right.zone[2]&&(S.right.dR>.2||S.right.dRoff),'5 a hit on the right side: the right door hangs open ('+(S.right.dR*57.3).toFixed(0)+' deg'+(S.right.dRoff?', off':'')+'), left door '+(S.right.dL*57.3).toFixed(0)+' deg');
-  ok(S.right4.dRoff,'5 after four more hard side hits the right door has come off');
+  ok(S.right4.dRoff,'5 in the crash cam, after four more hard side hits the right door has come off');
   ok(S.left.dL<-.2&&Math.abs(S.left.dR)<Math.abs(S.left.dL),'5 a hit on the left: the left door opens (angle '+(S.left.dL*57.3).toFixed(0)+' deg) before the right one');
   ok(S.right.crR>0&&S.left.crL>0,'5 the side windows crack on the side that was hit (right '+S.right.crR.toFixed(2)+', left '+S.left.crL.toFixed(2)+')');
   /* 6. repair puts everything back */
   const R=await T.ev(()=>{dmgReset();for(let i=0;i<30;i++)partsStep(1/60);return{angs:PP.slice(1).map(p=>p.a),off:PP.slice(1).map(p=>p.off),deb:DEB.length,cr:PDM.cr.slice(),head:PDM.head.slice()}});
   ok(R.angs.every(a=>a===0)&&R.off.every(o=>!o)&&R.deb===0&&R.cr.every(c=>c===0)&&!R.head[0]&&!R.head[1],'6 repair: every part back on and shut, pieces gone, glass clear, lights on');
   /* 7. looks only: the same drive with a wrecked body and a pristine one ends in exactly the same place */
-  const run=async(wreck)=>T.ev(([wreck])=>{RACER.carPlace(4000,-3000,0,100);dmgReset();C.vx=C.vz=0;if(wreck){for(let k=0;k<6;k++){impactAdd(0,24,0,0,C.x,C.z,0,1);dmgConsume()}for(let k=0;k<4;k++){impactAdd(0,24,0,0,C.x,C.z,-1,0);dmgConsume()}for(let i=0;i<120;i++)partsStep(1/60)}
+  const run=async(wreck)=>T.ev(([wreck])=>{RACER.carPlace(4000,-3000,0,100);dmgReset();C.vx=C.vz=0;CC.on=wreck?1:0;if(wreck){for(let k=0;k<6;k++){impactAdd(0,24,0,0,C.x,C.z,0,1);dmgConsume()}for(let k=0;k<4;k++){impactAdd(0,24,0,0,C.x,C.z,-1,0);dmgConsume()}for(let i=0;i<120;i++)partsStep(1/60)}
       C.x=C.px=4000;C.z=C.pz=-3000;C.vx=C.vz=0;C.yaw=C.pyaw=0;IN.thr=1;IN.steer=0;let r=[];for(let i=0;i<120*4;i++){if(i==240)IN.steer=.5;carStep(1/120)}IN.thr=0;IN.steer=0;return{x:C.x,z:C.z,yaw:C.yaw,v:C.speed,hp:DMG.hp,z0:DMG.z[0]}},[wreck]);
   const a=await run(false),b=await run(true);
   ok(a.x===b.x&&a.z===b.z&&a.yaw===b.yaw&&a.v===b.v,'7 driving is identical with a wrecked body ('+b.v.toFixed(2)+' m/s, '+b.x.toFixed(3)+', '+b.z.toFixed(3)+' vs '+a.v.toFixed(2)+', '+a.x.toFixed(3)+', '+a.z.toFixed(3)+'); health '+a.hp.toFixed(2)+' -> '+b.hp.toFixed(2));

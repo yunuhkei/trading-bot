@@ -22,7 +22,10 @@ function partHinge(out,k,a,drop){
   /* translation = pivot - R * pivot (+ drop) */
   out[12]=px-(out[0]*px+out[4]*py+out[8]*pz);out[13]=py-(out[1]*px+out[5]*py+out[9]*pz)-(drop||0);out[14]=pz-(out[2]*px+out[6]*py+out[10]*pz);return out}
 /* how far a part can swing, per direction: [lowest, highest] angle */
-function _plim(k,P){switch(k){case 1:return[0,1.1];case 2:return[-1,0];case 3:return[0,1.4];case 4:return[-1.4,0];case 5:return P.side>0?[0,.55]:[-.55,0];case 6:return P.side>0?[-.55,0]:[0,.55];case 7:return[-1.35,0];default:return[0,1.35]}}
+/* (batch 23) on the road the parts hang but the car still looks drivable: the bonnet and the lid lift a little, the doors stand ajar, the bumpers sag a little; the full range is for the crash cam */
+const _PROAD=[0,.28,.28,.42,.42,.2,.2,9,9];
+function _plim(k,P){const L=_plim0(k,P);if(typeof CC!='undefined'&&CC.on)return L;const m=_PROAD[k];return[Math.max(L[0],-m),Math.min(L[1],m)]}
+function _plim0(k,P){switch(k){case 1:return[0,1.1];case 2:return[-1,0];case 3:return[0,1.4];case 4:return[-1.4,0];case 5:return P.side>0?[0,.55]:[-.55,0];case 6:return P.side>0?[-.55,0]:[0,.55];case 7:return[-1.35,0];default:return[0,1.35]}}
 /* where each part wants to be, from the damage so far */
 function partTarget(k){
   const z=DMG.z,P=PP[k],r=P.r,sp=Math.min(1,C.speed/45);let t=0;
@@ -43,7 +46,7 @@ function partsHit(zone,E,src){
   if(!PP.length||src==2||zone<0)return;const z=DMG.z,kj=Math.min(1,E/200e3),big=E>40e3;
   const kick=(k,dir)=>{const P=PP[k];if(P&&P.d&&!P.off)P.v+=dir*(2+9*kj)*(.6+.8*_prn(k+(PDM.n++)))};
   const latch=(k,m)=>{const P=PP[k];if(P&&P.d&&!P.off&&big&&Math.abs(P.min)<Math.abs(m))P.min=m};
-  const maybe=(k,cond)=>{const P=PP[k];if(P&&P.d&&!P.off&&cond)partDetach(k)};
+  const maybe=(k,cond)=>{const P=PP[k];if(P&&P.d&&!P.off&&cond&&(k>=7||(typeof CC!='undefined'&&CC.on)))partDetach(k)};   /* (batch 23: only mirrors come off on the road; the bonnet, lid, doors and bumpers hang, and come off only in the crash cam) */
   if(zone==0){kick(1,1);kick(5,PP[5].side);latch(1,.2);maybe(1,z[0]>.9||(E>300e3&&z[0]>.6));maybe(5,(z[0]>.55+.2*PP[5].r[1]&&E>60e3)||E>300e3||z[0]>.96);maybe(7+(PP[7].side>0?0:1),E>120e3&&_prn(PDM.n++)<.4)}
   else if(zone==1){kick(2,-1);kick(6,-PP[6].side);latch(2,-.2);maybe(2,z[1]>.9||(E>300e3&&z[1]>.6));maybe(6,(z[1]>.55+.2*PP[6].r[1]&&E>60e3)||E>300e3||z[1]>.96)}
   else if(zone==3){kick(3,1);latch(3,.14);maybe(3,z[3]>.85||(E>300e3&&z[3]>.7));maybe(7,E>25e3&&_prn(PDM.n++)<.55)}
@@ -81,7 +84,7 @@ function partsStep(dt){
     const g=groundAt(d.x,d.z,d.y+1.5)+d.hr;if(d.y<g){d.y=g;if(d.vy<-1.5)d.vy=-d.vy*.32;else d.vy=0;d.vx*=.86;d.vz*=.86;d.wx*=.7;d.wy*=.7;d.wz*=.7;
       if(Math.hypot(d.vx,d.vz)<.6&&Math.abs(d.vy)<.3&&d.t>.6){d.rest=1;d.vx=d.vz=d.vy=0}}}
   /* windows: cracks from the zone beside them; the roof adds to all */
-  const cr=PDM.cr;cr[0]=sstep(.08,.95,z[0]*.9+z[4]*.4);cr[1]=sstep(.08,.95,z[1]*.9+z[4]*.4);cr[2]=sstep(.1,1,z[2]+z[4]*.3);cr[3]=sstep(.1,1,z[3]+z[4]*.3);
+  const cr=PDM.cr;cr[0]=sstep(.08,.95,z[0]*.9+z[4]*.4);cr[1]=sstep(.08,.95,z[1]*.9+z[4]*.4);cr[2]=sstep(.1,1,z[2]+z[4]*.3);cr[3]=sstep(.1,1,z[3]+z[4]*.3);if(!(typeof CC!='undefined'&&CC.on))for(let i=0;i<4;i++)cr[i]=Math.min(cr[i],.45);   /* (batch 23: on the road the glass is cracked, never shattered) */
   /* lights go out one side at a time; they are in the bumper, so they leave with it */
   PDM.head[0]=z[0]>.38+.25*PP[1].r[1]||PP[5].off?1:0;PDM.head[1]=z[0]>.5+.25*PP[1].r[2]||PP[5].off?1:0;PDM.tail[0]=z[1]>.38+.25*PP[2].r[1]||PP[6].off?1:0;PDM.tail[1]=z[1]>.5+.25*PP[2].r[2]||PP[6].off?1:0}
 function partsReset(){partsInit()}

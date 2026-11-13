@@ -254,3 +254,5 @@ Small differences from rounding are fine; a change of more than about 10 percent
 * Batch 21: `rdash` 2 expects the MPH rocker in the console. The tests start with `?fixed`, so they keep the ring start (the game itself starts at a random spot). `rcam` driftHold failed once while ten tests ran in a row (jerk 0.028 m) and passed on its own (0.020 m).
 
 * Batch 22: `rlane` (new, in `run_quick.sh`): from between two lanes on the ring at 63 mph it settles within 0.03 m of a lane centre, the other carriageway the same, the mountain pass at 40 mph within 0.2 m for 14 s, a city street started on the wrong side ends in its own lane, holding the steering it lets go, switched off it does nothing. Tests start with `?fixed` and lane assist off; the game itself starts with it on.
+
+* Batch 23: `rparts` 3 checks that on the road six hard front hits leave the bonnet (at most 0.28 rad) and the bumper on, the deepest dent 10 cm; parts coming off is checked with the crash cam on. `rcrashcam` 1 checks the car comes back with front dents of at most 6 cm, 3 cm elsewhere, no part missing, the doors ajar.

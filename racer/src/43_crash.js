@@ -39,6 +39,7 @@ function crashReset(){CC.on=0;CC.scale=1;CC.fade=0;CC.fadeIn=1;const H=CC.hist;l
   if(e)while(H.length&&H[H.length-1].t>e.t)H.pop();
   /* clear the traffic round the spot (not the racers in a race, not a chasing cop) */
   for(const c of TR.cars){if(!c.alive)continue;if(c.kind==2&&c.race)continue;if(c.kind==1&&c.cm>0&&c.state==3)continue;if(Math.hypot(c.x-C.x,c.z-C.z)<40)trKill(c,0)}
+  dmgSoften();   /* (batch 23: back on the road lightly knocked about, never a wreck) */
   C.shield=3;safeToast('BACK ON THE ROAD  -  SHIELD 3 s',2.2);camStep(0,true)}
 /* the cinematic camera (from camStep) */
 function crashCam(){const a=R.alpha,x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a);CAM.x=CC.cam[0];CAM.y=CC.cam[1];CAM.z=CC.cam[2];CAM.tx=x;CAM.ty=y+.6;CAM.tz=z;

@@ -51,23 +51,34 @@ function dentApply(cx,cy,cz,dx,dy,dz,E){
   for(let v=0;v<nv;v++){const o=v*8,px=pf[o]/8192,py=pf[o+1]/8192,pz=pf[o+2]/8192,ex=px-cx,ey=py-cy,ez=pz-cz,d2=ex*ex+ey*ey+ez*ez;if(d2>R2)continue;
     const nb=v*16+8,w=Math.exp(-d2/s2),hv=trHash(((px*911+py*577)*128)|0,(((pz*733)*128)|0)+hit),amt=depth*w*(.75+.5*hv);   /* a function of the vertex POSITION, so the duplicate vertices of a flat-shaded edge move together and no crack opens */
     let x=f[o]/8192+dx*amt,y=f[o+1]/8192+dy*amt,z=f[o+2]/8192+dz*amt;
-    const mx=x-px,my=y-py,mz=z-pz,ml=Math.hypot(mx,my,mz);if(ml>.5){const s=.5/ml;x=px+mx*s;y=py+my*s;z=pz+mz*s}
+    const cap=dmgCap(pz),mx=x-px,my=y-py,mz=z-pz,ml=Math.hypot(mx,my,mz);if(ml>cap){const s=cap/ml;x=px+mx*s;y=py+my*s;z=pz+mz*s}
     f[o]=Math.max(-32767,Math.min(32767,Math.round(x*8192)));f[o+1]=Math.max(-32767,Math.min(32767,Math.round(y*8192)));f[o+2]=Math.max(-32767,Math.min(32767,Math.round(z*8192)));
     /* crumple: the normal is shaken (so the dent catches the light), the paint scuffs */
-    const a=trHash(v,hit*3+1)-.5,b=trHash(v,hit*3+2)-.5,c=trHash(v,hit*3+3)-.5,k=Math.min(1,w*1.4);
-    let qx=i8[nb]/127+a*.8*k,qy=i8[nb+1]/127+b*.8*k,qz=i8[nb+2]/127+c*.8*k;const ql=Math.hypot(qx,qy,qz)||1;
+    const ccOn=typeof CC!='undefined'&&CC.on,cr=ccOn?.8:.28,a=trHash(v,hit*3+1)-.5,b=trHash(v,hit*3+2)-.5,c=trHash(v,hit*3+3)-.5,k=Math.min(1,w*1.4);   /* (batch 23: on the road the creases are gentler) */
+    let qx=i8[nb]/127+a*cr*k,qy=i8[nb+1]/127+b*cr*k,qz=i8[nb+2]/127+c*cr*k;const ql=Math.hypot(qx,qy,qz)||1;
     i8[nb]=Math.round(qx/ql*127);i8[nb+1]=Math.round(qy/ql*127);i8[nb+2]=Math.round(qz/ql*127);
-    const sc=Math.min(.7,w*.8),cb=v*16+12;u8[cb]=u8[cb]*(1-sc)+52*sc;u8[cb+1]=u8[cb+1]*(1-sc)+46*sc;u8[cb+2]=u8[cb+2]*(1-sc)+42*sc}
+    const sc=Math.min(ccOn?.7:.3,w*(ccOn?.8:.4)),cb=v*16+12;u8[cb]=u8[cb]*(1-sc)+52*sc;u8[cb+1]=u8[cb+1]*(1-sc)+46*sc;u8[cb+2]=u8[cb+2]*(1-sc)+42*sc}
   DMG.dirty=1;dmgLamps()}
+/* (batch 23) how deep a dent may go at a point of the body: the car must always look drivable, except while the crash cam shows a crash
+   (then anything goes); the front (the model's -z end) may crumple a little more than the sides and the roof */
+function dmgCap(pz){if(typeof CC!='undefined'&&CC.on)return .5;return pz<-(CARM.hl||2.2)*.35?.1:.065}
+/* after the crash cam: the car comes back lightly knocked about: dents eased to a slightly smashed front (6 cm) and small marks elsewhere (3 cm), the paint
+   and the creases mostly back, every part back on, the doors left ajar and the bonnet a little up; the health stays as it was */
+function dmgSoften(){if(DMG.ready&&DMG.dirty){const B=CARM.body,f=B.f16,i8=B.i8,u8=B.u8,pf=DMG.pf16,pn=DMG.pi8,pu=DMG.pris,nv=B.nv,hl=CARM.hl||2.2;
+    for(let v=0;v<nv;v++){const o=v*8,px=pf[o],py=pf[o+1],pz=pf[o+2],mx=f[o]-px,my=f[o+1]-py,mz=f[o+2]-pz,ml=Math.hypot(mx,my,mz)/8192;if(ml<1e-4)continue;
+      const cap=pz/8192<-hl*.35?.06:.03;if(ml>cap){const s=cap/ml;f[o]=Math.round(px+mx*s);f[o+1]=Math.round(py+my*s);f[o+2]=Math.round(pz+mz*s)}
+      const nb=v*16+8,cb=v*16+12;for(let a=0;a<3;a++){i8[nb+a]=Math.round(i8[nb+a]*.35+pn[nb+a]*.65);u8[cb+a]=Math.round(u8[cb+a]*.3+pu[cb+a]*.7)}}
+    dentUpload();dmgLamps()}
+  if(typeof partsReset==='function'&&CARM.parts){partsReset();const big=DMG.total>250e3;if(PP[3]&&PP[3].d)PP[3].min=big?.32:.18;if(PP[4]&&PP[4].d)PP[4].min=big?-.32:-.18;if(PP[1]&&PP[1].d)PP[1].min=.1}}
 function dentUpload(){const B=CARM.body;if(!B||!B.vb)return;const gl=G.gl;gl.bindBuffer(gl.ARRAY_BUFFER,B.vb);gl.bufferSubData(gl.ARRAY_BUFFER,0,new Uint8Array(B.ab))}
 /* ---- smoke and fire from the engine ---- */
 let _dmgCool=0;
 function dmgFx(dt){
   const f=Math.max(DMG.z[0]*.8,1-DMG.hp);if(f<.3&&!DMG.wrecked)return;_dmgCool-=dt;
-  const rate=DMG.fire||DMG.wrecked?.05:f>.6?.08:.14;
+  const rate=(DMG.fire||DMG.wrecked)&&typeof CC!='undefined'&&CC.on?.05:f>.6?.11:.16;
   while(_dmgCool<=0){_dmgCool+=rate;const s=SMOKE[smokeHead++%SMOKE.length],sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
     s.x=C.x+sy*1.5+cy*(Math.random()-.5)*.6;s.z=C.z-cy*1.5+sy*(Math.random()-.5)*.6;s.y=C.y+.8;s.vx=C.vx*.3+(Math.random()-.5)*.8;s.vz=C.vz*.3+(Math.random()-.5)*.8;s.vy=1.6+Math.random()*1.4;s.age=0;s.life=.9+Math.random()*.7;
-    s.k=0;s.sz=.4+f*.35;s.a=.2+f*.18;s.fire=(DMG.fire||DMG.wrecked)&&Math.random()<.4?1:0;s.dark=1}}
+    const cc=typeof CC!='undefined'&&CC.on;s.k=0;s.sz=(.4+f*.35)*(cc?1:.75);s.a=(.2+f*.18)*(cc?1:.6);s.fire=cc&&(DMG.fire||DMG.wrecked)&&Math.random()<.4?1:0;s.dark=1}}   /* (batch 23: fire only in the crash cam) */
 /* ---- the health bar (one bar for the whole car; the five zones only decide where the dents go) ---- */
 function dmgHud(c,x,y,w,u){
   const h=u*.17,hp=Math.max(0,Math.min(1,DMG.hp)),col=hp>.5?'#4be07a':hp>.25?'#ffc23d':'#ff4a3a';
