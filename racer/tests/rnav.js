@@ -64,7 +64,7 @@ let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
     reset(60);C.speed0=60;for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);COP.spawnT=99;tick(600);out.alone=COP.heat;
     /* c: a crash into another car */
     reset(0);C.speed0=0;const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw);let npc=null;for(const q of TR.cars)if(!q.alive){npc=q;break}
-    if(npc){npc.alive=1;TR.nAlive++;npc.kind=0;npc.cm=0;npc.type=0;npc.state=1;npc.dmg=0;npc.dn=null;npc.vx=npc.vz=npc.om=0;npc.v=0;npc.m=1300;npc.I=1300*(TTYPES[0].hl**2+TTYPES[0].hw**2)/3;npc.wt=0;npc.rec=0;npc.hl=TTYPES[0].hl;npc.hw=TTYPES[0].hw;npc.px=npc.x=C.x+fx*5.2;npc.pz=npc.z=C.z+fz*5.2;npc.py=npc.y=C.y;npc.yaw=npc.pyaw=C.yaw;C.vx=fx*20;C.vz=fz*20;COP.spawnT=99;for(let s=0;s<80;s++){RACER.worldStep(1/120)}}
+    if(npc){npc.alive=1;TR.nAlive++;npc.kind=0;npc.cm=0;npc.type=0;npc.state=1;npc.dmg=0;npc.dn=null;npc.vx=npc.vz=npc.om=0;npc.v=0;npc.m=1300;npc.I=1300*(TTYPES[0].hl**2+TTYPES[0].hw**2)/3;npc.wt=0;npc.rec=0;npc.hl=TTYPES[0].hl;npc.hw=TTYPES[0].hw;npc.px=npc.x=C.x+fx*5.2;npc.pz=npc.z=C.z+fz*5.2;npc.py=npc.y=C.y;npc.yaw=npc.pyaw=C.yaw;{let w=null;for(const q of TR.cars)if(!q.alive){w=q;break}if(w){Object.assign(w,{alive:1,kind:1,cm:0,type:4,state:1,dmg:0,dn:null,vx:0,vz:0,om:0,v:0,m:2100,wt:0,rec:0,hl:TTYPES[4].hl,hw:TTYPES[4].hw,I:npc.I,yaw:C.yaw,pyaw:C.yaw,y:C.y,py:C.y});TR.nAlive++;w.px=w.x=C.x+fx*30-fz*12;w.pz=w.z=C.z+fz*30+fx*12}}   /* (batch 27) a patrol parked 32 m away sees it */C.vx=fx*20;C.vz=fz*20;COP.spawnT=99;for(let s=0;s<80;s++){RACER.worldStep(1/120)}}
     out.crash=COP.heat;out.crashDmg=npc?(npc.dmg||0):-1;
     /* d: hitting a cop car */
     reset(0);C.speed0=0;cop=mkCop(5.4);if(cop){cop.state=1;cop.v=0;cop.vx=cop.vz=cop.om=0;cop.yaw=cop.pyaw=C.yaw;cop.px=cop.x=C.x+fx*5.2;cop.pz=cop.z=C.z+fz*5.2;C.vx=fx*20;C.vz=fz*20;COP.spawnT=99;for(let s=0;s<80;s++){RACER.worldStep(1/120)}}
@@ -72,12 +72,12 @@ let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
     copClear(true);return out});
   ok(cp.placed&&cp.slow===0&&cp.fast>=1,'passing a cop at 110 mph is nothing (heat '+cp.slow+'), at 125 mph you are wanted (heat '+cp.fast+': one star since batch 3)');
   ok(cp.alone===0,'speeding at 60 m/s with no cop near is no crime (heat '+cp.alone+')');
-  ok(cp.crash>=1&&cp.crashDmg>0,'crashing into another car gets you chased (heat '+cp.crash+') and damages it (damage '+cp.crashDmg.toFixed(2)+')');
+  ok(cp.crash>=1&&cp.crashDmg>0,'crashing into another car in front of a patrol gets you chased (heat '+cp.crash+') and damages it (damage '+cp.crashDmg.toFixed(2)+')');
   ok(cp.copHit>=2,'hitting a cop car is a big crime (heat '+cp.copHit+': two stars at once)');
   /* ---- 5 the chase does not give up ---- */
   const ch=await ev(()=>{const {C,IN,TR,COP,ROADS}=RACER;copSetDiff('forgiving');GAME.state=0;GAME.lock=0;dmgReset();copClear(true);COP.spawnT=0;for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);
     const ring=ROADS.find(q=>q.id=='ring'),n=ring.n;placeOn('ring',.3,60);let idx=Math.round(.3*n);
-    copTrigger(3);const h0=COP.heat;let near=0,tot=0,minD=1e9,maxHeat=0,heat0=0,catchT=-1,lostChasers=0,heatDrops=0,t=0,endedAt=-1;const dt=1/120;
+    copTrigger(3,'event');const h0=COP.heat;let near=0,tot=0,minD=1e9,maxHeat=0,heat0=0,catchT=-1,lostChasers=0,heatDrops=0,t=0,endedAt=-1;const dt=1/120;
     /* a pure-pursuit bot drives the ring at 60 m/s for 60 s, then slows to 35 m/s */
     for(let s=0;s<120*100;s++){const spd=s<120*60?60:35;let bi=idx,bd=1e18;for(let k=-6;k<=30;k++){const i=((idx+k)%n+n)%n,d=(ring.X[i]-C.x)**2+(ring.Z[i]-C.z)**2;if(d<bd){bd=d;bi=i}}idx=bi;
       const look=Math.max(6,C.speed*.7),ti=((bi+Math.round(look/ring.ds))%n+n)%n,tj=(ti+1)%n,ta=Math.atan2(ring.X[tj]-ring.X[ti],-(ring.Z[tj]-ring.Z[ti])),tx=ring.X[ti]+Math.cos(ta)*5.5,tz=ring.Z[ti]+Math.sin(ta)*5.5;

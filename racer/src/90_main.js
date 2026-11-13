@@ -7,7 +7,7 @@ async function boot(){
   try{
     loadMsg(.02,'Shaping the land…');
     const t0=performance.now();defineRoads();BOOT.lgMs=0;{const t1=performance.now();lgBuild();BOOT.lgMs=performance.now()-t1;BOOT.sig=sigBuild()}await genHeight(p=>loadMsg(.02+p*.18));
-    loadMsg(.2,'Laying roads…');await nextTick();await carveRoads(p=>loadMsg(.2+p*.15));railPass();
+    loadMsg(.2,'Laying roads…');await nextTick();await carveRoads(p=>loadMsg(.2+p*.15));flattenGarages();railPass();
     loadMsg(.38,'Painting the ground…');await nextTick();genColors();
     loadMsg(.45,'Starting the graphics…');await nextTick();
     const cv=$('gl'),isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0,ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
