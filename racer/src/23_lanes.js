@@ -9,7 +9,7 @@ const LG={edges:[],links:[],ofRoad:[],stat:{},ready:false};
 const LG_ALAT=3.2,LG_ALATT=3.0;                         /* comfortable lateral acceleration (m/s^2) on lanes and on turns */
 const lgDirI=d=>d>0?0:1;
 /* speed limit (m/s) and class (3 highway, 2 main road, 1 street) of a road */
-function lgLimit(r){if(r.city)return r.style==4?[16,2]:[12.5,1];if(r.style==1)return[r.hw>=12?30:28,3];if(r.hw>=8)return[21,2];return[r.hw>=6.5?18:15,1]}
+function lgLimit(r){if(r.style==5)return[15,1];if(r.city)return r.style==4?[16,2]:[12.5,1];if(r.style==1)return[r.hw>=12?30:28,3];if(r.hw>=8)return[21,2];return[r.hw>=6.5?18:15,1]}
 function lgTan(e,i){const n=e.n,a=e.closed?(i+1)%n:Math.min(n-1,i+1),b=e.closed?(i+n-1)%n:Math.max(0,i-1);let tx=e.X[a]-e.X[b],tz=e.Z[a]-e.Z[b];const l=Math.hypot(tx,tz)||1;return[tx/l,tz/l]}
 /* comfortable speed along a polyline: the limit, lowered by curvature (circle through three points about 8 m apart) and by steep grades */
 function lgSpeeds(X,Z,Y,n,closed,lim,alat,K){

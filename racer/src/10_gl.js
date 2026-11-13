@@ -85,7 +85,7 @@ const SH={
   'float sq=fract(vA.y/23.);asph*=1.-(1.-smoothstep(.0,.0035,min(sq,1.-sq)))*.3*(1.-smoothstep(12.,70.,dist));\n#endif\n'+
   /* style (0 two-way, 1 divided, 2 patch, 3 city street, 4 boulevard) and the junction fade mk travel in one number: style + .1 + .8 mk */
   'float sf=fl-lanes*16.;float style=floor(sf);float mkf=clamp((sf-style-.1)/.8,0.,1.);'+
-  'bool dv=(style>.5&&style<1.5)||style>3.5;bool tw=style<.5||(style>2.5&&style<3.5);'+
+  'bool dv=(style>.5&&style<1.5)||(style>3.5&&style<4.5);bool tw=style<.5||(style>2.5&&style<3.5);bool trl=style>4.5;'+
   'float x0=dv?1.35:.2;float lw=(hw-.55-x0)/max(lanes,1.);float wh=0.;float ye=0.;'+
   /* edge lines (solid white) */
   'wh+=ln(ax,hw-.55,.11,aa);'+
@@ -95,8 +95,11 @@ const SH={
   'if(tw||dv){float d=fract(v/12.);float on=step(d,dv?.26:.28);for(int i=1;i<5;i++){if(float(i)<lanes)wh+=ln(ax,x0+float(i)*lw,.07,aa)*on;}}'+
   /* markings fade out towards junctions */
   'wh*=mkf;ye*=mkf;'+
+  /* (batch 30) style 5, a dirt trail: packed earth with two worn wheel ruts, grass down the middle and at the edges, no markings */
+  'if(trl){float dn=texture2D(uNz,vW.xz*.23).r*.55+texture2D(uNz,vW.xz*1.7).g*.45;vec3 dirt=vec3(.30,.23,.15)*(.75+.5*dn);float rut=exp(-pow((ax-1.15)/.42,2.));dirt*=1.-rut*.22;'+
+  'float gr=smoothstep(.45,.15,ax)*.55+smoothstep(hw-1.,hw+.2,ax);asph=mix(dirt,vec3(.16,.22,.09)*(.8+.4*dn),clamp(gr*(.6+.6*dn),0.,1.));wh=0.;ye=0.;}'+
   /* beside the asphalt: a gravel shoulder, or in town a curb (its face in shadow, a pale curb stone) and a sidewalk of paving slabs */
-  'bool cty=style>2.5&&style<4.5;float so=ax-hw;float shd=cty?smoothstep(0.,.1,so):smoothstep(-.1,.35,so);vec3 sdc=cty?vec3(.46,.45,.43):vec3(.30,.27,.22);'+
+  'bool cty=style>2.5&&style<4.5;float so=ax-hw;float shd=cty?smoothstep(0.,.1,so):smoothstep(-.1,.35,so);vec3 sdc=cty?vec3(.46,.45,.43):trl?vec3(.17,.21,.10):vec3(.30,.27,.22);'+
   'if(cty&&so>0.){float face=1.-smoothstep(.17,.2,so);float stone=smoothstep(.19,.2,so)*(1.-smoothstep(.5,.52,so));float jn=min(min(abs(fract(v/1.6)-.5)*1.6,abs(so-.52)),abs(so-2.06));'+
   'float jl=(1.-smoothstep(0.,.03+aa*.6,jn))*step(.5,so)*exp(-dist*.025);sdc*=(1.-.5*face)*(1.+.22*stone)*(1.-.3*jl);}'+
   'asph=mix(asph,sdc*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+

@@ -170,7 +170,7 @@ const SH={
   'float sq=fract(vA.y/23.);asph*=1.-(1.-smoothstep(.0,.0035,min(sq,1.-sq)))*.3*(1.-smoothstep(12.,70.,dist));\n#endif\n'+
   /* style (0 two-way, 1 divided, 2 patch, 3 city street, 4 boulevard) and the junction fade mk travel in one number: style + .1 + .8 mk */
   'float sf=fl-lanes*16.;float style=floor(sf);float mkf=clamp((sf-style-.1)/.8,0.,1.);'+
-  'bool dv=(style>.5&&style<1.5)||style>3.5;bool tw=style<.5||(style>2.5&&style<3.5);'+
+  'bool dv=(style>.5&&style<1.5)||(style>3.5&&style<4.5);bool tw=style<.5||(style>2.5&&style<3.5);bool trl=style>4.5;'+
   'float x0=dv?1.35:.2;float lw=(hw-.55-x0)/max(lanes,1.);float wh=0.;float ye=0.;'+
   /* edge lines (solid white) */
   'wh+=ln(ax,hw-.55,.11,aa);'+
@@ -180,8 +180,11 @@ const SH={
   'if(tw||dv){float d=fract(v/12.);float on=step(d,dv?.26:.28);for(int i=1;i<5;i++){if(float(i)<lanes)wh+=ln(ax,x0+float(i)*lw,.07,aa)*on;}}'+
   /* markings fade out towards junctions */
   'wh*=mkf;ye*=mkf;'+
+  /* (batch 30) style 5, a dirt trail: packed earth with two worn wheel ruts, grass down the middle and at the edges, no markings */
+  'if(trl){float dn=texture2D(uNz,vW.xz*.23).r*.55+texture2D(uNz,vW.xz*1.7).g*.45;vec3 dirt=vec3(.30,.23,.15)*(.75+.5*dn);float rut=exp(-pow((ax-1.15)/.42,2.));dirt*=1.-rut*.22;'+
+  'float gr=smoothstep(.45,.15,ax)*.55+smoothstep(hw-1.,hw+.2,ax);asph=mix(dirt,vec3(.16,.22,.09)*(.8+.4*dn),clamp(gr*(.6+.6*dn),0.,1.));wh=0.;ye=0.;}'+
   /* beside the asphalt: a gravel shoulder, or in town a curb (its face in shadow, a pale curb stone) and a sidewalk of paving slabs */
-  'bool cty=style>2.5&&style<4.5;float so=ax-hw;float shd=cty?smoothstep(0.,.1,so):smoothstep(-.1,.35,so);vec3 sdc=cty?vec3(.46,.45,.43):vec3(.30,.27,.22);'+
+  'bool cty=style>2.5&&style<4.5;float so=ax-hw;float shd=cty?smoothstep(0.,.1,so):smoothstep(-.1,.35,so);vec3 sdc=cty?vec3(.46,.45,.43):trl?vec3(.17,.21,.10):vec3(.30,.27,.22);'+
   'if(cty&&so>0.){float face=1.-smoothstep(.17,.2,so);float stone=smoothstep(.19,.2,so)*(1.-smoothstep(.5,.52,so));float jn=min(min(abs(fract(v/1.6)-.5)*1.6,abs(so-.52)),abs(so-2.06));'+
   'float jl=(1.-smoothstep(0.,.03+aa*.6,jn))*step(.5,so)*exp(-dist*.025);sdc*=(1.-.5*face)*(1.+.22*stone)*(1.-.3*jl);}'+
   'asph=mix(asph,sdc*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
@@ -720,9 +723,10 @@ function defineRoads(){
   buildCurvy({id:'pss',hw:9,lanes:1,style:0,to:'sh',yFrom:'psp',lift:.1,minR:50,wig:{a1:40,l1:320,a2:10,l2:130,seed:47,fade:140},pts:[[1620,RESORT.z1],[1612,2060],[1630,2250]].concat(tIn(sh,1630,2250))});
   defineWorld(ring,sh,{ramp,rampIn,tIn,tOut,at});
   outskirts('sfo',CITY,'city',sfp);outskirts('lao',VALLEY,'la',lap);outskirts('bto',BEACH,'coast',ROADS.find(q=>q.id=='btp'));outskirts('pso',RESORT,'desert',ROADS.find(q=>q.id=='psp'));
+  TRAILS=addTrails();
   const fixed=fixCrossings();findJunctions();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;findJumps();
   return GRIDS}
-let BRIDGES_ADDED=[];
+let BRIDGES_ADDED=[],TRAILS=[];
 /* where the jump hills are: [x,z,radius] (for the map and the region name) */
 const JUMPZ=[];
 function findJumps(){JUMPZ.length=0;for(const r of ROADS){if(!r.def||!r.def.humps)continue;for(const h of r.def.humps){const s0=h.f*r.len,s1=s0+h.n*h.len;let a=0,b=0;for(let i=0;i<r.n;i++){if(r.S[i]<=s0)a=i;if(r.S[i]<=s1)b=i}
@@ -1009,6 +1013,22 @@ function defineWorld(ring,sh,H){
   addSafe('eastgate','East Highway Garage','eh',.45,1,16);
   addSafe('vegas','Las Vegas Garage','vegp',.36,-1,16);addSafe('sacramento','Sacramento Garage','sacp',.1,-1,16);addSafe('sanjose','San Jose Garage','sjp',.1,-1,16);
 }
+/* (batch 30) DIRT TRAILS through the woods: from the country highways longer than 1.5 km, every 1.1-1.6 km, a narrow dirt road (style 5, 3.4 m half width) leaves the highway, winds 150-300 m out into the
+   country and comes back to the same highway 0.7-1 km further on. A way off the highway when the police are on you (they can follow: trails are in the lane graph, but carry no traffic).
+   Only where the whole trail is on dry land, away from towns, garages and every other road. */
+function addTrails(){const out=[],rng=mulberry(4242),boxes=ROADS.map(r=>{let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(let i=0;i<r.n;i+=4){x0=Math.min(x0,r.X[i]);x1=Math.max(x1,r.X[i]);z0=Math.min(z0,r.Z[i]);z1=Math.max(z1,r.Z[i])}return[x0,x1,z0,z1]});
+  const clear=(x,z,self,m)=>{for(let q=0;q<ROADS.length;q++){const o=ROADS[q],b=boxes[q];if(!b||o===self||x<b[0]-60||x>b[1]+60||z<b[2]-60||z>b[3]+60)continue;for(let i=0;i<o.n;i+=2){const dx=o.X[i]-x,dz=o.Z[i]-z,l=o.hw+m;if(dx*dx+dz*dz<l*l)return false}}return true};
+  const cand=ROADS.filter(r=>!r.city&&(r.style==0||r.style==1)&&r.n*r.ds>1500&&!r.def.flat);let k=0;
+  for(const par of cand){const L=par.n*par.ds;for(let s=300+rng()*300;s<L-1000;s+=1100+rng()*500){const span=700+rng()*300,i0=Math.round(s/par.ds),i1=Math.round((s+span)/par.ds);if(i1>par.n-30)break;
+      let built=false;const s1=(k++&1)?1:-1;for(const side of[s1,-s1]){if(built)break;const t0=_tan(par,i0),t1=_tan(par,i1),D=150+rng()*150,pts=[];
+      pts.push([par.X[i0],par.Z[i0]]);{const o=par.hw+30;pts.push([par.X[i0]-t0[1]*side*o,par.Z[i0]+t0[0]*side*o])}
+      for(const f of[.22,.5,.78]){const i=Math.round(i0+(i1-i0)*f),t=_tan(par,i),d=D*(f==.5?1:.75)+(rng()-.5)*60,al=(rng()-.5)*60;pts.push([par.X[i]-t[1]*side*d+t[0]*al,par.Z[i]+t[0]*side*d+t[1]*al])}
+      {const o=par.hw+30;pts.push([par.X[i1]-t1[1]*side*o,par.Z[i1]+t1[0]*side*o])}pts.push([par.X[i1],par.Z[i1]]);
+      const def={id:'trail'+out.length,hw:3.4,lanes:1,style:5,lift:.03,smooth:40,grade:.16,from:par.id,to:par.id,pts},R=buildRoad(def,true);let ok=true;
+      for(let i=0;i<R.n&&ok;i+=3){const x=R.X[i],z=R.Z[i],end=Math.min(i,R.n-1-i)*R.ds;if(baseH(x,z)<4||DISTRICT_BOXES.some(B=>inBox(x,z,B,120))||SAFEHOUSES.some(h=>Math.hypot(h.x-x,h.z-z)<90))ok=false;
+        else if(end>par.hw+36&&!clear(x,z,null,end<80?12:40))ok=false}
+      if(!ok)continue;out.push(buildRoad(def));built=true}}}
+  return out}
 
 'use strict';
 /* ===== heightmap generation, road carving, ground colours, height queries ===== */
@@ -1071,7 +1091,7 @@ function pickRepairs(){REPAIRS.length=0;const L=17,W2=7.5;
 function pickStops(){RSTOPS.length=0;const hl=23,hw=15;
   const built=(x,z)=>DISTRICT_BOXES.some(B=>inBox(x,z,B,300))||FIELDS.some(f=>inBox(x,z,f.b,40));
   const far=(x,z)=>RSTOPS.every(p=>Math.hypot(p.x-x,p.z-z)>520)&&REPAIRS.every(p=>Math.hypot(p.x-x,p.z-z)>260)&&SAFEHOUSES.every(s=>Math.hypot(s.x-x,s.z-z)>220)&&JUNC.every(J=>Math.hypot(J.x-x,J.z-z)>110)&&FARMS.every(f=>Math.hypot(f.x-x,f.z-z)>200);
-  for(const r of ROADS){if(r.city||r.n*r.ds<700||/^(rim|lookout|pier|pierhead)$/.test(r.id))continue;const st=Math.round(260/r.ds),m=Math.round(90/r.ds);
+  for(const r of ROADS){if(r.city||r.style==5||r.n*r.ds<700||/^(rim|lookout|pier|pierhead)$/.test(r.id))continue;const st=Math.round(260/r.ds),m=Math.round(90/r.ds);
     for(let i=m;i<r.n-m;i+=st){if(r.br[i])continue;const t=_tan(r,i),nx=-t[1],nz=t[0],y=r.Y[i],k=(Math.imul(i+7,2654435761)^Math.imul(r.id.length*131+r.n,40503))>>>0;
       for(const sd of(k&1?[1,-1]:[-1,1])){const off=r.hw+RSH+hw+9,cx=r.X[i]+nx*sd*off,cz=r.Z[i]+nz*sd*off;if(built(cx,cz)||!far(cx,cz))continue;let okk=true;
         let lo=1e9,hi=-1e9;for(let a=-1;a<=1&&okk;a+=.25)for(const b of[-1,-.4,.3,1]){const px=cx+t[0]*a*hl+nx*sd*b*hw,pz=cz+t[1]*a*hl+nz*sd*b*hw,h=terrainH(px,pz);lo=Math.min(lo,h);hi=Math.max(hi,h);if(h<2||Math.abs(h-y)>4.5){okk=false;break}}if(hi-lo>5)okk=false;
@@ -1084,7 +1104,7 @@ function railPass(){
   /* rails open at every junction (JUNC: where a road end sits on another road, both roads) and in front of every garage */
   const jz=[];for(const J of JUNC)jz.push(J.x,J.z,J.rad+62);for(const s of SAFEHOUSES)jz.push(s.x,s.z,46);for(const p of REPAIRS)jz.push(p.x,p.z,66);for(const p of RSTOPS)jz.push(p.x,p.z,44);
   const nearJ=(x,z)=>{for(let q=0;q<jz.length;q+=3){if((jz[q]-x)**2+(jz[q+1]-z)**2<jz[q+2]*jz[q+2])return true}return false};
-  for(const r of ROADS){const n=r.n,raw=new Uint8Array(n);
+  for(const r of ROADS){const n=r.n,raw=new Uint8Array(n);if(r.style==5){r.rail.fill(0);continue}   /* (batch 30) no rails on a dirt trail */
     for(let i=0;i<n;i++){const a=(i+1<n?i+1:i),b=(i>0?i-1:i);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;const nx=-tz,nz=tx,off=r.hw+RSH+7;let m=0;
       if(r.br[i])m=3;else if(!r.city&&!nearJ(r.X[i],r.Z[i])){if(r.Y[i]-terrainH(r.X[i]-nx*off,r.Z[i]-nz*off)>5.5)m|=1;if(r.Y[i]-terrainH(r.X[i]+nx*off,r.Z[i]+nz*off)>5.5)m|=2;
         if(r.style==1&&r.wk[i]>.99)m=3}
@@ -1306,7 +1326,7 @@ function buildFurniture(){
       if(i-lastPier>=7){lastPier=i;const gy=terrainH(r.X[i],r.Z[i]);if(r.Y[i]-gy>3){for(const o of[-hwi*.55,hwi*.55]){const px=r.X[i]+nx*o,pz=r.Z[i]+nz*o;pbox(0,px,terrainH(px,pz)-.5,pz,1.1,r.Y[i]-1.6,1.1,128,126,120,0,.8);COLC.push(px,pz,1.3,terrainH(px,pz)-.5,r.Y[i]-1.6)}}}}
     /* lamp posts */
     const step=r.city?15:(r.style==1?16:12),off=r.hw+(r.sw?.75:RSH+(r.city?.8:1.4));let cnt2=0;
-    for(let i=2;i<n-2;i+=step){if(r.br[i]||r.mk[i]<.5||r.wk[i]<.9)continue;const j=Math.min(n-1,i+1),dx=r.X[j]-r.X[i-1],dz=r.Z[j]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=((cnt2++)&1)?1:-1;
+    for(let i=2;i<n-2&&r.style!=5;i+=step){if(r.br[i]||r.mk[i]<.5||r.wk[i]<.9)continue;const j=Math.min(n-1,i+1),dx=r.X[j]-r.X[i-1],dz=r.Z[j]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=((cnt2++)&1)?1:-1;
       if(r.style==1&&!r.city&&(cnt2&1))continue;
       const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-(r.city?.1:.35);if(nearRepair(px,pz,6))continue;if(roadAt(px,pz,gy+.6)&&Math.abs(RQ.lat)<RQ.hw+.25)continue;   /* never a lamp post on asphalt: on a hairpin street the post of one leg stood in the lane of the next (the road bot got stuck on Lombard) */
       const lid=LAMPS.length/3;PROP_TAG=10000+lid;pbox(0,px,gy,pz,.13,gy+7.2,.13,92,94,98,0,.7);
@@ -1730,7 +1750,10 @@ function buildScenery(){
     for(let i=1;i<n-1;i++){d+=Math.hypot(r.X[i]-r.X[i-1],r.Z[i]-r.Z[i-1]);if(d<24)continue;d=0;if(r.br[i]||r.mk[i]<.9||r.wk[i]<.9||rg()<.45)continue;
       const dx=r.X[i+1]-r.X[i-1],dz=r.Z[i+1]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=rg()<.5?-1:1,o=r.hw*r.wk[i]+(r.sw?1.3:RSH+.55),px=r.X[i]+nx*sd*o,pz=r.Z[i]+nz*sd*o,ty=terrainH(px,pz);
       if(ty<3||Math.abs(ty-r.Y[i])>2.5||nearRepair(px,pz,4)||otherAsphalt(px,pz,r,r.Y[i],RSH+.4)||(r.sw&&!swOn(r,sd>0?1:0,r.S[i])))continue;let c0=0;const q=mulberry((px*7+pz*3)|0),fr=()=>c0++==0?.8:q();ptree(px,pz,fr,ty,true);COLC.push(px,pz,.5,ty-.5,ty+8);St.street++}});
-  ROADS.forEach((r,ri)=>{if(r.city)return;const n=r.n,hwy=r.style==1,poleSide=((ri*5+3)&1)?1:-1;
+  /* (batch 30) the dirt trails: woods on both sides (trees 3-14 m from the edge, with trunks you can hit), now and then a rock */
+  ROADS.forEach((r,ri)=>{if(r.style!=5)return;const rg=mulberry(9100+ri);for(let i=6;i<r.n-6;i+=2)for(const sd of[-1,1]){if(rg()>.62)continue;const tx=r.X[i+1]-r.X[i-1],tz=r.Z[i+1]-r.Z[i-1],l=Math.hypot(tx,tz)||1,g=2.5+rg()*11,[px,pz,ty]=sideAt(r,i,tx/l,tz/l,sd,g);
+      if(!free(px,pz,r.Y[i],g,3.5)||otherAsphalt(px,pz,r,r.Y[i],RSH+2))continue;if(rg()<.08){pbush(px,pz,ty,1.2,.8,110,104,96,rg()*6);St.rock++;continue}ptree(px,pz,rg,ty,false);COLC.push(px,pz,.5,ty-.5,ty+12);St.trees++}});
+  ROADS.forEach((r,ri)=>{if(r.city||r.style==5)return;const n=r.n,hwy=r.style==1,poleSide=((ri*5+3)&1)?1:-1;
     const nx_={pole:sr()*40,del:sr()*40,gan:250+sr()*700,bill:300+sr()*800,sign:150+sr()*400,grove:0,turb:500+sr()*700,gas:700+sr()*1500,home:600+sr()*1200,hv:300+sr()*2000,hvn:0};
     let d=0,pp=null,lastChev=-1e9;const fence=[{n:0},{n:0}],hv={n:0,sd:1,p:null};
     for(let i=0;i<n;i++){const ip=(i-1+n)%n,inn=(i+1)%n;if(!r.closed&&(i<1||i>n-2))continue;
@@ -1894,7 +1917,7 @@ const LG={edges:[],links:[],ofRoad:[],stat:{},ready:false};
 const LG_ALAT=3.2,LG_ALATT=3.0;                         /* comfortable lateral acceleration (m/s^2) on lanes and on turns */
 const lgDirI=d=>d>0?0:1;
 /* speed limit (m/s) and class (3 highway, 2 main road, 1 street) of a road */
-function lgLimit(r){if(r.city)return r.style==4?[16,2]:[12.5,1];if(r.style==1)return[r.hw>=12?30:28,3];if(r.hw>=8)return[21,2];return[r.hw>=6.5?18:15,1]}
+function lgLimit(r){if(r.style==5)return[15,1];if(r.city)return r.style==4?[16,2]:[12.5,1];if(r.style==1)return[r.hw>=12?30:28,3];if(r.hw>=8)return[21,2];return[r.hw>=6.5?18:15,1]}
 function lgTan(e,i){const n=e.n,a=e.closed?(i+1)%n:Math.min(n-1,i+1),b=e.closed?(i+n-1)%n:Math.max(0,i-1);let tx=e.X[a]-e.X[b],tz=e.Z[a]-e.Z[b];const l=Math.hypot(tx,tz)||1;return[tx/l,tz/l]}
 /* comfortable speed along a polyline: the limit, lowered by curvature (circle through three points about 8 m apart) and by steep grades */
 function lgSpeeds(X,Z,Y,n,closed,lim,alat,K){
@@ -3553,7 +3576,7 @@ function mapPopDraw(c,W_,H_,u,btns){const b=MAPV.pop;if(!b)return;const S=UI.map
   c.restore()}
 
 /* ---------------- a random start ---------------- */
-function randomStart(){const ok=ROADS.filter(r=>r.style!=2&&r.len>300&&!/^(pier|lombard|lookout|rim)/.test(r.id));let tot=0;for(const r of ok)tot+=r.len;
+function randomStart(){const ok=ROADS.filter(r=>r.style!=2&&r.style!=5&&r.len>300&&!/^(pier|lombard|lookout|rim)/.test(r.id));let tot=0;for(const r of ok)tot+=r.len;
   for(let t=0;t<60;t++){let pick=Math.random()*tot,r=ok[0];for(const q of ok){if(pick<q.len){r=q;break}pick-=q.len}
     const i=Math.max(10,Math.min(r.n-11,Math.floor(Math.random()*r.n)));if(r.br&&r.br[i])continue;const x=r.X[i],z=r.Z[i];if(JUNC.some(J=>Math.hypot(J.x-x,J.z-z)<50))continue;if(r.Y[i]<2)continue;
     const tg=_tan(r,i),li=laneInfo(r.hw,r.style),off=li.x0+li.lw*.5,nx=-tg[1],nz=tg[0];return{x:x+nx*off,z:z+nz*off,yaw:Math.atan2(tg[0],-tg[1]),y:r.Y[i]+.5,road:r.id}}
@@ -3639,7 +3662,7 @@ function trPt(o,i){const n=o.n;let j=Math.floor(i),f=i-j;if(o.closed){j=((j%n)+n
   const k=(j+1<n)?j+1:(o.closed?0:j),X=o.X,Z=o.Z,Y=o.Y;_pt.x=X[j]+(X[k]-X[j])*f;_pt.z=Z[j]+(Z[k]-Z[j])*f;_pt.y=Y[j]+(Y[k]-Y[j])*f;_pt.v=Math.min(o.V[j],o.V[k]);
   const dx=X[k]-X[j],dz=Z[k]-Z[j],l=Math.hypot(dx,dz)||1;_pt.tx=dx/l;_pt.tz=dz/l}
 /* link weights for the turn a car picks at a junction (the pick is a stateless hash of the car's seed and the junction, so it never changes while the car is deciding) */
-function trLW(l,g){const k=l.kind;if(k==3)return g.through?.07:2;return(k==1?1.5:k==2?1.2:1.2)*(l.to.cls>=l.from.cls?1.15:.8)}
+function trLW(l,g){const k=l.kind;if(l.to.road&&l.to.road.style==5)return 0;   /* (batch 30) traffic never turns onto a dirt trail */if(k==3)return g.through?.07:2;return(k==1?1.5:k==2?1.2:1.2)*(l.to.cls>=l.from.cls?1.15:.8)}
 function trPick(c,g,e){if(c.cm===1)return copPick(c,g,e);const L=g.links;let own=false;
   if(!g.through)for(let q=0;q<L.length;q++)if(L[q].from===e){own=true;break}       /* at the end of a road a car takes a turn from the lane it is in, if there is one */
   let wS=g.through?5:0,tot=wS;for(let q=0;q<L.length;q++)if(!own||L[q].from===e)tot+=trLW(L[q],g);
@@ -3982,6 +4005,7 @@ function trSpawn(){
     const ang=rng()*TAU,r=Math.sqrt(TR.visMin*TR.visMin*.4+rng()*(TR.rSpawn*TR.rSpawn-TR.visMin*TR.visMin*.4)),x=P.x+Math.cos(ang)*r,z=P.z+Math.sin(ang)*r;
     if(!trProbe(x,z)){continue}
     const ri=TRP.ri,o=LG.ofRoad[ri],di=rng()<.5?0:1,k=Math.min(o[di].length-1,Math.floor(rng()*o[di].length)),e=o[di][k];
+    if(ROADS[ri].style==5)continue;   /* (batch 30) no traffic on the dirt trails */
     const dens=trDens(x,z,e.cls);if(rng()>dens)continue;
     const r0=ROADS[ri],i=TRP.i+(TRP.t>.5?1:0);let u=e.dir>0?i:r0.n-1-i;if(e.closed)u=((u%e.n)+e.n)%e.n;else if(u<6||u>e.n-8)continue;
     trPt(e,u);const sx=_pt.x,sz=_pt.z;
@@ -4450,7 +4474,7 @@ function copFree(c,dt){
   const a=Math.max(-12,Math.min(D.accel,(_ct.v-v)*1.6)),top=copTop(c);c.v=Math.max(0,Math.min(top,v+a*dt));c.brake=a<-2.5?1:0;
   const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
   for(const o of[-1,1]){const px=c.x+sy*o*c.hl*.55,pz=c.z-cy*o*c.hl*.55;if(trStatic(px,pz,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz;c.v*=.55;c.vx=sy*c.v;c.vz=-cy*c.v;c.stk+=.3}}
-  const g=groundAt(c.x,c.z,c.y+.5);if(!RQ.on&&c.v>26)c.v=26;c.y+=(g-c.y)*Math.min(1,dt*18);if(c.y<g)c.y=g;
+  const g=groundAt(c.x,c.z,c.y+.5);{const gv=Math.max(26,(HND.vmaxG||40)*.9);if(!RQ.on&&c.v>gv)c.v=gv}   /* (batch 30) off the road nearly as fast as you are on grass (it was 26 m/s) */c.y+=(g-c.y)*Math.min(1,dt*18);if(c.y<g)c.y=g;
   const gf=groundAt(c.x+sy*1.6,c.z-cy*1.6,c.y+.5),gb=groundAt(c.x-sy*1.6,c.z+cy*1.6,c.y+.5);c.pitch+=(Math.atan2(gf-gb,3.2)-c.pitch)*Math.min(1,dt*10);c.roll*=.9;
   if(c.v<1.5&&Math.hypot(C.x-c.x,C.z-c.z)>14)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
 /* between the two worlds: lane graph <-> free driving */
@@ -4481,10 +4505,14 @@ function copType(chase){const T=chase?(STARS[COP.heat]||STARS[1]).types:[4,4,21]
 function trSpawnCop(chase,far){
   const rng=TR.rng,P=C;let ux=C.vx,uz=C.vz;const l=Math.hypot(ux,uz);if(l<2){ux=Math.sin(C.yaw);uz=-Math.cos(C.yaw)}else{ux/=l;uz/=l}
   /* a chaser: straight back along the road you are on (so it always finds a road and comes up behind you), 120-220 m behind (260-350 when it replaces one that fell behind) */
-  if(chase&&NAV.pl&&LG.ofRoad[NAV.pl.ri]){
-    const r=ROADS[NAV.pl.ri],o=LG.ofRoad[NAV.pl.ri],t=_tan(r,NAV.pl.i),sg=(t[0]*ux+t[1]*uz)>=0?1:-1,di=sg>0?0:1;
-    for(let tries=0;tries<4;tries++){const D=far?265+rng()*80:120+rng()*100;let idx=NAV.pl.i-sg*Math.round(D/r.ds);if(r.closed)idx=((idx%r.n)+r.n)%r.n;else if(idx<6||idx>r.n-8)continue;
-      const k=Math.floor(rng()*o[di].length),e=o[di][k],u=e.dir>0?idx:r.n-1-idx;trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz))continue;
+  /* (batch 30) a chaser only ever appears BEHIND you: more than 120 degrees off the way you are going, and on the road you are on only once you are lined up with it (just after a turn the
+     snapped road can still be the one you left, and 'behind on it' was off to the side or ahead of you) */
+  const behind=(sx,sz)=>{const dx=sx-P.x,dz=sz-P.z,d=Math.hypot(dx,dz)||1;return(dx*ux+dz*uz)<-.5*d};
+  const pl0=chase?navSnap(C.x,C.z,40):null;
+  if(chase&&pl0&&LG.ofRoad[pl0.ri]&&Math.abs(_tan(ROADS[pl0.ri],pl0.i)[0]*ux+_tan(ROADS[pl0.ri],pl0.i)[1]*uz)>.8){const pl=pl0;
+    const r=ROADS[pl.ri],o=LG.ofRoad[pl.ri],t=_tan(r,pl.i),sg=(t[0]*ux+t[1]*uz)>=0?1:-1,di=sg>0?0:1;
+    for(let tries=0;tries<4;tries++){const D=far?265+rng()*80:120+rng()*100;let idx=pl.i-sg*Math.round(D/r.ds);if(r.closed)idx=((idx%r.n)+r.n)%r.n;else if(idx<6||idx>r.n-8)continue;
+      const k=Math.floor(rng()*o[di].length),e=o[di][k],u=e.dir>0?idx:r.n-1-idx;trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz)||!behind(sx,sz))continue;
       let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
       const c=trPlace(e,u,copType(true),12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*1.0,Math.floor(rng()*1e9));if(!c)return null;c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;copAlert(c);return c}}
   for(let tries=0;tries<16;tries++){
@@ -4493,7 +4521,7 @@ function trSpawnCop(chase,far){
     const ri=TRP.ri,o=LG.ofRoad[ri],r0=ROADS[ri],i=TRP.i,j=i+1<r0.n?i+1:i,tx=r0.X[j]-r0.X[i],tz=r0.Z[j]-r0.Z[i];
     const toward=(P.x-x)*tx+(P.z-z)*tz,di=chase?(toward>0?0:1):(rng()<.5?0:1),k=Math.min(o[di].length-1,Math.floor(rng()*o[di].length)),e=o[di][k];
     let u=e.dir>0?i+(TRP.t>.5?1:0):r0.n-1-i-(TRP.t>.5?1:0);if(e.closed)u=((u%e.n)+e.n)%e.n;else if(u<6||u>e.n-8)continue;
-    trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz))continue;   /* never pops up in view (batch 5: patrols used to appear 230 m ahead) */
+    trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz)||(chase&&!behind(sx,sz)))continue;   /* never pops up in view (batch 5: patrols used to appear 230 m ahead) */
     let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
     if(!chase&&trLightAhead(e,u,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*.85))continue;   /* (a patrol is not put where it could not stop for a red light) */
     const c=trPlace(e,u,copType(chase),12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*(chase?1.0:.85),Math.floor(rng()*1e9));if(!c)return null;
@@ -4534,13 +4562,13 @@ function copTick(dt){
     if(COP.heat>0&&c.cm==0&&COP.heatT>D.react&&(d<COP_NEAR||(c.los&&d<COP_SEE)))copAlert(c);   /* a patrol joins when it sees you (it used to join from anywhere within 520 m, so a patrol ahead of you always turned into a chaser) */
     if(c.cm>=1){
       if(COP.heat==0||COP.sightT>D.loseT+2){copStandDown(c);continue}
-      if(c.state==0){if((d<115&&c.los)||d<40)copDetach(c)}
-      else if(c.state==3){if(d>210||c.stk>3.2)copAttach(c)}}}
+      if(c.state==0){if((d<115&&c.los)||d<40||(!C.onRoad&&d<350))copDetach(c)}   /* (batch 30) you left the road: it comes after you across the grass */
+      else if(c.state==3){if((d>210&&C.onRoad)||c.stk>3.2)copAttach(c)}}}
   if(COP.heat>0&&(lockD<COP_LOCK||(COP.callT<20&&copCallD()<COP_LOCK)))seen=true;COP.lockD=lockD;   /* (for 20 s after a crime the call says where you are, before any car has arrived) */
   COP.nC=nC;COP.nP=nP;COP.minD=minD;COP.seenNow=seen;
   /* roles for the free chasers, nearest first */
   if(nFree){let k=0;const free=[];for(let i=0;i<TRN;i++){const c=cars[i];if(c.alive&&c.kind===1&&c.state==3)free.push(c)}free.sort((a,b)=>Math.hypot(a.x-C.x,a.z-C.z)-Math.hypot(b.x-C.x,b.z-C.z));for(const c of free)c.role=k++}
-  COP.snapT=(COP.snapT||0)-dt;if(COP.snapT<=0){COP.snapT=.35;NAV.pl=navSnap(C.x,C.z,70)}        /* where you are on the road network, for the chasers' routes and spawns */
+  COP.snapT=(COP.snapT||0)-dt;if(COP.snapT<=0){COP.snapT=.35;NAV.pl=navSnap(C.x,C.z,70);if(NAV.pl&&NAV.pl.ri!==COP.roadRi){COP.roadRi=NAV.pl.ri;COP.roadT=COP.t}}   /* (batch 30: when you last turned onto another road) */        /* where you are on the road network, for the chasers' routes and spawns */
   if(seen)COP.sightT=0;else COP.sightT+=dt;
   if(COP.sightT<1||COP.lkx===undefined){COP.lkx=C.x;COP.lkz=C.z;COP.lkyaw=C.yaw;COP.lkPl=NAV.pl}   /* the last place they saw you */
   if(COP.heat>0&&COP.sightT>3){COP.w=Math.max(0,COP.w-Math.max(D.decay,COP.w*.8)*dt);if(COP.w<1)COP.w=0;COP.heat=copLevelOf()}   /* (batch 27) a mile clear: gone within about 5 s */
@@ -4549,7 +4577,7 @@ function copTick(dt){
     if(COP.heat>0){const want=D.chaseN[COP.heat];if(nC<want&&(lockD<600||(COP.callT<15&&copCallD()<600))){   /* (batch 27) reinforcements while a police car is within 600 m of you, and for 15 s after a new crime (the call goes out) */if(trSpawnCop(true,false)){COP.spawnT=1.4}else COP.spawnT=.5}}
     else if(nP<D.patrol&&TR.nAlive<TRN-8&&COP.t-(COP.lastPatrol||-99)>110&&DISTRICT_BOXES.some(B=>inBox(C.x,C.z,B,350))){if(trSpawnCop(false)){COP.spawnT=1.6;COP.lastPatrol=COP.t}else COP.spawnT=1}}   /* patrols are rare (batch 9): one at a time (two on Hard), a new one at most every 110 s, and only in or near a town or city: none on the country highways */
   /* roadblock */
-  if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>40&&COP.sightT<1.5&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<6)copRoadblock()}
+  if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>75&&COP.t-(COP.roadT||-99)>12&&COP.sightT<1.5&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<6)copRoadblock()}
   copHeliTick(dt);copSpikeTick(dt);
   /* boxed in: slow, with cops all round, for long enough */
   if(COP.heat>0&&ps<D.bustSpd&&nNear>=D.bustN)COP.bust+=dt;else COP.bust=Math.max(0,COP.bust-dt*1.5);

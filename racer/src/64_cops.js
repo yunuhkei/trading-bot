@@ -78,7 +78,7 @@ function copFree(c,dt){
   const a=Math.max(-12,Math.min(D.accel,(_ct.v-v)*1.6)),top=copTop(c);c.v=Math.max(0,Math.min(top,v+a*dt));c.brake=a<-2.5?1:0;
   const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
   for(const o of[-1,1]){const px=c.x+sy*o*c.hl*.55,pz=c.z-cy*o*c.hl*.55;if(trStatic(px,pz,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz;c.v*=.55;c.vx=sy*c.v;c.vz=-cy*c.v;c.stk+=.3}}
-  const g=groundAt(c.x,c.z,c.y+.5);if(!RQ.on&&c.v>26)c.v=26;c.y+=(g-c.y)*Math.min(1,dt*18);if(c.y<g)c.y=g;
+  const g=groundAt(c.x,c.z,c.y+.5);{const gv=Math.max(26,(HND.vmaxG||40)*.9);if(!RQ.on&&c.v>gv)c.v=gv}   /* (batch 30) off the road nearly as fast as you are on grass (it was 26 m/s) */c.y+=(g-c.y)*Math.min(1,dt*18);if(c.y<g)c.y=g;
   const gf=groundAt(c.x+sy*1.6,c.z-cy*1.6,c.y+.5),gb=groundAt(c.x-sy*1.6,c.z+cy*1.6,c.y+.5);c.pitch+=(Math.atan2(gf-gb,3.2)-c.pitch)*Math.min(1,dt*10);c.roll*=.9;
   if(c.v<1.5&&Math.hypot(C.x-c.x,C.z-c.z)>14)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
 /* between the two worlds: lane graph <-> free driving */
@@ -109,10 +109,14 @@ function copType(chase){const T=chase?(STARS[COP.heat]||STARS[1]).types:[4,4,21]
 function trSpawnCop(chase,far){
   const rng=TR.rng,P=C;let ux=C.vx,uz=C.vz;const l=Math.hypot(ux,uz);if(l<2){ux=Math.sin(C.yaw);uz=-Math.cos(C.yaw)}else{ux/=l;uz/=l}
   /* a chaser: straight back along the road you are on (so it always finds a road and comes up behind you), 120-220 m behind (260-350 when it replaces one that fell behind) */
-  if(chase&&NAV.pl&&LG.ofRoad[NAV.pl.ri]){
-    const r=ROADS[NAV.pl.ri],o=LG.ofRoad[NAV.pl.ri],t=_tan(r,NAV.pl.i),sg=(t[0]*ux+t[1]*uz)>=0?1:-1,di=sg>0?0:1;
-    for(let tries=0;tries<4;tries++){const D=far?265+rng()*80:120+rng()*100;let idx=NAV.pl.i-sg*Math.round(D/r.ds);if(r.closed)idx=((idx%r.n)+r.n)%r.n;else if(idx<6||idx>r.n-8)continue;
-      const k=Math.floor(rng()*o[di].length),e=o[di][k],u=e.dir>0?idx:r.n-1-idx;trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz))continue;
+  /* (batch 30) a chaser only ever appears BEHIND you: more than 120 degrees off the way you are going, and on the road you are on only once you are lined up with it (just after a turn the
+     snapped road can still be the one you left, and 'behind on it' was off to the side or ahead of you) */
+  const behind=(sx,sz)=>{const dx=sx-P.x,dz=sz-P.z,d=Math.hypot(dx,dz)||1;return(dx*ux+dz*uz)<-.5*d};
+  const pl0=chase?navSnap(C.x,C.z,40):null;
+  if(chase&&pl0&&LG.ofRoad[pl0.ri]&&Math.abs(_tan(ROADS[pl0.ri],pl0.i)[0]*ux+_tan(ROADS[pl0.ri],pl0.i)[1]*uz)>.8){const pl=pl0;
+    const r=ROADS[pl.ri],o=LG.ofRoad[pl.ri],t=_tan(r,pl.i),sg=(t[0]*ux+t[1]*uz)>=0?1:-1,di=sg>0?0:1;
+    for(let tries=0;tries<4;tries++){const D=far?265+rng()*80:120+rng()*100;let idx=pl.i-sg*Math.round(D/r.ds);if(r.closed)idx=((idx%r.n)+r.n)%r.n;else if(idx<6||idx>r.n-8)continue;
+      const k=Math.floor(rng()*o[di].length),e=o[di][k],u=e.dir>0?idx:r.n-1-idx;trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz)||!behind(sx,sz))continue;
       let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
       const c=trPlace(e,u,copType(true),12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*1.0,Math.floor(rng()*1e9));if(!c)return null;c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;copAlert(c);return c}}
   for(let tries=0;tries<16;tries++){
@@ -121,7 +125,7 @@ function trSpawnCop(chase,far){
     const ri=TRP.ri,o=LG.ofRoad[ri],r0=ROADS[ri],i=TRP.i,j=i+1<r0.n?i+1:i,tx=r0.X[j]-r0.X[i],tz=r0.Z[j]-r0.Z[i];
     const toward=(P.x-x)*tx+(P.z-z)*tz,di=chase?(toward>0?0:1):(rng()<.5?0:1),k=Math.min(o[di].length-1,Math.floor(rng()*o[di].length)),e=o[di][k];
     let u=e.dir>0?i+(TRP.t>.5?1:0):r0.n-1-i-(TRP.t>.5?1:0);if(e.closed)u=((u%e.n)+e.n)%e.n;else if(u<6||u>e.n-8)continue;
-    trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz))continue;   /* never pops up in view (batch 5: patrols used to appear 230 m ahead) */
+    trPt(e,u);const sx=_pt.x,sz=_pt.z,d=Math.hypot(sx-P.x,sz-P.z);if(d<(TR.boot?90:TR.visMin*.7)||trSeen(sx,sz)||(chase&&!behind(sx,sz)))continue;   /* never pops up in view (batch 5: patrols used to appear 230 m ahead) */
     let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
     if(!chase&&trLightAhead(e,u,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*.85))continue;   /* (a patrol is not put where it could not stop for a red light) */
     const c=trPlace(e,u,copType(chase),12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*(chase?1.0:.85),Math.floor(rng()*1e9));if(!c)return null;
@@ -162,13 +166,13 @@ function copTick(dt){
     if(COP.heat>0&&c.cm==0&&COP.heatT>D.react&&(d<COP_NEAR||(c.los&&d<COP_SEE)))copAlert(c);   /* a patrol joins when it sees you (it used to join from anywhere within 520 m, so a patrol ahead of you always turned into a chaser) */
     if(c.cm>=1){
       if(COP.heat==0||COP.sightT>D.loseT+2){copStandDown(c);continue}
-      if(c.state==0){if((d<115&&c.los)||d<40)copDetach(c)}
-      else if(c.state==3){if(d>210||c.stk>3.2)copAttach(c)}}}
+      if(c.state==0){if((d<115&&c.los)||d<40||(!C.onRoad&&d<350))copDetach(c)}   /* (batch 30) you left the road: it comes after you across the grass */
+      else if(c.state==3){if((d>210&&C.onRoad)||c.stk>3.2)copAttach(c)}}}
   if(COP.heat>0&&(lockD<COP_LOCK||(COP.callT<20&&copCallD()<COP_LOCK)))seen=true;COP.lockD=lockD;   /* (for 20 s after a crime the call says where you are, before any car has arrived) */
   COP.nC=nC;COP.nP=nP;COP.minD=minD;COP.seenNow=seen;
   /* roles for the free chasers, nearest first */
   if(nFree){let k=0;const free=[];for(let i=0;i<TRN;i++){const c=cars[i];if(c.alive&&c.kind===1&&c.state==3)free.push(c)}free.sort((a,b)=>Math.hypot(a.x-C.x,a.z-C.z)-Math.hypot(b.x-C.x,b.z-C.z));for(const c of free)c.role=k++}
-  COP.snapT=(COP.snapT||0)-dt;if(COP.snapT<=0){COP.snapT=.35;NAV.pl=navSnap(C.x,C.z,70)}        /* where you are on the road network, for the chasers' routes and spawns */
+  COP.snapT=(COP.snapT||0)-dt;if(COP.snapT<=0){COP.snapT=.35;NAV.pl=navSnap(C.x,C.z,70);if(NAV.pl&&NAV.pl.ri!==COP.roadRi){COP.roadRi=NAV.pl.ri;COP.roadT=COP.t}}   /* (batch 30: when you last turned onto another road) */        /* where you are on the road network, for the chasers' routes and spawns */
   if(seen)COP.sightT=0;else COP.sightT+=dt;
   if(COP.sightT<1||COP.lkx===undefined){COP.lkx=C.x;COP.lkz=C.z;COP.lkyaw=C.yaw;COP.lkPl=NAV.pl}   /* the last place they saw you */
   if(COP.heat>0&&COP.sightT>3){COP.w=Math.max(0,COP.w-Math.max(D.decay,COP.w*.8)*dt);if(COP.w<1)COP.w=0;COP.heat=copLevelOf()}   /* (batch 27) a mile clear: gone within about 5 s */
@@ -177,7 +181,7 @@ function copTick(dt){
     if(COP.heat>0){const want=D.chaseN[COP.heat];if(nC<want&&(lockD<600||(COP.callT<15&&copCallD()<600))){   /* (batch 27) reinforcements while a police car is within 600 m of you, and for 15 s after a new crime (the call goes out) */if(trSpawnCop(true,false)){COP.spawnT=1.4}else COP.spawnT=.5}}
     else if(nP<D.patrol&&TR.nAlive<TRN-8&&COP.t-(COP.lastPatrol||-99)>110&&DISTRICT_BOXES.some(B=>inBox(C.x,C.z,B,350))){if(trSpawnCop(false)){COP.spawnT=1.6;COP.lastPatrol=COP.t}else COP.spawnT=1}}   /* patrols are rare (batch 9): one at a time (two on Hard), a new one at most every 110 s, and only in or near a town or city: none on the country highways */
   /* roadblock */
-  if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>40&&COP.sightT<1.5&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<6)copRoadblock()}
+  if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>75&&COP.t-(COP.roadT||-99)>12&&COP.sightT<1.5&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<6)copRoadblock()}
   copHeliTick(dt);copSpikeTick(dt);
   /* boxed in: slow, with cops all round, for long enough */
   if(COP.heat>0&&ps<D.bustSpd&&nNear>=D.bustN)COP.bust+=dt;else COP.bust=Math.max(0,COP.bust-dt*1.5);

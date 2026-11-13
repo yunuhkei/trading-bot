@@ -54,7 +54,7 @@ function mapPopDraw(c,W_,H_,u,btns){const b=MAPV.pop;if(!b)return;const S=UI.map
   c.restore()}
 
 /* ---------------- a random start ---------------- */
-function randomStart(){const ok=ROADS.filter(r=>r.style!=2&&r.len>300&&!/^(pier|lombard|lookout|rim)/.test(r.id));let tot=0;for(const r of ok)tot+=r.len;
+function randomStart(){const ok=ROADS.filter(r=>r.style!=2&&r.style!=5&&r.len>300&&!/^(pier|lombard|lookout|rim)/.test(r.id));let tot=0;for(const r of ok)tot+=r.len;
   for(let t=0;t<60;t++){let pick=Math.random()*tot,r=ok[0];for(const q of ok){if(pick<q.len){r=q;break}pick-=q.len}
     const i=Math.max(10,Math.min(r.n-11,Math.floor(Math.random()*r.n)));if(r.br&&r.br[i])continue;const x=r.X[i],z=r.Z[i];if(JUNC.some(J=>Math.hypot(J.x-x,J.z-z)<50))continue;if(r.Y[i]<2)continue;
     const tg=_tan(r,i),li=laneInfo(r.hw,r.style),off=li.x0+li.lw*.5,nx=-tg[1],nz=tg[0];return{x:x+nx*off,z:z+nz*off,yaw:Math.atan2(tg[0],-tg[1]),y:r.Y[i]+.5,road:r.id}}

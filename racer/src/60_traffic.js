@@ -44,7 +44,7 @@ function trPt(o,i){const n=o.n;let j=Math.floor(i),f=i-j;if(o.closed){j=((j%n)+n
   const k=(j+1<n)?j+1:(o.closed?0:j),X=o.X,Z=o.Z,Y=o.Y;_pt.x=X[j]+(X[k]-X[j])*f;_pt.z=Z[j]+(Z[k]-Z[j])*f;_pt.y=Y[j]+(Y[k]-Y[j])*f;_pt.v=Math.min(o.V[j],o.V[k]);
   const dx=X[k]-X[j],dz=Z[k]-Z[j],l=Math.hypot(dx,dz)||1;_pt.tx=dx/l;_pt.tz=dz/l}
 /* link weights for the turn a car picks at a junction (the pick is a stateless hash of the car's seed and the junction, so it never changes while the car is deciding) */
-function trLW(l,g){const k=l.kind;if(k==3)return g.through?.07:2;return(k==1?1.5:k==2?1.2:1.2)*(l.to.cls>=l.from.cls?1.15:.8)}
+function trLW(l,g){const k=l.kind;if(l.to.road&&l.to.road.style==5)return 0;   /* (batch 30) traffic never turns onto a dirt trail */if(k==3)return g.through?.07:2;return(k==1?1.5:k==2?1.2:1.2)*(l.to.cls>=l.from.cls?1.15:.8)}
 function trPick(c,g,e){if(c.cm===1)return copPick(c,g,e);const L=g.links;let own=false;
   if(!g.through)for(let q=0;q<L.length;q++)if(L[q].from===e){own=true;break}       /* at the end of a road a car takes a turn from the lane it is in, if there is one */
   let wS=g.through?5:0,tot=wS;for(let q=0;q<L.length;q++)if(!own||L[q].from===e)tot+=trLW(L[q],g);
@@ -387,6 +387,7 @@ function trSpawn(){
     const ang=rng()*TAU,r=Math.sqrt(TR.visMin*TR.visMin*.4+rng()*(TR.rSpawn*TR.rSpawn-TR.visMin*TR.visMin*.4)),x=P.x+Math.cos(ang)*r,z=P.z+Math.sin(ang)*r;
     if(!trProbe(x,z)){continue}
     const ri=TRP.ri,o=LG.ofRoad[ri],di=rng()<.5?0:1,k=Math.min(o[di].length-1,Math.floor(rng()*o[di].length)),e=o[di][k];
+    if(ROADS[ri].style==5)continue;   /* (batch 30) no traffic on the dirt trails */
     const dens=trDens(x,z,e.cls);if(rng()>dens)continue;
     const r0=ROADS[ri],i=TRP.i+(TRP.t>.5?1:0);let u=e.dir>0?i:r0.n-1-i;if(e.closed)u=((u%e.n)+e.n)%e.n;else if(u<6||u>e.n-8)continue;
     trPt(e,u);const sx=_pt.x,sz=_pt.z;

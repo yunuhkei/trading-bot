@@ -183,7 +183,7 @@ function buildFurniture(){
       if(i-lastPier>=7){lastPier=i;const gy=terrainH(r.X[i],r.Z[i]);if(r.Y[i]-gy>3){for(const o of[-hwi*.55,hwi*.55]){const px=r.X[i]+nx*o,pz=r.Z[i]+nz*o;pbox(0,px,terrainH(px,pz)-.5,pz,1.1,r.Y[i]-1.6,1.1,128,126,120,0,.8);COLC.push(px,pz,1.3,terrainH(px,pz)-.5,r.Y[i]-1.6)}}}}
     /* lamp posts */
     const step=r.city?15:(r.style==1?16:12),off=r.hw+(r.sw?.75:RSH+(r.city?.8:1.4));let cnt2=0;
-    for(let i=2;i<n-2;i+=step){if(r.br[i]||r.mk[i]<.5||r.wk[i]<.9)continue;const j=Math.min(n-1,i+1),dx=r.X[j]-r.X[i-1],dz=r.Z[j]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=((cnt2++)&1)?1:-1;
+    for(let i=2;i<n-2&&r.style!=5;i+=step){if(r.br[i]||r.mk[i]<.5||r.wk[i]<.9)continue;const j=Math.min(n-1,i+1),dx=r.X[j]-r.X[i-1],dz=r.Z[j]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=((cnt2++)&1)?1:-1;
       if(r.style==1&&!r.city&&(cnt2&1))continue;
       const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-(r.city?.1:.35);if(nearRepair(px,pz,6))continue;if(roadAt(px,pz,gy+.6)&&Math.abs(RQ.lat)<RQ.hw+.25)continue;   /* never a lamp post on asphalt: on a hairpin street the post of one leg stood in the lane of the next (the road bot got stuck on Lombard) */
       const lid=LAMPS.length/3;PROP_TAG=10000+lid;pbox(0,px,gy,pz,.13,gy+7.2,.13,92,94,98,0,.7);
@@ -607,7 +607,10 @@ function buildScenery(){
     for(let i=1;i<n-1;i++){d+=Math.hypot(r.X[i]-r.X[i-1],r.Z[i]-r.Z[i-1]);if(d<24)continue;d=0;if(r.br[i]||r.mk[i]<.9||r.wk[i]<.9||rg()<.45)continue;
       const dx=r.X[i+1]-r.X[i-1],dz=r.Z[i+1]-r.Z[i-1],l=Math.hypot(dx,dz)||1,nx=-dz/l,nz=dx/l,sd=rg()<.5?-1:1,o=r.hw*r.wk[i]+(r.sw?1.3:RSH+.55),px=r.X[i]+nx*sd*o,pz=r.Z[i]+nz*sd*o,ty=terrainH(px,pz);
       if(ty<3||Math.abs(ty-r.Y[i])>2.5||nearRepair(px,pz,4)||otherAsphalt(px,pz,r,r.Y[i],RSH+.4)||(r.sw&&!swOn(r,sd>0?1:0,r.S[i])))continue;let c0=0;const q=mulberry((px*7+pz*3)|0),fr=()=>c0++==0?.8:q();ptree(px,pz,fr,ty,true);COLC.push(px,pz,.5,ty-.5,ty+8);St.street++}});
-  ROADS.forEach((r,ri)=>{if(r.city)return;const n=r.n,hwy=r.style==1,poleSide=((ri*5+3)&1)?1:-1;
+  /* (batch 30) the dirt trails: woods on both sides (trees 3-14 m from the edge, with trunks you can hit), now and then a rock */
+  ROADS.forEach((r,ri)=>{if(r.style!=5)return;const rg=mulberry(9100+ri);for(let i=6;i<r.n-6;i+=2)for(const sd of[-1,1]){if(rg()>.62)continue;const tx=r.X[i+1]-r.X[i-1],tz=r.Z[i+1]-r.Z[i-1],l=Math.hypot(tx,tz)||1,g=2.5+rg()*11,[px,pz,ty]=sideAt(r,i,tx/l,tz/l,sd,g);
+      if(!free(px,pz,r.Y[i],g,3.5)||otherAsphalt(px,pz,r,r.Y[i],RSH+2))continue;if(rg()<.08){pbush(px,pz,ty,1.2,.8,110,104,96,rg()*6);St.rock++;continue}ptree(px,pz,rg,ty,false);COLC.push(px,pz,.5,ty-.5,ty+12);St.trees++}});
+  ROADS.forEach((r,ri)=>{if(r.city||r.style==5)return;const n=r.n,hwy=r.style==1,poleSide=((ri*5+3)&1)?1:-1;
     const nx_={pole:sr()*40,del:sr()*40,gan:250+sr()*700,bill:300+sr()*800,sign:150+sr()*400,grove:0,turb:500+sr()*700,gas:700+sr()*1500,home:600+sr()*1200,hv:300+sr()*2000,hvn:0};
     let d=0,pp=null,lastChev=-1e9;const fence=[{n:0},{n:0}],hv={n:0,sd:1,p:null};
     for(let i=0;i<n;i++){const ip=(i-1+n)%n,inn=(i+1)%n;if(!r.closed&&(i<1||i>n-2))continue;

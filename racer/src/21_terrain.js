@@ -59,7 +59,7 @@ function pickRepairs(){REPAIRS.length=0;const L=17,W2=7.5;
 function pickStops(){RSTOPS.length=0;const hl=23,hw=15;
   const built=(x,z)=>DISTRICT_BOXES.some(B=>inBox(x,z,B,300))||FIELDS.some(f=>inBox(x,z,f.b,40));
   const far=(x,z)=>RSTOPS.every(p=>Math.hypot(p.x-x,p.z-z)>520)&&REPAIRS.every(p=>Math.hypot(p.x-x,p.z-z)>260)&&SAFEHOUSES.every(s=>Math.hypot(s.x-x,s.z-z)>220)&&JUNC.every(J=>Math.hypot(J.x-x,J.z-z)>110)&&FARMS.every(f=>Math.hypot(f.x-x,f.z-z)>200);
-  for(const r of ROADS){if(r.city||r.n*r.ds<700||/^(rim|lookout|pier|pierhead)$/.test(r.id))continue;const st=Math.round(260/r.ds),m=Math.round(90/r.ds);
+  for(const r of ROADS){if(r.city||r.style==5||r.n*r.ds<700||/^(rim|lookout|pier|pierhead)$/.test(r.id))continue;const st=Math.round(260/r.ds),m=Math.round(90/r.ds);
     for(let i=m;i<r.n-m;i+=st){if(r.br[i])continue;const t=_tan(r,i),nx=-t[1],nz=t[0],y=r.Y[i],k=(Math.imul(i+7,2654435761)^Math.imul(r.id.length*131+r.n,40503))>>>0;
       for(const sd of(k&1?[1,-1]:[-1,1])){const off=r.hw+RSH+hw+9,cx=r.X[i]+nx*sd*off,cz=r.Z[i]+nz*sd*off;if(built(cx,cz)||!far(cx,cz))continue;let okk=true;
         let lo=1e9,hi=-1e9;for(let a=-1;a<=1&&okk;a+=.25)for(const b of[-1,-.4,.3,1]){const px=cx+t[0]*a*hl+nx*sd*b*hw,pz=cz+t[1]*a*hl+nz*sd*b*hw,h=terrainH(px,pz);lo=Math.min(lo,h);hi=Math.max(hi,h);if(h<2||Math.abs(h-y)>4.5){okk=false;break}}if(hi-lo>5)okk=false;
@@ -72,7 +72,7 @@ function railPass(){
   /* rails open at every junction (JUNC: where a road end sits on another road, both roads) and in front of every garage */
   const jz=[];for(const J of JUNC)jz.push(J.x,J.z,J.rad+62);for(const s of SAFEHOUSES)jz.push(s.x,s.z,46);for(const p of REPAIRS)jz.push(p.x,p.z,66);for(const p of RSTOPS)jz.push(p.x,p.z,44);
   const nearJ=(x,z)=>{for(let q=0;q<jz.length;q+=3){if((jz[q]-x)**2+(jz[q+1]-z)**2<jz[q+2]*jz[q+2])return true}return false};
-  for(const r of ROADS){const n=r.n,raw=new Uint8Array(n);
+  for(const r of ROADS){const n=r.n,raw=new Uint8Array(n);if(r.style==5){r.rail.fill(0);continue}   /* (batch 30) no rails on a dirt trail */
     for(let i=0;i<n;i++){const a=(i+1<n?i+1:i),b=(i>0?i-1:i);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;const nx=-tz,nz=tx,off=r.hw+RSH+7;let m=0;
       if(r.br[i])m=3;else if(!r.city&&!nearJ(r.X[i],r.Z[i])){if(r.Y[i]-terrainH(r.X[i]-nx*off,r.Z[i]-nz*off)>5.5)m|=1;if(r.Y[i]-terrainH(r.X[i]+nx*off,r.Z[i]+nz*off)>5.5)m|=2;
         if(r.style==1&&r.wk[i]>.99)m=3}

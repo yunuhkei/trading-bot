@@ -124,3 +124,19 @@ function defineWorld(ring,sh,H){
   addSafe('eastgate','East Highway Garage','eh',.45,1,16);
   addSafe('vegas','Las Vegas Garage','vegp',.36,-1,16);addSafe('sacramento','Sacramento Garage','sacp',.1,-1,16);addSafe('sanjose','San Jose Garage','sjp',.1,-1,16);
 }
+/* (batch 30) DIRT TRAILS through the woods: from the country highways longer than 1.5 km, every 1.1-1.6 km, a narrow dirt road (style 5, 3.4 m half width) leaves the highway, winds 150-300 m out into the
+   country and comes back to the same highway 0.7-1 km further on. A way off the highway when the police are on you (they can follow: trails are in the lane graph, but carry no traffic).
+   Only where the whole trail is on dry land, away from towns, garages and every other road. */
+function addTrails(){const out=[],rng=mulberry(4242),boxes=ROADS.map(r=>{let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(let i=0;i<r.n;i+=4){x0=Math.min(x0,r.X[i]);x1=Math.max(x1,r.X[i]);z0=Math.min(z0,r.Z[i]);z1=Math.max(z1,r.Z[i])}return[x0,x1,z0,z1]});
+  const clear=(x,z,self,m)=>{for(let q=0;q<ROADS.length;q++){const o=ROADS[q],b=boxes[q];if(!b||o===self||x<b[0]-60||x>b[1]+60||z<b[2]-60||z>b[3]+60)continue;for(let i=0;i<o.n;i+=2){const dx=o.X[i]-x,dz=o.Z[i]-z,l=o.hw+m;if(dx*dx+dz*dz<l*l)return false}}return true};
+  const cand=ROADS.filter(r=>!r.city&&(r.style==0||r.style==1)&&r.n*r.ds>1500&&!r.def.flat);let k=0;
+  for(const par of cand){const L=par.n*par.ds;for(let s=300+rng()*300;s<L-1000;s+=1100+rng()*500){const span=700+rng()*300,i0=Math.round(s/par.ds),i1=Math.round((s+span)/par.ds);if(i1>par.n-30)break;
+      let built=false;const s1=(k++&1)?1:-1;for(const side of[s1,-s1]){if(built)break;const t0=_tan(par,i0),t1=_tan(par,i1),D=150+rng()*150,pts=[];
+      pts.push([par.X[i0],par.Z[i0]]);{const o=par.hw+30;pts.push([par.X[i0]-t0[1]*side*o,par.Z[i0]+t0[0]*side*o])}
+      for(const f of[.22,.5,.78]){const i=Math.round(i0+(i1-i0)*f),t=_tan(par,i),d=D*(f==.5?1:.75)+(rng()-.5)*60,al=(rng()-.5)*60;pts.push([par.X[i]-t[1]*side*d+t[0]*al,par.Z[i]+t[0]*side*d+t[1]*al])}
+      {const o=par.hw+30;pts.push([par.X[i1]-t1[1]*side*o,par.Z[i1]+t1[0]*side*o])}pts.push([par.X[i1],par.Z[i1]]);
+      const def={id:'trail'+out.length,hw:3.4,lanes:1,style:5,lift:.03,smooth:40,grade:.16,from:par.id,to:par.id,pts},R=buildRoad(def,true);let ok=true;
+      for(let i=0;i<R.n&&ok;i+=3){const x=R.X[i],z=R.Z[i],end=Math.min(i,R.n-1-i)*R.ds;if(baseH(x,z)<4||DISTRICT_BOXES.some(B=>inBox(x,z,B,120))||SAFEHOUSES.some(h=>Math.hypot(h.x-x,h.z-z)<90))ok=false;
+        else if(end>par.hw+36&&!clear(x,z,null,end<80?12:40))ok=false}
+      if(!ok)continue;out.push(buildRoad(def));built=true}}}
+  return out}
