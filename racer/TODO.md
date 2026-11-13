@@ -15,6 +15,7 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 3: police overhaul (`64_cops.js` fault rule, `STARS`, `copAhead`, stuck recovery; `67_police.js` helicopters and spike strips; interceptor, SUV, SWAT truck; minimap police only), tests `rheat.js`, `rpolice.js`. **Waiting for approval: a spike strip halves the grip for 4 s (the one exception to "damage never affects driving").**
 - Batch 4: supercars and looks (`CAR_STYLE`, creases / end shapes in `cgBody`, new lamps, `cgPlate` block font, paint finishes `uPt`, shader seams `uSm`, test `rlooks.js`); traffic: walking-pace bumps are not wrecks.
 
+- Batch 25: crash movie only for very big crashes; tap to skip after 1.5 s; tumbles seeded.
 - Batch 24: the crash movie plays until the car stops; harder crash damage in it; cops and racers wear down and are destroyed (test `rwear`).
 - Batch 23: damage looks light on the road (wild only in the crash cam); after the crash cam the car comes back slightly smashed at the front with the doors ajar.
 - Batch 22: lane assist (LANE rocker, on by default; test `rlane`).

@@ -13,7 +13,7 @@ function crashHistory(){if(TUM.on||CC.on||C.shield>0)return;const H=CC.hist;
   CC.histT=C.t;H.push({x:C.x,z:C.z,y:C.y,yaw:Math.atan2(C.vx,-C.vz),v:C.speed,t:C.t});if(H.length>40)H.shift()}
 /* is this crash wild enough for the cinematic? */
 function crashWild(){if(!TUM.on||TUM.rightT>0)return false;const w=Math.hypot(TUM.w[0],TUM.w[1]*.4,TUM.w[2]),g=groundAt(TUM.p[0],TUM.p[2],TUM.p[1]+.5);
-  return TUM.t>.25&&((TUM.maxTilt>1.15&&CC.tv>16)||w>2.6||TUM.p[1]-g>2.6)}   /* (rolling onto the side at a crawl is not wild: it rights itself) */
+  return TUM.t>.25&&CC.tv>25&&(TUM.maxTilt>1.5||w>4||TUM.p[1]-g>3.5)}   /* (batch 25: only very big crashes: a roll past 86 degrees, a violent spin or a throw 3.5 m up, starting above 25 m/s; the rest right themselves as before) */
 function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;
   /* the camera: a fixed spot beside the crash, a little ahead of where it is going, looking back at it */
   let dx=C.vx,dz=C.vz,l=Math.hypot(dx,dz);if(l<2){dx=Math.sin(C.yaw);dz=-Math.cos(C.yaw);l=1}dx/=l;dz/=l;const sd=(CC.n&1)?1:-1,sx=-dz*sd,sz=dx*sd,ahead=Math.min(14,4+C.speed*.25);
@@ -32,7 +32,7 @@ function crashTick(dt){if(C.shield>0){C.shield=Math.max(0,C.shield-dt);COP.bust=
     if(CC.endT==null&&CC.t>1.2&&(CC.still>.7||CC.t>12))CC.endT=CC.t;
     CC.fade=CC.endT!=null?sstep(CC.endT,CC.endT+.45,CC.t):0;if(CC.endT!=null&&CC.t>=CC.endT+.45)crashReset()}}
 /* a hit too big to drive on from (a wall or a car taken head on, flat out): from impactAdd */
-function crashImpact(E,src){if(CC.enabled&&!CC.on&&E>420e3&&C.shield<=0&&!GAME.state&&(src!=3||C.speed>12))crashStart(src==3?'car':'wall')}   /* (batch 24: rammed while parked or crawling, as in a bust, is not your wild crash) */
+function crashImpact(E,src){if(CC.enabled&&!CC.on&&E>750e3&&C.shield<=0&&!GAME.state&&(src!=3||C.speed>20))crashStart(src==3?'car':'wall')}   /* (batch 24: rammed while parked or crawling, as in a bust, is not your wild crash) */
 /* every frame (from frame() in 90_main.js): the fade back in */
 function crashFrame(sec){if(CC.fadeIn>0)CC.fadeIn=Math.max(0,CC.fadeIn-sec*2.4);if(!CC.on)CC.scale=1}
 /* back on the road, where the car was about 1.5 s before the crash */
@@ -56,5 +56,8 @@ function crashFx(sprite){if(!(C.shield>0))return;const k=Math.min(1,C.shield),t=
 /* the black bars, the label and the fades (from hudDraw) */
 function crashHud(c,W_,H_,u){if(!CC.on&&!(CC.fadeIn>0))return;c.save();
   if(CC.on){const b=H_*.11*sstep(0,.35,CC.t);c.fillStyle='#000';c.fillRect(0,0,W_,b);c.fillRect(0,H_-b,W_,b);
-    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);c.fillStyle='#fff';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.textAlign='center';c.fillText('CRASH',W_/2,H_-b*.38)}}
+    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);c.fillStyle='#fff';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.textAlign='center';c.fillText('CRASH',W_/2,H_-b*.38)}
+    if(CC.t>=1.5&&CC.endT==null){c.globalAlpha=sstep(1.5,1.9,CC.t)*.75;c.fillStyle='#fff';c.font='600 '+Math.round(u*.2)+'px -apple-system,Roboto,sans-serif';c.textAlign='right';c.fillText('TAP TO SKIP',W_-u*.4,H_-b*.42)}}
   const f=CC.on?CC.fade:CC.fadeIn;if(f>0){c.globalAlpha=f;c.fillStyle='#000';c.fillRect(0,0,W_,H_)}c.restore()}
+/* (batch 25) a tap skips the movie, but not in its first 1.5 s: the fade starts at once */
+function crashSkip(){if(!CC.on||CC.t<1.5||CC.endT!=null)return false;CC.endT=CC.t;return true}

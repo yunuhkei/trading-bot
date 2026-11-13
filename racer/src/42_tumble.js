@@ -90,11 +90,11 @@ function tumbleEnd(){const R=TUM.R,fx=-R[6],fz=-R[8];C.yaw=C.pyaw=Math.abs(fx)+M
 /* ---- what starts a tumble (called from the collision code); all return true when it started ---- */
 /* a hit from or into another car: n = the contact normal (from the other car to you), vn = the closing speed, E = the energy */
 function tumbleFromCar(nx,nz,vn,E,mass){if(TUM.on||vn<13||E<110e3)return false;const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),lat=nx*rx+nz*rz,lon=nx*fx+nz*fz;
-  const k=Math.min(1,(vn-13)/22)*Math.min(1.5,(mass||1400)/1500+.3);if(Math.abs(lat)>.55){const rs=Math.sign(lat);return tumbleStart(0,(Math.random()-.5)*2*k,-rs*(3+7*k),2.5+4*k,'side hit')}
-  if(k>.45)return tumbleStart(Math.sign(lon)*(1.5+3*k),(Math.random()-.5)*3,(Math.random()-.5)*2,1.5+3*k,'head-on');return false}
+  const k=Math.min(1,(vn-13)/22)*Math.min(1.5,(mass||1400)/1500+.3);if(Math.abs(lat)>.55){const rs=Math.sign(lat);return tumbleStart(0,(TR.rng()-.5)*2*k,-rs*(3+7*k),2.5+4*k,'side hit')}
+  if(k>.45)return tumbleStart(Math.sign(lon)*(1.5+3*k),(TR.rng()-.5)*3,(TR.rng()-.5)*2,1.5+3*k,'head-on');return false}
 /* a pole, a tree or a wall taken flat out (vn = the speed into it) */
 function tumbleFromStatic(nx,nz,vn,round){if(TUM.on||vn<(round?25:28))return false;const rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),lat=nx*rx+nz*rz,k=Math.min(1,(vn-25)/25);
-  return tumbleStart((1+2.5*k)*(Math.random()<.5?-1:1)*.6,(Math.random()-.5)*4*k,(Math.abs(lat)>.4?-Math.sign(lat):Math.random()<.5?-1:1)*(2.5+6*k),2+3.5*k,round?'pole':'wall')}
+  return tumbleStart((1+2.5*k)*(TR.rng()<.5?-1:1)*.6,(TR.rng()-.5)*4*k,(Math.abs(lat)>.4?-Math.sign(lat):TR.rng()<.5?-1:1)*(2.5+6*k),2+3.5*k,round?'pole':'wall')}
 /* sliding sideways fast and catching a curb, a guard rail or the edge of the road: the car trips over its own wheels and rolls */
 function tumbleTrip(sideSpeed,why){if(TUM.on||Math.abs(sideSpeed)<15)return false;const k=Math.min(1,(Math.abs(sideSpeed)-15)/18);return tumbleStart(0,0,-Math.sign(sideSpeed)*(3.5+6.5*k),2.5+3.5*k,why)}
 /* ---- traffic cars: thrown, rolled and pitched by a big hit (from trBack), landing on wheels, side or roof (from trWreck) ---- */

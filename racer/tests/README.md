@@ -258,3 +258,5 @@ Small differences from rounding are fine; a change of more than about 10 percent
 * Batch 23: `rparts` 3 checks that on the road six hard front hits leave the bonnet (at most 0.28 rad) and the bumper on, the deepest dent 10 cm; parts coming off is checked with the crash cam on. `rcrashcam` 1 checks the car comes back with front dents of at most 6 cm, 3 cm elsewhere, no part missing, the doors ajar.
 
 * Batch 24: `rwear` (new, in `run_quick.sh`): a chasing cop is destroyed by four 60 kJ hits, a racer by three, a cop pushing you ten times at 30 kJ does not wear, a light tap leaves it chasing. `rcrashcam` waits up to 20 s for the movie to end (a hard roll at 100 km/h now plays about 6 s of game time). `rparts` 5 checks the left door on the road. `rcops` 4 (bust while parked) passes again: being rammed while parked no longer starts the crash cam, and pinning does not wear the cops.
+
+* Batch 25: `rcrashcam` 6: a roll starting at 45 mph plays no movie; a tap in the first 1.5 s does not skip, after it the movie fades out in 0.45 s. `rheat` was flaky (one run in two) because tumbles used `Math.random`; they use `TR.rng` now and the run repeats (passes).

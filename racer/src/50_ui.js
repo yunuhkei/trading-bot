@@ -7,6 +7,7 @@ function uiInit(){
   /* touch: the left half steers like a thumb-stick that appears where you touch; buttons on the right */
   const tp=(e)=>{e.preventDefault();const r=cv.getBoundingClientRect();for(const t of e.changedTouches){t.cx=t.clientX-r.left;t.cy=t.clientY-r.top}};
   const down=(id,x,y)=>{
+    if(CC.on){crashSkip();UI.touches.set(id,{type:'none'});return}   /* (batch 25: the crash movie takes the taps: skip after 1.5 s) */
     if(UI.paused){pauseTap(x,y);UI.touches.set(id,{type:'none'});return}
     if(UI.mapOpen){mapDown(id,x,y);UI.touches.set(id,{type:'map'});return}
     if(MENU.open){if(!menuTap(x,y))UI.touches.set(id,{type:'gcam',lx:x,ly:y});else UI.touches.set(id,{type:'none'});return}   /* (batch 21: a drag off the buttons turns the garage camera) */
@@ -23,7 +24,7 @@ function uiInit(){
   cv.addEventListener('touchend',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);cv.addEventListener('touchcancel',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);
   /* mouse (desktop testing): same as one finger */
   let md=false;cv.addEventListener('mousedown',e=>{md=true;down('m',e.offsetX,e.offsetY);audioStart()});window.addEventListener('mousemove',e=>{if(md){const r=cv.getBoundingClientRect();move('m',e.clientX-r.left,e.clientY-r.top)}});window.addEventListener('mouseup',()=>{if(md){md=false;up('m')}});
-  const K=UI.keys;window.addEventListener('keydown',e=>{K[e.code]=1;if((e.code=='ShiftLeft'||e.code=='ShiftRight'||e.code=='KeyN')&&!e.repeat)nitroTap();if(e.code=='KeyR')IN.respawn=1;if(e.code=='KeyF'){UI.showStats=!UI.showStats}if((e.code=='KeyP'||e.code=='Escape')&&!MENU.open){if(UI.paused)pauseClose();else pauseOpen()}if(e.code=='KeyG')IN.auto=!IN.auto;if(e.code=='KeyM'){if(UI.mapOpen)UI.mapOpen=false;else mapOpenNow()}if(MENU.open){menuKey(e.code);e.preventDefault()}else if(e.code=='KeyC')garageEnter();audioStart();if(/Arrow|Space/.test(e.code))e.preventDefault()});
+  const K=UI.keys;window.addEventListener('keydown',e=>{K[e.code]=1;if(CC.on&&!e.repeat)crashSkip();if((e.code=='ShiftLeft'||e.code=='ShiftRight'||e.code=='KeyN')&&!e.repeat)nitroTap();if(e.code=='KeyR')IN.respawn=1;if(e.code=='KeyF'){UI.showStats=!UI.showStats}if((e.code=='KeyP'||e.code=='Escape')&&!MENU.open){if(UI.paused)pauseClose();else pauseOpen()}if(e.code=='KeyG')IN.auto=!IN.auto;if(e.code=='KeyM'){if(UI.mapOpen)UI.mapOpen=false;else mapOpenNow()}if(MENU.open){menuKey(e.code);e.preventDefault()}else if(e.code=='KeyC')garageEnter();audioStart();if(/Arrow|Space/.test(e.code))e.preventDefault()});
   window.addEventListener('keyup',e=>{K[e.code]=0});
   window.addEventListener('blur',()=>{for(const k in K)K[k]=0;UI.touches.clear();UI.stickT=null;UI.btn.forEach(b=>b.on=0)});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)UI.paused=true});

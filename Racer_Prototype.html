@@ -2882,11 +2882,11 @@ function tumbleEnd(){const R=TUM.R,fx=-R[6],fz=-R[8];C.yaw=C.pyaw=Math.abs(fx)+M
 /* ---- what starts a tumble (called from the collision code); all return true when it started ---- */
 /* a hit from or into another car: n = the contact normal (from the other car to you), vn = the closing speed, E = the energy */
 function tumbleFromCar(nx,nz,vn,E,mass){if(TUM.on||vn<13||E<110e3)return false;const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),lat=nx*rx+nz*rz,lon=nx*fx+nz*fz;
-  const k=Math.min(1,(vn-13)/22)*Math.min(1.5,(mass||1400)/1500+.3);if(Math.abs(lat)>.55){const rs=Math.sign(lat);return tumbleStart(0,(Math.random()-.5)*2*k,-rs*(3+7*k),2.5+4*k,'side hit')}
-  if(k>.45)return tumbleStart(Math.sign(lon)*(1.5+3*k),(Math.random()-.5)*3,(Math.random()-.5)*2,1.5+3*k,'head-on');return false}
+  const k=Math.min(1,(vn-13)/22)*Math.min(1.5,(mass||1400)/1500+.3);if(Math.abs(lat)>.55){const rs=Math.sign(lat);return tumbleStart(0,(TR.rng()-.5)*2*k,-rs*(3+7*k),2.5+4*k,'side hit')}
+  if(k>.45)return tumbleStart(Math.sign(lon)*(1.5+3*k),(TR.rng()-.5)*3,(TR.rng()-.5)*2,1.5+3*k,'head-on');return false}
 /* a pole, a tree or a wall taken flat out (vn = the speed into it) */
 function tumbleFromStatic(nx,nz,vn,round){if(TUM.on||vn<(round?25:28))return false;const rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),lat=nx*rx+nz*rz,k=Math.min(1,(vn-25)/25);
-  return tumbleStart((1+2.5*k)*(Math.random()<.5?-1:1)*.6,(Math.random()-.5)*4*k,(Math.abs(lat)>.4?-Math.sign(lat):Math.random()<.5?-1:1)*(2.5+6*k),2+3.5*k,round?'pole':'wall')}
+  return tumbleStart((1+2.5*k)*(TR.rng()<.5?-1:1)*.6,(TR.rng()-.5)*4*k,(Math.abs(lat)>.4?-Math.sign(lat):TR.rng()<.5?-1:1)*(2.5+6*k),2+3.5*k,round?'pole':'wall')}
 /* sliding sideways fast and catching a curb, a guard rail or the edge of the road: the car trips over its own wheels and rolls */
 function tumbleTrip(sideSpeed,why){if(TUM.on||Math.abs(sideSpeed)<15)return false;const k=Math.min(1,(Math.abs(sideSpeed)-15)/18);return tumbleStart(0,0,-Math.sign(sideSpeed)*(3.5+6.5*k),2.5+3.5*k,why)}
 /* ---- traffic cars: thrown, rolled and pitched by a big hit (from trBack), landing on wheels, side or roof (from trWreck) ---- */
@@ -2929,7 +2929,7 @@ function crashHistory(){if(TUM.on||CC.on||C.shield>0)return;const H=CC.hist;
   CC.histT=C.t;H.push({x:C.x,z:C.z,y:C.y,yaw:Math.atan2(C.vx,-C.vz),v:C.speed,t:C.t});if(H.length>40)H.shift()}
 /* is this crash wild enough for the cinematic? */
 function crashWild(){if(!TUM.on||TUM.rightT>0)return false;const w=Math.hypot(TUM.w[0],TUM.w[1]*.4,TUM.w[2]),g=groundAt(TUM.p[0],TUM.p[2],TUM.p[1]+.5);
-  return TUM.t>.25&&((TUM.maxTilt>1.15&&CC.tv>16)||w>2.6||TUM.p[1]-g>2.6)}   /* (rolling onto the side at a crawl is not wild: it rights itself) */
+  return TUM.t>.25&&CC.tv>25&&(TUM.maxTilt>1.5||w>4||TUM.p[1]-g>3.5)}   /* (batch 25: only very big crashes: a roll past 86 degrees, a violent spin or a throw 3.5 m up, starting above 25 m/s; the rest right themselves as before) */
 function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;
   /* the camera: a fixed spot beside the crash, a little ahead of where it is going, looking back at it */
   let dx=C.vx,dz=C.vz,l=Math.hypot(dx,dz);if(l<2){dx=Math.sin(C.yaw);dz=-Math.cos(C.yaw);l=1}dx/=l;dz/=l;const sd=(CC.n&1)?1:-1,sx=-dz*sd,sz=dx*sd,ahead=Math.min(14,4+C.speed*.25);
@@ -2948,7 +2948,7 @@ function crashTick(dt){if(C.shield>0){C.shield=Math.max(0,C.shield-dt);COP.bust=
     if(CC.endT==null&&CC.t>1.2&&(CC.still>.7||CC.t>12))CC.endT=CC.t;
     CC.fade=CC.endT!=null?sstep(CC.endT,CC.endT+.45,CC.t):0;if(CC.endT!=null&&CC.t>=CC.endT+.45)crashReset()}}
 /* a hit too big to drive on from (a wall or a car taken head on, flat out): from impactAdd */
-function crashImpact(E,src){if(CC.enabled&&!CC.on&&E>420e3&&C.shield<=0&&!GAME.state&&(src!=3||C.speed>12))crashStart(src==3?'car':'wall')}   /* (batch 24: rammed while parked or crawling, as in a bust, is not your wild crash) */
+function crashImpact(E,src){if(CC.enabled&&!CC.on&&E>750e3&&C.shield<=0&&!GAME.state&&(src!=3||C.speed>20))crashStart(src==3?'car':'wall')}   /* (batch 24: rammed while parked or crawling, as in a bust, is not your wild crash) */
 /* every frame (from frame() in 90_main.js): the fade back in */
 function crashFrame(sec){if(CC.fadeIn>0)CC.fadeIn=Math.max(0,CC.fadeIn-sec*2.4);if(!CC.on)CC.scale=1}
 /* back on the road, where the car was about 1.5 s before the crash */
@@ -2972,8 +2972,11 @@ function crashFx(sprite){if(!(C.shield>0))return;const k=Math.min(1,C.shield),t=
 /* the black bars, the label and the fades (from hudDraw) */
 function crashHud(c,W_,H_,u){if(!CC.on&&!(CC.fadeIn>0))return;c.save();
   if(CC.on){const b=H_*.11*sstep(0,.35,CC.t);c.fillStyle='#000';c.fillRect(0,0,W_,b);c.fillRect(0,H_-b,W_,b);
-    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);c.fillStyle='#fff';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.textAlign='center';c.fillText('CRASH',W_/2,H_-b*.38)}}
+    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);c.fillStyle='#fff';c.font='800 '+Math.round(u*.55)+'px -apple-system,Roboto,sans-serif';c.textAlign='center';c.fillText('CRASH',W_/2,H_-b*.38)}
+    if(CC.t>=1.5&&CC.endT==null){c.globalAlpha=sstep(1.5,1.9,CC.t)*.75;c.fillStyle='#fff';c.font='600 '+Math.round(u*.2)+'px -apple-system,Roboto,sans-serif';c.textAlign='right';c.fillText('TAP TO SKIP',W_-u*.4,H_-b*.42)}}
   const f=CC.on?CC.fade:CC.fadeIn;if(f>0){c.globalAlpha=f;c.fillStyle='#000';c.fillRect(0,0,W_,H_)}c.restore()}
+/* (batch 25) a tap skips the movie, but not in its first 1.5 s: the fade starts at once */
+function crashSkip(){if(!CC.on||CC.t<1.5||CC.endT!=null)return false;CC.endT=CC.t;return true}
 
 'use strict';
 /* ===== controls (touch + keyboard), HUD, minimap, audio, adaptive quality ===== */
@@ -2984,6 +2987,7 @@ function uiInit(){
   /* touch: the left half steers like a thumb-stick that appears where you touch; buttons on the right */
   const tp=(e)=>{e.preventDefault();const r=cv.getBoundingClientRect();for(const t of e.changedTouches){t.cx=t.clientX-r.left;t.cy=t.clientY-r.top}};
   const down=(id,x,y)=>{
+    if(CC.on){crashSkip();UI.touches.set(id,{type:'none'});return}   /* (batch 25: the crash movie takes the taps: skip after 1.5 s) */
     if(UI.paused){pauseTap(x,y);UI.touches.set(id,{type:'none'});return}
     if(UI.mapOpen){mapDown(id,x,y);UI.touches.set(id,{type:'map'});return}
     if(MENU.open){if(!menuTap(x,y))UI.touches.set(id,{type:'gcam',lx:x,ly:y});else UI.touches.set(id,{type:'none'});return}   /* (batch 21: a drag off the buttons turns the garage camera) */
@@ -3000,7 +3004,7 @@ function uiInit(){
   cv.addEventListener('touchend',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);cv.addEventListener('touchcancel',e=>{tp(e);for(const t of e.changedTouches)up(t.identifier)},opt);
   /* mouse (desktop testing): same as one finger */
   let md=false;cv.addEventListener('mousedown',e=>{md=true;down('m',e.offsetX,e.offsetY);audioStart()});window.addEventListener('mousemove',e=>{if(md){const r=cv.getBoundingClientRect();move('m',e.clientX-r.left,e.clientY-r.top)}});window.addEventListener('mouseup',()=>{if(md){md=false;up('m')}});
-  const K=UI.keys;window.addEventListener('keydown',e=>{K[e.code]=1;if((e.code=='ShiftLeft'||e.code=='ShiftRight'||e.code=='KeyN')&&!e.repeat)nitroTap();if(e.code=='KeyR')IN.respawn=1;if(e.code=='KeyF'){UI.showStats=!UI.showStats}if((e.code=='KeyP'||e.code=='Escape')&&!MENU.open){if(UI.paused)pauseClose();else pauseOpen()}if(e.code=='KeyG')IN.auto=!IN.auto;if(e.code=='KeyM'){if(UI.mapOpen)UI.mapOpen=false;else mapOpenNow()}if(MENU.open){menuKey(e.code);e.preventDefault()}else if(e.code=='KeyC')garageEnter();audioStart();if(/Arrow|Space/.test(e.code))e.preventDefault()});
+  const K=UI.keys;window.addEventListener('keydown',e=>{K[e.code]=1;if(CC.on&&!e.repeat)crashSkip();if((e.code=='ShiftLeft'||e.code=='ShiftRight'||e.code=='KeyN')&&!e.repeat)nitroTap();if(e.code=='KeyR')IN.respawn=1;if(e.code=='KeyF'){UI.showStats=!UI.showStats}if((e.code=='KeyP'||e.code=='Escape')&&!MENU.open){if(UI.paused)pauseClose();else pauseOpen()}if(e.code=='KeyG')IN.auto=!IN.auto;if(e.code=='KeyM'){if(UI.mapOpen)UI.mapOpen=false;else mapOpenNow()}if(MENU.open){menuKey(e.code);e.preventDefault()}else if(e.code=='KeyC')garageEnter();audioStart();if(/Arrow|Space/.test(e.code))e.preventDefault()});
   window.addEventListener('keyup',e=>{K[e.code]=0});
   window.addEventListener('blur',()=>{for(const k in K)K[k]=0;UI.touches.clear();UI.stickT=null;UI.btn.forEach(b=>b.on=0)});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)UI.paused=true});

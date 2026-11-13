@@ -19,6 +19,10 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     /* 3 a head-on hit flat out starts it too; 4 a slow roll onto the side does not */
     place();drive(2);impactAdd(0,40,0,1400,C.x,C.z,1,0);o.wall=CC.on;for(let s=0;s<120*4&&CC.on;s++)RACER.worldStep(1/120);
     place();drive(1);C.vx*=.15;C.vz*=.15;tumbleStart(0,0,1.6,1.2,'slow');let wild=false;for(let s=0;s<120*3;s++){RACER.worldStep(1/120);if(CC.on)wild=true}o.slow={wild,tum:TUM.on||TUM.rightT>0};
+    /* 6 (batch 25) a medium crash (a roll that starts at 20 m/s) does not start it; a tap skips it, but not in the first 1.5 s */
+    place();C.vx*=20/28;C.vz*=20/28;tumbleStart(0,0,9,7,'medium');let med=false;for(let s=0;s<120*2;s++){RACER.worldStep(1/120);if(CC.on)med=true}o.med=med;for(let s=0;s<120*8&&(TUM.on||CC.on);s++)RACER.worldStep(1/120);
+    place();drive(3);tumbleStart(0,0,9,7,'skip');for(let s=0;s<120*.6;s++)RACER.worldStep(1/120);o.skipEarly=CC.on?crashSkip():null;let k=0;while(CC.on&&CC.t<1.6&&k++<2000)RACER.worldStep(1/120);o.skipLate=crashSkip();
+    const t0=CC.t;k=0;while(CC.on&&k++<2000)RACER.worldStep(1/120);o.skipEnds=+(CC.t-t0).toFixed(2);o.skipOn=CC.on;C.shield=0;
     /* 5 off: the old righting only */
     CC.enabled=false;place();drive(2);tumbleStart(0,0,9,7,'off');let on5=false;for(let s=0;s<120*2;s++){RACER.worldStep(1/120);if(CC.on)on5=true}o.off=on5;CC.enabled=true;
     return o});
@@ -29,5 +33,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(r.shield.imp==0&&!r.shield.tum&&r.shield.blinks>20&&r.shield.after==0,'2 the shield: no damage, no tumble, the car blinks ('+r.shield.blinks+' hidden steps), gone after 3 s');
   ok(r.wall,'3 a head-on hit flat out starts the cinematic');
   ok(!r.slow.wild,'4 a slow roll onto the side does not (it rights itself as before)');
+  ok(!r.med,'6 a medium crash (a roll starting at 45 mph) plays no movie');
+  ok(r.skipEarly===false&&r.skipLate===true&&!r.skipOn&&r.skipEnds<.6,'6 a tap in the first 1.5 s does not skip; after it, the movie fades out at once ('+r.skipEnds+' s)');
   ok(!r.off,'5 CC.enabled=false keeps the old behaviour');
   console.log('errs',T.errs.length?T.errs:0);await T.close();console.log(bad?bad+' FAILED':'all passed');process.exit(bad||T.errs.length?1:0)})().catch(e=>{console.error(e);process.exit(1)});
