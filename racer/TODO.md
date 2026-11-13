@@ -18,6 +18,7 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 25: crash movie only for very big crashes; tap to skip after 1.5 s; tumbles seeded.
 - Batch 26: no reversing on the WRECKED / BUSTED screen; cop packs no longer wear themselves out (rcops 4 flaky).
 - Batch 27: UI fonts, no mid-event pop-ups, QUIT EVENT in pause; crash cap 24 %, scratches after the movie, rolls only with the movie; curbs a rumble; nitro rewards; TAKEDOWN; racer respawn and race traffic; garage buildings; cop lock-on and the mile rule.
+- Batch 28: realistic coasting (engine braking instead of a 4.5 m/s2 stop).
 - Batch 24: the crash movie plays until the car stops; harder crash damage in it; cops and racers wear down and are destroyed (test `rwear`).
 - Batch 23: damage looks light on the road (wild only in the crash cam); after the crash cam the car comes back slightly smashed at the front with the doors ajar.
 - Batch 22: lane assist (LANE rocker, on by default; test `rlane`).
