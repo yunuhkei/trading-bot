@@ -63,9 +63,10 @@ function gameStep(dt){
 function gameRespawn(){
   const s=safeNear(C.x,C.z,true)||SAFE.pads[0];
   if(s){const x=s.pad.x,z=s.pad.z;carPlace(x,z,s.yaw,s.y+.4);C.camYaw=s.yaw;C.vx=C.vz=0;camStep(0,true)}
-  dmgReset();copClear(true);GAME.state=0;GAME.lock=0;C.flash=1;SAFE.svc=0;SAFE.visit=s?s.id:null;if(s)SAFE.last=s.id;safeToast('Back at '+(s?s.name:'the garage'),3)}
+  IN.thr=IN.brk=IN.hand=IN.nitro=0;C.speed=0;dmgReset();copClear(true);GAME.state=0;GAME.lock=0;C.flash=1;SAFE.svc=0;SAFE.visit=s?s.id:null;if(s)SAFE.last=s.id;safeToast('Back at '+(s?s.name:'the garage'),3)}
 /* inputs are taken away while the end screen runs */
-function gameLockInputs(){IN.thr=0;IN.brk=1;IN.hand=0;IN.nitro=0;IN.auto=false}
+/* (batch 26) brake only while still rolling forward: held at a stop, the brake pedal is reverse, so the car used to back away on the WRECKED/BUSTED screen; once stopped the handbrake holds it */
+function gameLockInputs(){const f=C.vx*Math.sin(C.yaw)-C.vz*Math.cos(C.yaw);IN.thr=0;IN.brk=f>1.5?1:0;IN.hand=f>1.5?0:1;IN.nitro=0;IN.auto=false}
 /* ---- drawing: the pads on the ground (called from fxDraw with its quad function), the HUD parts ---- */
 function safePads(quad){
   const t=SAFE.t;for(const s of SAFE.pads){const dx=s.x-C.x,dz=s.z-C.z;if(dx*dx+dz*dz>360000)continue;

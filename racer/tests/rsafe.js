@@ -42,5 +42,10 @@ const L=require('./rlib.js');
     out.nearP=near(p.x+200,p.z+100);out.nearH=near(h.x-300,h.z+200);out.saved=JSON.parse(localStorage.getItem('racer.save')||'null');return out});
   ok(N.nearP=='pacifica'&&N.nearH=='home','wrecked near Pacifica (owned) respawns there; wrecked near Home respawns at Home (got '+N.nearP+' / '+N.nearH+')');
   ok(N.saved&&N.saved.owned&&N.saved.owned.pacifica===true,'ownership is saved (localStorage): '+JSON.stringify(N.saved&&N.saved.owned&&Object.keys(N.saved.owned).filter(k=>N.saved.owned[k])));
+  /* (batch 26) the end screen: the car brakes to a stop and stays stopped (holding the brake at a stop is reverse, it used to back away), and the pedals are let go at the garage */
+  const V=await T.ev(()=>{const {C,IN}=RACER;dmgReset();GAME.state=0;GAME.lock=0;const r=ROADS.find(q=>q.id=='ring'),i=Math.round(r.n*.2),t=_tan(r,i),a=Math.atan2(t[0],-t[1]);carPlace(r.X[i],r.Z[i],a,r.Y[i]+.5);C.vx=t[0]*20;C.vz=t[1]*20;
+    gameWrecked();let minF=1e9;for(let s=0;s<120*4&&GAME.state;s++){RACER.worldStep(1/120);minF=Math.min(minF,C.vx*Math.sin(C.yaw)-C.vz*Math.cos(C.yaw))}
+    return{minF:+minF.toFixed(2),st:GAME.state,brk:IN.brk,hand:IN.hand}});
+  ok(V.minF>-.5&&V.st==0&&!V.brk&&!V.hand,'end screen: the car stops and never backs up (slowest forward speed '+V.minF+' m/s), pedals let go at the garage');
   console.log('errs',T.errs);ok(T.errs.length==0,'no page errors');await T.close();process.exit(bad?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});

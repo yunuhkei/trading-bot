@@ -3806,7 +3806,7 @@ function trBody(B,c){B.x=c.x;B.z=c.z;B.yaw=c.yaw;if(c.state==0){B.vx=Math.sin(c.
 /* a crash leaves a dent in the car: where (on its body), how deep and how wide; two dents are kept per car and a new one near an old one deepens it. The shader (trV) pushes the metal in. */
 const TDCAP=[170000,150000,230000,280000,250000,900000,900000,400000,170000,260000,170000,170000,170000,150000,260000,170000,170000,260000,170000,170000,230000,300000,900000];      /* energy that finishes a sedan / hatch / SUV / van / police car (J) */
 function trDent(c,wx,wz,E){
-  if(E<4000)return;c.dmg=Math.min(1,(c.dmg||0)+(c.kind==1&&TR.hitP&&!TR.hitF?Math.max(0,E-40000)*.5:E)/(TDCAP[c.type]||180000));   /* (batch 24: a cop that rams you wears only from hard rams, at half the rate; pushing and pinning does not wear it) */const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
+  if(E<4000)return;c.dmg=Math.min(1,(c.dmg||0)+(c.kind==1&&!(TR.hitP&&TR.hitF)?Math.max(0,E-40000)*.5:E)/(TDCAP[c.type]||180000));   /* (batch 24: a cop that rams you wears only from hard rams, at half the rate; pushing and pinning does not wear it; (batch 26) nor do the bumps of a pack of cops among themselves and the traffic, which used to wreck the whole pack before it reached you) */const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
   const q=Math.sqrt(E/180000),dep=Math.min(.42,.05+.33*q),rad=.42+.4*q,d=c.dn||(c.dn=new Float32Array(12));let slot=-1;
   for(let s=0;s<3;s++)if(d[s*4+2]>0&&Math.hypot(d[s*4]-lr,d[s*4+1]-lf)<.8){slot=s;break}
   if(slot<0){slot=d[2]<=0?0:d[6]<=0?1:d[10]<=0?2:(d[2]<=d[6]&&d[2]<=d[10]?0:d[6]<=d[10]?1:2)}
@@ -4267,9 +4267,10 @@ function gameStep(dt){
 function gameRespawn(){
   const s=safeNear(C.x,C.z,true)||SAFE.pads[0];
   if(s){const x=s.pad.x,z=s.pad.z;carPlace(x,z,s.yaw,s.y+.4);C.camYaw=s.yaw;C.vx=C.vz=0;camStep(0,true)}
-  dmgReset();copClear(true);GAME.state=0;GAME.lock=0;C.flash=1;SAFE.svc=0;SAFE.visit=s?s.id:null;if(s)SAFE.last=s.id;safeToast('Back at '+(s?s.name:'the garage'),3)}
+  IN.thr=IN.brk=IN.hand=IN.nitro=0;C.speed=0;dmgReset();copClear(true);GAME.state=0;GAME.lock=0;C.flash=1;SAFE.svc=0;SAFE.visit=s?s.id:null;if(s)SAFE.last=s.id;safeToast('Back at '+(s?s.name:'the garage'),3)}
 /* inputs are taken away while the end screen runs */
-function gameLockInputs(){IN.thr=0;IN.brk=1;IN.hand=0;IN.nitro=0;IN.auto=false}
+/* (batch 26) brake only while still rolling forward: held at a stop, the brake pedal is reverse, so the car used to back away on the WRECKED/BUSTED screen; once stopped the handbrake holds it */
+function gameLockInputs(){const f=C.vx*Math.sin(C.yaw)-C.vz*Math.cos(C.yaw);IN.thr=0;IN.brk=f>1.5?1:0;IN.hand=f>1.5?0:1;IN.nitro=0;IN.auto=false}
 /* ---- drawing: the pads on the ground (called from fxDraw with its quad function), the HUD parts ---- */
 function safePads(quad){
   const t=SAFE.t;for(const s of SAFE.pads){const dx=s.x-C.x,dz=s.z-C.z;if(dx*dx+dz*dz>360000)continue;
