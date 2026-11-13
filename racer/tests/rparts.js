@@ -43,7 +43,7 @@ const L=require('./rlib.js');
     RACER.carPlace(4000,-3000,0,100);dmgReset();hit(20,-1,0);                                    /* pushed towards -x: a hit on the RIGHT side */
     out.right={zone:DMG.z.map(v=>+v.toFixed(2)),dR:PP[3].a,dL:PP[4].a,dRoff:PP[3].off,mRoff:PP[7].off,crR:PDM.cr[3],crL:PDM.cr[2]};
     for(let k=0;k<3;k++)hit(24,-1,0);out.right4={dRoff:PP[3].off,dL:PP[4].a,deb:DEB.length};
-    RACER.carPlace(4000,-3000,0,100);dmgReset();hit(20,1,0);out.left={dL:PP[4].a,dR:PP[3].a,crL:PDM.cr[2]};CC.on=0;return out});
+    RACER.carPlace(4000,-3000,0,100);dmgReset();impactAdd(0,20,0,0,C.x,C.z,1,0);dmgConsume();for(let i=0;i<90;i++)partsStep(1/60);out.left={dL:PP[4].a,dR:PP[3].a,crL:PDM.cr[2]};CC.on=0;return out});   /* (on the road: no crash cam) */
   ok(S.right.zone[3]>S.right.zone[2]&&(S.right.dR>.2||S.right.dRoff),'5 a hit on the right side: the right door hangs open ('+(S.right.dR*57.3).toFixed(0)+' deg'+(S.right.dRoff?', off':'')+'), left door '+(S.right.dL*57.3).toFixed(0)+' deg');
   ok(S.right4.dRoff,'5 in the crash cam, after four more hard side hits the right door has come off');
   ok(S.left.dL<-.2&&Math.abs(S.left.dR)<Math.abs(S.left.dL),'5 a hit on the left: the left door opens (angle '+(S.left.dL*57.3).toFixed(0)+' deg) before the right one');

@@ -43,7 +43,7 @@ function partTarget(k){
   return t}
 /* an impact: kick the parts nearest the hit, and tear some off */
 function partsHit(zone,E,src){
-  if(!PP.length||src==2||zone<0)return;const z=DMG.z,kj=Math.min(1,E/200e3),big=E>40e3;
+  if(!PP.length||src==2||zone<0)return;if(typeof CC!='undefined'&&CC.on)E*=1.8;const z=DMG.z,kj=Math.min(1,E/200e3),big=E>40e3;   /* (batch 24: in the crash cam the parts fly off more easily) */
   const kick=(k,dir)=>{const P=PP[k];if(P&&P.d&&!P.off)P.v+=dir*(2+9*kj)*(.6+.8*_prn(k+(PDM.n++)))};
   const latch=(k,m)=>{const P=PP[k];if(P&&P.d&&!P.off&&big&&Math.abs(P.min)<Math.abs(m))P.min=m};
   const maybe=(k,cond)=>{const P=PP[k];if(P&&P.d&&!P.off&&cond&&(k>=7||(typeof CC!='undefined'&&CC.on)))partDetach(k)};   /* (batch 23: only mirrors come off on the road; the bonnet, lid, doors and bumpers hang, and come off only in the crash cam) */

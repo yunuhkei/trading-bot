@@ -47,7 +47,7 @@ function dentFromImpact(r){
     const k=Math.max(Math.abs(lr)/(CARM.hw||.95),Math.abs(lf)/(CARM.hl||2.2),1e-3);cx=lr/k;cz=-lf/k;cy2=.55}
   dentApply(cx,cy2,cz,dx,dy,dz,r.Ed||r.E*DMG.scale)}
 function dentApply(cx,cy,cz,dx,dy,dz,E){
-  const B=CARM.body,f=B.f16,i8=B.i8,u8=B.u8,pf=DMG.pf16,pn=DMG.pi8,nv=B.nv,sig=.32+.5*Math.min(1,Math.sqrt(E/220e3)),s2=2*sig*sig,R2=(2.4*sig)*(2.4*sig),depth=Math.min(.36,.015+.33*Math.sqrt(E/260e3)),hit=++DMG.dentN;
+  const B=CARM.body,f=B.f16,i8=B.i8,u8=B.u8,pf=DMG.pf16,pn=DMG.pi8,nv=B.nv,sig=.32+.5*Math.min(1,Math.sqrt(E/220e3)),s2=2*sig*sig,R2=(2.4*sig)*(2.4*sig),ccD=typeof CC!='undefined'&&CC.on,depth=Math.min(ccD?.5:.36,(.015+.33*Math.sqrt(E/260e3))*(ccD?1.6:1)),hit=++DMG.dentN;   /* (batch 24: deeper in the crash cam) */
   for(let v=0;v<nv;v++){const o=v*8,px=pf[o]/8192,py=pf[o+1]/8192,pz=pf[o+2]/8192,ex=px-cx,ey=py-cy,ez=pz-cz,d2=ex*ex+ey*ey+ez*ez;if(d2>R2)continue;
     const nb=v*16+8,w=Math.exp(-d2/s2),hv=trHash(((px*911+py*577)*128)|0,(((pz*733)*128)|0)+hit),amt=depth*w*(.75+.5*hv);   /* a function of the vertex POSITION, so the duplicate vertices of a flat-shaded edge move together and no crack opens */
     let x=f[o]/8192+dx*amt,y=f[o+1]/8192+dy*amt,z=f[o+2]/8192+dz*amt;

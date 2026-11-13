@@ -286,7 +286,7 @@ function trBody(B,c){B.x=c.x;B.z=c.z;B.yaw=c.yaw;if(c.state==0){B.vx=Math.sin(c.
 /* a crash leaves a dent in the car: where (on its body), how deep and how wide; two dents are kept per car and a new one near an old one deepens it. The shader (trV) pushes the metal in. */
 const TDCAP=[170000,150000,230000,280000,250000,900000,900000,400000,170000,260000,170000,170000,170000,150000,260000,170000,170000,260000,170000,170000,230000,300000,900000];      /* energy that finishes a sedan / hatch / SUV / van / police car (J) */
 function trDent(c,wx,wz,E){
-  if(E<4000)return;c.dmg=Math.min(1,(c.dmg||0)+E/(TDCAP[c.type]||180000));const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
+  if(E<4000)return;c.dmg=Math.min(1,(c.dmg||0)+(c.kind==1&&TR.hitP&&!TR.hitF?Math.max(0,E-40000)*.5:E)/(TDCAP[c.type]||180000));   /* (batch 24: a cop that rams you wears only from hard rams, at half the rate; pushing and pinning does not wear it) */const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
   const q=Math.sqrt(E/180000),dep=Math.min(.42,.05+.33*q),rad=.42+.4*q,d=c.dn||(c.dn=new Float32Array(12));let slot=-1;
   for(let s=0;s<3;s++)if(d[s*4+2]>0&&Math.hypot(d[s*4]-lr,d[s*4+1]-lf)<.8){slot=s;break}
   if(slot<0){slot=d[2]<=0?0:d[6]<=0?1:d[10]<=0?2:(d[2]<=d[6]&&d[2]<=d[10]?0:d[6]<=d[10]?1:2)}
@@ -297,6 +297,7 @@ function trDent(c,wx,wz,E){
     if(c.dmg>.75&&rd<.6){if(pm&4)c.pf|=64;if(pm&8&&rd<.35)c.pf|=128}}}
 function trBack(B,c,E){
   trDent(c,HIT.cx,HIT.cz,E);
+  if(c.state==3&&(c.kind==1||c.kind==2)&&(c.dmg||0)>=.92){/* (batch 24) a chasing cop or a racer worn down by hits is destroyed, like a car taken out by one big hit */E=Math.max(E,c.kind==1||TR.hitP?140000:230000);if(c.kind==1){c.cm=2;c.siren=0;c.block=0}}
   if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>110000&&c.kind==1){c.state=1;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;trFlipKick(c,E)}if(E>(TR.hitP?70000:220000)&&c.kind==2){c.state=1;c.wt=0;TR.stat.wrecks++;trFlipKick(c,E)}return}   /* a racer wrecked by a big hit is out of the race */
   if(c.state==0&&E<2500){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.v=Math.max(0,B.vx*hx+B.vz*hz);c.x=B.x;c.z=B.z;return}
   if(c.state==0){c.state=1;c.wt=0;c.brake=0;c.L=null;TR.stat.wrecks++;c.rec=(c.kind==0&&E<32000&&(c.dmg||0)<.72)?1:0}      /* a knock spins it round and it drives on, limping; a big hit finishes it */
@@ -318,7 +319,7 @@ function trPlayerCollide(){
         /* WHO WAS AT FAULT: only a crash YOU drive into is a crime. The normal points from the car to you: your speed into it against its speed into you (being rear-ended, or a patrol nudging you at a standstill, used to make you wanted) */
         const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
         const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
-        TR.hitP=1;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1)evTakedown(c);if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic)tumbleFromCar(hnx,hnz,vn,e,c.m)}
+        TR.hitP=1;TR.hitF=fault?1:0;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1)evTakedown(c);if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic)tumbleFromCar(hnx,hnz,vn,e,c.m)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){

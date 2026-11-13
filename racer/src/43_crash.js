@@ -14,7 +14,7 @@ function crashHistory(){if(TUM.on||CC.on||C.shield>0)return;const H=CC.hist;
 /* is this crash wild enough for the cinematic? */
 function crashWild(){if(!TUM.on||TUM.rightT>0)return false;const w=Math.hypot(TUM.w[0],TUM.w[1]*.4,TUM.w[2]),g=groundAt(TUM.p[0],TUM.p[2],TUM.p[1]+.5);
   return TUM.t>.25&&((TUM.maxTilt>1.15&&CC.tv>16)||w>2.6||TUM.p[1]-g>2.6)}   /* (rolling onto the side at a crawl is not wild: it rights itself) */
-function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.why=why;CC.crashT=C.t;CC.n++;
+function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;
   /* the camera: a fixed spot beside the crash, a little ahead of where it is going, looking back at it */
   let dx=C.vx,dz=C.vz,l=Math.hypot(dx,dz);if(l<2){dx=Math.sin(C.yaw);dz=-Math.cos(C.yaw);l=1}dx/=l;dz/=l;const sd=(CC.n&1)?1:-1,sx=-dz*sd,sz=dx*sd,ahead=Math.min(14,4+C.speed*.25);
   const x=C.x+dx*ahead+sx*9,z=C.z+dz*ahead+sz*9,g=groundAt(x,z,C.y+3);CC.cam[0]=x;CC.cam[2]=z;CC.cam[1]=Math.max(g+1.6,C.y+2.2);C.shake=0}
@@ -25,9 +25,14 @@ function crashTick(dt){if(C.shield>0){C.shield=Math.max(0,C.shield-dt);COP.bust=
   if(!CC.on&&crashWild())crashStart(TUM.why||'roll');
   if(CC.on){IN.thr=IN.brk=0;IN.nitro=0;COP.bust=0;
     /* the clock of the cinematic runs in real time: the world step is slowed by CC.scale */
-    CC.t+=dt/CC.scale;CC.scale=CC.t<1.5?.3:CC.t<2.3?.5:.8;CC.fade=sstep(CC.dur-.45,CC.dur,CC.t);if(CC.t>=CC.dur)crashReset()}}
+    /* (batch 24) it plays until the car has stopped: slow motion for the first moments, then the rest of the tumble at full speed; it ends 0.7 s after the car comes to rest
+       (or starts to be righted), 12 s at most, then fades out */
+    CC.t+=dt/CC.scale;CC.scale=CC.t<1.4?.3:CC.t<2.4?.55:1;
+    const sp=Math.hypot(C.vx,C.vy||0,C.vz),still=TUM.on?(TUM.rightT>0||(sp<1.2&&TUM.rest>.2)):sp<1.2;CC.still=still?(CC.still||0)+dt/CC.scale:0;
+    if(CC.endT==null&&CC.t>1.2&&(CC.still>.7||CC.t>12))CC.endT=CC.t;
+    CC.fade=CC.endT!=null?sstep(CC.endT,CC.endT+.45,CC.t):0;if(CC.endT!=null&&CC.t>=CC.endT+.45)crashReset()}}
 /* a hit too big to drive on from (a wall or a car taken head on, flat out): from impactAdd */
-function crashImpact(E,src){if(CC.enabled&&!CC.on&&E>420e3&&C.shield<=0&&!GAME.state)crashStart(src==3?'car':'wall')}
+function crashImpact(E,src){if(CC.enabled&&!CC.on&&E>420e3&&C.shield<=0&&!GAME.state&&(src!=3||C.speed>12))crashStart(src==3?'car':'wall')}   /* (batch 24: rammed while parked or crawling, as in a bust, is not your wild crash) */
 /* every frame (from frame() in 90_main.js): the fade back in */
 function crashFrame(sec){if(CC.fadeIn>0)CC.fadeIn=Math.max(0,CC.fadeIn-sec*2.4);if(!CC.on)CC.scale=1}
 /* back on the road, where the car was about 1.5 s before the crash */

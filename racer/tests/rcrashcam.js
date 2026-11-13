@@ -10,7 +10,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     const place=()=>{const t=_tan(ring,i0);RACER.carPlace(ring.X[i0]+Math.cos(Math.atan2(t[0],-t[1]))*4,ring.Z[i0]+Math.sin(Math.atan2(t[0],-t[1]))*4,Math.atan2(t[0],-t[1]),ring.Y[i0]+.5);C.vx=t[0]*28;C.vz=t[1]*28};
     /* 1 a hard roll at speed: the cinematic starts, the world slows down, then the car is back on the road, upright, moving, shielded */
     place();drive(4);const crashX=C.x,crashZ=C.z,ct=C.t;tumbleStart(0,0,9,7,'test roll');let tOn=-1,minScale=1,steps=0,camFixed=true,cam0=null;
-    for(let s=0;s<120*6&&(CC.on||s<60);s++){RACER.worldStep(1/120);if(CC.on){if(tOn<0){tOn=s/120;cam0=CC.cam.slice()}minScale=Math.min(minScale,CC.scale);steps++;RACER.camStep(1/60,false);if(Math.hypot(CAM.x-cam0[0],CAM.z-cam0[2])>.01)camFixed=false}}
+    for(let s=0;s<120*20&&(CC.on||s<60);s++){RACER.worldStep(1/120);if(CC.on){if(tOn<0){tOn=s/120;cam0=CC.cam.slice()}minScale=Math.min(minScale,CC.scale);steps++;RACER.camStep(1/60,false);if(Math.hypot(CAM.x-cam0[0],CAM.z-cam0[2])>.01)camFixed=false}}
     {const B=CARM.body;let md=0,mdF=0;if(B&&B.f16&&DMG.pf16)for(let v=0;v<B.nv;v++){const q=v*8,d=Math.hypot(B.f16[q]-DMG.pf16[q],B.f16[q+1]-DMG.pf16[q+1],B.f16[q+2]-DMG.pf16[q+2])/8192;if(DMG.pf16[q+2]/8192<-(CARM.hl||2.2)*.35)mdF=Math.max(mdF,d);else md=Math.max(md,d)}
      o.after={md:+md.toFixed(3),mdF:+mdF.toFixed(3),off:PP.slice(1).filter(p=>p&&p.off).length,doors:[PP[3]&&+PP[3].min.toFixed(2),PP[4]&&+PP[4].min.toFixed(2)]}}
     const sn=navSnap(C.x,C.z,20);o.roll={tOn,minScale,camFixed,on:CC.on,tum:TUM.on,shield:+(C.shield||0).toFixed(2),speed:+C.speed.toFixed(1),onRoad:!!sn&&sn.d<ROADS[sn.ri].hw,back:Math.round(Math.hypot(C.x-crashX,C.z-crashZ)),realSec:+(steps/120).toFixed(2)};
@@ -24,7 +24,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     return o});
   console.log(JSON.stringify(r));
   ok(r.roll.tOn>=0&&r.roll.tOn<.8&&r.roll.minScale<=.31&&r.roll.camFixed,'1 a hard roll at 100 km/h starts the cinematic after '+r.roll.tOn+' s: slow motion x'+r.roll.minScale+', the camera stays at its spot');
-  ok(!r.roll.on&&!r.roll.tum&&r.roll.onRoad&&r.roll.speed>=8&&r.roll.shield>2.5&&r.roll.back>15&&r.roll.back<90,'1 then the car is back on the road '+r.roll.back+' m back, upright, at '+r.roll.speed+' m/s, shield '+r.roll.shield+' s ('+r.roll.realSec+' s of world time)');
+  ok(!r.roll.on&&!r.roll.tum&&r.roll.onRoad&&r.roll.speed>=8&&r.roll.shield>2.5&&r.roll.back>15&&r.roll.back<160,'1 when the car has stopped, it is back on the road '+r.roll.back+' m back, upright, at '+r.roll.speed+' m/s, shield '+r.roll.shield+' s ('+r.roll.realSec+' s of world time)');
   ok(r.after.mdF<=.061&&r.after.md<=.031&&r.after.off==0,'1 and it comes back lightly knocked about: front dents '+r.after.mdF+' m, elsewhere '+r.after.md+' m, no part missing, doors ajar '+r.after.doors.join(' / '));
   ok(r.shield.imp==0&&!r.shield.tum&&r.shield.blinks>20&&r.shield.after==0,'2 the shield: no damage, no tumble, the car blinks ('+r.shield.blinks+' hidden steps), gone after 3 s');
   ok(r.wall,'3 a head-on hit flat out starts the cinematic');

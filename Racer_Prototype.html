@@ -2930,7 +2930,7 @@ function crashHistory(){if(TUM.on||CC.on||C.shield>0)return;const H=CC.hist;
 /* is this crash wild enough for the cinematic? */
 function crashWild(){if(!TUM.on||TUM.rightT>0)return false;const w=Math.hypot(TUM.w[0],TUM.w[1]*.4,TUM.w[2]),g=groundAt(TUM.p[0],TUM.p[2],TUM.p[1]+.5);
   return TUM.t>.25&&((TUM.maxTilt>1.15&&CC.tv>16)||w>2.6||TUM.p[1]-g>2.6)}   /* (rolling onto the side at a crawl is not wild: it rights itself) */
-function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.why=why;CC.crashT=C.t;CC.n++;
+function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;
   /* the camera: a fixed spot beside the crash, a little ahead of where it is going, looking back at it */
   let dx=C.vx,dz=C.vz,l=Math.hypot(dx,dz);if(l<2){dx=Math.sin(C.yaw);dz=-Math.cos(C.yaw);l=1}dx/=l;dz/=l;const sd=(CC.n&1)?1:-1,sx=-dz*sd,sz=dx*sd,ahead=Math.min(14,4+C.speed*.25);
   const x=C.x+dx*ahead+sx*9,z=C.z+dz*ahead+sz*9,g=groundAt(x,z,C.y+3);CC.cam[0]=x;CC.cam[2]=z;CC.cam[1]=Math.max(g+1.6,C.y+2.2);C.shake=0}
@@ -2941,9 +2941,14 @@ function crashTick(dt){if(C.shield>0){C.shield=Math.max(0,C.shield-dt);COP.bust=
   if(!CC.on&&crashWild())crashStart(TUM.why||'roll');
   if(CC.on){IN.thr=IN.brk=0;IN.nitro=0;COP.bust=0;
     /* the clock of the cinematic runs in real time: the world step is slowed by CC.scale */
-    CC.t+=dt/CC.scale;CC.scale=CC.t<1.5?.3:CC.t<2.3?.5:.8;CC.fade=sstep(CC.dur-.45,CC.dur,CC.t);if(CC.t>=CC.dur)crashReset()}}
+    /* (batch 24) it plays until the car has stopped: slow motion for the first moments, then the rest of the tumble at full speed; it ends 0.7 s after the car comes to rest
+       (or starts to be righted), 12 s at most, then fades out */
+    CC.t+=dt/CC.scale;CC.scale=CC.t<1.4?.3:CC.t<2.4?.55:1;
+    const sp=Math.hypot(C.vx,C.vy||0,C.vz),still=TUM.on?(TUM.rightT>0||(sp<1.2&&TUM.rest>.2)):sp<1.2;CC.still=still?(CC.still||0)+dt/CC.scale:0;
+    if(CC.endT==null&&CC.t>1.2&&(CC.still>.7||CC.t>12))CC.endT=CC.t;
+    CC.fade=CC.endT!=null?sstep(CC.endT,CC.endT+.45,CC.t):0;if(CC.endT!=null&&CC.t>=CC.endT+.45)crashReset()}}
 /* a hit too big to drive on from (a wall or a car taken head on, flat out): from impactAdd */
-function crashImpact(E,src){if(CC.enabled&&!CC.on&&E>420e3&&C.shield<=0&&!GAME.state)crashStart(src==3?'car':'wall')}
+function crashImpact(E,src){if(CC.enabled&&!CC.on&&E>420e3&&C.shield<=0&&!GAME.state&&(src!=3||C.speed>12))crashStart(src==3?'car':'wall')}   /* (batch 24: rammed while parked or crawling, as in a bust, is not your wild crash) */
 /* every frame (from frame() in 90_main.js): the fade back in */
 function crashFrame(sec){if(CC.fadeIn>0)CC.fadeIn=Math.max(0,CC.fadeIn-sec*2.4);if(!CC.on)CC.scale=1}
 /* back on the road, where the car was about 1.5 s before the crash */
@@ -3797,7 +3802,7 @@ function trBody(B,c){B.x=c.x;B.z=c.z;B.yaw=c.yaw;if(c.state==0){B.vx=Math.sin(c.
 /* a crash leaves a dent in the car: where (on its body), how deep and how wide; two dents are kept per car and a new one near an old one deepens it. The shader (trV) pushes the metal in. */
 const TDCAP=[170000,150000,230000,280000,250000,900000,900000,400000,170000,260000,170000,170000,170000,150000,260000,170000,170000,260000,170000,170000,230000,300000,900000];      /* energy that finishes a sedan / hatch / SUV / van / police car (J) */
 function trDent(c,wx,wz,E){
-  if(E<4000)return;c.dmg=Math.min(1,(c.dmg||0)+E/(TDCAP[c.type]||180000));const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
+  if(E<4000)return;c.dmg=Math.min(1,(c.dmg||0)+(c.kind==1&&TR.hitP&&!TR.hitF?Math.max(0,E-40000)*.5:E)/(TDCAP[c.type]||180000));   /* (batch 24: a cop that rams you wears only from hard rams, at half the rate; pushing and pinning does not wear it) */const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
   const q=Math.sqrt(E/180000),dep=Math.min(.42,.05+.33*q),rad=.42+.4*q,d=c.dn||(c.dn=new Float32Array(12));let slot=-1;
   for(let s=0;s<3;s++)if(d[s*4+2]>0&&Math.hypot(d[s*4]-lr,d[s*4+1]-lf)<.8){slot=s;break}
   if(slot<0){slot=d[2]<=0?0:d[6]<=0?1:d[10]<=0?2:(d[2]<=d[6]&&d[2]<=d[10]?0:d[6]<=d[10]?1:2)}
@@ -3808,6 +3813,7 @@ function trDent(c,wx,wz,E){
     if(c.dmg>.75&&rd<.6){if(pm&4)c.pf|=64;if(pm&8&&rd<.35)c.pf|=128}}}
 function trBack(B,c,E){
   trDent(c,HIT.cx,HIT.cz,E);
+  if(c.state==3&&(c.kind==1||c.kind==2)&&(c.dmg||0)>=.92){/* (batch 24) a chasing cop or a racer worn down by hits is destroyed, like a car taken out by one big hit */E=Math.max(E,c.kind==1||TR.hitP?140000:230000);if(c.kind==1){c.cm=2;c.siren=0;c.block=0}}
   if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>110000&&c.kind==1){c.state=1;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;trFlipKick(c,E)}if(E>(TR.hitP?70000:220000)&&c.kind==2){c.state=1;c.wt=0;TR.stat.wrecks++;trFlipKick(c,E)}return}   /* a racer wrecked by a big hit is out of the race */
   if(c.state==0&&E<2500){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.v=Math.max(0,B.vx*hx+B.vz*hz);c.x=B.x;c.z=B.z;return}
   if(c.state==0){c.state=1;c.wt=0;c.brake=0;c.L=null;TR.stat.wrecks++;c.rec=(c.kind==0&&E<32000&&(c.dmg||0)<.72)?1:0}      /* a knock spins it round and it drives on, limping; a big hit finishes it */
@@ -3829,7 +3835,7 @@ function trPlayerCollide(){
         /* WHO WAS AT FAULT: only a crash YOU drive into is a crime. The normal points from the car to you: your speed into it against its speed into you (being rear-ended, or a patrol nudging you at a standstill, used to make you wanted) */
         const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
         const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
-        TR.hitP=1;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1)evTakedown(c);if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic)tumbleFromCar(hnx,hnz,vn,e,c.m)}
+        TR.hitP=1;TR.hitF=fault?1:0;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1)evTakedown(c);if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic)tumbleFromCar(hnx,hnz,vn,e,c.m)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){
@@ -4153,7 +4159,7 @@ function dentFromImpact(r){
     const k=Math.max(Math.abs(lr)/(CARM.hw||.95),Math.abs(lf)/(CARM.hl||2.2),1e-3);cx=lr/k;cz=-lf/k;cy2=.55}
   dentApply(cx,cy2,cz,dx,dy,dz,r.Ed||r.E*DMG.scale)}
 function dentApply(cx,cy,cz,dx,dy,dz,E){
-  const B=CARM.body,f=B.f16,i8=B.i8,u8=B.u8,pf=DMG.pf16,pn=DMG.pi8,nv=B.nv,sig=.32+.5*Math.min(1,Math.sqrt(E/220e3)),s2=2*sig*sig,R2=(2.4*sig)*(2.4*sig),depth=Math.min(.36,.015+.33*Math.sqrt(E/260e3)),hit=++DMG.dentN;
+  const B=CARM.body,f=B.f16,i8=B.i8,u8=B.u8,pf=DMG.pf16,pn=DMG.pi8,nv=B.nv,sig=.32+.5*Math.min(1,Math.sqrt(E/220e3)),s2=2*sig*sig,R2=(2.4*sig)*(2.4*sig),ccD=typeof CC!='undefined'&&CC.on,depth=Math.min(ccD?.5:.36,(.015+.33*Math.sqrt(E/260e3))*(ccD?1.6:1)),hit=++DMG.dentN;   /* (batch 24: deeper in the crash cam) */
   for(let v=0;v<nv;v++){const o=v*8,px=pf[o]/8192,py=pf[o+1]/8192,pz=pf[o+2]/8192,ex=px-cx,ey=py-cy,ez=pz-cz,d2=ex*ex+ey*ey+ez*ez;if(d2>R2)continue;
     const nb=v*16+8,w=Math.exp(-d2/s2),hv=trHash(((px*911+py*577)*128)|0,(((pz*733)*128)|0)+hit),amt=depth*w*(.75+.5*hv);   /* a function of the vertex POSITION, so the duplicate vertices of a flat-shaded edge move together and no crack opens */
     let x=f[o]/8192+dx*amt,y=f[o+1]/8192+dy*amt,z=f[o+2]/8192+dz*amt;
@@ -4650,7 +4656,7 @@ function partTarget(k){
   return t}
 /* an impact: kick the parts nearest the hit, and tear some off */
 function partsHit(zone,E,src){
-  if(!PP.length||src==2||zone<0)return;const z=DMG.z,kj=Math.min(1,E/200e3),big=E>40e3;
+  if(!PP.length||src==2||zone<0)return;if(typeof CC!='undefined'&&CC.on)E*=1.8;const z=DMG.z,kj=Math.min(1,E/200e3),big=E>40e3;   /* (batch 24: in the crash cam the parts fly off more easily) */
   const kick=(k,dir)=>{const P=PP[k];if(P&&P.d&&!P.off)P.v+=dir*(2+9*kj)*(.6+.8*_prn(k+(PDM.n++)))};
   const latch=(k,m)=>{const P=PP[k];if(P&&P.d&&!P.off&&big&&Math.abs(P.min)<Math.abs(m))P.min=m};
   const maybe=(k,cond)=>{const P=PP[k];if(P&&P.d&&!P.off&&cond&&(k>=7||(typeof CC!='undefined'&&CC.on)))partDetach(k)};   /* (batch 23: only mirrors come off on the road; the bonnet, lid, doors and bumpers hang, and come off only in the crash cam) */
