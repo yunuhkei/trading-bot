@@ -129,7 +129,7 @@ const HSRC='uniform sampler2D uH;uniform vec4 uMap;/* x=half size, y=0.5/N, z=he
 /* sun shadow lookup (only compiled into the programs of the tiers that have shadows): the depth map holds the distance to the nearest caster (cars, and on the top tier buildings, trees, lamps), packed in 4 bytes */
 const SHSRC='\n#ifdef SHADOW\nuniform sampler2D uSh;uniform mat4 uLS;uniform vec4 uShP;/* x texel, y strength, z bias */\n'+
  'float dcd(vec4 c){return dot(c,vec4(1.,1./255.,1./65025.,1./16581375.));}\n'+
- 'float shadowAt(vec3 wp){vec4 s=uLS*vec4(wp,1.);vec3 p=s.xyz*.5+.5;float e=max(abs(s.x),abs(s.y));if(e>=1.||p.z>=1.||p.z<=0.)return 1.;float z=p.z-uShP.z;float v=0.;float k=uShP.x*(SHADOW>1?2.1:1.7);\n'+
+ 'float shadowAt(vec3 wp){vec4 s=uLS*vec4(wp,1.);vec3 p=s.xyz*.5+.5;float e=max(abs(s.x),abs(s.y));if(e>=1.||p.z>=1.||p.z<=0.)return 1.;float z=p.z-uShP.z;float v=0.;float k=uShP.x*(SHADOW>1?2.2:1.7);\n'+
  '#if SHADOW>1\nfor(int i=-1;i<=1;i++)for(int j=-1;j<=1;j++)v+=step(z,dcd(texture2D(uSh,p.xy+vec2(float(i),float(j))*k)));v/=9.;\n#else\n'+
  'v=(step(z,dcd(texture2D(uSh,p.xy+vec2(-.5,-.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(.5,-.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(-.5,.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(.5,.5)*k))))*.25;\n#endif\n'+
  'return mix(1.,v,uShP.y*(1.-smoothstep(.72,1.,e)));}\n#endif\n';
@@ -1184,13 +1184,24 @@ class MB{constructor(){this.cap=512;this.f=new Float32Array(this.cap*7);this.u=n
  t(a,b,c){if(this.ni+3>this.ix.length){const ix=new Uint16Array(this.ix.length*2);ix.set(this.ix);this.ix=ix}this.ix[this.ni++]=a;this.ix[this.ni++]=b;this.ix[this.ni++]=c}
  q(a,b,c,d){this.t(a,b,c);this.t(a,c,d)}}
 /* a set of meshes keyed by 128 m cell + category; splits automatically before the 16-bit index limit */
-const PCELL=128,PCATS=3;/* 0 street furniture, 1 buildings, 2 trees */
+/* (batch 45) the High-only detail (categories 3 and 4) is not built at load: the calls of the six primitives are recorded as numbers (about 4 MB) and replayed the first time the High tier is used, so Low and Medium phones never hold the ~55 MB of extra buffers */
+const DET={a:new Float32Array(1<<16),n:0,pos:0,now:false,want:false};
+function detRec(op,args){const d=DET,k=args.length+2;if(d.n+k>d.a.length){const a=new Float32Array(d.a.length*2);a.set(d.a);d.a=a}d.a[d.n++]=op;d.a[d.n++]=args.length;for(let i=0;i<args.length;i++){const v=args[i];d.a[d.n++]=v===undefined?NaN:+v}return true}
+/* replay the recorded calls for at most ms milliseconds; when all are done, upload the meshes (once) and report true. Fixed tiers (tests, ?tier=) do it in one go, Auto spreads it over a few frames (about 90 at 6 ms) */
+function detStep(ms){const d=DET,fns=[pstar,pcrown,pbar,ptrunk,pbox,pboxR],t0=performance.now();let c=0;d.now=true;
+  while(d.pos<d.n){const op=d.a[d.pos++],k=d.a[d.pos++],args=new Array(k);for(let j=0;j<k;j++){const v=d.a[d.pos++];args[j]=v!==v?undefined:v}fns[op].apply(null,args);if((++c&31)==0&&performance.now()-t0>ms)break}
+  d.now=false;if(d.pos<d.n)return false;
+  for(const p of finishProps())R.props.push({cat:p.cat,vb:mkBuf(G.gl.ARRAY_BUFFER,p.V),ib:mkBuf(G.gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.I.length,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad});
+  PSET.clear();d.a=new Float32Array(16);d.n=d.pos=0;BOOT.detMs=Math.round(performance.now()-BOOT.detT0);return true}
+/* called when the High tier is used: build the detail now (fixed tiers) or over the next frames (Auto) */
+function buildDetailProps(){if(BOOT.detMs!=null||!R.props||!R.props.length||DET.want)return;DET.want=true;BOOT.detT0=performance.now();if(GFX.fixed)while(!detStep(1e9));}
+const PCELL=128,PCATS=5;/* 0 street furniture, 1 buildings, 2 trees, 3 detail (batch 45: piers, bands, crowns, extra leaf cards; High only, no triangle cap), 4 fine detail (window fins, doors, fire escapes: High only, near) */
 const PSET=new Map();
 /* buildings are merged per 256 m cell (a quarter of the draw calls of 128 m cells: draw calls, not triangles, are what the new cities cost), furniture and trees per 128 m */
-const PCELLS=[PCELL,PCELL*2,PCELL];
-function pmb(x,z,cat,need){const pc=PCELLS[cat],k=(Math.floor((x+W.half)/pc)*128+Math.floor((z+W.half)/pc))*4+cat;let L=PSET.get(k);if(!L){L=[new MB()];PSET.set(k,L)}let m=L[L.length-1];if(m.n+need>60000){m=new MB();L.push(m)}return m}
+const PCELLS=[PCELL,PCELL*2,PCELL,PCELL,PCELL];
+function pmb(x,z,cat,need){const pc=PCELLS[cat],k=(Math.floor((x+W.half)/pc)*128+Math.floor((z+W.half)/pc))*8+cat;let L=PSET.get(k);if(!L){L=[new MB()];PSET.set(k,L)}let m=L[L.length-1];if(m.n+need>60000){m=new MB();L.push(m)}return m}
 /* box with flat-shaded faces, ambient-occlusion gradient on the walls, optional window tiling */
-function pbox(cat,cx,y0,cz,hx,y1,hz,r,g,b,win,ao){const m=pmb(cx,cz,cat,24),h=y1-y0,a0=ao==null?.62:ao;const sc=(k)=>Math.round(k);
+function pbox(cat,cx,y0,cz,hx,y1,hz,r,g,b,win,ao){if(cat>=3&&!DET.now&&detRec(4,arguments))return;const m=pmb(cx,cz,cat,24),h=y1-y0,a0=ao==null?.62:ao;const sc=(k)=>Math.round(k);
   const wall=(ax,az,bx,bz,nx,nz,len)=>{const u1=len/3.2,v1=h/3.4;const i0=m.v(ax,y0,az,nx,0,nz,r*a0,g*a0,b*a0,0,v1,win),i1=m.v(bx,y0,bz,nx,0,nz,r*a0,g*a0,b*a0,u1,v1,win),i2=m.v(bx,y1,bz,nx,0,nz,r,g,b,u1,0,win),i3=m.v(ax,y1,az,nx,0,nz,r,g,b,0,0,win);m.q(i0,i1,i2,i3)};
   wall(cx-hx,cz+hz,cx+hx,cz+hz,0,1,hx*2);wall(cx+hx,cz+hz,cx+hx,cz-hz,1,0,hz*2);wall(cx+hx,cz-hz,cx-hx,cz-hz,0,-1,hx*2);wall(cx-hx,cz-hz,cx-hx,cz+hz,-1,0,hz*2);
   const rf=.82,i0=m.v(cx-hx,y1,cz-hz,0,1,0,r*rf,g*rf,b*rf,.03,.03,0),i1=m.v(cx+hx,y1,cz-hz,0,1,0,r*rf,g*rf,b*rf,.03,.03,0),i2=m.v(cx+hx,y1,cz+hz,0,1,0,r*rf,g*rf,b*rf,.03,.03,0),i3=m.v(cx-hx,y1,cz+hz,0,1,0,r*rf,g*rf,b*rf,.03,.03,0);m.q(i0,i3,i2,i1)}
@@ -1204,7 +1215,7 @@ function proof(cat,cx,y,cz,hx,hz,rh,r,g,b,alongX){const m=pmb(cx,cz,cat,10);
 function pcone(cat,cx,y0,cz,rad,h,r,g,b,seg,rot){const m=pmb(cx,cz,cat,seg*2+2);const ring=[],ap=[];for(let i=0;i<seg;i++){const a=rot+i/seg*TAU,c=Math.cos(a),s=Math.sin(a),sl=rad/h,nl=1/Math.hypot(1,sl);
   ring.push(m.v(cx+c*rad,y0,cz+s*rad,c*nl,sl*nl,s*nl,r*.7,g*.7,b*.7,.03,.03,0));ap.push(m.v(cx,y0+h,cz,c*nl,sl*nl,s*nl,r,g,b,.03,.03,0))}
   for(let i=0;i<seg;i++){const j=(i+1)%seg;m.t(ring[i],ap[i],ring[j])}}
-function ptrunk(cat,cx,y0,cz,rad,h,r,g,b){const m=pmb(cx,cz,cat,8),a=[];for(let i=0;i<4;i++){const an=i*1.5708+.78,c=Math.cos(an),s=Math.sin(an);a.push(m.v(cx+c*rad,y0,cz+s*rad,c,0,s,r*.6,g*.6,b*.6,.03,.03,0),m.v(cx+c*rad,y0+h,cz+s*rad,c,0,s,r,g,b,.03,.03,0))}
+function ptrunk(cat,cx,y0,cz,rad,h,r,g,b){if(cat>=3&&!DET.now&&detRec(3,arguments))return;const m=pmb(cx,cz,cat,8),a=[];for(let i=0;i<4;i++){const an=i*1.5708+.78,c=Math.cos(an),s=Math.sin(an);a.push(m.v(cx+c*rad,y0,cz+s*rad,c,0,s,r*.6,g*.6,b*.6,.03,.03,0),m.v(cx+c*rad,y0+h,cz+s*rad,c,0,s,r,g,b,.03,.03,0))}
   for(let i=0;i<4;i++){const j=(i+1)%4;m.t(a[i*2],a[j*2],a[j*2+1]);m.t(a[i*2],a[j*2+1],a[i*2+1])}}
 function pblob(cat,cx,y0,cz,rx,ry,r,g,b,rot){const m=pmb(cx,cz,cat,26),seg=7,rows=[[-.25,.78],[.35,1],[.95,.55]];const rings=[];
   rows.forEach(rw=>{const rr=[];for(let i=0;i<seg;i++){const a=rot+i/seg*TAU+rw[0],c=Math.cos(a),s=Math.sin(a),nl=1/Math.hypot(c,rw[0]*.7+.3,s);rr.push(m.v(cx+c*rx*rw[1],y0+ry*(.5+rw[0]*.55),cz+s*rx*rw[1],c*nl,(.3+rw[0]*.7)*nl,s*nl,r*(.75+rw[0]*.3),g*(.75+rw[0]*.3),b*(.75+rw[0]*.3),.03,.03,0))}rings.push(rr)});
@@ -1221,13 +1232,13 @@ function pcard(cat,x,y,z,yaw,tilt,w,h,tile,r,g,b,ctr,rad,sway){
     ids.push(m.v(wx,wy,wz,nx,ny,nz,Math.min(255,r*k),Math.min(255,g*k),Math.min(255,b*k),uv[0],uv[1],3,sway));void qx}
   m.q(ids[0],ids[1],ids[2],ids[3]);m.q(ids[0],ids[3],ids[2],ids[1])}
 /* a crown of n cards in an ellipsoid (rx, ry, rz) centred at (cx, cy, cz); cw the card width; positions come from a small hash generator of the place, so the stream of the world generator is untouched */
-function pcrown(cat,cx,cy,cz,rx,ry,rz,n,cw,seed,r,g,b,tile,sway){
+function pcrown(cat,cx,cy,cz,rx,ry,rz,n,cw,seed,r,g,b,tile,sway){if(cat>=3&&!DET.now&&detRec(1,arguments))return;
   const rg=mulberry(((seed*977)|0)^0x5bd1e995),ctr=[cx,cy,cz],rad=Math.max(rx,ry,rz);
   for(let i=0;i<n;i++){const u=rg(),v=rg()*2-1,a=rg()*TAU,rr=Math.pow(rg(),.45)*(.55+.45*u)+.25,sq=Math.sqrt(Math.max(0,1-v*v));
     const px=cx+Math.cos(a)*sq*rx*rr,py=cy+v*ry*rr*.95,pz=cz+Math.sin(a)*sq*rz*rr,j=.88+rg()*.28,sz=cw*(.8+rg()*.5);
     pcard(cat,px,py,pz,rg()*Math.PI,(rg()-.5)*1.1,sz,sz*(.85+rg()*.3),tile,r*j,g*j*(.94+rg()*.12),b*j,ctr,rad,sway==null?200:sway)}}
 /* a fir tier: a star-shaped cone (points alternate long and short, so the edge is ragged like drooping branches) with the needle texture; apex vertices per facet so the pattern stays whole */
-function pstar(cat,cx,y0,cz,rad,h,r,g,b,n,rot){
+function pstar(cat,cx,y0,cz,rad,h,r,g,b,n,rot){if(cat>=3&&!DET.now&&detRec(0,arguments))return;
   const m=pmb(cx,cz,cat,n*2+2),ring=[],ap=[];
   for(let i=0;i<=n;i++){const a=rot+(i%n)/n*TAU,c=Math.cos(a),s=Math.sin(a),rr=((i%n)%2?.72:1)*rad,sl=rr/h,nl=1/Math.hypot(1,sl),uv=FTILE(1,i/n,0);
     ring.push(m.v(cx+c*rr,y0,cz+s*rr,c*nl,sl*nl,s*nl,r*.6,g*.6,b*.6,uv[0],uv[1],3,60))}
@@ -1238,15 +1249,24 @@ const TGREEN=[[52,100,46],[62,112,50],[44,88,52],[78,116,48],[66,98,42],[40,82,5
 function ptree(x,z,rng,y,hero){if(inGarageLot(x,z))return;const t=rng(),sc=.8+rng()*.7,rot=rng()*6,hh=Math.sin(x*12.9898+z*78.233)*43758.5453,cl=hh-Math.floor(hh),h2=Math.sin(x*39.346+z*11.135)*24634.6345,pk=h2-Math.floor(h2),seed=(x*13.7+z*7.1)|0;
   if(y>110||t<.55){
     if(hero){const h=11*sc,g=[26+cl*16,66+cl*24,38+cl*14];ptrunk(2,x,y-.2,z,.3,2.8*sc,70,52,36);                                          /* a fir: three ragged tiers */
-      pstar(2,x,y+1.5*sc,z,3*sc,h*.5,g[0]*.9,g[1]*.9,g[2]*.9,12,rot);pstar(2,x,y+h*.32,z,2.35*sc,h*.46,g[0],g[1],g[2],12,rot+.3);pstar(2,x,y+h*.56,z,1.6*sc,h*.46,g[0]*1.12,g[1]*1.12,g[2]*1.1,10,rot+.6)}
-    else{const h=9*sc,rd=2.6*sc;ptrunk(2,x,y-.2,z,.28,2.2*sc,70,52,36);pstar(2,x,y+1.4*sc,z,rd,h*.62,26,70,38,8,rot);pstar(2,x,y+h*.45,z,rd*.68,h*.55,32,82,44,8,rot+.4)}}
+      pstar(2,x,y+1.5*sc,z,3*sc,h*.5,g[0]*.9,g[1]*.9,g[2]*.9,12,rot);pstar(2,x,y+h*.32,z,2.35*sc,h*.46,g[0],g[1],g[2],12,rot+.3);pstar(2,x,y+h*.56,z,1.6*sc,h*.46,g[0]*1.12,g[1]*1.12,g[2]*1.1,10,rot+.6);
+        /* (batch 45, High only) two more tiers between the three, a fuller skirt, a leader at the top */
+        pstar(3,x,y+h*.2,z,2.7*sc,h*.34,g[0]*.95,g[1]*.95,g[2]*.95,12,rot+.8);pstar(3,x,y+h*.45,z,2*sc,h*.34,g[0]*1.05,g[1]*1.05,g[2]*1.05,10,rot+1.1);pstar(3,x,y+h*.74,z,1*sc,h*.3,g[0]*1.18,g[1]*1.18,g[2]*1.12,8,rot+.2);pstar(3,x,y+1.2*sc,z,3.3*sc,h*.3,g[0]*.8,g[1]*.8,g[2]*.8,14,rot+.5);pbar(3,x,y+h*.9,z,x,y+h*1.04,z,.05,70,52,36)}
+    else{const h=9*sc,rd=2.6*sc;ptrunk(2,x,y-.2,z,.28,2.2*sc,70,52,36);pstar(2,x,y+1.4*sc,z,rd,h*.62,26,70,38,8,rot);pstar(2,x,y+h*.45,z,rd*.68,h*.55,32,82,44,8,rot+.4);
+      pstar(3,x,y+h*.26,z,rd*.9,h*.4,28,74,40,10,rot+.9);pstar(3,x,y+h*.62,z,rd*.4,h*.4,38,92,50,6,rot+.2)}}
   else{const q1=rng(),q2=rng(),c=pk<.07?TFALL[(cl*3)|0]:TGREEN[(cl*10)|0];
-    if(hero&&pk>.8){ptrunk(2,x,y-.2,z,.2,3*sc,72,60,46);pcrown(2,x,y+1.4*sc+3.4*sc,z,1.5*sc,3.9*sc,1.5*sc,9,2.2*sc,seed,c[0]*.9,c[1]*.95,c[2]*.9,0)}       /* a poplar: a tall narrow column */
-    else if(hero&&pk>.56&&pk<.68){ptrunk(2,x,y-.2,z,.17,4.8*sc,208,204,192);pcrown(2,x,y+5.6*sc,z,2.4*sc,3*sc,2.4*sc,12,2.2*sc,seed,Math.min(255,c[0]*1.22+16),Math.min(255,c[1]*1.18+12),c[2]*1.05,0)}       /* a birch */
+    if(hero&&pk>.8){ptrunk(2,x,y-.2,z,.2,3*sc,72,60,46);pcrown(2,x,y+1.4*sc+3.4*sc,z,1.5*sc,3.9*sc,1.5*sc,9,2.2*sc,seed,c[0]*.9,c[1]*.95,c[2]*.9,0);pcrown(3,x,y+1.4*sc+3.6*sc,z,1.7*sc,4.2*sc,1.7*sc,8,1.6*sc,seed+5,c[0]*.95,c[1],c[2]*.9,0)}       /* a poplar: a tall narrow column */
+    else if(hero&&pk>.56&&pk<.68){ptrunk(2,x,y-.2,z,.17,4.8*sc,208,204,192);pcrown(2,x,y+5.6*sc,z,2.4*sc,3*sc,2.4*sc,12,2.2*sc,seed,Math.min(255,c[0]*1.22+16),Math.min(255,c[1]*1.18+12),c[2]*1.05,0);
+      {const a=rot*2.3;pbar(3,x,y+3.4*sc,z,x+Math.cos(a)*1.3*sc,y+5*sc,z+Math.sin(a)*1.3*sc,.06,214,210,198);pbar(3,x,y+4*sc,z,x-Math.cos(a+.8)*1.1*sc,y+5.4*sc,z-Math.sin(a+.8)*1.1*sc,.05,214,210,198);
+       pcrown(3,x,y+5.8*sc,z,2.8*sc,3.4*sc,2.8*sc,14,1.7*sc,seed+7,Math.min(255,c[0]*1.25+14),Math.min(255,c[1]*1.2+10),c[2]*1.05,0)}}       /* a birch */
     else if(hero){ptrunk(2,x,y-.2,z,.27,4.4*sc,72,54,38);const a=rot*1.7;                                                                            /* an oak: trunk, two boughs, a crown of leaf cards */
       pbar(2,x,y+2.6*sc,z,x+Math.cos(a)*1.8*sc,y+4.6*sc,z+Math.sin(a)*1.8*sc,.16,66,50,36);pbar(2,x,y+3*sc,z,x-Math.cos(a)*1.4*sc,y+4.8*sc,z-Math.sin(a)*1.4*sc,.14,66,50,36);
-      pcrown(2,x,y+5.2*sc,z,3.6*sc,2.9*sc,3.6*sc,12,3.1*sc,seed,c[0],c[1],c[2],0)}
-    else{ptrunk(2,x,y-.2,z,.3,3*sc,72,54,38);pcrown(2,x,y+4.6*sc,z,3.3*sc,2.7*sc,3.3*sc,5,3.7*sc,seed,48+q2*26,86+q1*44,40,0)}}}
+      pcrown(2,x,y+5.2*sc,z,3.6*sc,2.9*sc,3.6*sc,12,3.1*sc,seed,c[0],c[1],c[2],0);
+      /* (batch 45, High only) root flare, two more boughs, finer leaf clumps all round and a lower skirt: a real silhouette close up */
+      ptrunk(3,x,y-.3,z,.42,1.1*sc,66,50,36);pbar(3,x,y+3.4*sc,z,x+Math.cos(a+2.1)*1.6*sc,y+5*sc,z+Math.sin(a+2.1)*1.6*sc,.13,66,50,36);pbar(3,x+Math.cos(a)*1.8*sc,y+4.6*sc,z+Math.sin(a)*1.8*sc,x+Math.cos(a)*2.9*sc,y+5.6*sc,z+Math.sin(a)*2.9*sc,.09,66,50,36);
+      pcrown(3,x,y+5.5*sc,z,4.2*sc,3.3*sc,4.2*sc,20,2.3*sc,seed+17,c[0]*1.04,c[1]*1.04,c[2],0);pcrown(3,x,y+3.9*sc,z,3.4*sc,1.4*sc,3.4*sc,9,2.6*sc,seed+29,c[0]*.88,c[1]*.88,c[2]*.9,0)}
+    else{ptrunk(2,x,y-.2,z,.3,3*sc,72,54,38);pcrown(2,x,y+4.6*sc,z,3.3*sc,2.7*sc,3.3*sc,5,3.7*sc,seed,48+q2*26,86+q1*44,40,0);
+      pcrown(3,x,y+4.8*sc,z,3.6*sc,2.9*sc,3.6*sc,9,2.5*sc,seed+11,50+q2*26,90+q1*44,40,0)}}}
 /* a tuft of tall grass: two crossed cards of the blade tile, darker at the root, swaying in the wind */
 /* (batch 27) no grass, bush or tree inside or against a garage building */
 const inGarageLot=(x,z)=>SAFEHOUSES.some(s=>(s.x-x)**2+(s.z-z)**2<17*17);
@@ -1257,7 +1277,7 @@ function ptuft(x,y,z,yaw,w,h,r,g,b){if(inGarageLot(x,z))return;const m=pmb(x,z,2
 function pbush(x,z,y,rx,ry,r,g,b,rot){if(inGarageLot(x,z))return;pcrown(2,x,y+ry*.55,z,rx*1.05,ry*.7,rx*1.05,5,rx*1.5,((x*7.3+z*3.1)|0),r,g,b,2,150)}
 function prock(x,z,y,rx,ry,r,g,b,rot){pblob(2,x,y-.4*ry,z,rx,ry,r,g,b,rot)}
 /* a bar of square section between two points (wires, rails, cactus arms, turbine parts); drawn from both sides so it never disappears */
-function pbar(cat,x0,y0,z0,x1,y1,z1,w,r,g,b){const m=pmb((x0+x1)/2,(z0+z1)/2,cat,8);let dx=x1-x0,dy=y1-y0,dz=z1-z0;const l=Math.hypot(dx,dy,dz)||1;dx/=l;dy/=l;dz/=l;
+function pbar(cat,x0,y0,z0,x1,y1,z1,w,r,g,b){if(cat>=3&&!DET.now&&detRec(2,arguments))return;const m=pmb((x0+x1)/2,(z0+z1)/2,cat,8);let dx=x1-x0,dy=y1-y0,dz=z1-z0;const l=Math.hypot(dx,dy,dz)||1;dx/=l;dy/=l;dz/=l;
   let ux=-dz,uz=dx;const ul=Math.hypot(ux,uz);if(ul<1e-4){ux=1;uz=0}else{ux/=ul;uz/=ul}
   const vx=dy*uz,vy=dz*ux-dx*uz,vz=-dy*ux,k=[];
   for(const p of[[x0,y0,z0],[x1,y1,z1]])for(const q of[[1,1],[-1,1],[-1,-1],[1,-1]]){const nx=ux*q[0]+vx*q[1],ny=vy*q[1],nz=uz*q[0]+vz*q[1],nl=Math.hypot(nx,ny,nz)||1;k.push(m.v(p[0]+nx*w/2,p[1]+ny*w/2,p[2]+nz*w/2,nx/nl,ny/nl,nz/nl,r,g,b,.03,.03,0))}
@@ -1367,11 +1387,24 @@ function buildFurniture(){
       if(r.style==1&&!r.city&&(cnt2&1))continue;
       const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-(r.city?.1:.35);if(nearRepair(px,pz,6))continue;if(roadAt(px,pz,gy+.6)&&Math.abs(RQ.lat)<RQ.hw+.25)continue;   /* never a lamp post on asphalt: on a hairpin street the post of one leg stood in the lane of the next (the road bot got stuck on Lombard) */
       const lid=LAMPS.length/3;PROP_TAG=10000+lid;pbox(0,px,gy,pz,.13,gy+7.2,.13,92,94,98,0,.7);
-      pbox(0,px-nx*sd*1.1,gy+7.1,pz-nz*sd*1.1,.9*Math.abs(nx)+.1,gy+7.3,.9*Math.abs(nz)+.1,92,94,98,0,1);pbox(0,px-nx*sd*1.9,gy+6.95,pz-nz*sd*1.9,.35*Math.abs(nx)+.25,gy+7.12,.35*Math.abs(nz)+.25,255,236,180,2,1);PROP_TAG=0;LPOST[lid]=[px,pz,gy,COLC.length/5];LPOSTC[COLC.length/5]=lid;COLC.push(px,pz,.45,gy-.5,gy+7.2);LAMPS.push(px-nx*sd*1.9,gy+6.9,pz-nz*sd*1.9)}}
+      pbox(0,px-nx*sd*1.1,gy+7.1,pz-nz*sd*1.1,.9*Math.abs(nx)+.1,gy+7.3,.9*Math.abs(nz)+.1,92,94,98,0,1);pbox(0,px-nx*sd*1.9,gy+6.95,pz-nz*sd*1.9,.35*Math.abs(nx)+.25,gy+7.12,.35*Math.abs(nz)+.25,255,236,180,2,1);PROP_TAG=0;LPOST[lid]=[px,pz,gy,COLC.length/5];LPOSTC[COLC.length/5]=lid;COLC.push(px,pz,.45,gy-.5,gy+7.2);LAMPS.push(px-nx*sd*1.9,gy+6.9,pz-nz*sd*1.9)}
+    if(r.city&&r.sw)streetProps(r)}
 }
+/* (batch 45) street props on the city sidewalks, fine detail on High only (category 4, a few metres each): hydrants, bins, parking meters, benches, newspaper boxes. Placed by a hash of the place, not the world stream; no colliders (they stand beyond the curb) */
+function streetProps(r){const n=r.n,off=r.hw+1.35;
+  for(let i=3;i<n-3;i+=2){if(r.br[i]||r.mk[i]<.5||r.wk[i]<.9)continue;
+    const dx=r.X[i+1]-r.X[i-1],dz=r.Z[i+1]-r.Z[i-1],l=Math.hypot(dx,dz)||1,tx=dx/l,tz=dz/l,nx=-tz,nz=tx;
+    for(const sd of[-1,1]){const hh=Math.abs(Math.sin(r.X[i]*12.9898+r.Z[i]*78.233+sd*3.7)*43758.5453)%1;if(hh>.4)continue;
+      const px=r.X[i]+nx*sd*off,pz=r.Z[i]+nz*sd*off,gy=r.Y[i]-.1;if(nearRepair(px,pz,4))continue;if(roadAt(px,pz,gy+.6)&&Math.abs(RQ.lat)<RQ.hw+.25)continue;
+      const t=(hh*1000)%1;BOOT.sprops=(BOOT.sprops||0)+1;
+      if(t<.28){ptrunk(4,px,gy,pz,.14,.58,190,42,38);ptrunk(4,px,gy+.5,pz,.19,.12,176,38,34);pbox(4,px+tx*.2,gy+.36,pz+tz*.2,.07,gy+.46,.07,176,38,34,false,1);pbox(4,px-tx*.2,gy+.36,pz-tz*.2,.07,gy+.46,.07,176,38,34,false,1)}
+      else if(t<.52){ptrunk(4,px,gy,pz,.27,.86,52,66,58);ptrunk(4,px,gy+.84,pz,.31,.08,36,40,42)}
+      else if(t<.7){for(const q of[-1,1]){const x=px+tx*q*1.4,z=pz+tz*q*1.4;ptrunk(4,x,gy,z,.035,1.15,96,98,104);pbox(4,x,gy+1.1,z,.09,gy+1.34,.07,70,74,80,false,1)}}
+      else if(t<.88){const bx=px,bz=pz;pboxR(4,bx,bz,.85,.24,tx,tz,gy+.38,gy+.46,150,104,68,false,.9);pboxR(4,bx+nx*sd*.22,bz+nz*sd*.22,.85,.04,tx,tz,gy+.5,gy+.95,150,104,68,false,.9);for(const q of[-1,1])pboxR(4,bx+tx*q*.7,bz+tz*q*.7,.05,.2,tx,tz,gy,gy+.38,50,52,58,false,.9)}
+      else{const c=t<.94?[200,52,40]:[40,92,170];pboxR(4,px,pz,.22,.26,tx,tz,gy,gy+.95,c[0],c[1],c[2],false,.9);pboxR(4,px,pz,.2,.24,tx,tz,gy+.95,gy+1.05,60,62,68,false,.9)}}}}
 /* ---------- districts: San Francisco style downtown + hills, Golden Gate Park, the LA style Valley, countryside ---------- */
 /* rotated box (walls with window tiling + roof); collider registered by the caller */
-function pboxR(cat,cx,cz,hx,hz,cs,sn,y0,y1,r,g,b,win,ao){
+function pboxR(cat,cx,cz,hx,hz,cs,sn,y0,y1,r,g,b,win,ao){if(cat>=3&&!DET.now&&detRec(5,arguments))return;
   const m=pmb(cx,cz,cat,24),h=y1-y0,a0=ao==null?.62:ao,Wd=(lx,lz)=>[cx+lx*cs-lz*sn,cz+lx*sn+lz*cs];
   const wall=(l0x,l0z,l1x,l1z,nlx,nlz,len)=>{const p0=Wd(l0x,l0z),p1=Wd(l1x,l1z),nx=nlx*cs-nlz*sn,nz=nlx*sn+nlz*cs,u1=len/3.2,v1=h/3.4;
     const i0=m.v(p0[0],y0,p0[1],nx,0,nz,r*a0,g*a0,b*a0,0,v1,win),i1=m.v(p1[0],y0,p1[1],nx,0,nz,r*a0,g*a0,b*a0,u1,v1,win),i2=m.v(p1[0],y1,p1[1],nx,0,nz,r,g,b,u1,0,win),i3=m.v(p0[0],y1,p0[1],nx,0,nz,r,g,b,0,0,win);m.q(i0,i1,i2,i3)};
@@ -1480,13 +1513,32 @@ function buildCity(){LMK.clear();buildGarageRoom();
     for(let side=0;side<4;side++){if(shopRng()<.4)continue;const ax=side&1,sg=side<2?1:-1,len=ax?hz:hx,w=len*(.5+shopRng()*.38),off=(shopRng()-.5)*(len-w)*.9,col=AWN[(shopRng()*AWN.length)|0];
       const lx0=ax?sg*(hx+1.2):off,lz0=ax?off:sg*(hz+1.2),tg=Math.max(gy,Math.min(gy+h-4,terrainH(cx+lx0*cs-lz0*sn,cz+lx0*sn+lz0*cs)));   /* streets slope: sit the band on the ground in front of this side */
       const at=(d,half,y0,y1,r,g,b,win)=>{const lx=ax?sg*(hx+d):off,lz=ax?off:sg*(hz+d),wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs;pboxR(1,wx,wz,ax?half:w,ax?w:half,cs,sn,y0,y1,r,g,b,win,.9)};
-      at(.09,.09,tg+.1,tg+.55,58,60,66,false);at(.1,.1,tg+.55,tg+3,104,118,134,true);at(.6,.6,tg+3.05,tg+3.2,col[0],col[1],col[2],false)}
+      at(.09,.09,tg+.1,tg+.55,58,60,66,false);at(.1,.1,tg+.55,tg+3,104,118,134,true);at(.6,.6,tg+3.05,tg+3.2,col[0],col[1],col[2],false);
+      /* (batch 45, High only) a door in the glass and a painted sign board over the awning */
+      const at3=(d,half,y0,y1,lat,wh,r,g,b,win)=>{const lx=ax?sg*(hx+d):off+lat,lz=ax?off+lat:sg*(hz+d),wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs;pboxR(4,wx,wz,ax?half:wh,ax?wh:half,cs,sn,y0,y1,r,g,b,win,.9)};
+      at3(.22,.06,tg+.12,tg+2.4,w*.3,.55,52,38,32,false);at3(.2,.05,tg+.12,tg+2.45,w*.3,.7,86,66,52,false);at3(.14,.09,tg+3.35,tg+3.95,0,w*.42,col[0]*.9,col[1]*.9,col[2]*.9,false)}   /* a painted board: the lit flag (2) is a neon, white-hot even by day */
     if(h>=12)pboxR(1,cx,cz,hx+.2,hz+.2,cs,sn,gy+h-.3,gy+h+.2,Math.min(255,c[0]*1.08+8),Math.min(255,c[1]*1.08+8),Math.min(255,c[2]*1.08+8),false,.9)};
+  /* (batch 45) facade detail, High only (category 3, no triangle cap): corner piers, a parapet, cornice bands every four floors, window fins on the tall ones (on the tile edges, so they stand between the windows) and a stepped crown with a mast on the highest */
+  const facade=(cx,cz,hx,hz,cs,sn,y0,y1,c,full,nocrown)=>{BOOT.facades=(BOOT.facades||0)+1;const h=y1-y0,lt=[c[0]*.86,c[1]*.86,c[2]*.88],dk=[c[0]*.98,c[1]*.98,c[2]*1.0],
+      at=(lx,lz,ax,az,ya,yb,k)=>pboxR(3,cx+lx*cs-lz*sn,cz+lx*sn+lz*cs,ax,az,cs,sn,ya,yb,k[0],k[1],k[2],false,.9);
+    for(const sx of[-1,1])for(const sz of[-1,1])at(sx*hx,sz*hz,.34,.34,y0,y1,lt);
+    at(0,hz,hx,.22,y1,y1+.9,lt);at(0,-hz,hx,.22,y1,y1+.9,lt);at(hx,0,.22,hz,y1,y1+.9,lt);at(-hx,0,.22,hz,y1,y1+.9,lt);
+    for(let y=y0+13.6;y<y1-3;y+=13.6){at(0,hz,hx+.1,.3,y,y+.4,lt);at(0,-hz,hx+.1,.3,y,y+.4,lt);at(hx,0,.3,hz+.1,y,y+.4,lt);at(-hx,0,.3,hz+.1,y,y+.4,lt)}
+    if(full){const ya=y0+3.4,yb=y1-.6,f4=(lx,lz,ax,az)=>pboxR(4,cx+lx*cs-lz*sn,cz+lx*sn+lz*cs,ax,az,cs,sn,ya,yb,dk[0],dk[1],dk[2],false,.9);for(let u=3.2;u<hx*2-1;u+=3.2){f4(-hx+u,hz,.12,.19);f4(hx-u,-hz,.12,.19)}for(let u=3.2;u<hz*2-1;u+=3.2){f4(hx,hz-u,.19,.12);f4(-hx,-hz+u,.19,.12)}}
+    if(full&&h>60&&!nocrown){const q=h*.05;at(0,0,hx*.64,hz*.64,y1+.9,y1+.9+q,lt);at(0,0,hx*.34,hz*.34,y1+.9+q,y1+.9+q*2,dk);at(0,0,.18,.18,y1+.9+q*2,y1+.9+q*2+Math.min(26,h*.14),[200,204,210])}};
+  /* an iron fire escape up one wall of a brick or stucco mid-rise: landings with rails, zig-zag stairs */
+  const fireEscape=(cx,cz,hx,hz,cs,sn,gy,h,hs)=>{BOOT.escapes=(BOOT.escapes||0)+1;const side=((hs*9973)|0)&3,ax=side&1,sg=side<2?1:-1,len=ax?hz:hx,off=((hs*7919)%1-.5)*len*.7,nf=Math.min(9,Math.floor((h-2)/3.4)),I=[44,46,52],
+      W=(d,u)=>{const lx=ax?sg*(hx+d):off+u,lz=ax?off+u:sg*(hz+d);return[cx+lx*cs-lz*sn,cz+lx*sn+lz*cs]},
+      box=(d,u,hd,hu,ya,yb)=>{const p=W(d,u);pboxR(4,p[0],p[1],ax?hd:hu,ax?hu:hd,cs,sn,ya,yb,I[0],I[1],I[2],false,1)};
+    for(let k=1;k<=nf;k++){const y=gy+3.4*k;box(.7,0,.7,1.3,y,y+.1);box(1.38,0,.03,1.3,y+.55,y+.62);box(1.38,0,.03,1.3,y+1.05,y+1.12);box(1.38,-1.28,.03,.03,y,y+1.12);box(1.38,1.28,.03,.03,y,y+1.12);
+      if(k<nf){const a=k&1?-1:1,p0=W(1.1,-a*1.1),p1=W(1.1,a*1.1);for(const dd of[-.25,.25]){const q0=W(1.1+dd,-a*1.1),q1=W(1.1+dd,a*1.1);pbar(4,q0[0],y+.1,q0[1],q1[0],y+3.4,q1[1],.05,I[0],I[1],I[2])}void p0;void p1}}};
   const bld=(cx,cz,hx,hz,cs,sn,h,c,win)=>{const gy=gmin(cx,cz,hx,hz,cs,sn);pboxR(1,cx,cz,hx,hz,cs,sn,gy-1.5,gy+h,c[0],c[1],c[2],win!==false,.62);reg(cx,cz,hx,hz,cs,sn,gy+h);nb++;
     /* air-conditioning boxes, a stair head and a tank on the roof of the taller buildings */
     if(h>=9&&win!==false&&hx>2.5&&hz>2.5){const k=1+((roofRng()*3)|0);for(let q=0;q<k;q++){const lx=(roofRng()-.5)*hx*1.3,lz=(roofRng()-.5)*hz*1.3,wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs,s1=Math.min(hx*.4,.8+roofRng()*1.4),s2=Math.min(hz*.4,.7+roofRng()*1.2),hh=.8+roofRng()*1.8;pboxR(1,wx,wz,s1,s2,cs,sn,gy+h,gy+h+hh,150+roofRng()*20,152+roofRng()*16,156,false,.8)}}
     if(h>=7&&win!==false&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0))&&nrng()<.7)neon(cx,cz,hx,hz,cs,sn,gy,h);
-    if(h>=9&&win!==false&&hx>3&&hz>3&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0)))shops(cx,cz,hx,hz,cs,sn,gy,h,c);return gy};
+    if(h>=9&&win!==false&&hx>3&&hz>3&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0)))shops(cx,cz,hx,hz,cs,sn,gy,h,c);
+    if(h>=9&&win!==false&&hx>3&&hz>3){facade(cx,cz,hx,hz,cs,sn,gy,gy+h,c,h>=18);const hs=Math.abs(Math.sin(cx*12.9898+cz*78.233)*43758.5453)%1;if(h>=12&&h<40&&hs<.4&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0)))fireEscape(cx,cz,hx,hz,cs,sn,gy,h,hs)}
+    return gy};
   const treesIn=(B,n)=>{for(let k=0;k<n;k++){const u=lerp(B.u0+4,B.u1-4,rng()),v=lerp(B.v0+4,B.v1-4,rng()),p=B.W(u,v);if(nearRoadXZ(p[0],p[1],6))continue;ptree(p[0],p[1],rng,terrainH(p[0],p[1]),true);COLC.push(p[0],p[1],.55,terrainH(p[0],p[1])-.5,terrainH(p[0],p[1])+12)}};
   for(const g of GRIDS){
     if(g.kind=='la'){
@@ -1674,7 +1726,11 @@ function buildCity(){LMK.clear();buildGarageRoom();
         const lots=rng()<.3?1:2,gap=2+rng()*3,tall=Math.max(0,1-dcore/340);
         for(let a=0;a<lots;a++){const lw=wu/lots,u=B.u0+lw*(a+.5),[px,pz]=B.W(u,cv),hx0=lw/2-gap/2,hz0=wv/2-gap/2,c=[[150,160,175],[176,170,158],[126,140,158],[112,122,138],[188,184,176],[96,108,126]][(rng()*6)|0],h=18+rng()*24+tall*tall*(60+rng()*130);
           if(!pyramid&&dcore<150&&a==0){pyramid=true;const gy=gmin(px,pz,hx0,hz0,cs,sn),hb=Math.min(hx0,hz0)-2;pboxR(1,px,pz,hb+4,hb+4,cs,sn,gy-1.5,gy+10,206,204,198,true,.7);ppyramid(1,px,pz,hb,gy+10,230,cs,sn);reg(px,pz,hb*.6,hb*.6,cs,sn,gy+120);nb++;continue}
-          const ph=7+rng()*6,gy=bld(px,pz,hx0,hz0,cs,sn,Math.min(h,ph),[c[0]*.92,c[1]*.9,c[2]*.88]);const ins=1+rng()*4;pboxR(1,px,pz,hx0-ins,hz0-ins,cs,sn,gy+Math.min(h,ph),gy+h,c[0],c[1],c[2],true,.62);reg(px,pz,hx0-ins,hz0-ins,cs,sn,gy+h);if(nrng()<.85)neon(px,pz,hx0,hz0,cs,sn,gy,Math.min(h,ph))}}
+          const ph=7+rng()*6,gy=bld(px,pz,hx0,hz0,cs,sn,Math.min(h,ph),[c[0]*.92,c[1]*.9,c[2]*.88]);const ins=1+rng()*4,ux=hx0-ins,uz=hz0-ins,yb0=gy+Math.min(h,ph),hsb=Math.abs(Math.sin(px*91.7+pz*17.3)*43758.5453)%1;
+          /* (batch 45) the tall towers step back: a lower tier, then a narrower one (hash of the place, not the world stream) */
+          if(h-ph>46&&hsb<.6&&ux>8&&uz>8){const yt=yb0+(h-yb0+gy)*(.5+hsb*.3),k=.66+hsb*.12;pboxR(1,px,pz,ux,uz,cs,sn,yb0,yt,c[0],c[1],c[2],true,.62);pboxR(1,px,pz,ux*k,uz*k,cs,sn,yt,gy+h,c[0],c[1],c[2],true,.62);facade(px,pz,ux,uz,cs,sn,yb0,yt,c,true,true);facade(px,pz,ux*k,uz*k,cs,sn,yt,gy+h,c,true)}
+          else{pboxR(1,px,pz,ux,uz,cs,sn,yb0,gy+h,c[0],c[1],c[2],true,.62);if(h>ph+8&&ux>3&&uz>3)facade(px,pz,ux,uz,cs,sn,yb0,gy+h,c,true)}
+          reg(px,pz,ux,uz,cs,sn,gy+h);if(nrng()<.85)neon(px,pz,hx0,hz0,cs,sn,gy,Math.min(h,ph))}}
       else if(th>22||rng()<.6){/* Victorian row houses: narrow pastel fronts side by side */
         const depth=Math.min(17,wv/2-1.5);let maxH=0;
         for(const side of[-1,1]){const v=side<0?B.v0+depth/2:B.v1-depth/2;let u=B.u0;const hs=[];
@@ -1905,7 +1961,7 @@ function buildScenery(){
   return St}
 const reg2=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
 /* finalise prop meshes into plain arrays the GL side uploads */
-function finishProps(){const out=[];PSET.forEach((L,k)=>{const cat=k&3;for(const m of L){if(!m.n)continue;out.push({cat,V:m.f.subarray(0,m.n*7),I:m.ix.subarray(0,m.ni),cx:(m.x0+m.x1)/2,cy:(m.y0+m.y1)/2,cz:(m.z0+m.z1)/2,rad:Math.hypot(m.x1-m.x0,m.y1-m.y0,m.z1-m.z0)/2+1})}});return out}
+function finishProps(){const out=[];PSET.forEach((L,k)=>{const cat=k&7;for(const m of L){if(!m.n)continue;out.push({cat,V:m.f.subarray(0,m.n*7),I:m.ix.subarray(0,m.ni),cx:(m.x0+m.x1)/2,cy:(m.y0+m.y1)/2,cz:(m.z0+m.z1)/2,rad:Math.hypot(m.x1-m.x0,m.y1-m.y0,m.z1-m.z0)/2+1})}});return out}
 /* ---------- spatial hash for road queries + colliders ---------- */
 const QH={cs:64,nc:0,st:null,li:null,segR:null,segI:null,cst:null,cli:null,ccs:32,cnc:0};
 function buildRoadHash(){
@@ -2247,7 +2303,7 @@ function renderInit(){
   R.skyB=mkBuf(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]));R.watB=mkBuf(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,1,1,-1,-1,1,1,-1,1]));
   /* roads */
   buildRoadHash();for(const p of buildRoadMeshes())R.roads.push({vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.n1,n2:p.I.length-p.n1,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad});
-  buildFurniture();R.stats=buildCity();R.props=finishProps().map(p=>({cat:p.cat,vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.I.length,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad}));
+  buildFurniture();R.stats=buildCity();R.props=finishProps().map(p=>({cat:p.cat,vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.I.length,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad}));PSET.clear();   /* the CPU copies are not needed any more (batch 45: they stayed alive for the whole session) */
   buildQueries();
   /* dynamic effects buffer: quads of 9 floats/vertex */
   R.fxMax=2400;R.fxF=new Float32Array(R.fxMax*4*9);R.fx=mkBuf(gl.ARRAY_BUFFER,R.fxF.byteLength,gl.DYNAMIC_DRAW);
@@ -2263,7 +2319,7 @@ function viewSet(cx,cy,cz,tx,ty,tz,fov,w,h){R.cx=cx;R.cy=cy;R.cz=cz;R.fov=fov;R.
   let fx=tx-cx,fy=ty-cy,fz=tz-cz;const l=Math.hypot(fx,fy,fz)||1;fx/=l;fy/=l;fz/=l;let rx=-fz,rz=fx;const rl=Math.hypot(rx,rz)||1;rx/=rl;rz/=rl;
   R.fw[0]=fx;R.fw[1]=fy;R.fw[2]=fz;R.rt[0]=rx;R.rt[1]=0;R.rt[2]=rz;R.up[0]=-rz*fy;R.up[1]=rz*fx-rx*fz;R.up[2]=rx*fy}
 function renderFrame(w,h,sky){
-  const gl=G.gl;R.draws=0;R.tris=0;
+  const gl=G.gl;R.draws=0;R.tris=0;if(DET.want&&BOOT.detMs==null)detStep(UI.paused||GFX.fixed?1e9:5);   /* (batch 45) the High-only detail: a few ms a frame while driving, all at once when paused (the GFX button is in the pause console) or on a fixed tier */
   /* the scene goes into an off-screen target at the render scale (the post pass puts it on the canvas); if the GPU cannot, straight to the canvas */
   skyCubeUpdate();trPrep();shdPass();
   const post=GFX.ok&&gfxTarget(w,h);gl.bindFramebuffer(gl.FRAMEBUFFER,post?GFX.fbo:null);
@@ -2287,7 +2343,7 @@ function renderFrame(w,h,sky){
     const far=d-p.rad>R.roadLod,nn=far?p.n2:p.n;gl.drawElements(gl.TRIANGLES,nn,gl.UNSIGNED_SHORT,far?p.n*2:0);R.draws++;R.tris+=nn/3}
   /* props */
   P=G.P.pr;gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uKO,KO.U1);gl.uniform4fv(P.u.uKO2,KO.U2);bindTex(0,R.tex.win);gl.uniform1i(P.u.uWin,0);bindTex(1,R.tex.fol);gl.uniform1i(P.u.uFol,1);gl.uniform1f(P.u.uT,R.time);gl.uniform1f(P.u.uNight,GFX.night);attrs(4);gl.enable(gl.CULL_FACE);
-  for(let i=0;i<R.props.length;i++){const p=R.props[i],dist=R.drawProp[p.cat];const dx=p.cx-cx,dz=p.cz-cz;if(dx*dx+dz*dz>(dist+p.rad)*(dist+p.rad)||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
+  for(let i=0;i<R.props.length;i++){const p=R.props[i],dist=R.drawProp[p.cat];if(!dist)continue;const dx=p.cx-cx,dz=p.cz-cz;if(dx*dx+dz*dz>(dist+p.rad)*(dist+p.rad)||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
     gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,28,12);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,28,16);gl.vertexAttribPointer(3,2,gl.FLOAT,false,28,20);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}
   /* the player's car (+ rivals later) */
   if(R.carDraw)R.carDraw();if(R.trDraw)R.trDraw();heliDraw();evGhostDraw();
@@ -2309,7 +2365,7 @@ function renderFrame(w,h,sky){
 const GFXT=[
  {name:'Low',   scMin:.55,scMax:.85,blur:0,bloom:0,shadow:0,NL:4,hi:0,glow:26,pool:5, fxq:.6, traf:1,   draw:.8, cost:1},
  {name:'Medium',scMin:.60,scMax:.95,blur:1,bloom:0,shadow:1,NL:6,hi:1,glow:48,pool:10,fxq:1,  traf:1,   draw:.95,cost:1.35},
- {name:'High',  scMin:.70,scMax:1.0,blur:1,bloom:1,shadow:2,NL:8,hi:1,glow:80,pool:16,fxq:1.4,traf:1.25,draw:1,  cost:1.9}];
+ {name:'High',  scMin:.70,scMax:1.0,blur:1,bloom:1,shadow:2,NL:8,hi:1,glow:80,pool:16,fxq:1.4,traf:1.25,draw:1,  cost:2.15}];
 const GFX={tier:1,mode:'auto',T:GFXT,cur:GFXT[1],fixed:false,ok:false,w:0,h:0,fbo:null,col:null,dep:null,bw:0,bh:0,bl:[null,null],blT:[null,null],
   wet:.85,night:.27,shadowOn:false,blurAmt:0,lt:new Float32Array(32),lc:new Float32Array(24),nlt:0,
   /* governor */ probeOn:0,probeN:0,probeT:[],work:0,workLast:0,late:0,okRuns:0,upLock:[0,0,0],since:0,lastIv:0,ivAvg:16.7,ivN:0,hist:[],log:[]};
@@ -2374,7 +2430,8 @@ function gfxSetTier(t,force){
   const sd=T.shadow?{SHADOW:T.shadow}:{};G.P.rd=gfxProg('rd',Object.assign({NL:T.NL,DET:T.hi},sd));G.P.ter=gfxProg('ter',Object.assign({DET:T.hi},sd));G.P.sky=gfxProg('sky',T.hi?{HI:1}:{});
   const pd={};if(T.blur)pd.BLUR=T.bloom?9:4;if(T.bloom)pd.BLOOM=1;if(T.hi)pd.LENS=1;G.P.postv=gfxProg2('post',POSTV,POSTF,['aP'],pd);
   if(T.bloom&&!G.P.bright){G.P.bright=gfxProg2('bright',POSTV,BRF,['aP']);G.P.blur=gfxProg2('blur',POSTV,BLF,['aP'])}
-  const lo=t==0;R.drawProp=[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw)];R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
+  if(t==2)buildDetailProps();   /* the High-only detail is built the first time it is needed */
+  const lo=t==0;R.drawProp=t==2?[640,1250,480,300,150]:[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw),0,0];   /* [furniture, buildings, trees, detail]: High has no triangle cap (batch 45), the detail category only draws there, Low and Medium stay light so the governor has somewhere to fall back to */R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
   if(!GFX.fixed){Q.min=T.scMin;Q.max=T.scMax;Q.scale=Math.max(Q.min,Math.min(Q.max,Q.scale))}
   if(typeof trSetMul=='function')trSetMul(T.traf);
   GFX.since=0;Q.apply()}
@@ -2489,7 +2546,7 @@ function shdMatrices(cx,cy,cz){
 /* draw the shadow map; returns true if it is ready */
 function shdPass(){
   const T=GFX.cur,gl=G.gl;GFX.shadowOn=false;if(!T.shadow||!GFX.ok||!SHD.ok)return false;
-  const res=T.shadow>1?1024:512;SHD.half=T.shadow>1?50:34;if(!shdTarget(res))return false;
+  const res=QS.has('shres')?Math.max(512,Math.min(4096,parseInt(QS.get('shres'))||1024)):(T.shadow>1?1024:512);SHD.half=T.shadow>1?56:34;   /* (batch 45) High covers 112 m instead of 100; a 2048 map (?shres=2048, 6 cm a texel) cost +36 % in the software-GL timing, so it is a switch and not the default */if(!shdTarget(res))return false;
   if(!G.P.shc){G.P.shc=mkProg('shc',SHD_V.car,SHD_F,['aP']);G.P.shp=mkProg('shp',SHD_V.prop,SHD_FP,['aP','aN','aU']);G.P.sht=mkProg('sht',SHD_V.tr,SHD_F,['aP','aN','aI0','aI1'])}
   const a=R.alpha,x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a);SHD.cx=x;SHD.cz=z;shdMatrices(x,y,z);
   gl.bindFramebuffer(gl.FRAMEBUFFER,SHD.fbo);gl.viewport(0,0,res,res);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
@@ -2504,7 +2561,7 @@ function shdPass(){
   if(TRM.nv){P=G.P.sht;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);trIssue()}
   /* buildings, trees and lamp posts near the car (High only) */
   if(T.shadow>1){P=G.P.shp;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);attrs(3);bindTex(0,R.tex.fol);gl.uniform1i(P.u.uFol,0);const r0=SHD.half*1.45;
-    for(let i=0;i<R.props.length;i++){const p=R.props[i];if(Math.abs(p.cx-x)>r0+p.rad||Math.abs(p.cz-z)>r0+p.rad)continue;
+    for(let i=0;i<R.props.length;i++){const p=R.props[i];if(p.cat==4||Math.abs(p.cx-x)>r0+p.rad||Math.abs(p.cz-z)>r0+p.rad)continue;   /* (fine detail casts no shadow) */
       gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,28,12);gl.vertexAttribPointer(2,2,gl.FLOAT,false,28,20);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}}
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);GFX.shadowOn=true;return true}
 /* give a receiving program (terrain, road) the map */

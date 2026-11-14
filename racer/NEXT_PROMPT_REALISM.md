@@ -11,7 +11,7 @@ You are continuing **Racer**, a single-file WebGL arcade racer for phones, in th
 - Never modify `Close_Call.html` or `Close_Call.backup.html`.
 - The output must stay **one self-contained HTML file**, with no network loads at runtime. The only external assets are the embedded fonts in `racer/assets/fonts`.
 - It must stay **deterministic** for the tests: no `Math.random` in the simulation; use `mulberry` / `TR.rng`.
-- **Phone budgets.** The weakest target is an iPhone SE at 60 fps. `node racer/tests/rbudget.js` enforces about Low 146 draws / 113k tris, Medium 210 / 160k, High 240 / 167k per frame. Heavier work goes in the higher graphics tiers (`GFXT` in `31_gfx.js`) or a new Ultra tier that the frame-time governor only picks on strong devices.
+- **Phone budgets.** The weakest target is an iPhone SE at 60 fps. `node racer/tests/rbudget.js` enforces about Low 146 draws / 113k tris and Medium 210 / 160k per frame (the governor's fall-back tiers). **(Batch 45: the owner lifted the polygon budget on High; its numbers in `rbudget` are a regression guard only. New heavy art goes in the High-only detail categories 3 and 4, see README batch 45.)** Heavier work goes in the higher graphics tiers (`GFXT` in `31_gfx.js`) or a new Ultra tier that the frame-time governor only picks on strong devices.
 - **Damage is looks only**: damage never changes how the car drives.
 - The owner wants short, plain reports. Save usage.
 

@@ -15,8 +15,8 @@ Written after batch 44. Branch `claude/close-call-game-updates-n6s64g`. Never op
 | 1 median on divided roads | 33 | done (`rmedian.js`) |
 | 2 asphalt | 34 | done: oil strips, tar cracks, repair patches, worn paint |
 | 3 terrain | 37, 43 | done; a cobblestone-blotch regression on dry fields was fixed in 43 |
-| 4 trees and grass | 38 | colours and birch only; **no new tree shapes** (the High triangle budget blocks more) |
-| 5 buildings | 39, 44 | new window tile; shopfronts (glass band, awning, cornice) on ~196 buildings. **Tower upper floors, row houses and most other building kinds are still plain boxes** |
+| 4 trees and grass | 38, 45 | colours and birch; batch 45 (High only) adds extra fir tiers and leaders, forked boughs, root flare, finer leaf clumps. **Still the same species, no new tree shapes** |
+| 5 buildings | 39, 44 | new window tile; shopfronts (glass band, awning, cornice) on ~196 buildings; 45: towers step back, and on High corner piers, cornice bands, parapets, stepped crowns with masts, window fins, shop doors and lit signs, fire escapes (only 2 buildings got one), 4,991 sidewalk props. **Row houses and most other building kinds are still plain boxes** |
 | 6 lighting and post | 40 | grade, blur, fringe, sun shafts, contact shading. **Contact shading is an approximation, not depth-based SSAO** |
 | 7 cars | 35, 36, 41 | wheels spin on all 23 vehicle types, cleaner bodies, Burnout paint, glass, lamps. **Supercars share one cabin; the cop car, interceptor and police SUV reuse Close Call bodies with police paint and light bars, not their own designs** |
 | 8 night | 42 | night preset with stars, lit windows |
@@ -24,7 +24,8 @@ Written after batch 44. Branch `claude/close-call-game-updates-n6s64g`. Never op
 Also this session: crash smoke no longer blinds, the car lasts much longer (`DMG_POOL`), chase camera raised, nitro flames.
 
 ## Verified vs not verified
-- Verified: boots with no page errors; after batch 44 I re-ran `rscenery`, `rlooks`, `rgfx`, `rcarlook` and `rbudget` (all pass apart from the noisy build-time bar below). The full `run_quick.sh` suite was last run in full during batches 41-43, not after batch 44. `rbudget` passes on all three tiers (High downtown 167k triangles against a 167k limit); screenshots of day, night, gameplay and the car line-up were looked at.
+- Verified: boots with no page errors; after batch 44 I re-ran `rscenery`, `rlooks`, `rgfx`, `rcarlook` and `rbudget` (all pass apart from the noisy build-time bar below). The full `run_quick.sh` suite was last run in full during batches 41-43, not after batch 44. `rbudget` passes on all three tiers (Low and Medium at their old iPhone SE limits; **High has no design cap since batch 45**, 255 draws / 215k triangles at the worst place, guard 330 / 300k); screenshots of day, night, gameplay and the car line-up were looked at.
+- **Batch 45 numbers (software GL, relative): High frame time +0-18 %, Low and Medium unchanged; the one-off High detail build is ~0.6 s all at once, spread over ~90 frames while driving; JS heap at load fell from ~307 MB to ~215 MB because the CPU copies of the meshes are now freed.** A 2048 shadow map (`?shres=2048`) cost +36 % in the same timing and is off by default.
 - **Not verified: the real phone.** Everything was measured in Chromium with software GL, so numbers are relative only. The owner reports 60 fps on an iPhone SE with an earlier build; the Burnout look plus shopfronts have not been run on it. First thing to check: frame rate and reloads (the whole map holds ~485k furniture triangles, about 20 MB more buffer memory).
 - Shader compile on real iOS GPUs is untested.
 

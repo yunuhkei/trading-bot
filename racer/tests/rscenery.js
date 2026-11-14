@@ -5,7 +5,7 @@ const L=require('./rlib.js');
   const T=await L.launch({q:'go=1&scale=.3&fixed=1',w:240,h:160,mobile:false});
   await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:180000});
   let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
-  const S=await T.ev(()=>{const st=R.stats,sc=st.scenery;const props=R.props;let tris=[0,0,0];for(const p of props)tris[p.cat]+=p.n/3;
+  const S=await T.ev(()=>{const st=R.stats,sc=st.scenery;const props=R.props;let tris=[0,0,0,0,0];for(const p of props)tris[p.cat]+=p.n/3;
     /* colliders (circles x,z,r,y0,y1) that sit on the asphalt of an open road at their own height */
     let onRoad=0,n=0;const lim=[];for(let i=0;i<COLC.length;i+=5){n++;const x=COLC[i],z=COLC[i+1],y1=COLC[i+4];if(roadAt(x,z,COLC[i+3]+.6)&&Math.abs(RQ.lat)<RQ.hw*.98&&Math.abs(RQ.y-COLC[i+3]-.5)<2.5){onRoad++;if(lim.length<5)lim.push([x|0,z|0,RQ.lat.toFixed(1)])}}
     return{stats:{b:st.buildings,h:st.houses,t:st.trees},sc:{...sc,at:undefined},tris,colliders:n,onRoad,lim,boot:RACER.BOOT.genMs,shops:RACER.BOOT.shops}});

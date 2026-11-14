@@ -98,7 +98,7 @@ function renderInit(){
   R.skyB=mkBuf(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]));R.watB=mkBuf(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,1,1,-1,-1,1,1,-1,1]));
   /* roads */
   buildRoadHash();for(const p of buildRoadMeshes())R.roads.push({vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.n1,n2:p.I.length-p.n1,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad});
-  buildFurniture();R.stats=buildCity();R.props=finishProps().map(p=>({cat:p.cat,vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.I.length,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad}));
+  buildFurniture();R.stats=buildCity();R.props=finishProps().map(p=>({cat:p.cat,vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.I.length,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad}));PSET.clear();   /* the CPU copies are not needed any more (batch 45: they stayed alive for the whole session) */
   buildQueries();
   /* dynamic effects buffer: quads of 9 floats/vertex */
   R.fxMax=2400;R.fxF=new Float32Array(R.fxMax*4*9);R.fx=mkBuf(gl.ARRAY_BUFFER,R.fxF.byteLength,gl.DYNAMIC_DRAW);
@@ -114,7 +114,7 @@ function viewSet(cx,cy,cz,tx,ty,tz,fov,w,h){R.cx=cx;R.cy=cy;R.cz=cz;R.fov=fov;R.
   let fx=tx-cx,fy=ty-cy,fz=tz-cz;const l=Math.hypot(fx,fy,fz)||1;fx/=l;fy/=l;fz/=l;let rx=-fz,rz=fx;const rl=Math.hypot(rx,rz)||1;rx/=rl;rz/=rl;
   R.fw[0]=fx;R.fw[1]=fy;R.fw[2]=fz;R.rt[0]=rx;R.rt[1]=0;R.rt[2]=rz;R.up[0]=-rz*fy;R.up[1]=rz*fx-rx*fz;R.up[2]=rx*fy}
 function renderFrame(w,h,sky){
-  const gl=G.gl;R.draws=0;R.tris=0;
+  const gl=G.gl;R.draws=0;R.tris=0;if(DET.want&&BOOT.detMs==null)detStep(UI.paused||GFX.fixed?1e9:5);   /* (batch 45) the High-only detail: a few ms a frame while driving, all at once when paused (the GFX button is in the pause console) or on a fixed tier */
   /* the scene goes into an off-screen target at the render scale (the post pass puts it on the canvas); if the GPU cannot, straight to the canvas */
   skyCubeUpdate();trPrep();shdPass();
   const post=GFX.ok&&gfxTarget(w,h);gl.bindFramebuffer(gl.FRAMEBUFFER,post?GFX.fbo:null);
@@ -138,7 +138,7 @@ function renderFrame(w,h,sky){
     const far=d-p.rad>R.roadLod,nn=far?p.n2:p.n;gl.drawElements(gl.TRIANGLES,nn,gl.UNSIGNED_SHORT,far?p.n*2:0);R.draws++;R.tris+=nn/3}
   /* props */
   P=G.P.pr;gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uKO,KO.U1);gl.uniform4fv(P.u.uKO2,KO.U2);bindTex(0,R.tex.win);gl.uniform1i(P.u.uWin,0);bindTex(1,R.tex.fol);gl.uniform1i(P.u.uFol,1);gl.uniform1f(P.u.uT,R.time);gl.uniform1f(P.u.uNight,GFX.night);attrs(4);gl.enable(gl.CULL_FACE);
-  for(let i=0;i<R.props.length;i++){const p=R.props[i],dist=R.drawProp[p.cat];const dx=p.cx-cx,dz=p.cz-cz;if(dx*dx+dz*dz>(dist+p.rad)*(dist+p.rad)||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
+  for(let i=0;i<R.props.length;i++){const p=R.props[i],dist=R.drawProp[p.cat];if(!dist)continue;const dx=p.cx-cx,dz=p.cz-cz;if(dx*dx+dz*dz>(dist+p.rad)*(dist+p.rad)||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
     gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,28,12);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,28,16);gl.vertexAttribPointer(3,2,gl.FLOAT,false,28,20);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}
   /* the player's car (+ rivals later) */
   if(R.carDraw)R.carDraw();if(R.trDraw)R.trDraw();heliDraw();evGhostDraw();

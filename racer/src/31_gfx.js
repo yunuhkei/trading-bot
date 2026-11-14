@@ -5,7 +5,7 @@
 const GFXT=[
  {name:'Low',   scMin:.55,scMax:.85,blur:0,bloom:0,shadow:0,NL:4,hi:0,glow:26,pool:5, fxq:.6, traf:1,   draw:.8, cost:1},
  {name:'Medium',scMin:.60,scMax:.95,blur:1,bloom:0,shadow:1,NL:6,hi:1,glow:48,pool:10,fxq:1,  traf:1,   draw:.95,cost:1.35},
- {name:'High',  scMin:.70,scMax:1.0,blur:1,bloom:1,shadow:2,NL:8,hi:1,glow:80,pool:16,fxq:1.4,traf:1.25,draw:1,  cost:1.9}];
+ {name:'High',  scMin:.70,scMax:1.0,blur:1,bloom:1,shadow:2,NL:8,hi:1,glow:80,pool:16,fxq:1.4,traf:1.25,draw:1,  cost:2.15}];
 const GFX={tier:1,mode:'auto',T:GFXT,cur:GFXT[1],fixed:false,ok:false,w:0,h:0,fbo:null,col:null,dep:null,bw:0,bh:0,bl:[null,null],blT:[null,null],
   wet:.85,night:.27,shadowOn:false,blurAmt:0,lt:new Float32Array(32),lc:new Float32Array(24),nlt:0,
   /* governor */ probeOn:0,probeN:0,probeT:[],work:0,workLast:0,late:0,okRuns:0,upLock:[0,0,0],since:0,lastIv:0,ivAvg:16.7,ivN:0,hist:[],log:[]};
@@ -70,7 +70,8 @@ function gfxSetTier(t,force){
   const sd=T.shadow?{SHADOW:T.shadow}:{};G.P.rd=gfxProg('rd',Object.assign({NL:T.NL,DET:T.hi},sd));G.P.ter=gfxProg('ter',Object.assign({DET:T.hi},sd));G.P.sky=gfxProg('sky',T.hi?{HI:1}:{});
   const pd={};if(T.blur)pd.BLUR=T.bloom?9:4;if(T.bloom)pd.BLOOM=1;if(T.hi)pd.LENS=1;G.P.postv=gfxProg2('post',POSTV,POSTF,['aP'],pd);
   if(T.bloom&&!G.P.bright){G.P.bright=gfxProg2('bright',POSTV,BRF,['aP']);G.P.blur=gfxProg2('blur',POSTV,BLF,['aP'])}
-  const lo=t==0;R.drawProp=[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw)];R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
+  if(t==2)buildDetailProps();   /* the High-only detail is built the first time it is needed */
+  const lo=t==0;R.drawProp=t==2?[640,1250,480,300,150]:[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw),0,0];   /* [furniture, buildings, trees, detail]: High has no triangle cap (batch 45), the detail category only draws there, Low and Medium stay light so the governor has somewhere to fall back to */R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
   if(!GFX.fixed){Q.min=T.scMin;Q.max=T.scMax;Q.scale=Math.max(Q.min,Math.min(Q.max,Q.scale))}
   if(typeof trSetMul=='function')trSetMul(T.traf);
   GFX.since=0;Q.apply()}

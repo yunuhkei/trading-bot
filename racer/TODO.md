@@ -23,6 +23,7 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 30: dirt trails off the highways; chasers only spawn behind; cops chase across the grass; fewer roadblocks.
 - Batch 43: terrain cobblestone fix, speed-blur colour ghosts fixed, shafts and contact shading on High only.
 - Batch 44: shopfronts on ~190 town/downtown buildings (glass band, awning, cornice). Still plain: the upper floors of towers, row houses, other kinds of building
+- Batch 45: High has no polygon cap (detail categories 3 and 4, built on first use of High); towers step back; sidewalk props; fuller trees; Low/Medium limits unchanged. Not measured: a real phone on High (software-GL +0-18 %), the one-off detail build (about 0.6 s all at once in the software box, spread over ~90 frames while driving)
 - Batches 37-42: terrain, trees (birch, colours), building window tile, sun shafts and contact shading, traffic lower-body shading, night mode in the SKY cycle.
 - Known: `rtrail.js` check 4 (parked 120 m out in a field: the cops reach you across the grass, `offRoad` false, 6-13 s) fails the same way on the build from before batch 32. `rphys.js` J asserted that a curb jolts the car (stale since batch 27): now asserts a rumble only.
 - Known: `rtraffic.js` fails on the ring (one car 10 m off its lane on `sc2`) and sometimes on the coast road: both fail identically on the build from before batch 32, so not from the art work.

@@ -37,7 +37,7 @@ function shdMatrices(cx,cy,cz){
 /* draw the shadow map; returns true if it is ready */
 function shdPass(){
   const T=GFX.cur,gl=G.gl;GFX.shadowOn=false;if(!T.shadow||!GFX.ok||!SHD.ok)return false;
-  const res=T.shadow>1?1024:512;SHD.half=T.shadow>1?50:34;if(!shdTarget(res))return false;
+  const res=QS.has('shres')?Math.max(512,Math.min(4096,parseInt(QS.get('shres'))||1024)):(T.shadow>1?1024:512);SHD.half=T.shadow>1?56:34;   /* (batch 45) High covers 112 m instead of 100; a 2048 map (?shres=2048, 6 cm a texel) cost +36 % in the software-GL timing, so it is a switch and not the default */if(!shdTarget(res))return false;
   if(!G.P.shc){G.P.shc=mkProg('shc',SHD_V.car,SHD_F,['aP']);G.P.shp=mkProg('shp',SHD_V.prop,SHD_FP,['aP','aN','aU']);G.P.sht=mkProg('sht',SHD_V.tr,SHD_F,['aP','aN','aI0','aI1'])}
   const a=R.alpha,x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a);SHD.cx=x;SHD.cz=z;shdMatrices(x,y,z);
   gl.bindFramebuffer(gl.FRAMEBUFFER,SHD.fbo);gl.viewport(0,0,res,res);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
@@ -52,7 +52,7 @@ function shdPass(){
   if(TRM.nv){P=G.P.sht;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);trIssue()}
   /* buildings, trees and lamp posts near the car (High only) */
   if(T.shadow>1){P=G.P.shp;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uLP,false,SHD.LP);attrs(3);bindTex(0,R.tex.fol);gl.uniform1i(P.u.uFol,0);const r0=SHD.half*1.45;
-    for(let i=0;i<R.props.length;i++){const p=R.props[i];if(Math.abs(p.cx-x)>r0+p.rad||Math.abs(p.cz-z)>r0+p.rad)continue;
+    for(let i=0;i<R.props.length;i++){const p=R.props[i];if(p.cat==4||Math.abs(p.cx-x)>r0+p.rad||Math.abs(p.cz-z)>r0+p.rad)continue;   /* (fine detail casts no shadow) */
       gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,28,12);gl.vertexAttribPointer(2,2,gl.FLOAT,false,28,20);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}}
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);GFX.shadowOn=true;return true}
 /* give a receiving program (terrain, road) the map */

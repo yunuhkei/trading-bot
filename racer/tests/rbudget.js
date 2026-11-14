@@ -1,9 +1,10 @@
-// Frame budgets: draw calls and triangles at fixed places on the three tiers. The limits are what the build that held a steady 60 fps on an iPhone SE drew at these places
+// Frame budgets: draw calls and triangles at fixed places on the three tiers. The Low and Medium limits are what the build that held a steady 60 fps on an iPhone SE drew at these places
 // (commit c02a69c, measured by this script: the WORLD without traffic, which is deterministic; the numbers in the README's old "Graphics baseline" were older and lower).
 // Traffic is reported too (it varies with which cars are near). `RFILE=old.html node racer/tests/rbudget.js` measures another build to compare.
 const L=require('./rlib.js');
 const PLACES=[['sfnu3',.43,'downtown'],['market',.5,'Market St'],['lau1',.5,'Valley'],['ring',.3,'ring'],['ring',.62,'ring jumps'],['mp',.2,'mountain pass'],['cr',.55,'coast'],['psu1',.5,'Palm Springs'],['btp',.3,'Santa Cruz'],['eh',.02,'ring crossroads'],['vegm',.5,'Las Vegas'],['sacm',.5,'Sacramento'],['sjm',.4,'San Jose']].concat(process.env.EXTRA?JSON.parse(process.env.EXTRA):[]);
-const LIM=JSON.parse(process.env.LIM||'[[146,113],[210,160],[240,167]]');   /* world only, worst place per tier: [draws, thousand triangles] */
+/* Low and Medium keep the limits of the build that held 60 fps on the iPhone SE, so the Auto governor always has a light tier to fall back to. High has NO design cap since batch 45 (the owner asked for the polygon budget to go): its numbers are a regression guard (measured 255 draws / 215k triangles at the worst place, so a surprise jump is caught, nothing more). */
+const LIM=JSON.parse(process.env.LIM||'[[146,113],[210,160],[330,300]]');   /* world only, worst place per tier: [draws, thousand triangles] */
 (async()=>{
   const T=await L.launch({q:'go=1&scale=.5&fixed=1',w:667,h:375,mobile:true,traffic:true});
   await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:120000});
