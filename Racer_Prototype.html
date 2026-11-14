@@ -1433,13 +1433,13 @@ const inUrban=(x,z,m)=>{if(inBox(x,z,CITY,m)||inBox(x,z,VALLEY,m)||inBox(x,z,PAR
    In the old centre (the inner third) the lots are shops in a row; round it houses with gardens; towards the edge more and more lots stay empty; the edge street has houses on its
    outer side too (fewer), and the roads leading in carry a few houses for the first 250 m (the town thins out into the country instead of stopping at a line).
    A lot is used only if its corners are clear of every road and of the lots already used. */
-function organicTown(g,h){const{bld,tree,TH,SHOP,rng}=h,placed=[],skip=h.skip||(()=>false);
+function organicTown(g,h){const{bld,tree,TH,SHOP,rng,shops}=h,placed=[],skip=h.skip||(()=>false);
   const free=(x,z,r)=>{for(let k=0;k<placed.length;k+=3){const dx=placed[k]-x,dz=placed[k+1]-z,q=placed[k+2]+r;if(dx*dx+dz*dz<q*q)return false}return true};
   const fits=(x,z,cs,sn,hx,hz)=>{if(SAFEHOUSES.some(q=>Math.hypot(q.x-x,q.z-z)<34+hx))return false;for(const[a,b]of[[0,0],[-hx,-hz],[hx,-hz],[hx,hz],[-hx,hz],[0,hz],[0,-hz]]){if(nearRoadXZ(x+a*cs-b*sn,z+a*sn+b*cs,1.4))return false}return true};
   const rrAt=(x,z)=>{const[u,v]=g.toL(x,z);return Math.hypot(u,v)/g.R(Math.atan2(v,u))};
   const house=(x,z,cs,sn,hx,hz)=>{const hh=3.2+rng()*1.5,col=TH.pal[(rng()*TH.pal.length)|0],gy=bld(x,z,hx,hz,cs,sn,hh,col,true);
     if(TH.rf==0)proofR(1,x,z,hx,hz,cs,sn,gy+hh,1.9+rng()*.7,150,92,76,true);else if(TH.rf==2)proofR(1,x,z,hx,hz,cs,sn,gy+hh,3.4+rng()*1.2,226,230,236,true);else pboxR(1,x,z,hx+.6,hz+.6,cs,sn,gy+hh,gy+hh+.4,226,214,190,false,1)};
-  const shop=(x,z,cs,sn,hx,hz)=>{const hh=(h.shopH||4.6)+rng()*(h.shopH?8:3),col=SHOP[(rng()*SHOP.length)|0],gy=bld(x,z,hx,hz,cs,sn,hh,col,true);pboxR(1,x,z,hx+.3,hz+.3,cs,sn,gy+hh,gy+hh+.5,92,96,104,false,1)};
+  const shop=(x,z,cs,sn,hx,hz)=>{const hh=(h.shopH||4.6)+rng()*(h.shopH?8:3),col=SHOP[(rng()*SHOP.length)|0],gy=bld(x,z,hx,hz,cs,sn,hh,col,true);if(shops&&hx>3&&hz>3)shops(x,z,hx,hz,cs,sn,gy,hh,col);pboxR(1,x,z,hx+.3,hz+.3,cs,sn,gy+hh,gy+hh+.5,92,96,104,false,1)};
   /* the landmark (church, water tower or lodge) on a lot near the centre */
   if(!h.noLandmark){const c=g.toW(0,0);let done=false;for(let k=0;k<24&&!done;k++){const a=k*.785+.39,d=26+Math.floor(k/8)*14,x=c[0]+Math.cos(a)*d,z=c[1]+Math.sin(a)*d,cs=g.cs,sn=g.sn,hx=g.theme=='desert'?6:10,hz=g.theme=='desert'?6:8;
     if(!fits(x,z,cs,sn,hx+2,hz+2))continue;done=true;placed.push(x,z,Math.hypot(hx,hz)+2);const y=terrainH(x,z);
@@ -1473,11 +1473,20 @@ function buildCity(){LMK.clear();buildGarageRoom();
       const along=(nrng()-.5)*(ax?hz:hx)*1.2;if(ax){lx=sg*(hx+.25);lz=along;hl=[.25,vert?.5:Math.min(3.2,hz*.35)]}else{lz=sg*(hz+.25);lx=along;hl=[vert?.5:Math.min(3.2,hx*.35),.25]}
       const wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs,yy0=vert?y0:y0+3,yy1=vert?y0+Math.min(7,h*.4):y0+3+1.1;pboxR(1,wx,wz,hl[0],hl[1],cs,sn,yy0,yy1,c[0],c[1],c[2],2,1);
       NEONS.push(wx,(yy0+yy1)/2,wz,c[0]/255,c[1]/255,c[2]/255,vert?3.4:4.2)}};
-  const roofRng=mulberry(31337);
+  const roofRng=mulberry(31337),shopRng=mulberry(777);
+  /* (batch 44) ground-floor shops on the downtown and valley buildings: a dark glass band and a coloured awning over it on some of the four walls, and a pale cornice at the roof (its own random stream, so the rest of the world stays as it was) */
+  const AWN=[[196,52,44],[44,110,70],[40,84,150],[226,176,52],[236,236,228],[150,60,110]];
+  const shops=(cx,cz,hx,hz,cs,sn,gy,h,c)=>{BOOT.shops=(BOOT.shops||0)+1;
+    for(let side=0;side<4;side++){if(shopRng()<.4)continue;const ax=side&1,sg=side<2?1:-1,len=ax?hz:hx,w=len*(.5+shopRng()*.38),off=(shopRng()-.5)*(len-w)*.9,col=AWN[(shopRng()*AWN.length)|0];
+      const lx0=ax?sg*(hx+1.2):off,lz0=ax?off:sg*(hz+1.2),tg=Math.max(gy,Math.min(gy+h-4,terrainH(cx+lx0*cs-lz0*sn,cz+lx0*sn+lz0*cs)));   /* streets slope: sit the band on the ground in front of this side */
+      const at=(d,half,y0,y1,r,g,b,win)=>{const lx=ax?sg*(hx+d):off,lz=ax?off:sg*(hz+d),wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs;pboxR(1,wx,wz,ax?half:w,ax?w:half,cs,sn,y0,y1,r,g,b,win,.9)};
+      at(.09,.09,tg+.1,tg+.55,58,60,66,false);at(.1,.1,tg+.55,tg+3,104,118,134,true);at(.6,.6,tg+3.05,tg+3.2,col[0],col[1],col[2],false)}
+    if(h>=12)pboxR(1,cx,cz,hx+.2,hz+.2,cs,sn,gy+h-.3,gy+h+.2,Math.min(255,c[0]*1.08+8),Math.min(255,c[1]*1.08+8),Math.min(255,c[2]*1.08+8),false,.9)};
   const bld=(cx,cz,hx,hz,cs,sn,h,c,win)=>{const gy=gmin(cx,cz,hx,hz,cs,sn);pboxR(1,cx,cz,hx,hz,cs,sn,gy-1.5,gy+h,c[0],c[1],c[2],win!==false,.62);reg(cx,cz,hx,hz,cs,sn,gy+h);nb++;
     /* air-conditioning boxes, a stair head and a tank on the roof of the taller buildings */
     if(h>=9&&win!==false&&hx>2.5&&hz>2.5){const k=1+((roofRng()*3)|0);for(let q=0;q<k;q++){const lx=(roofRng()-.5)*hx*1.3,lz=(roofRng()-.5)*hz*1.3,wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs,s1=Math.min(hx*.4,.8+roofRng()*1.4),s2=Math.min(hz*.4,.7+roofRng()*1.2),hh=.8+roofRng()*1.8;pboxR(1,wx,wz,s1,s2,cs,sn,gy+h,gy+h+hh,150+roofRng()*20,152+roofRng()*16,156,false,.8)}}
-    if(h>=7&&win!==false&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0))&&nrng()<.7)neon(cx,cz,hx,hz,cs,sn,gy,h);return gy};
+    if(h>=7&&win!==false&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0))&&nrng()<.7)neon(cx,cz,hx,hz,cs,sn,gy,h);
+    if(h>=9&&win!==false&&hx>3&&hz>3&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0)))shops(cx,cz,hx,hz,cs,sn,gy,h,c);return gy};
   const treesIn=(B,n)=>{for(let k=0;k<n;k++){const u=lerp(B.u0+4,B.u1-4,rng()),v=lerp(B.v0+4,B.v1-4,rng()),p=B.W(u,v);if(nearRoadXZ(p[0],p[1],6))continue;ptree(p[0],p[1],rng,terrainH(p[0],p[1]),true);COLC.push(p[0],p[1],.55,terrainH(p[0],p[1])-.5,terrainH(p[0],p[1])+12)}};
   for(const g of GRIDS){
     if(g.kind=='la'){
@@ -1560,12 +1569,12 @@ function buildCity(){LMK.clear();buildGarageRoom();
       const PAL={vegas:[[214,184,146],[226,200,160],[236,220,190],[200,170,140]],cap:BRICK,tech:[[236,238,240],[214,220,226],[200,206,214],[226,226,220]]}[g.theme]||PASTEL;
       const TH={pal:PAL,rf:g.theme=='cap'?0:1},SHOPC=[[236,120,110],[250,200,96],[96,170,196],[240,240,232],[130,200,150],[214,150,90]];
       const tree=(x,z)=>{const y=terrainH(x,z);if(y<2)return;if(g.theme=='vegas')ppalm(x,z,rng,y);else ptree(x,z,rng,y,true);COLC.push(x,z,.5,y-.5,y+12)};
-      organicTown(g,{bld,tree,TH,SHOP:SHOPC,rng,skip:(x,z)=>inFullBlock(g,x,z),noLandmark:1,noTrees:1,shopR:.7,shopH:7});continue}
+      organicTown(g,{bld,shops,tree,TH,SHOP:SHOPC,rng,skip:(x,z)=>inFullBlock(g,x,z),noLandmark:1,noTrees:1,shopR:.7,shopH:7});continue}
     if(g.kind=='town'){/* a small town: houses, a row of shops, trees, one landmark (church, water tower or lodge) */
       const TH={coast:{pal:PASTEL,rf:0},farm:{pal:[[240,238,230],[230,226,214],[196,64,56],[186,198,206],[232,220,170]],rf:0},desert:{pal:[[214,184,146],[226,200,160],[196,164,128],[232,214,180]],rf:1},pines:{pal:[[110,80,60],[130,96,70],[92,70,56],[150,112,80]],rf:2}}[g.theme]||{pal:PASTEL,rf:0};
       const SHOP=[[236,120,110],[250,200,96],[96,170,196],[240,240,232],[130,200,150],[214,150,90]];let lm=false;
       const tree=(x,z)=>{const y=terrainH(x,z);if(y<2)return;if(g.theme=='desert'||g.theme=='coast')ppalm(x,z,rng,y);else ptree(x,z,rng,y,true);COLC.push(x,z,.5,y-.5,y+12)};
-      if(g.organic){organicTown(g,{bld,tree,TH,SHOP,rng});continue}
+      if(g.organic){organicTown(g,{bld,shops,tree,TH,SHOP,rng});continue}
       forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,cs=B.cs!=null?B.cs:g.cs,sn=B.sn!=null?B.sn:g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,ok=B.ok||(()=>true),rr=B.rr||0;let r=rng();
         /* a natural town: shops and the landmark in the old centre, houses round it, trees and empty lots towards the edge */
         if(B.ok){if(rr<.38)r=r<.5?.22+r*.1:.6+(r-.5)*.4;else if(rr>.72)r=r<.55?r*.6+.06:.8+(r-.55)*.4}
@@ -1577,7 +1586,7 @@ function buildCity(){LMK.clear();buildGarageRoom();
         if(r<.6){const cols=B.ok?Math.max(2,Math.round(wu/26)):wu>58?3:2,rows=B.ok?Math.max(2,Math.round(wv/28)):2,lw=wu/cols,ld=wv/rows;for(let a=0;a<cols;a++)for(let c=0;c<rows;c++){const u=B.u0+lw*(a+.5),v=B.v0+ld*(c+.5),[px,pz]=B.W(u,v),hx0=Math.min(8,lw*.36),hz0=Math.min(6.5,ld*.34);if(!ok(u,v,hx0,hz0)||(B.ok&&rng()<sstep(.6,1,rr)*.55))continue;const h=3.2+rng()*1.5,col=TH.pal[(rng()*TH.pal.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,col,true);
             if(TH.rf==0)proofR(1,px,pz,hx0,hz0,cs,sn,gy+h,1.9+rng()*.7,150,92,76,rng()<.5);else if(TH.rf==2)proofR(1,px,pz,hx0,hz0,cs,sn,gy+h,4+rng()*1.2,226,230,236,rng()<.5);else pboxR(1,px,pz,hx0+.6,hz0+.6,cs,sn,gy+h,gy+h+.4,226,214,190,false,1);
             if(rng()<.6){const p=B.W(u+hx0+3,v+hz0+2.5);tree(p[0],p[1])}}}
-        else if(r<.8){const n=B.ok?Math.max(2,Math.round(wu/22)):3,lw=wu/n;for(let a=0;a<n;a++){const u=B.u0+lw*(a+.5),hx0=lw/2-1.5,hz0=Math.min(7,wv*.22),sv=B.ok?B.v0+hz0+1:cv,[px,pz]=B.W(u,sv);if(!ok(u,sv,hx0,hz0))continue;const h=4.5+rng()*2.5,col=SHOP[(rng()*SHOP.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,col,true);pboxR(1,px,pz,hx0+.3,hz0+.3,cs,sn,gy+h,gy+h+.5,92,96,104,false,1)}}
+        else if(r<.8){const n=B.ok?Math.max(2,Math.round(wu/22)):3,lw=wu/n;for(let a=0;a<n;a++){const u=B.u0+lw*(a+.5),hx0=lw/2-1.5,hz0=Math.min(7,wv*.22),sv=B.ok?B.v0+hz0+1:cv,[px,pz]=B.W(u,sv);if(!ok(u,sv,hx0,hz0))continue;const h=4.5+rng()*2.5,col=SHOP[(rng()*SHOP.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,col,true);if(hx0>3&&hz0>3)shops(px,pz,hx0,hz0,cs,sn,gy,h,col);pboxR(1,px,pz,hx0+.3,hz0+.3,cs,sn,gy+h,gy+h+.5,92,96,104,false,1)}}
         else{for(let k=0;k<12;k++){const u=lerp(B.u0+4,B.u1-4,rng()),v=lerp(B.v0+4,B.v1-4,rng()),p=B.W(u,v);if(!nearRoadXZ(p[0],p[1],5)&&ok(u,v,0,0))tree(p[0],p[1])}}});
       continue}
     if(g.kind=='ind'){/* industrial: warehouses, tanks with a chimney, container yards */

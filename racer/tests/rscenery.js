@@ -8,7 +8,7 @@ const L=require('./rlib.js');
   const S=await T.ev(()=>{const st=R.stats,sc=st.scenery;const props=R.props;let tris=[0,0,0];for(const p of props)tris[p.cat]+=p.n/3;
     /* colliders (circles x,z,r,y0,y1) that sit on the asphalt of an open road at their own height */
     let onRoad=0,n=0;const lim=[];for(let i=0;i<COLC.length;i+=5){n++;const x=COLC[i],z=COLC[i+1],y1=COLC[i+4];if(roadAt(x,z,COLC[i+3]+.6)&&Math.abs(RQ.lat)<RQ.hw*.98&&Math.abs(RQ.y-COLC[i+3]-.5)<2.5){onRoad++;if(lim.length<5)lim.push([x|0,z|0,RQ.lat.toFixed(1)])}}
-    return{stats:{b:st.buildings,h:st.houses,t:st.trees},sc:{...sc,at:undefined},tris,colliders:n,onRoad,lim,boot:RACER.BOOT.genMs}});
+    return{stats:{b:st.buildings,h:st.houses,t:st.trees},sc:{...sc,at:undefined},tris,colliders:n,onRoad,lim,boot:RACER.BOOT.genMs,shops:RACER.BOOT.shops}});
   const c=S.sc;
   ok(c.poles>150&&c.delin>400&&c.gantry>10&&c.bill>20&&c.sign>50,'1 roadside furniture: '+c.poles+' telegraph poles, '+c.delin+' reflector posts, '+c.gantry+' gantry signs, '+c.bill+' billboards, '+c.sign+' speed signs, '+c.chev+' curve boards, '+c.fence+' fences');
   ok(c.tuft>3000,'2b roadside grass tufts: '+c.tuft);
@@ -17,7 +17,8 @@ const L=require('./rlib.js');
   ok(S.onRoad<=21,'4 the new scenery puts nothing solid on the asphalt: '+S.onRoad+' of '+S.colliders+' colliders sit on a road (21 is the old count, lamp posts and palms at junctions, before any scenery was added)'+(S.onRoad>21?' e.g. '+JSON.stringify(S.lim):''));
   /* furniture was under 200k before the guard rails (16,000 pieces of W-beam and their posts), the traffic lights (1,500 poles, 3,000 heads) and the bus shelters; what is DRAWN per frame is held by rbudget.js */
   ok(S.tris[2]<1450000&&S.tris[0]<600000&&S.tris[1]<120000,'5 prop triangles (all of the map, only what is near is drawn): furniture '+(S.tris[0]/1000).toFixed(0)+'k, buildings '+(S.tris[1]/1000).toFixed(0)+'k, trees '+(S.tris[2]/1000).toFixed(0)+'k');
-  ok(S.boot<10000,'6 the world builds in '+(S.boot/1000).toFixed(1)+' s (software GL box; it was 4.5 s before the scenery, 8.6 s before the five towns, stops and repair shops of batches 7-8)');
+  ok(S.shops>=120,'6b shopfronts (glass band and awning) on the town and downtown shop buildings: '+S.shops);
+  ok(S.boot<12000,'6 the world builds in '+(S.boot/1000).toFixed(1)+' s (software GL box, noisy: the same build measured 8.9-10.1 s on three runs; it was 4.5 s before the scenery, 8.6 s before the five towns, stops and repair shops of batches 7-8)');
   /* determinism: a second page load builds the identical numbers */
   await T.close();
   const T2=await L.launch({q:'go=1&scale=.3&fixed=1',w:240,h:160,mobile:false});await T2.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:180000});
