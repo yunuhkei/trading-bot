@@ -97,7 +97,7 @@ const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uF
 'vec3 tone(vec3 c){c*=uGr.w*1.06;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.05)*.84),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));return mix(c,c*c*(3.-2.*c),.22);}\n'+
 '\n#elif LOOK==3\n'+
 /* Burnout: exposure up, vivid saturation, the filmic curve, a stronger S-curve, warm highlights over cool shadows */
-'vec3 tone(vec3 c){c*=uGr.w*1.03;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.25)*1.16),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));float g=dot(c,vec3(.3333));c*=mix(vec3(.95,.99,1.07),vec3(1.05,1.0,.92),smoothstep(.15,.8,g));return mix(c,c*c*(3.-2.*c),.25);}\n'+
+'vec3 tone(vec3 c){c*=uGr.w*1.03;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.25)*1.3),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));float g=dot(c,vec3(.3333));c*=mix(vec3(.93,.99,1.09),vec3(1.07,1.0,.9),smoothstep(.15,.8,g));return mix(c,c*c*(3.-2.*c),.36);}\n'+
 '\n#elif LOOK==2\n'+
 /* cinematic: teal shadows, orange highlights, a strong S-curve, lifted blacks, a little less saturation */
 'vec3 tone(vec3 c){c*=uGr.w*1.04;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,uGr.x*.88),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));'+
@@ -1195,10 +1195,10 @@ function detStep(ms){const d=DET,fns=[pstar,pcrown,pbar,ptrunk,pbox,pboxR],t0=pe
   PSET.clear();d.a=new Float32Array(16);d.n=d.pos=0;BOOT.detMs=Math.round(performance.now()-BOOT.detT0);return true}
 /* called when the High tier is used: build the detail now (fixed tiers) or over the next frames (Auto) */
 function buildDetailProps(){if(BOOT.detMs!=null||!R.props||!R.props.length||DET.want)return;DET.want=true;BOOT.detT0=performance.now();if(GFX.fixed)while(!detStep(1e9));}
-const PCELL=128,PCATS=5;/* 0 street furniture, 1 buildings, 2 trees, 3 detail (batch 45: piers, bands, crowns, extra leaf cards; High only, no triangle cap), 4 fine detail (window fins, doors, fire escapes: High only, near) */
+const PCELL=128,PCATS=6;/* 0 street furniture, 1 buildings, 2 trees, 3 detail (batch 45: piers, bands, crowns, extra leaf cards; High only, no triangle cap), 4 fine detail (window fins, doors, fire escapes: High only, near), 5 near-road trees (batch 46: High only, 520 m) */
 const PSET=new Map();
 /* buildings are merged per 256 m cell (a quarter of the draw calls of 128 m cells: draw calls, not triangles, are what the new cities cost), furniture and trees per 128 m */
-const PCELLS=[PCELL,PCELL*2,PCELL,PCELL,PCELL];
+const PCELLS=[PCELL,PCELL*2,PCELL,PCELL,PCELL,PCELL];
 function pmb(x,z,cat,need){const pc=PCELLS[cat],k=(Math.floor((x+W.half)/pc)*128+Math.floor((z+W.half)/pc))*8+cat;let L=PSET.get(k);if(!L){L=[new MB()];PSET.set(k,L)}let m=L[L.length-1];if(m.n+need>60000){m=new MB();L.push(m)}return m}
 /* box with flat-shaded faces, ambient-occlusion gradient on the walls, optional window tiling */
 function pbox(cat,cx,y0,cz,hx,y1,hz,r,g,b,win,ao){if(cat>=3&&!DET.now&&detRec(4,arguments))return;const m=pmb(cx,cz,cat,24),h=y1-y0,a0=ao==null?.62:ao;const sc=(k)=>Math.round(k);
@@ -1246,26 +1246,27 @@ function pstar(cat,cx,y0,cz,rad,h,r,g,b,n,rot){if(cat>=3&&!DET.now&&detRec(0,arg
   for(let i=0;i<n;i++){m.t(ring[i],ap[i],ring[i+1]);m.t(ring[i],ring[i+1],ap[i])}}
 /* the greens of the broadleaf trees: a few desaturated shades and the odd autumn one, so no two stands look the same */
 const TGREEN=[[52,100,46],[62,112,50],[44,88,52],[78,116,48],[66,98,42],[40,82,58],[86,112,56],[96,126,52],[36,78,62],[58,106,38]],TFALL=[[176,128,44],[190,100,46],[156,90,52]];
+let TC=2;   /* the category ptree builds its base meshes in: 2, or 5 for the High-only near-road trees (batch 46) */
 function ptree(x,z,rng,y,hero){if(inGarageLot(x,z))return;const t=rng(),sc=.8+rng()*.7,rot=rng()*6,hh=Math.sin(x*12.9898+z*78.233)*43758.5453,cl=hh-Math.floor(hh),h2=Math.sin(x*39.346+z*11.135)*24634.6345,pk=h2-Math.floor(h2),seed=(x*13.7+z*7.1)|0;
   if(y>110||t<.55){
-    if(hero){const h=11*sc,g=[26+cl*16,66+cl*24,38+cl*14];ptrunk(2,x,y-.2,z,.3,2.8*sc,70,52,36);                                          /* a fir: three ragged tiers */
-      pstar(2,x,y+1.5*sc,z,3*sc,h*.5,g[0]*.9,g[1]*.9,g[2]*.9,12,rot);pstar(2,x,y+h*.32,z,2.35*sc,h*.46,g[0],g[1],g[2],12,rot+.3);pstar(2,x,y+h*.56,z,1.6*sc,h*.46,g[0]*1.12,g[1]*1.12,g[2]*1.1,10,rot+.6);
+    if(hero){const h=11*sc,g=[26+cl*16,66+cl*24,38+cl*14];ptrunk(TC,x,y-.2,z,.3,2.8*sc,70,52,36);                                          /* a fir: three ragged tiers */
+      pstar(TC,x,y+1.5*sc,z,3*sc,h*.5,g[0]*.9,g[1]*.9,g[2]*.9,12,rot);pstar(TC,x,y+h*.32,z,2.35*sc,h*.46,g[0],g[1],g[2],12,rot+.3);pstar(TC,x,y+h*.56,z,1.6*sc,h*.46,g[0]*1.12,g[1]*1.12,g[2]*1.1,10,rot+.6);
         /* (batch 45, High only) two more tiers between the three, a fuller skirt, a leader at the top */
         pstar(3,x,y+h*.2,z,2.7*sc,h*.34,g[0]*.95,g[1]*.95,g[2]*.95,12,rot+.8);pstar(3,x,y+h*.45,z,2*sc,h*.34,g[0]*1.05,g[1]*1.05,g[2]*1.05,10,rot+1.1);pstar(3,x,y+h*.74,z,1*sc,h*.3,g[0]*1.18,g[1]*1.18,g[2]*1.12,8,rot+.2);pstar(3,x,y+1.2*sc,z,3.3*sc,h*.3,g[0]*.8,g[1]*.8,g[2]*.8,14,rot+.5);pbar(3,x,y+h*.9,z,x,y+h*1.04,z,.05,70,52,36)}
-    else{const h=9*sc,rd=2.6*sc;ptrunk(2,x,y-.2,z,.28,2.2*sc,70,52,36);pstar(2,x,y+1.4*sc,z,rd,h*.62,26,70,38,8,rot);pstar(2,x,y+h*.45,z,rd*.68,h*.55,32,82,44,8,rot+.4);
+    else{const h=9*sc,rd=2.6*sc;ptrunk(TC,x,y-.2,z,.28,2.2*sc,70,52,36);pstar(TC,x,y+1.4*sc,z,rd,h*.62,26,70,38,8,rot);pstar(TC,x,y+h*.45,z,rd*.68,h*.55,32,82,44,8,rot+.4);
       pstar(3,x,y+h*.26,z,rd*.9,h*.4,28,74,40,10,rot+.9);pstar(3,x,y+h*.62,z,rd*.4,h*.4,38,92,50,6,rot+.2)}}
   else{const q1=rng(),q2=rng(),c=pk<.07?TFALL[(cl*3)|0]:TGREEN[(cl*10)|0];
-    if(hero&&pk>.8){ptrunk(2,x,y-.2,z,.2,3*sc,72,60,46);pcrown(2,x,y+1.4*sc+3.4*sc,z,1.5*sc,3.9*sc,1.5*sc,9,2.2*sc,seed,c[0]*.9,c[1]*.95,c[2]*.9,0);pcrown(3,x,y+1.4*sc+3.6*sc,z,1.7*sc,4.2*sc,1.7*sc,8,1.6*sc,seed+5,c[0]*.95,c[1],c[2]*.9,0)}       /* a poplar: a tall narrow column */
-    else if(hero&&pk>.56&&pk<.68){ptrunk(2,x,y-.2,z,.17,4.8*sc,208,204,192);pcrown(2,x,y+5.6*sc,z,2.4*sc,3*sc,2.4*sc,12,2.2*sc,seed,Math.min(255,c[0]*1.22+16),Math.min(255,c[1]*1.18+12),c[2]*1.05,0);
+    if(hero&&pk>.8){ptrunk(TC,x,y-.2,z,.2,3*sc,72,60,46);pcrown(TC,x,y+1.4*sc+3.4*sc,z,1.5*sc,3.9*sc,1.5*sc,9,2.2*sc,seed,c[0]*.9,c[1]*.95,c[2]*.9,0);pcrown(3,x,y+1.4*sc+3.6*sc,z,1.7*sc,4.2*sc,1.7*sc,8,1.6*sc,seed+5,c[0]*.95,c[1],c[2]*.9,0)}       /* a poplar: a tall narrow column */
+    else if(hero&&pk>.56&&pk<.68){ptrunk(TC,x,y-.2,z,.17,4.8*sc,208,204,192);pcrown(TC,x,y+5.6*sc,z,2.4*sc,3*sc,2.4*sc,12,2.2*sc,seed,Math.min(255,c[0]*1.22+16),Math.min(255,c[1]*1.18+12),c[2]*1.05,0);
       {const a=rot*2.3;pbar(3,x,y+3.4*sc,z,x+Math.cos(a)*1.3*sc,y+5*sc,z+Math.sin(a)*1.3*sc,.06,214,210,198);pbar(3,x,y+4*sc,z,x-Math.cos(a+.8)*1.1*sc,y+5.4*sc,z-Math.sin(a+.8)*1.1*sc,.05,214,210,198);
        pcrown(3,x,y+5.8*sc,z,2.8*sc,3.4*sc,2.8*sc,14,1.7*sc,seed+7,Math.min(255,c[0]*1.25+14),Math.min(255,c[1]*1.2+10),c[2]*1.05,0)}}       /* a birch */
-    else if(hero){ptrunk(2,x,y-.2,z,.27,4.4*sc,72,54,38);const a=rot*1.7;                                                                            /* an oak: trunk, two boughs, a crown of leaf cards */
-      pbar(2,x,y+2.6*sc,z,x+Math.cos(a)*1.8*sc,y+4.6*sc,z+Math.sin(a)*1.8*sc,.16,66,50,36);pbar(2,x,y+3*sc,z,x-Math.cos(a)*1.4*sc,y+4.8*sc,z-Math.sin(a)*1.4*sc,.14,66,50,36);
-      pcrown(2,x,y+5.2*sc,z,3.6*sc,2.9*sc,3.6*sc,12,3.1*sc,seed,c[0],c[1],c[2],0);
+    else if(hero){ptrunk(TC,x,y-.2,z,.27,4.4*sc,72,54,38);const a=rot*1.7;                                                                            /* an oak: trunk, two boughs, a crown of leaf cards */
+      pbar(TC,x,y+2.6*sc,z,x+Math.cos(a)*1.8*sc,y+4.6*sc,z+Math.sin(a)*1.8*sc,.16,66,50,36);pbar(TC,x,y+3*sc,z,x-Math.cos(a)*1.4*sc,y+4.8*sc,z-Math.sin(a)*1.4*sc,.14,66,50,36);
+      pcrown(TC,x,y+5.2*sc,z,3.6*sc,2.9*sc,3.6*sc,12,3.1*sc,seed,c[0],c[1],c[2],0);
       /* (batch 45, High only) root flare, two more boughs, finer leaf clumps all round and a lower skirt: a real silhouette close up */
       ptrunk(3,x,y-.3,z,.42,1.1*sc,66,50,36);pbar(3,x,y+3.4*sc,z,x+Math.cos(a+2.1)*1.6*sc,y+5*sc,z+Math.sin(a+2.1)*1.6*sc,.13,66,50,36);pbar(3,x+Math.cos(a)*1.8*sc,y+4.6*sc,z+Math.sin(a)*1.8*sc,x+Math.cos(a)*2.9*sc,y+5.6*sc,z+Math.sin(a)*2.9*sc,.09,66,50,36);
       pcrown(3,x,y+5.5*sc,z,4.2*sc,3.3*sc,4.2*sc,20,2.3*sc,seed+17,c[0]*1.04,c[1]*1.04,c[2],0);pcrown(3,x,y+3.9*sc,z,3.4*sc,1.4*sc,3.4*sc,9,2.6*sc,seed+29,c[0]*.88,c[1]*.88,c[2]*.9,0)}
-    else{ptrunk(2,x,y-.2,z,.3,3*sc,72,54,38);pcrown(2,x,y+4.6*sc,z,3.3*sc,2.7*sc,3.3*sc,5,3.7*sc,seed,48+q2*26,86+q1*44,40,0);
+    else{ptrunk(TC,x,y-.2,z,.3,3*sc,72,54,38);pcrown(TC,x,y+4.6*sc,z,3.3*sc,2.7*sc,3.3*sc,5,3.7*sc,seed,48+q2*26,86+q1*44,40,0);
       pcrown(3,x,y+4.8*sc,z,3.6*sc,2.9*sc,3.6*sc,9,2.5*sc,seed+11,50+q2*26,90+q1*44,40,0)}}}
 /* a tuft of tall grass: two crossed cards of the blade tile, darker at the root, swaying in the wind */
 /* (batch 27) no grass, bush or tree inside or against a garage building */
@@ -1908,6 +1909,8 @@ function buildScenery(){
           else if(nz2>.36&&sr()<.2+.65*sstep(.4,.62,nz2)){const k=2+((sr()*5)|0);St.groves++;
             for(let j=0;j<k;j++){const ox=px+(sr()-.5)*14,oz=pz+(sr()-.5)*14,ty2=terrainH(ox,oz);if(!free(ox,oz,Y,g,8))continue;ptree(ox,oz,sr,ty2,true);COLC.push(ox,oz,.55,ty2-.5,ty2+12);St.trees++}}
           else if(sr()<.5){const sc=.8+sr()*.9,gr=sr()<.2?[104,110,56]:[48+sr()*26,92+sr()*30,44];pbush(px,pz,ty,1.3*sc,1.0*sc,gr[0],gr[1],gr[2],sr()*6);St.bush++}
+          /* (batch 46, High only) forested stretches close to the road where the noise field is high: the near trees flashing past are what makes a road feel fast; category 5, its own random stream, no colliders (they are not drawn on Low and Medium) */
+          if(dry0<.5&&nz2>.18){const er=mulberry((((Math.round(cx)*73856093)^(Math.round(cz)*19349663)^(si*83492791))>>>0));if(er()<.4+.5*sstep(.2,.6,nz2)){const k=1+((er()*2)|0);for(let j=0;j<k;j++){const g3=5+er()*8,[ex,ez]=sideAt(r,i,tx,tz,sd,g3),jx=ex+(er()-.5)*7,jz=ez+(er()-.5)*7;if(!free(jx,jz,Y,g3,5))continue;TC=5;ptree(jx,jz,er,terrainH(jx,jz),true);TC=2;BOOT.edgeTrees=(BOOT.edgeTrees||0)+1}}}
           if(g<12&&sr()<.5){const sc=.7+sr()*.8,gr=dry0>.55?[132,120,70]:[56+sr()*20,98+sr()*20,48],g2=3+sr()*3,[bx,bz,by]=sideAt(r,i,tx,tz,sd,g2);if(free(bx,bz,Y,g2,3)){pbush(bx,bz,by,1.0*sc,.75*sc,gr[0],gr[1],gr[2],sr()*6);St.bush++}}
           /* tufts of tall grass along the verge (golden in the dry country) */
           {const nT=1+((sr()*3)|0),dc=dry0>.45;for(let q=0;q<nT;q++){const gt=1.4+sr()*9,[ux,uz]=sideAt(r,i,tx,tz,sd,gt),jx=ux+(sr()-.5)*5,jz=uz+(sr()-.5)*5,uy=terrainH(jx,jz),sc=.8+sr()*.9,cc=dc?[150+sr()*30,128+sr()*20,66]:[88+sr()*30,126+sr()*26,56];if(!free(jx,jz,Y,gt,3))continue;ptuft(jx,uy-.05,jz,sr()*3,1.5*sc,1.05*sc,cc[0],cc[1],cc[2]);St.tuft++}}}}
@@ -2211,8 +2214,8 @@ const R={lv:6,N:64,tex:{},terVB:null,terIB:null,terRing:null,ringN:0,fullN:0,sky
 /* the weather and time of day. Every look is a set of numbers: where the sun is and how strong, the sky colours, how thick the haze is, the grade of the picture (saturation, warm/cool split, contrast, exposure),
    the clouds (lit and shaded colour, how much sky they cover), how wet the road is and how many windows are lit. ENV holds the current ones; envApply copies a preset in. */
 const ENVP={
- /* a clear, sunny day: high warm sun, blue sky with scattered cloud, clean air, dry road, hard shadows */
- day:{label:'DAY',sun:[-.52,.60,-.60],sunC:[3.0,2.7,2.25],ambT:[.40,.55,.82],ambB:[.20,.19,.16],hor:[.50,.66,.92],zen:[.09,.25,.64],fog:1/3400,fogY:.0008,fogSun:.5,gr:[1.2,.8,.4,.92],clA:[1.2,1.2,1.2],clB:[.50,.58,.74],sk:[.42,.72,.04,0],sd:[1,1.3,.40,.28],wet:0,night:0,shadow:.85},
+ /* a clear afternoon (batch 46: the sun lower and warmer, so shadows are long and the light has a colour): warm sun, blue sky with scattered cloud, clean air, dry road, hard shadows */
+ day:{label:'DAY',sun:[-.66,.44,-.60],sunC:[3.5,2.78,1.95],ambT:[.36,.52,.86],ambB:[.24,.19,.13],hor:[.60,.70,.94],zen:[.09,.25,.64],fog:1/3400,fogY:.0008,fogSun:.9,gr:[1.2,.8,.4,.92],clA:[1.2,1.2,1.2],clB:[.50,.58,.74],sk:[.42,.72,.04,0],sd:[1,1.3,.40,.28],wet:0,night:0,shadow:.85},
  /* the showroom (the car menu): a dark void, big soft light boxes overhead and at the sides that show as long highlights in the paint, a glossy floor */
  studio:{label:'STUDIO',sun:[.38,.78,.5],sunC:[1.5,1.48,1.46],ambT:[.42,.46,.58],ambB:[.08,.08,.1],hor:[.03,.034,.05],zen:[.01,.012,.022],fog:1/13,fogY:.0,fogSun:0,gr:[1.12,.4,.4,.95],clA:[.2,.2,.2],clB:[.1,.1,.1],sk:[2,3,0,0],sd:[0,0,.5,0],wet:.95,night:0,shadow:.7,stu:1},
  /* inside a garage (batch 19): warm even light from the ceiling, no sky, a little haze */
@@ -2311,7 +2314,7 @@ function renderInit(){
   R.fxN=0;
   carGLInit();trGLInit();gfxInit();envInit();skyCubeInit();
 }
-function setEnvU(P){const gl=G.gl,u=P.u,E=ENV;gl.uniform3f(u.uCam,R.cx,R.cy,R.cz);if(u.uSun!=null){gl.uniform3fv(u.uSun,E.sun);if(LOOK){const ks=LOOK==1?1.12:LOOK==3?1.12:1.08,ka=LOOK==1?.82:LOOK==3?.76:.9;gl.uniform3f(u.uSunC,E.sunC[0]*ks,E.sunC[1]*ks,E.sunC[2]*ks);gl.uniform3f(u.uAmbT,E.ambT[0]*ka,E.ambT[1]*ka,E.ambT[2]*ka*(LOOK==2?1.08:1));gl.uniform3f(u.uAmbB,E.ambB[0]*ka,E.ambB[1]*ka,E.ambB[2]*ka)}else{gl.uniform3fv(u.uSunC,E.sunC);gl.uniform3fv(u.uAmbT,E.ambT);gl.uniform3fv(u.uAmbB,E.ambB)}   /* (LOOK: a harder sun, less fill) */gl.uniform3fv(u.uHor,E.hor);gl.uniform3fv(u.uZen,E.zen);gl.uniform4f(u.uFogP,E.fog,E.fogY,E.fogSun,R.time);gl.uniform4fv(u.uGr,E.gr);if(u.uEnv!=null&&R.cube){gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_CUBE_MAP,R.cube.tex);gl.uniform1i(u.uEnv,5)}if(u.uSk!=null)gl.uniform4fv(u.uSk,E.sk);if(u.uStu!=null)gl.uniform1f(u.uStu,E.stu);if(u.uClA!=null){gl.uniform3fv(u.uClA,E.clA);gl.uniform3fv(u.uClB,E.clB);gl.uniform4fv(u.uSd,E.sd)}}}
+function setEnvU(P){const gl=G.gl,u=P.u,E=ENV;gl.uniform3f(u.uCam,R.cx,R.cy,R.cz);if(u.uSun!=null){gl.uniform3fv(u.uSun,E.sun);if(LOOK){const ks=LOOK==1?1.12:LOOK==3?1.12:1.08,ka=LOOK==1?.82:LOOK==3?.76:.9;gl.uniform3f(u.uSunC,E.sunC[0]*ks,E.sunC[1]*ks,E.sunC[2]*ks);gl.uniform3f(u.uAmbT,E.ambT[0]*ka,E.ambT[1]*ka,E.ambT[2]*ka*(LOOK==2?1.08:1));gl.uniform3f(u.uAmbB,E.ambB[0]*ka,E.ambB[1]*ka,E.ambB[2]*ka)}else{gl.uniform3fv(u.uSunC,E.sunC);gl.uniform3fv(u.uAmbT,E.ambT);gl.uniform3fv(u.uAmbB,E.ambB)}   /* (LOOK: a harder sun, less fill) */if(LOOK==3){gl.uniform3f(u.uHor,E.hor[0]*.9,E.hor[1]*.95,E.hor[2]*1.02);gl.uniform3f(u.uZen,E.zen[0]*.55,E.zen[1]*.72,E.zen[2]*1.08);gl.uniform4f(u.uFogP,E.fog*.62,E.fogY,E.fogSun,R.time)}   /* (batch 46) a deeper blue sky and thinner haze: the Burnout look read pale and washed out */else{gl.uniform3fv(u.uHor,E.hor);gl.uniform3fv(u.uZen,E.zen);gl.uniform4f(u.uFogP,E.fog,E.fogY,E.fogSun,R.time)}gl.uniform4fv(u.uGr,E.gr);if(u.uEnv!=null&&R.cube){gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_CUBE_MAP,R.cube.tex);gl.uniform1i(u.uEnv,5)}if(u.uSk!=null)gl.uniform4fv(u.uSk,E.sk);if(u.uStu!=null)gl.uniform1f(u.uStu,E.stu);if(u.uClA!=null){gl.uniform3fv(u.uClA,E.clA);gl.uniform3fv(u.uClB,E.clB);gl.uniform4fv(u.uSd,E.sd)}}}
 function setMapU(P){const gl=G.gl,u=P.u;gl.uniform4f(u.uMap,W.half,.5/W.N,W.hrange,W.hmin)}
 /* camera + frame */
 function viewSet(cx,cy,cz,tx,ty,tz,fov,w,h){R.cx=cx;R.cy=cy;R.cz=cz;R.fov=fov;R.pxm=2*Math.tan(fov/2)/Math.max(1,h);   /* the size of a pixel, in metres per metre of distance (for lines that must stay a pixel wide) */M4.look(R.V,cx,cy,cz,tx,ty,tz);M4.persp(R.Pm,fov,w/h,.8,12000);M4.mul(R.VP,R.Pm,R.V);M4.planes(R.PL,R.VP);
@@ -2421,7 +2424,7 @@ function gfxTarget(w,h){
 function gfxInit(){
   GFX.ok=true;gfxLampIndex();
   let m=QS.get('q');try{if(!m)m=localStorage.getItem('racer.gfx')||'auto'}catch(e){m=m||'auto'}if(m!='high'&&m!='low')m='auto';GFX.mode=m;
-  const t=QS.has('tier')?Math.max(0,Math.min(2,parseInt(QS.get('tier'))||0)):(QS.has('fixed')?0:(m=='high'?2:m=='low'?0:1));
+  const t=QS.has('tier')?Math.max(0,Math.min(2,parseInt(QS.get('tier'))||0)):(QS.has('fixed')?0:(m=='low'?0:2));
   GFX.fixed=QS.has('tier')||QS.has('fixed');gfxSetTier(t,true);if(UI.bn&&UI.bn.qual)UI.bn.qual.label='GFX '+GFX.mode.toUpperCase()}
 function gfxProg2(name,vs,fs,attrs,defs){const k=name+JSON.stringify(defs||{});if(!_gp[k])_gp[k]=mkProg(name,vs,fs,attrs,defs);return _gp[k]}
 function gfxSetTier(t,force){
@@ -2431,12 +2434,12 @@ function gfxSetTier(t,force){
   const pd={};if(T.blur)pd.BLUR=T.bloom?9:4;if(T.bloom)pd.BLOOM=1;if(T.hi)pd.LENS=1;G.P.postv=gfxProg2('post',POSTV,POSTF,['aP'],pd);
   if(T.bloom&&!G.P.bright){G.P.bright=gfxProg2('bright',POSTV,BRF,['aP']);G.P.blur=gfxProg2('blur',POSTV,BLF,['aP'])}
   if(t==2)buildDetailProps();   /* the High-only detail is built the first time it is needed */
-  const lo=t==0;R.drawProp=t==2?[640,1250,480,300,150]:[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw),0,0];   /* [furniture, buildings, trees, detail]: High has no triangle cap (batch 45), the detail category only draws there, Low and Medium stay light so the governor has somewhere to fall back to */R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
+  const lo=t==0;R.drawProp=t==2?[640,1250,480,300,150,520]:[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw),0,0,0];   /* [furniture, buildings, trees, detail]: High has no triangle cap (batch 45), the detail category only draws there, Low and Medium stay light so the governor has somewhere to fall back to */R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
   if(!GFX.fixed){Q.min=T.scMin;Q.max=T.scMax;Q.scale=Math.max(Q.min,Math.min(Q.max,Q.scale))}
   if(typeof trSetMul=='function')trSetMul(T.traf);
-  GFX.since=0;Q.apply()}
+  GFX.since=0;Q.apply();GFX.note={t:performance.now(),txt:'GRAPHICS '+T.name.toUpperCase()+(GFX.mode=='auto'?' (AUTO)':'')}}   /* (batch 46) Auto now starts on High and steps down when the phone is slow; the tier shows on screen for a few seconds after each change */
 function gfxSetMode(m){GFX.mode=m;try{localStorage.setItem('racer.gfx',m)}catch(e){}
-  if(m=='high'){GFX.fixed=false;gfxSetTier(2)}else if(m=='low'){GFX.fixed=false;gfxSetTier(0)}else{GFX.fixed=false;gfxSetTier(1)}GFX.upLock=[0,0,0];GFX.okRuns=0}
+  if(m=='high'){GFX.fixed=false;gfxSetTier(2)}else if(m=='low'){GFX.fixed=false;gfxSetTier(0)}else{GFX.fixed=false;gfxSetTier(2)}GFX.upLock=[0,0,0];GFX.okRuns=0}
 /* ---------------- lamps: a grid so the renderer finds the ones near the car without a scan of every lamp ---------------- */
 const LGRIDM=new Map(),LGC=64;
 function gfxLampIndex(){LGRIDM.clear();for(let i=0;i<LAMPS.length;i+=3){const k=Math.floor(LAMPS[i]/LGC)*8192+Math.floor(LAMPS[i+2]/LGC);let a=LGRIDM.get(k);if(!a){a=[];LGRIDM.set(k,a)}a.push(i)}}
@@ -3271,6 +3274,7 @@ function hudDraw(){
   if(CC.on){crashHud(c,W_,H_,u);return}   /* (batch 17: the crash cinematic shows only its bars) */
   c.textBaseline='alphabetic';c.font='700 12px '+UIF;
   /* drift points and air time: small, they stay a while after the move is over, then float up and fade out */
+  if(GFX.note){const k=performance.now()-GFX.note.t;if(k<3600){c.save();c.globalAlpha=k<3000?1:1-(k-3000)/600;c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px '+UIF;c.fillStyle='#ffffff';c.shadowColor='rgba(0,0,0,.85)';c.shadowBlur=4;c.fillText(GFX.note.txt,W_*.5,H_*.08);c.restore()}}
   {const font='800 '+Math.round(u*.3)+'px '+UIF;
    const toast=(txt,col,y,age,hold)=>{   /* age: seconds since it appeared (or since it ended, for the hold) */
      let al=1,rise=0,sc=1;if(age<0){const k=Math.min(1,-age/.16);al=k;sc=.8+.2*k;rise=(1-k)*7}

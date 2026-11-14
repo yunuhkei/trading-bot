@@ -106,6 +106,7 @@ function hudDraw(){
   if(CC.on){crashHud(c,W_,H_,u);return}   /* (batch 17: the crash cinematic shows only its bars) */
   c.textBaseline='alphabetic';c.font='700 12px '+UIF;
   /* drift points and air time: small, they stay a while after the move is over, then float up and fade out */
+  if(GFX.note){const k=performance.now()-GFX.note.t;if(k<3600){c.save();c.globalAlpha=k<3000?1:1-(k-3000)/600;c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px '+UIF;c.fillStyle='#ffffff';c.shadowColor='rgba(0,0,0,.85)';c.shadowBlur=4;c.fillText(GFX.note.txt,W_*.5,H_*.08);c.restore()}}
   {const font='800 '+Math.round(u*.3)+'px '+UIF;
    const toast=(txt,col,y,age,hold)=>{   /* age: seconds since it appeared (or since it ended, for the hold) */
      let al=1,rise=0,sc=1;if(age<0){const k=Math.min(1,-age/.16);al=k;sc=.8+.2*k;rise=(1-k)*7}

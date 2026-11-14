@@ -21,10 +21,10 @@ function detStep(ms){const d=DET,fns=[pstar,pcrown,pbar,ptrunk,pbox,pboxR],t0=pe
   PSET.clear();d.a=new Float32Array(16);d.n=d.pos=0;BOOT.detMs=Math.round(performance.now()-BOOT.detT0);return true}
 /* called when the High tier is used: build the detail now (fixed tiers) or over the next frames (Auto) */
 function buildDetailProps(){if(BOOT.detMs!=null||!R.props||!R.props.length||DET.want)return;DET.want=true;BOOT.detT0=performance.now();if(GFX.fixed)while(!detStep(1e9));}
-const PCELL=128,PCATS=5;/* 0 street furniture, 1 buildings, 2 trees, 3 detail (batch 45: piers, bands, crowns, extra leaf cards; High only, no triangle cap), 4 fine detail (window fins, doors, fire escapes: High only, near) */
+const PCELL=128,PCATS=6;/* 0 street furniture, 1 buildings, 2 trees, 3 detail (batch 45: piers, bands, crowns, extra leaf cards; High only, no triangle cap), 4 fine detail (window fins, doors, fire escapes: High only, near), 5 near-road trees (batch 46: High only, 520 m) */
 const PSET=new Map();
 /* buildings are merged per 256 m cell (a quarter of the draw calls of 128 m cells: draw calls, not triangles, are what the new cities cost), furniture and trees per 128 m */
-const PCELLS=[PCELL,PCELL*2,PCELL,PCELL,PCELL];
+const PCELLS=[PCELL,PCELL*2,PCELL,PCELL,PCELL,PCELL];
 function pmb(x,z,cat,need){const pc=PCELLS[cat],k=(Math.floor((x+W.half)/pc)*128+Math.floor((z+W.half)/pc))*8+cat;let L=PSET.get(k);if(!L){L=[new MB()];PSET.set(k,L)}let m=L[L.length-1];if(m.n+need>60000){m=new MB();L.push(m)}return m}
 /* box with flat-shaded faces, ambient-occlusion gradient on the walls, optional window tiling */
 function pbox(cat,cx,y0,cz,hx,y1,hz,r,g,b,win,ao){if(cat>=3&&!DET.now&&detRec(4,arguments))return;const m=pmb(cx,cz,cat,24),h=y1-y0,a0=ao==null?.62:ao;const sc=(k)=>Math.round(k);
@@ -72,26 +72,27 @@ function pstar(cat,cx,y0,cz,rad,h,r,g,b,n,rot){if(cat>=3&&!DET.now&&detRec(0,arg
   for(let i=0;i<n;i++){m.t(ring[i],ap[i],ring[i+1]);m.t(ring[i],ring[i+1],ap[i])}}
 /* the greens of the broadleaf trees: a few desaturated shades and the odd autumn one, so no two stands look the same */
 const TGREEN=[[52,100,46],[62,112,50],[44,88,52],[78,116,48],[66,98,42],[40,82,58],[86,112,56],[96,126,52],[36,78,62],[58,106,38]],TFALL=[[176,128,44],[190,100,46],[156,90,52]];
+let TC=2;   /* the category ptree builds its base meshes in: 2, or 5 for the High-only near-road trees (batch 46) */
 function ptree(x,z,rng,y,hero){if(inGarageLot(x,z))return;const t=rng(),sc=.8+rng()*.7,rot=rng()*6,hh=Math.sin(x*12.9898+z*78.233)*43758.5453,cl=hh-Math.floor(hh),h2=Math.sin(x*39.346+z*11.135)*24634.6345,pk=h2-Math.floor(h2),seed=(x*13.7+z*7.1)|0;
   if(y>110||t<.55){
-    if(hero){const h=11*sc,g=[26+cl*16,66+cl*24,38+cl*14];ptrunk(2,x,y-.2,z,.3,2.8*sc,70,52,36);                                          /* a fir: three ragged tiers */
-      pstar(2,x,y+1.5*sc,z,3*sc,h*.5,g[0]*.9,g[1]*.9,g[2]*.9,12,rot);pstar(2,x,y+h*.32,z,2.35*sc,h*.46,g[0],g[1],g[2],12,rot+.3);pstar(2,x,y+h*.56,z,1.6*sc,h*.46,g[0]*1.12,g[1]*1.12,g[2]*1.1,10,rot+.6);
+    if(hero){const h=11*sc,g=[26+cl*16,66+cl*24,38+cl*14];ptrunk(TC,x,y-.2,z,.3,2.8*sc,70,52,36);                                          /* a fir: three ragged tiers */
+      pstar(TC,x,y+1.5*sc,z,3*sc,h*.5,g[0]*.9,g[1]*.9,g[2]*.9,12,rot);pstar(TC,x,y+h*.32,z,2.35*sc,h*.46,g[0],g[1],g[2],12,rot+.3);pstar(TC,x,y+h*.56,z,1.6*sc,h*.46,g[0]*1.12,g[1]*1.12,g[2]*1.1,10,rot+.6);
         /* (batch 45, High only) two more tiers between the three, a fuller skirt, a leader at the top */
         pstar(3,x,y+h*.2,z,2.7*sc,h*.34,g[0]*.95,g[1]*.95,g[2]*.95,12,rot+.8);pstar(3,x,y+h*.45,z,2*sc,h*.34,g[0]*1.05,g[1]*1.05,g[2]*1.05,10,rot+1.1);pstar(3,x,y+h*.74,z,1*sc,h*.3,g[0]*1.18,g[1]*1.18,g[2]*1.12,8,rot+.2);pstar(3,x,y+1.2*sc,z,3.3*sc,h*.3,g[0]*.8,g[1]*.8,g[2]*.8,14,rot+.5);pbar(3,x,y+h*.9,z,x,y+h*1.04,z,.05,70,52,36)}
-    else{const h=9*sc,rd=2.6*sc;ptrunk(2,x,y-.2,z,.28,2.2*sc,70,52,36);pstar(2,x,y+1.4*sc,z,rd,h*.62,26,70,38,8,rot);pstar(2,x,y+h*.45,z,rd*.68,h*.55,32,82,44,8,rot+.4);
+    else{const h=9*sc,rd=2.6*sc;ptrunk(TC,x,y-.2,z,.28,2.2*sc,70,52,36);pstar(TC,x,y+1.4*sc,z,rd,h*.62,26,70,38,8,rot);pstar(TC,x,y+h*.45,z,rd*.68,h*.55,32,82,44,8,rot+.4);
       pstar(3,x,y+h*.26,z,rd*.9,h*.4,28,74,40,10,rot+.9);pstar(3,x,y+h*.62,z,rd*.4,h*.4,38,92,50,6,rot+.2)}}
   else{const q1=rng(),q2=rng(),c=pk<.07?TFALL[(cl*3)|0]:TGREEN[(cl*10)|0];
-    if(hero&&pk>.8){ptrunk(2,x,y-.2,z,.2,3*sc,72,60,46);pcrown(2,x,y+1.4*sc+3.4*sc,z,1.5*sc,3.9*sc,1.5*sc,9,2.2*sc,seed,c[0]*.9,c[1]*.95,c[2]*.9,0);pcrown(3,x,y+1.4*sc+3.6*sc,z,1.7*sc,4.2*sc,1.7*sc,8,1.6*sc,seed+5,c[0]*.95,c[1],c[2]*.9,0)}       /* a poplar: a tall narrow column */
-    else if(hero&&pk>.56&&pk<.68){ptrunk(2,x,y-.2,z,.17,4.8*sc,208,204,192);pcrown(2,x,y+5.6*sc,z,2.4*sc,3*sc,2.4*sc,12,2.2*sc,seed,Math.min(255,c[0]*1.22+16),Math.min(255,c[1]*1.18+12),c[2]*1.05,0);
+    if(hero&&pk>.8){ptrunk(TC,x,y-.2,z,.2,3*sc,72,60,46);pcrown(TC,x,y+1.4*sc+3.4*sc,z,1.5*sc,3.9*sc,1.5*sc,9,2.2*sc,seed,c[0]*.9,c[1]*.95,c[2]*.9,0);pcrown(3,x,y+1.4*sc+3.6*sc,z,1.7*sc,4.2*sc,1.7*sc,8,1.6*sc,seed+5,c[0]*.95,c[1],c[2]*.9,0)}       /* a poplar: a tall narrow column */
+    else if(hero&&pk>.56&&pk<.68){ptrunk(TC,x,y-.2,z,.17,4.8*sc,208,204,192);pcrown(TC,x,y+5.6*sc,z,2.4*sc,3*sc,2.4*sc,12,2.2*sc,seed,Math.min(255,c[0]*1.22+16),Math.min(255,c[1]*1.18+12),c[2]*1.05,0);
       {const a=rot*2.3;pbar(3,x,y+3.4*sc,z,x+Math.cos(a)*1.3*sc,y+5*sc,z+Math.sin(a)*1.3*sc,.06,214,210,198);pbar(3,x,y+4*sc,z,x-Math.cos(a+.8)*1.1*sc,y+5.4*sc,z-Math.sin(a+.8)*1.1*sc,.05,214,210,198);
        pcrown(3,x,y+5.8*sc,z,2.8*sc,3.4*sc,2.8*sc,14,1.7*sc,seed+7,Math.min(255,c[0]*1.25+14),Math.min(255,c[1]*1.2+10),c[2]*1.05,0)}}       /* a birch */
-    else if(hero){ptrunk(2,x,y-.2,z,.27,4.4*sc,72,54,38);const a=rot*1.7;                                                                            /* an oak: trunk, two boughs, a crown of leaf cards */
-      pbar(2,x,y+2.6*sc,z,x+Math.cos(a)*1.8*sc,y+4.6*sc,z+Math.sin(a)*1.8*sc,.16,66,50,36);pbar(2,x,y+3*sc,z,x-Math.cos(a)*1.4*sc,y+4.8*sc,z-Math.sin(a)*1.4*sc,.14,66,50,36);
-      pcrown(2,x,y+5.2*sc,z,3.6*sc,2.9*sc,3.6*sc,12,3.1*sc,seed,c[0],c[1],c[2],0);
+    else if(hero){ptrunk(TC,x,y-.2,z,.27,4.4*sc,72,54,38);const a=rot*1.7;                                                                            /* an oak: trunk, two boughs, a crown of leaf cards */
+      pbar(TC,x,y+2.6*sc,z,x+Math.cos(a)*1.8*sc,y+4.6*sc,z+Math.sin(a)*1.8*sc,.16,66,50,36);pbar(TC,x,y+3*sc,z,x-Math.cos(a)*1.4*sc,y+4.8*sc,z-Math.sin(a)*1.4*sc,.14,66,50,36);
+      pcrown(TC,x,y+5.2*sc,z,3.6*sc,2.9*sc,3.6*sc,12,3.1*sc,seed,c[0],c[1],c[2],0);
       /* (batch 45, High only) root flare, two more boughs, finer leaf clumps all round and a lower skirt: a real silhouette close up */
       ptrunk(3,x,y-.3,z,.42,1.1*sc,66,50,36);pbar(3,x,y+3.4*sc,z,x+Math.cos(a+2.1)*1.6*sc,y+5*sc,z+Math.sin(a+2.1)*1.6*sc,.13,66,50,36);pbar(3,x+Math.cos(a)*1.8*sc,y+4.6*sc,z+Math.sin(a)*1.8*sc,x+Math.cos(a)*2.9*sc,y+5.6*sc,z+Math.sin(a)*2.9*sc,.09,66,50,36);
       pcrown(3,x,y+5.5*sc,z,4.2*sc,3.3*sc,4.2*sc,20,2.3*sc,seed+17,c[0]*1.04,c[1]*1.04,c[2],0);pcrown(3,x,y+3.9*sc,z,3.4*sc,1.4*sc,3.4*sc,9,2.6*sc,seed+29,c[0]*.88,c[1]*.88,c[2]*.9,0)}
-    else{ptrunk(2,x,y-.2,z,.3,3*sc,72,54,38);pcrown(2,x,y+4.6*sc,z,3.3*sc,2.7*sc,3.3*sc,5,3.7*sc,seed,48+q2*26,86+q1*44,40,0);
+    else{ptrunk(TC,x,y-.2,z,.3,3*sc,72,54,38);pcrown(TC,x,y+4.6*sc,z,3.3*sc,2.7*sc,3.3*sc,5,3.7*sc,seed,48+q2*26,86+q1*44,40,0);
       pcrown(3,x,y+4.8*sc,z,3.6*sc,2.9*sc,3.6*sc,9,2.5*sc,seed+11,50+q2*26,90+q1*44,40,0)}}}
 /* a tuft of tall grass: two crossed cards of the blade tile, darker at the root, swaying in the wind */
 /* (batch 27) no grass, bush or tree inside or against a garage building */
@@ -734,6 +735,8 @@ function buildScenery(){
           else if(nz2>.36&&sr()<.2+.65*sstep(.4,.62,nz2)){const k=2+((sr()*5)|0);St.groves++;
             for(let j=0;j<k;j++){const ox=px+(sr()-.5)*14,oz=pz+(sr()-.5)*14,ty2=terrainH(ox,oz);if(!free(ox,oz,Y,g,8))continue;ptree(ox,oz,sr,ty2,true);COLC.push(ox,oz,.55,ty2-.5,ty2+12);St.trees++}}
           else if(sr()<.5){const sc=.8+sr()*.9,gr=sr()<.2?[104,110,56]:[48+sr()*26,92+sr()*30,44];pbush(px,pz,ty,1.3*sc,1.0*sc,gr[0],gr[1],gr[2],sr()*6);St.bush++}
+          /* (batch 46, High only) forested stretches close to the road where the noise field is high: the near trees flashing past are what makes a road feel fast; category 5, its own random stream, no colliders (they are not drawn on Low and Medium) */
+          if(dry0<.5&&nz2>.18){const er=mulberry((((Math.round(cx)*73856093)^(Math.round(cz)*19349663)^(si*83492791))>>>0));if(er()<.4+.5*sstep(.2,.6,nz2)){const k=1+((er()*2)|0);for(let j=0;j<k;j++){const g3=5+er()*8,[ex,ez]=sideAt(r,i,tx,tz,sd,g3),jx=ex+(er()-.5)*7,jz=ez+(er()-.5)*7;if(!free(jx,jz,Y,g3,5))continue;TC=5;ptree(jx,jz,er,terrainH(jx,jz),true);TC=2;BOOT.edgeTrees=(BOOT.edgeTrees||0)+1}}}
           if(g<12&&sr()<.5){const sc=.7+sr()*.8,gr=dry0>.55?[132,120,70]:[56+sr()*20,98+sr()*20,48],g2=3+sr()*3,[bx,bz,by]=sideAt(r,i,tx,tz,sd,g2);if(free(bx,bz,Y,g2,3)){pbush(bx,bz,by,1.0*sc,.75*sc,gr[0],gr[1],gr[2],sr()*6);St.bush++}}
           /* tufts of tall grass along the verge (golden in the dry country) */
           {const nT=1+((sr()*3)|0),dc=dry0>.45;for(let q=0;q<nT;q++){const gt=1.4+sr()*9,[ux,uz]=sideAt(r,i,tx,tz,sd,gt),jx=ux+(sr()-.5)*5,jz=uz+(sr()-.5)*5,uy=terrainH(jx,jz),sc=.8+sr()*.9,cc=dc?[150+sr()*30,128+sr()*20,66]:[88+sr()*30,126+sr()*26,56];if(!free(jx,jz,Y,gt,3))continue;ptuft(jx,uy-.05,jz,sr()*3,1.5*sc,1.05*sc,cc[0],cc[1],cc[2]);St.tuft++}}}}

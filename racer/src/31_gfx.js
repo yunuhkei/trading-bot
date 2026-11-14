@@ -61,7 +61,7 @@ function gfxTarget(w,h){
 function gfxInit(){
   GFX.ok=true;gfxLampIndex();
   let m=QS.get('q');try{if(!m)m=localStorage.getItem('racer.gfx')||'auto'}catch(e){m=m||'auto'}if(m!='high'&&m!='low')m='auto';GFX.mode=m;
-  const t=QS.has('tier')?Math.max(0,Math.min(2,parseInt(QS.get('tier'))||0)):(QS.has('fixed')?0:(m=='high'?2:m=='low'?0:1));
+  const t=QS.has('tier')?Math.max(0,Math.min(2,parseInt(QS.get('tier'))||0)):(QS.has('fixed')?0:(m=='low'?0:2));
   GFX.fixed=QS.has('tier')||QS.has('fixed');gfxSetTier(t,true);if(UI.bn&&UI.bn.qual)UI.bn.qual.label='GFX '+GFX.mode.toUpperCase()}
 function gfxProg2(name,vs,fs,attrs,defs){const k=name+JSON.stringify(defs||{});if(!_gp[k])_gp[k]=mkProg(name,vs,fs,attrs,defs);return _gp[k]}
 function gfxSetTier(t,force){
@@ -71,12 +71,12 @@ function gfxSetTier(t,force){
   const pd={};if(T.blur)pd.BLUR=T.bloom?9:4;if(T.bloom)pd.BLOOM=1;if(T.hi)pd.LENS=1;G.P.postv=gfxProg2('post',POSTV,POSTF,['aP'],pd);
   if(T.bloom&&!G.P.bright){G.P.bright=gfxProg2('bright',POSTV,BRF,['aP']);G.P.blur=gfxProg2('blur',POSTV,BLF,['aP'])}
   if(t==2)buildDetailProps();   /* the High-only detail is built the first time it is needed */
-  const lo=t==0;R.drawProp=t==2?[640,1250,480,300,150]:[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw),0,0];   /* [furniture, buildings, trees, detail]: High has no triangle cap (batch 45), the detail category only draws there, Low and Medium stay light so the governor has somewhere to fall back to */R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
+  const lo=t==0;R.drawProp=t==2?[640,1250,480,300,150,520]:[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw),0,0,0];   /* [furniture, buildings, trees, detail]: High has no triangle cap (batch 45), the detail category only draws there, Low and Medium stay light so the governor has somewhere to fall back to */R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
   if(!GFX.fixed){Q.min=T.scMin;Q.max=T.scMax;Q.scale=Math.max(Q.min,Math.min(Q.max,Q.scale))}
   if(typeof trSetMul=='function')trSetMul(T.traf);
-  GFX.since=0;Q.apply()}
+  GFX.since=0;Q.apply();GFX.note={t:performance.now(),txt:'GRAPHICS '+T.name.toUpperCase()+(GFX.mode=='auto'?' (AUTO)':'')}}   /* (batch 46) Auto now starts on High and steps down when the phone is slow; the tier shows on screen for a few seconds after each change */
 function gfxSetMode(m){GFX.mode=m;try{localStorage.setItem('racer.gfx',m)}catch(e){}
-  if(m=='high'){GFX.fixed=false;gfxSetTier(2)}else if(m=='low'){GFX.fixed=false;gfxSetTier(0)}else{GFX.fixed=false;gfxSetTier(1)}GFX.upLock=[0,0,0];GFX.okRuns=0}
+  if(m=='high'){GFX.fixed=false;gfxSetTier(2)}else if(m=='low'){GFX.fixed=false;gfxSetTier(0)}else{GFX.fixed=false;gfxSetTier(2)}GFX.upLock=[0,0,0];GFX.okRuns=0}
 /* ---------------- lamps: a grid so the renderer finds the ones near the car without a scan of every lamp ---------------- */
 const LGRIDM=new Map(),LGC=64;
 function gfxLampIndex(){LGRIDM.clear();for(let i=0;i<LAMPS.length;i+=3){const k=Math.floor(LAMPS[i]/LGC)*8192+Math.floor(LAMPS[i+2]/LGC);let a=LGRIDM.get(k);if(!a){a=[];LGRIDM.set(k,a)}a.push(i)}}
