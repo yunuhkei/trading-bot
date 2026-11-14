@@ -47,5 +47,5 @@ const nextTick=()=>new Promise(r=>setTimeout(r,0));
    x0 = where the lanes start (half the centre line gap, or the median edge on a divided road), the edge line sits EDGE_IN m inside the half width */
 const LANE_W=3.6,EDGE_IN=.55;
 /* city streets have a curb (CURB_H high) and a sidewalk (SWW wide) each side instead of a gravel shoulder */
-const CURB_H=.15,SWW=3.6;
-function laneInfo(hw,style){const div=style==1||style==4,x0=div?1.35:.2,nl=Math.max(1,Math.round((hw-EDGE_IN-x0)/LANE_W));return{x0,nl,lw:(hw-EDGE_IN-x0)/nl,div}}
+const CURB_H=.15,SWW=3.6,MEDW=1.35;   /* MEDW: half width of a divided road's median (laneInfo x0); batch 33 raised it CURB_H above the lanes */
+function laneInfo(hw,style){const div=style==1||style==4,x0=div?MEDW:.2,nl=Math.max(1,Math.round((hw-EDGE_IN-x0)/LANE_W));return{x0,nl,lw:(hw-EDGE_IN-x0)/nl,div}}

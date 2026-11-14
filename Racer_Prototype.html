@@ -80,14 +80,14 @@ const nextTick=()=>new Promise(r=>setTimeout(r,0));
    x0 = where the lanes start (half the centre line gap, or the median edge on a divided road), the edge line sits EDGE_IN m inside the half width */
 const LANE_W=3.6,EDGE_IN=.55;
 /* city streets have a curb (CURB_H high) and a sidewalk (SWW wide) each side instead of a gravel shoulder */
-const CURB_H=.15,SWW=3.6;
-function laneInfo(hw,style){const div=style==1||style==4,x0=div?1.35:.2,nl=Math.max(1,Math.round((hw-EDGE_IN-x0)/LANE_W));return{x0,nl,lw:(hw-EDGE_IN-x0)/nl,div}}
+const CURB_H=.15,SWW=3.6,MEDW=1.35;   /* MEDW: half width of a divided road's median (laneInfo x0); batch 33 raised it CURB_H above the lanes */
+function laneInfo(hw,style){const div=style==1||style==4,x0=div?MEDW:.2,nl=Math.max(1,Math.round((hw-EDGE_IN-x0)/LANE_W));return{x0,nl,lw:(hw-EDGE_IN-x0)/nl,div}}
 
 'use strict';
 /* ===== WebGL1 helpers + all shaders. One program per material class, no per-frame allocation. ===== */
 const G={gl:null,cv:null,w:1,h:1,P:{},ext:{},maxAniso:1};
-/* (batch 31, a test) LOOK: an experimental art direction picked with ?look=real or ?look=cine (0 is the normal look); compiled into every shader */
-const LOOK=(()=>{try{const m=/[?&]look=(\w+)/.exec(location.search);return m?({real:1,cine:2}[m[1]]||0):0}catch(e){return 0}})();
+/* LOOK (batch 31, default since batch 32): the art direction, 1 = realistic (the default), 0 = the old look (?look=classic), 2 = cinematic (?look=cine); compiled into every shader */
+const LOOK=(()=>{try{const m=/[?&]look=(\w+)/.exec(location.search),t={classic:0,real:1,cine:2};return m&&Object.prototype.hasOwnProperty.call(t,m[1])?t[m[1]]:1}catch(e){return 1}})();
 const PRE='#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n#define LOOK '+LOOK+'\n';
 /* shared lighting / fog / tone chunk (fragment) */
 const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uFogP,uGr;/* uGr: x saturation, y warm/cool split, z contrast, w exposure */\n'+
@@ -186,7 +186,7 @@ const SH={
  rdF:PRE+'varying vec3 vW;varying vec4 vA;uniform sampler2D uNz;uniform float uWet;\n#ifndef NL\n#define NL 4\n#endif\nuniform vec4 uLt[NL];uniform vec3 uLc[NL];\n'+ENVSRC+SHSRC+CSHSRC+
  'float ln(float x,float c,float w,float aa){return 1.-smoothstep(w,w+aa,abs(x-c));}\n'+
  'void main(){float x=vA.x,v=vA.y,hw=vA.z,fl=vA.w;float lanes=floor(fl/16.);float ax=abs(x);float dist=length(vW-uCam);float aa=.05+dist*.0009;'+
-  'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;\n#ifdef DET\n'+
+  'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;\n#if LOOK>0\nasph*=1.5*(.86+.28*texture2D(uNz,vW.xz*.0062).b);\n#endif\n#ifdef DET\n'+
   /* aggregate grain, darker repair patches, hairline cracks, seams across the road */
   'float g1=texture2D(uNz,vW.xz*1.9).b,g2=texture2D(uNz,vW.xz*5.3).g;asph*=1.+((g1-.5)*.6+(g2-.5)*.5)*exp(-dist*.03);asph*=1.-smoothstep(.62,.7,texture2D(uNz,vW.xz*.021+.3).r)*.26;\n'+
   'float cr=abs(texture2D(uNz,vW.xz*.13).g-.5);asph*=1.-(1.-smoothstep(.0,.011,cr))*smoothstep(.46,.6,texture2D(uNz,vW.xz*.011).r)*exp(-dist*.05)*.55;\n'+
@@ -198,7 +198,7 @@ const SH={
   /* edge lines (solid white) */
   'wh+=ln(ax,hw-.55,.11,aa);'+
   /* two-way: double yellow centre line; divided: median strip with a yellow line each side; patch: edge lines only */
-  'if(tw){ye+=ln(ax,.2,.07,aa);}else if(dv){float md=(1.-smoothstep(.95,1.1,ax))*mkf;asph=mix(asph,vec3(.28,.27,.25),md);ye+=ln(ax,1.35,.08,aa);}'+
+  'if(tw){ye+=ln(ax,.2,.07,aa);}else if(dv){float mt=1.-step(1.352,ax);float fc=step(1.352,ax)*(1.-step(1.425,ax));vec3 conc=vec3(.29,.28,.26)*(.86+.28*nz)*(1.+.28*smoothstep(1.28,1.34,ax));float jd=min(fract(v/4.),1.-fract(v/4.))*4.;conc*=1.-.22*(1.-smoothstep(0.,.03+aa*.6,jd));asph=mix(asph,conc,mt*mkf);asph=mix(asph,vec3(.17,.165,.155),fc*mkf);asph*=1.-.3*mkf*smoothstep(1.85,1.45,ax)*step(1.425,ax);ye+=ln(ax,1.58,.08,aa);}'+
   /* dashed white lines between the lanes of each direction (same lane width as the traffic lane graph) */
   'if(tw||dv){float d=fract(v/12.);float on=step(d,dv?.26:.28);for(int i=1;i<5;i++){if(float(i)<lanes)wh+=ln(ax,x0+float(i)*lw,.07,aa)*on;}}'+
   /* markings fade out towards junctions */
@@ -211,8 +211,8 @@ const SH={
   'if(cty&&so>0.){float face=1.-smoothstep(.17,.2,so);float stone=smoothstep(.19,.2,so)*(1.-smoothstep(.5,.52,so));float jn=min(min(abs(fract(v/1.6)-.5)*1.6,abs(so-.52)),abs(so-2.06));'+
   'float jl=(1.-smoothstep(0.,.03+aa*.6,jn))*step(.5,so)*exp(-dist*.025);sdc*=(1.-.5*face)*(1.+.22*stone)*(1.-.3*jl);}'+
   'asph=mix(asph,sdc*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
-  '\n#ifdef DET\nfloat lcn=(ax-x0)/lw;float fl2=abs(fract(lcn)-.5)*lw;float trk=exp(-pow((fl2-.82)/.34,2.))*step(0.,lcn)*step(lcn,lanes)*(1.-smoothstep(hw-.6,hw,ax))*(tw||dv?1.:0.);asph*=1.-trk*.2;asph*=1.+(1.-trk)*.04;\n#endif\n'+
-  'vec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;'+
+  '\n#ifdef DET\nfloat lcn=(ax-x0)/lw;float fl2=abs(fract(lcn)-.5)*lw;float trk=exp(-pow((fl2-.82)/.34,2.))*step(0.,lcn)*step(lcn,lanes)*(1.-smoothstep(hw-.6,hw,ax))*(tw||dv?1.:0.);asph*=1.-trk*.2;asph*=1.+(1.-trk)*.04;\n#if LOOK>0\n{vec2 pc=vec2(v/7.,lcn);vec2 pid=floor(pc);float hh=fract(sin(dot(pid,vec2(12.9898,78.233)))*43758.5453);float onr=step(0.,lcn)*step(lcn,lanes)*(tw||dv?1.:0.);float pa=step(.885,hh)*onr;vec2 pf=fract(pc);float de=min(min(pf.x*7.,(1.-pf.x)*7.),min(pf.y*lw,(1.-pf.y)*lw));asph*=1.-pa*(.2+.25*(1.-smoothstep(0.,.07,de)));float oil=exp(-pow(fl2/.11,2.))*smoothstep(.42,.75,texture2D(uNz,vec2(v*.05,floor(lcn)*.37+.11)).r)*onr;asph*=1.-.22*oil;float cr2=abs(texture2D(uNz,vW.xz*.085+.4).r-.5);float tar=(1.-smoothstep(.0,.014,cr2))*smoothstep(.5,.66,texture2D(uNz,vW.xz*.007+.7).g)*onr*exp(-dist*.02);asph*=1.-.5*tar;}\n#endif\n#endif\n'+
+  '\n#if LOOK>0\nfloat wear=.55+.45*smoothstep(.3,.62,texture2D(uNz,vW.xz*.7).g);vec3 alb=asph+vec3(.74)*wh*wear+vec3(.62,.47,.12)*ye*wear;\n#else\nvec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;\n#endif\n'+
   /* wet: darker, puddles that act like mirrors, ripples in the surface, a reflection of the sky and of every light near the car */
   'float pz=texture2D(uNz,vW.xz*.017).g*.55+texture2D(uNz,vW.xz*.071).b*.45;float pud=smoothstep(.5,.68,pz)*uWet*(1.-shd);'+
   'alb*=1.-uWet*.42*(1.-shd*.5);alb*=1.-pud*.3;'+
@@ -1288,10 +1288,14 @@ function swOn(r,si,s){const B=r.swB[si];let k=r.sw0[si];for(let q=0;q<B.length&&
 function buildRoadMeshes(){
   _cj=null;const out=[];buildSidewalks();
   for(const r of ROADS){
-    const n=r.n,rows=r.closed?n+1:n,S=r.S,sw=r.sw,NR=sw?8:6;
+    const n=r.n,rows=r.closed?n+1:n,S=r.S,sw=r.sw,med=(r.style==1||r.style==4),NR=(sw?8:6)+(med?4:0);
     if(r.city){const ix=cityJunctions();for(let i=0;i<n;i++){let m=1;for(let q=0;q<ix.length;q+=2){const d=Math.hypot(r.X[i]-ix[q],r.Z[i]-ix[q+1]);if(d<r.hw+10){const v=sstep(r.hw+1,r.hw+9,d);if(v<m)m=v}}r.mk[i]=m}}
     /* the junction box of every road end that sits on another road: no lane lines, no median, on the branch and on the road it joins */
     for(const J of JUNC){if(J.city||(J.r!==r&&J.par!==r))continue;for(let i=0;i<n;i++){const d=Math.hypot(r.X[i]-J.x,r.Z[i]-J.z);if(d<J.rad+9){const v=sstep(J.rad,J.rad+8,d);if(v<r.mk[i])r.mk[i]=v}}}
+    /* (batch 33) the raised median of a divided road: r.mm[i] is how much of the full CURB_H it has at sample i (0 in a junction box, across another road's asphalt, and at a U-turn gap, a short ramp each side) */
+    if(med){r.mm=new Float32Array(n);const fo=new Uint8Array(n);for(let i=0;i<n;i++){r.mm[i]=sstep(.25,.9,r.mk[i]);fo[i]=otherAsphalt(r.X[i],r.Z[i],r,r.Y[i],.6)?1:0}
+      for(let i=0;i<n;i++){let d=9;for(let k=-2;k<=2;k++){const q=i+k;if(q>=0&&q<n&&fo[q])d=Math.min(d,Math.abs(k))}if(d<=1)r.mm[i]=0;else if(d==2)r.mm[i]*=.5}
+      if(r.xov)for(const p of r.xov)for(let i=Math.max(0,p-6);i<=Math.min(n-1,p+6);i++)r.mm[i]=Math.min(r.mm[i],Math.min(1,Math.max(0,(Math.abs(i-p)-4)/2)))}
     /* the rows of the ribbon: one per sample, and two more (before / after) wherever a sidewalk starts or stops, so its end is a clean vertical face at the edge of the crossing road */
     const RW=[];let sL=sw?r.sw0[0]:0,sR=sw?r.sw0[1]:0;
     for(let gi=0;gi<rows;gi++){RW.push(gi,0,sL,sR);if(!sw||gi==rows-1)continue;const i=gi%n,j=(i+1)%n,s0=S[i],sl=Math.hypot(r.X[j]-r.X[i],r.Z[j]-r.Z[i])||1,ev=[];
@@ -1303,17 +1307,18 @@ function buildRoadMeshes(){
       const cnt=p1-p0+1,V=new Float32Array(cnt*NR*7),I=[];let bx0=1e9,bx1=-1e9,by0=1e9,by1=-1e9,bz0=1e9,bz1=-1e9;
       for(let k=0;k<cnt;k++){const gi=RW[(p0+k)*4],ft=RW[(p0+k)*4+1],oL=RW[(p0+k)*4+2],oR=RW[(p0+k)*4+3],i=gi%n,i2=(i+1)%n;
         const tan=q=>{const a=r.closed?(q+1)%n:Math.min(n-1,q+1),b=r.closed?(q+n-1)%n:Math.max(0,q-1);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const tl=Math.hypot(tx,tz)||1;return[tx/tl,tz/tl]};
-        let[tx,tz]=tan(i),cx=r.X[i],cz=r.Z[i],y=r.Y[i],hw=r.hw*r.wk[i],mk=r.mk[i],cf=r.cf[i],sv=(gi==n?r.len:S[i]);
-        if(ft>0){const t2=tan(i2);tx+=(t2[0]-tx)*ft;tz+=(t2[1]-tz)*ft;const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;cx+=(r.X[i2]-cx)*ft;cz+=(r.Z[i2]-cz)*ft;y+=(r.Y[i2]-y)*ft;hw+=(r.hw*r.wk[i2]-hw)*ft;mk+=(r.mk[i2]-mk)*ft;cf+=(r.cf[i2]-cf)*ft;sv+=Math.hypot(r.X[i2]-r.X[i],r.Z[i2]-r.Z[i])*ft}
-        const nx=-tz,nz=tx,fl=r.lanes*16+r.style+.1+.8*mk;let L,DY,A;
+        let[tx,tz]=tan(i),cx=r.X[i],cz=r.Z[i],y=r.Y[i],hw=r.hw*r.wk[i],mk=r.mk[i],cf=r.cf[i],sv=(gi==n?r.len:S[i]),mm=med?r.mm[i]:0;
+        if(ft>0){const t2=tan(i2);tx+=(t2[0]-tx)*ft;tz+=(t2[1]-tz)*ft;const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;cx+=(r.X[i2]-cx)*ft;cz+=(r.Z[i2]-cz)*ft;y+=(r.Y[i2]-y)*ft;hw+=(r.hw*r.wk[i2]-hw)*ft;mk+=(r.mk[i2]-mk)*ft;if(med)mm+=(r.mm[i2]-mm)*ft;cf+=(r.cf[i2]-cf)*ft;sv+=Math.hypot(r.X[i2]-r.X[i],r.Z[i2]-r.Z[i])*ft}
+        const nx=-tz,nz=tx,fl=r.lanes*16+r.style+.1+.8*(med?Math.min(mk,mm):mk);let L,DY,A;
         if(sw){const hL=oL?CURB_H:-.03,hR=oR?CURB_H:-.03,eL=oL?CURB_H:-.14,eR=oR?CURB_H:-.14;
           L=[-(hw+sw+.4),-(hw+sw),-(hw+.04),-hw,hw,hw+.04,hw+sw,hw+sw+.4];DY=[-.5,eL,hL,0,0,hR,eR,-.5];A=[-(hw+sw),-(hw+sw),-(hw+.2),-hw,hw,hw+.2,hw+sw,hw+sw]}
         else{L=[-(hw+RSH+.5),-(hw+RSH),-hw,hw,hw+RSH,hw+RSH+.5];DY=[-.5,-.12,0,0,-.12,-.5];A=[-(hw+RSH),-(hw+RSH),-hw,hw,hw+RSH,hw+RSH]}
+        if(med){const k0=sw?4:3,mh=CURB_H*mm;L.splice(k0,0,-(MEDW+.07),-MEDW,MEDW,MEDW+.07);DY.splice(k0,0,0,mh,mh,0);A.splice(k0,0,-(MEDW+.07),-MEDW,MEDW,MEDW+.07)}   /* a 15 cm concrete top with a near-vertical curb face on each side (the road shader paints it) */
         for(let c=0;c<NR;c++){const o=(k*NR+c)*7,lt=L[c],x=cx+nx*lt,z=cz+nz*lt,yy=y+DY[c]+lt*cf;V[o]=x;V[o+1]=yy;V[o+2]=z;V[o+3]=A[c];V[o+4]=sv;V[o+5]=hw;V[o+6]=fl;
           if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(yy<by0)by0=yy;if(yy>by1)by1=yy;if(z<bz0)bz0=z;if(z>bz1)bz1=z}}
       for(let k=0;k<cnt-1;k++)for(let c=0;c<NR-1;c++){const a=k*NR+c,b=a+1,cc=a+NR,d=cc+1;I.push(a,cc,b,b,cc,d)}
       /* the far version of the piece (used beyond R.roadLod): every second sample, no sidewalk-end rows, and three strips across (the sidewalk a ramp, the shoulder a slope): about a third of the triangles */
-      const n1=I.length,COL=sw?[1,3,4,6]:[0,2,3,5];let kp=0;
+      const n1=I.length,COL=(sw?[1,3,4,6]:[0,2,3,5]).map((c,q)=>med&&q>=2?c+4:c);let kp=0;
       for(let k=1;k<cnt;k++){const g=RW[(p0+k)*4],ft=RW[(p0+k)*4+1];if(k<cnt-1&&(ft>0||((g-g0)&1)))continue;
         for(let c=0;c<3;c++){const a=kp*NR+COL[c],b=kp*NR+COL[c+1],cc=k*NR+COL[c],d=k*NR+COL[c+1];I.push(a,cc,b,b,cc,d)}kp=k}
       out.push({V,I:new Uint16Array(I),n1,cx:(bx0+bx1)/2,cy:(by0+by1)/2,cz:(bz0+bz1)/2,rad:Math.hypot(bx1-bx0,by1-by0,bz1-bz0)/2+2});p0=p1}}
@@ -1908,7 +1913,7 @@ function buildQueries(){
   eachC(c=>ccnt[c+1]++);for(let k=0;k<cn*cn;k++)ccnt[k+1]+=ccnt[k];QH.cst=ccnt;QH.cli=new Int32Array(ccnt[cn*cn]);const f2=ccnt.slice(0,cn*cn);eachC((c,k)=>{QH.cli[f2[c]++]=k});QH.nR=nR;QH.nC=nC;
   QH.CR=new Float32Array(COLR);QH.CC=new Float32Array(COLC);QH.CO=new Float32Array(COLO)}
 /* nearest road surface under a point, filtered by height so overpasses and the road below do not mix */
-const RQ={on:0,y:0,lat:0,hw:0,tx:0,tz:0,nx:0,nz:0,rail:0,ri:0,br:0,ds:0,cb:0};
+const RQ={on:0,y:0,lat:0,hw:0,tx:0,tz:0,nx:0,nz:0,rail:0,ri:0,br:0,ds:0,cb:0,mm:0};
 function roadAt(x,z,yh){
   const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)/cs),cz=Math.floor((z+W.half)/cs);if(cx<0||cz<0||cx>=nc||cz>=nc)return false;
   const c=cz*nc+cx;let found=false,bestL=1e9,bestF=1e9,fl=false;
@@ -1919,7 +1924,7 @@ function roadAt(x,z,yh){
       const ax=r.X[i],az=r.Z[i],dx=r.X[j]-ax,dz=r.Z[j]-az,l2=dx*dx+dz*dz||1;let t=((x-ax)*dx+(z-az)*dz)/l2;t=t<0?0:t>1?1:t;
       const px=ax+dx*t,pz=az+dz*t,ex=x-px,ez=z-pz,d=Math.sqrt(ex*ex+ez*ez),sh=r.sw||RSH,hw=r.hw*(r.wk[i]+(r.wk[j]-r.wk[i])*t)+sh;if(d>hw)continue;
       const yy=r.Y[i]+(r.Y[j]-r.Y[i])*t;if(Math.abs(yy-yh)>tol)continue;
-      if(d<bestL){bestL=d;found=true;const l=Math.sqrt(l2),tx=dx/l,tz=dz/l;RQ.tx=tx;RQ.tz=tz;RQ.nx=-tz;RQ.nz=tx;RQ.lat=ex*RQ.nx+ez*RQ.nz;RQ.y=yy+RQ.lat*(r.cf[i]+(r.cf[j]-r.cf[i])*t);RQ.hw=hw-sh;RQ.rail=r.rail[i]&r.rail[j];RQ.ri=QH.segR[s];RQ.br=r.br[i];RQ.ds=r.S[i]+l*t}}}
+      if(d<bestL){bestL=d;found=true;const l=Math.sqrt(l2),tx=dx/l,tz=dz/l;RQ.tx=tx;RQ.tz=tz;RQ.nx=-tz;RQ.nz=tx;RQ.lat=ex*RQ.nx+ez*RQ.nz;RQ.y=yy+RQ.lat*(r.cf[i]+(r.cf[j]-r.cf[i])*t);RQ.hw=hw-sh;RQ.rail=r.rail[i]&r.rail[j];RQ.ri=QH.segR[s];RQ.br=r.br[i];RQ.ds=r.S[i]+l*t;RQ.mm=r.mm?r.mm[i]+(r.mm[j]-r.mm[i])*t:0}}}
   return found}
 /* ground height under a point (road surface if on a road at that level, else terrain) */
 /* RQ.cb = 1 when the spot is up on a sidewalk (behind a curb) */
@@ -1927,6 +1932,7 @@ function roadAt(x,z,yh){
 const RQS={soft:0};
 function groundAt(x,z,yh){const ty=terrainH(x,z);RQ.on=0;RQ.cb=0;if(roadAt(x,z,yh)){const over=Math.abs(RQ.lat)-RQ.hw;let y=RQ.y;
     if(over>0){const r=ROADS[RQ.ri];if(r.sw&&swOn(r,RQ.lat>0?1:0,RQ.ds)&&!(RQS.soft&&otherAsphalt(x,z,r,y,.2))){y+=CURB_H*Math.min(1,over/(RQS.soft?1:.04));RQ.cb=1}else y-=Math.min(over,RSH)/RSH*.12}
+    if(RQ.mm>.001){const dm=MEDW-Math.abs(RQ.lat);if(dm>0){y+=CURB_H*RQ.mm*Math.min(1,dm/(RQS.soft?1.25:.05));if(RQ.mm>.5)RQ.cb=1}}   /* (batch 33) the raised median: a gentle 1.25 m ramp for the wheels (RQS.soft; a curb's is 1 m, the median gets more because the car crosses two of them in a row), a rumble like a curb */
     if(y>ty-2.2){RQ.on=1;return y}}return ty}
 
 'use strict';
@@ -2049,8 +2055,9 @@ function lgBuild(){
     for(let i=Math.round(step*.6);i<n-(r.closed?0:step*.5);i+=step){let p=-1;
       for(let d=0;d<step*.4&&p<0;d+=3)for(const c of[i+d,i-d]){if(c<14||c>n-15)continue;if(near(c)||r.br[c])continue;const e0=o[0][0];if(e0.V[c]<e0.lim*.9)continue;p=c;break}
       if(p<0)continue;
-      for(let di=0;di<2;di++){const dir=di?-1:1,e=o[di][0],op=o[1-di][0],ix=dir>0?p:n-1-p,ox=dir>0?n-1-p:p;
-        if(lgLink(e,ix-4,ix,op,ox+4,3))nX++}}});
+      let okx=0;for(let di=0;di<2;di++){const dir=di?-1:1,e=o[di][0],op=o[1-di][0],ix=dir>0?p:n-1-p,ox=dir>0?n-1-p:p;
+        if(lgLink(e,ix-4,ix,op,ox+4,3)){nX++;okx++}}
+      if(okx)(r.xov||(r.xov=[])).push(p)}});    /* (batch 33) r.xov: the samples where the median is open for a U-turn: the raised median is cut there */
   /* ---- a road end with only ONE way on (an L-shaped corner): the turn was given to the inner or the outer lane only, so the other lanes ended in nothing. Every lane gets it. ---- */
   ROADS.forEach((r,ri)=>{const o=LG.ofRoad[ri];if(!o||r.closed)return;
     for(let di=0;di<2;di++){const ends=[];for(const e of o[di])for(const l of e.out)if(l.foot>=e.n-4)ends.push(l);if(!ends.length)continue;

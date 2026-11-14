@@ -1,8 +1,8 @@
 'use strict';
 /* ===== WebGL1 helpers + all shaders. One program per material class, no per-frame allocation. ===== */
 const G={gl:null,cv:null,w:1,h:1,P:{},ext:{},maxAniso:1};
-/* (batch 31, a test) LOOK: an experimental art direction picked with ?look=real or ?look=cine (0 is the normal look); compiled into every shader */
-const LOOK=(()=>{try{const m=/[?&]look=(\w+)/.exec(location.search);return m?({real:1,cine:2}[m[1]]||0):0}catch(e){return 0}})();
+/* LOOK (batch 31, default since batch 32): the art direction, 1 = realistic (the default), 0 = the old look (?look=classic), 2 = cinematic (?look=cine); compiled into every shader */
+const LOOK=(()=>{try{const m=/[?&]look=(\w+)/.exec(location.search),t={classic:0,real:1,cine:2};return m&&Object.prototype.hasOwnProperty.call(t,m[1])?t[m[1]]:1}catch(e){return 1}})();
 const PRE='#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n#define LOOK '+LOOK+'\n';
 /* shared lighting / fog / tone chunk (fragment) */
 const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uFogP,uGr;/* uGr: x saturation, y warm/cool split, z contrast, w exposure */\n'+
@@ -101,7 +101,7 @@ const SH={
  rdF:PRE+'varying vec3 vW;varying vec4 vA;uniform sampler2D uNz;uniform float uWet;\n#ifndef NL\n#define NL 4\n#endif\nuniform vec4 uLt[NL];uniform vec3 uLc[NL];\n'+ENVSRC+SHSRC+CSHSRC+
  'float ln(float x,float c,float w,float aa){return 1.-smoothstep(w,w+aa,abs(x-c));}\n'+
  'void main(){float x=vA.x,v=vA.y,hw=vA.z,fl=vA.w;float lanes=floor(fl/16.);float ax=abs(x);float dist=length(vW-uCam);float aa=.05+dist*.0009;'+
-  'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;\n#ifdef DET\n'+
+  'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;\n#if LOOK>0\nasph*=1.5*(.86+.28*texture2D(uNz,vW.xz*.0062).b);\n#endif\n#ifdef DET\n'+
   /* aggregate grain, darker repair patches, hairline cracks, seams across the road */
   'float g1=texture2D(uNz,vW.xz*1.9).b,g2=texture2D(uNz,vW.xz*5.3).g;asph*=1.+((g1-.5)*.6+(g2-.5)*.5)*exp(-dist*.03);asph*=1.-smoothstep(.62,.7,texture2D(uNz,vW.xz*.021+.3).r)*.26;\n'+
   'float cr=abs(texture2D(uNz,vW.xz*.13).g-.5);asph*=1.-(1.-smoothstep(.0,.011,cr))*smoothstep(.46,.6,texture2D(uNz,vW.xz*.011).r)*exp(-dist*.05)*.55;\n'+
@@ -113,7 +113,7 @@ const SH={
   /* edge lines (solid white) */
   'wh+=ln(ax,hw-.55,.11,aa);'+
   /* two-way: double yellow centre line; divided: median strip with a yellow line each side; patch: edge lines only */
-  'if(tw){ye+=ln(ax,.2,.07,aa);}else if(dv){float md=(1.-smoothstep(.95,1.1,ax))*mkf;asph=mix(asph,vec3(.28,.27,.25),md);ye+=ln(ax,1.35,.08,aa);}'+
+  'if(tw){ye+=ln(ax,.2,.07,aa);}else if(dv){float mt=1.-step(1.352,ax);float fc=step(1.352,ax)*(1.-step(1.425,ax));vec3 conc=vec3(.29,.28,.26)*(.86+.28*nz)*(1.+.28*smoothstep(1.28,1.34,ax));float jd=min(fract(v/4.),1.-fract(v/4.))*4.;conc*=1.-.22*(1.-smoothstep(0.,.03+aa*.6,jd));asph=mix(asph,conc,mt*mkf);asph=mix(asph,vec3(.17,.165,.155),fc*mkf);asph*=1.-.3*mkf*smoothstep(1.85,1.45,ax)*step(1.425,ax);ye+=ln(ax,1.58,.08,aa);}'+
   /* dashed white lines between the lanes of each direction (same lane width as the traffic lane graph) */
   'if(tw||dv){float d=fract(v/12.);float on=step(d,dv?.26:.28);for(int i=1;i<5;i++){if(float(i)<lanes)wh+=ln(ax,x0+float(i)*lw,.07,aa)*on;}}'+
   /* markings fade out towards junctions */
@@ -126,8 +126,8 @@ const SH={
   'if(cty&&so>0.){float face=1.-smoothstep(.17,.2,so);float stone=smoothstep(.19,.2,so)*(1.-smoothstep(.5,.52,so));float jn=min(min(abs(fract(v/1.6)-.5)*1.6,abs(so-.52)),abs(so-2.06));'+
   'float jl=(1.-smoothstep(0.,.03+aa*.6,jn))*step(.5,so)*exp(-dist*.025);sdc*=(1.-.5*face)*(1.+.22*stone)*(1.-.3*jl);}'+
   'asph=mix(asph,sdc*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
-  '\n#ifdef DET\nfloat lcn=(ax-x0)/lw;float fl2=abs(fract(lcn)-.5)*lw;float trk=exp(-pow((fl2-.82)/.34,2.))*step(0.,lcn)*step(lcn,lanes)*(1.-smoothstep(hw-.6,hw,ax))*(tw||dv?1.:0.);asph*=1.-trk*.2;asph*=1.+(1.-trk)*.04;\n#endif\n'+
-  'vec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;'+
+  '\n#ifdef DET\nfloat lcn=(ax-x0)/lw;float fl2=abs(fract(lcn)-.5)*lw;float trk=exp(-pow((fl2-.82)/.34,2.))*step(0.,lcn)*step(lcn,lanes)*(1.-smoothstep(hw-.6,hw,ax))*(tw||dv?1.:0.);asph*=1.-trk*.2;asph*=1.+(1.-trk)*.04;\n#if LOOK>0\n{vec2 pc=vec2(v/7.,lcn);vec2 pid=floor(pc);float hh=fract(sin(dot(pid,vec2(12.9898,78.233)))*43758.5453);float onr=step(0.,lcn)*step(lcn,lanes)*(tw||dv?1.:0.);float pa=step(.885,hh)*onr;vec2 pf=fract(pc);float de=min(min(pf.x*7.,(1.-pf.x)*7.),min(pf.y*lw,(1.-pf.y)*lw));asph*=1.-pa*(.2+.25*(1.-smoothstep(0.,.07,de)));float oil=exp(-pow(fl2/.11,2.))*smoothstep(.42,.75,texture2D(uNz,vec2(v*.05,floor(lcn)*.37+.11)).r)*onr;asph*=1.-.22*oil;float cr2=abs(texture2D(uNz,vW.xz*.085+.4).r-.5);float tar=(1.-smoothstep(.0,.014,cr2))*smoothstep(.5,.66,texture2D(uNz,vW.xz*.007+.7).g)*onr*exp(-dist*.02);asph*=1.-.5*tar;}\n#endif\n#endif\n'+
+  '\n#if LOOK>0\nfloat wear=.55+.45*smoothstep(.3,.62,texture2D(uNz,vW.xz*.7).g);vec3 alb=asph+vec3(.74)*wh*wear+vec3(.62,.47,.12)*ye*wear;\n#else\nvec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;\n#endif\n'+
   /* wet: darker, puddles that act like mirrors, ripples in the surface, a reflection of the sky and of every light near the car */
   'float pz=texture2D(uNz,vW.xz*.017).g*.55+texture2D(uNz,vW.xz*.071).b*.45;float pud=smoothstep(.5,.68,pz)*uWet*(1.-shd);'+
   'alb*=1.-uWet*.42*(1.-shd*.5);alb*=1.-pud*.3;'+

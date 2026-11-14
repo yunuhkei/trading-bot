@@ -122,10 +122,14 @@ function swOn(r,si,s){const B=r.swB[si];let k=r.sw0[si];for(let q=0;q<B.length&&
 function buildRoadMeshes(){
   _cj=null;const out=[];buildSidewalks();
   for(const r of ROADS){
-    const n=r.n,rows=r.closed?n+1:n,S=r.S,sw=r.sw,NR=sw?8:6;
+    const n=r.n,rows=r.closed?n+1:n,S=r.S,sw=r.sw,med=(r.style==1||r.style==4),NR=(sw?8:6)+(med?4:0);
     if(r.city){const ix=cityJunctions();for(let i=0;i<n;i++){let m=1;for(let q=0;q<ix.length;q+=2){const d=Math.hypot(r.X[i]-ix[q],r.Z[i]-ix[q+1]);if(d<r.hw+10){const v=sstep(r.hw+1,r.hw+9,d);if(v<m)m=v}}r.mk[i]=m}}
     /* the junction box of every road end that sits on another road: no lane lines, no median, on the branch and on the road it joins */
     for(const J of JUNC){if(J.city||(J.r!==r&&J.par!==r))continue;for(let i=0;i<n;i++){const d=Math.hypot(r.X[i]-J.x,r.Z[i]-J.z);if(d<J.rad+9){const v=sstep(J.rad,J.rad+8,d);if(v<r.mk[i])r.mk[i]=v}}}
+    /* (batch 33) the raised median of a divided road: r.mm[i] is how much of the full CURB_H it has at sample i (0 in a junction box, across another road's asphalt, and at a U-turn gap, a short ramp each side) */
+    if(med){r.mm=new Float32Array(n);const fo=new Uint8Array(n);for(let i=0;i<n;i++){r.mm[i]=sstep(.25,.9,r.mk[i]);fo[i]=otherAsphalt(r.X[i],r.Z[i],r,r.Y[i],.6)?1:0}
+      for(let i=0;i<n;i++){let d=9;for(let k=-2;k<=2;k++){const q=i+k;if(q>=0&&q<n&&fo[q])d=Math.min(d,Math.abs(k))}if(d<=1)r.mm[i]=0;else if(d==2)r.mm[i]*=.5}
+      if(r.xov)for(const p of r.xov)for(let i=Math.max(0,p-6);i<=Math.min(n-1,p+6);i++)r.mm[i]=Math.min(r.mm[i],Math.min(1,Math.max(0,(Math.abs(i-p)-4)/2)))}
     /* the rows of the ribbon: one per sample, and two more (before / after) wherever a sidewalk starts or stops, so its end is a clean vertical face at the edge of the crossing road */
     const RW=[];let sL=sw?r.sw0[0]:0,sR=sw?r.sw0[1]:0;
     for(let gi=0;gi<rows;gi++){RW.push(gi,0,sL,sR);if(!sw||gi==rows-1)continue;const i=gi%n,j=(i+1)%n,s0=S[i],sl=Math.hypot(r.X[j]-r.X[i],r.Z[j]-r.Z[i])||1,ev=[];
@@ -137,17 +141,18 @@ function buildRoadMeshes(){
       const cnt=p1-p0+1,V=new Float32Array(cnt*NR*7),I=[];let bx0=1e9,bx1=-1e9,by0=1e9,by1=-1e9,bz0=1e9,bz1=-1e9;
       for(let k=0;k<cnt;k++){const gi=RW[(p0+k)*4],ft=RW[(p0+k)*4+1],oL=RW[(p0+k)*4+2],oR=RW[(p0+k)*4+3],i=gi%n,i2=(i+1)%n;
         const tan=q=>{const a=r.closed?(q+1)%n:Math.min(n-1,q+1),b=r.closed?(q+n-1)%n:Math.max(0,q-1);let tx=r.X[a]-r.X[b],tz=r.Z[a]-r.Z[b];const tl=Math.hypot(tx,tz)||1;return[tx/tl,tz/tl]};
-        let[tx,tz]=tan(i),cx=r.X[i],cz=r.Z[i],y=r.Y[i],hw=r.hw*r.wk[i],mk=r.mk[i],cf=r.cf[i],sv=(gi==n?r.len:S[i]);
-        if(ft>0){const t2=tan(i2);tx+=(t2[0]-tx)*ft;tz+=(t2[1]-tz)*ft;const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;cx+=(r.X[i2]-cx)*ft;cz+=(r.Z[i2]-cz)*ft;y+=(r.Y[i2]-y)*ft;hw+=(r.hw*r.wk[i2]-hw)*ft;mk+=(r.mk[i2]-mk)*ft;cf+=(r.cf[i2]-cf)*ft;sv+=Math.hypot(r.X[i2]-r.X[i],r.Z[i2]-r.Z[i])*ft}
-        const nx=-tz,nz=tx,fl=r.lanes*16+r.style+.1+.8*mk;let L,DY,A;
+        let[tx,tz]=tan(i),cx=r.X[i],cz=r.Z[i],y=r.Y[i],hw=r.hw*r.wk[i],mk=r.mk[i],cf=r.cf[i],sv=(gi==n?r.len:S[i]),mm=med?r.mm[i]:0;
+        if(ft>0){const t2=tan(i2);tx+=(t2[0]-tx)*ft;tz+=(t2[1]-tz)*ft;const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;cx+=(r.X[i2]-cx)*ft;cz+=(r.Z[i2]-cz)*ft;y+=(r.Y[i2]-y)*ft;hw+=(r.hw*r.wk[i2]-hw)*ft;mk+=(r.mk[i2]-mk)*ft;if(med)mm+=(r.mm[i2]-mm)*ft;cf+=(r.cf[i2]-cf)*ft;sv+=Math.hypot(r.X[i2]-r.X[i],r.Z[i2]-r.Z[i])*ft}
+        const nx=-tz,nz=tx,fl=r.lanes*16+r.style+.1+.8*(med?Math.min(mk,mm):mk);let L,DY,A;
         if(sw){const hL=oL?CURB_H:-.03,hR=oR?CURB_H:-.03,eL=oL?CURB_H:-.14,eR=oR?CURB_H:-.14;
           L=[-(hw+sw+.4),-(hw+sw),-(hw+.04),-hw,hw,hw+.04,hw+sw,hw+sw+.4];DY=[-.5,eL,hL,0,0,hR,eR,-.5];A=[-(hw+sw),-(hw+sw),-(hw+.2),-hw,hw,hw+.2,hw+sw,hw+sw]}
         else{L=[-(hw+RSH+.5),-(hw+RSH),-hw,hw,hw+RSH,hw+RSH+.5];DY=[-.5,-.12,0,0,-.12,-.5];A=[-(hw+RSH),-(hw+RSH),-hw,hw,hw+RSH,hw+RSH]}
+        if(med){const k0=sw?4:3,mh=CURB_H*mm;L.splice(k0,0,-(MEDW+.07),-MEDW,MEDW,MEDW+.07);DY.splice(k0,0,0,mh,mh,0);A.splice(k0,0,-(MEDW+.07),-MEDW,MEDW,MEDW+.07)}   /* a 15 cm concrete top with a near-vertical curb face on each side (the road shader paints it) */
         for(let c=0;c<NR;c++){const o=(k*NR+c)*7,lt=L[c],x=cx+nx*lt,z=cz+nz*lt,yy=y+DY[c]+lt*cf;V[o]=x;V[o+1]=yy;V[o+2]=z;V[o+3]=A[c];V[o+4]=sv;V[o+5]=hw;V[o+6]=fl;
           if(x<bx0)bx0=x;if(x>bx1)bx1=x;if(yy<by0)by0=yy;if(yy>by1)by1=yy;if(z<bz0)bz0=z;if(z>bz1)bz1=z}}
       for(let k=0;k<cnt-1;k++)for(let c=0;c<NR-1;c++){const a=k*NR+c,b=a+1,cc=a+NR,d=cc+1;I.push(a,cc,b,b,cc,d)}
       /* the far version of the piece (used beyond R.roadLod): every second sample, no sidewalk-end rows, and three strips across (the sidewalk a ramp, the shoulder a slope): about a third of the triangles */
-      const n1=I.length,COL=sw?[1,3,4,6]:[0,2,3,5];let kp=0;
+      const n1=I.length,COL=(sw?[1,3,4,6]:[0,2,3,5]).map((c,q)=>med&&q>=2?c+4:c);let kp=0;
       for(let k=1;k<cnt;k++){const g=RW[(p0+k)*4],ft=RW[(p0+k)*4+1];if(k<cnt-1&&(ft>0||((g-g0)&1)))continue;
         for(let c=0;c<3;c++){const a=kp*NR+COL[c],b=kp*NR+COL[c+1],cc=k*NR+COL[c],d=k*NR+COL[c+1];I.push(a,cc,b,b,cc,d)}kp=k}
       out.push({V,I:new Uint16Array(I),n1,cx:(bx0+bx1)/2,cy:(by0+by1)/2,cz:(bz0+bz1)/2,rad:Math.hypot(bx1-bx0,by1-by0,bz1-bz0)/2+2});p0=p1}}
@@ -742,7 +747,7 @@ function buildQueries(){
   eachC(c=>ccnt[c+1]++);for(let k=0;k<cn*cn;k++)ccnt[k+1]+=ccnt[k];QH.cst=ccnt;QH.cli=new Int32Array(ccnt[cn*cn]);const f2=ccnt.slice(0,cn*cn);eachC((c,k)=>{QH.cli[f2[c]++]=k});QH.nR=nR;QH.nC=nC;
   QH.CR=new Float32Array(COLR);QH.CC=new Float32Array(COLC);QH.CO=new Float32Array(COLO)}
 /* nearest road surface under a point, filtered by height so overpasses and the road below do not mix */
-const RQ={on:0,y:0,lat:0,hw:0,tx:0,tz:0,nx:0,nz:0,rail:0,ri:0,br:0,ds:0,cb:0};
+const RQ={on:0,y:0,lat:0,hw:0,tx:0,tz:0,nx:0,nz:0,rail:0,ri:0,br:0,ds:0,cb:0,mm:0};
 function roadAt(x,z,yh){
   const cs=QH.cs,nc=QH.nc,cx=Math.floor((x+W.half)/cs),cz=Math.floor((z+W.half)/cs);if(cx<0||cz<0||cx>=nc||cz>=nc)return false;
   const c=cz*nc+cx;let found=false,bestL=1e9,bestF=1e9,fl=false;
@@ -753,7 +758,7 @@ function roadAt(x,z,yh){
       const ax=r.X[i],az=r.Z[i],dx=r.X[j]-ax,dz=r.Z[j]-az,l2=dx*dx+dz*dz||1;let t=((x-ax)*dx+(z-az)*dz)/l2;t=t<0?0:t>1?1:t;
       const px=ax+dx*t,pz=az+dz*t,ex=x-px,ez=z-pz,d=Math.sqrt(ex*ex+ez*ez),sh=r.sw||RSH,hw=r.hw*(r.wk[i]+(r.wk[j]-r.wk[i])*t)+sh;if(d>hw)continue;
       const yy=r.Y[i]+(r.Y[j]-r.Y[i])*t;if(Math.abs(yy-yh)>tol)continue;
-      if(d<bestL){bestL=d;found=true;const l=Math.sqrt(l2),tx=dx/l,tz=dz/l;RQ.tx=tx;RQ.tz=tz;RQ.nx=-tz;RQ.nz=tx;RQ.lat=ex*RQ.nx+ez*RQ.nz;RQ.y=yy+RQ.lat*(r.cf[i]+(r.cf[j]-r.cf[i])*t);RQ.hw=hw-sh;RQ.rail=r.rail[i]&r.rail[j];RQ.ri=QH.segR[s];RQ.br=r.br[i];RQ.ds=r.S[i]+l*t}}}
+      if(d<bestL){bestL=d;found=true;const l=Math.sqrt(l2),tx=dx/l,tz=dz/l;RQ.tx=tx;RQ.tz=tz;RQ.nx=-tz;RQ.nz=tx;RQ.lat=ex*RQ.nx+ez*RQ.nz;RQ.y=yy+RQ.lat*(r.cf[i]+(r.cf[j]-r.cf[i])*t);RQ.hw=hw-sh;RQ.rail=r.rail[i]&r.rail[j];RQ.ri=QH.segR[s];RQ.br=r.br[i];RQ.ds=r.S[i]+l*t;RQ.mm=r.mm?r.mm[i]+(r.mm[j]-r.mm[i])*t:0}}}
   return found}
 /* ground height under a point (road surface if on a road at that level, else terrain) */
 /* RQ.cb = 1 when the spot is up on a sidewalk (behind a curb) */
@@ -761,4 +766,5 @@ function roadAt(x,z,yh){
 const RQS={soft:0};
 function groundAt(x,z,yh){const ty=terrainH(x,z);RQ.on=0;RQ.cb=0;if(roadAt(x,z,yh)){const over=Math.abs(RQ.lat)-RQ.hw;let y=RQ.y;
     if(over>0){const r=ROADS[RQ.ri];if(r.sw&&swOn(r,RQ.lat>0?1:0,RQ.ds)&&!(RQS.soft&&otherAsphalt(x,z,r,y,.2))){y+=CURB_H*Math.min(1,over/(RQS.soft?1:.04));RQ.cb=1}else y-=Math.min(over,RSH)/RSH*.12}
+    if(RQ.mm>.001){const dm=MEDW-Math.abs(RQ.lat);if(dm>0){y+=CURB_H*RQ.mm*Math.min(1,dm/(RQS.soft?1.25:.05));if(RQ.mm>.5)RQ.cb=1}}   /* (batch 33) the raised median: a gentle 1.25 m ramp for the wheels (RQS.soft; a curb's is 1 m, the median gets more because the car crosses two of them in a row), a rumble like a curb */
     if(y>ty-2.2){RQ.on=1;return y}}return ty}

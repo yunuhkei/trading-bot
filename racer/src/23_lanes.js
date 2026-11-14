@@ -118,8 +118,9 @@ function lgBuild(){
     for(let i=Math.round(step*.6);i<n-(r.closed?0:step*.5);i+=step){let p=-1;
       for(let d=0;d<step*.4&&p<0;d+=3)for(const c of[i+d,i-d]){if(c<14||c>n-15)continue;if(near(c)||r.br[c])continue;const e0=o[0][0];if(e0.V[c]<e0.lim*.9)continue;p=c;break}
       if(p<0)continue;
-      for(let di=0;di<2;di++){const dir=di?-1:1,e=o[di][0],op=o[1-di][0],ix=dir>0?p:n-1-p,ox=dir>0?n-1-p:p;
-        if(lgLink(e,ix-4,ix,op,ox+4,3))nX++}}});
+      let okx=0;for(let di=0;di<2;di++){const dir=di?-1:1,e=o[di][0],op=o[1-di][0],ix=dir>0?p:n-1-p,ox=dir>0?n-1-p:p;
+        if(lgLink(e,ix-4,ix,op,ox+4,3)){nX++;okx++}}
+      if(okx)(r.xov||(r.xov=[])).push(p)}});    /* (batch 33) r.xov: the samples where the median is open for a U-turn: the raised median is cut there */
   /* ---- a road end with only ONE way on (an L-shaped corner): the turn was given to the inner or the outer lane only, so the other lanes ended in nothing. Every lane gets it. ---- */
   ROADS.forEach((r,ri)=>{const o=LG.ofRoad[ri];if(!o||r.closed)return;
     for(let di=0;di<2;di++){const ends=[];for(const e of o[di])for(const l of e.out)if(l.foot>=e.n-4)ends.push(l);if(!ends.length)continue;
