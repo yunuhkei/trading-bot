@@ -13,10 +13,11 @@ function uiInit(){
     if(MENU.open){if(!menuTap(x,y))UI.touches.set(id,{type:'gcam',lx:x,ly:y});else UI.touches.set(id,{type:'none'});return}   /* (batch 21: a drag off the buttons turns the garage camera) */
     if(evTap(x,y)){UI.touches.set(id,{type:'none'});return}
     for(const b of UI.btn){const hit=b.circle?Math.hypot(x-b.cx,y-b.cy)<=b.circle:(x>=b.x-8&&x<=b.x+b.w+8&&y>=b.y-8&&y<=b.y+b.h+8);if(hit){UI.touches.set(id,{type:'btn',b});b.on=1;b.act&&b.act(1);return}}
+    if(WHL.on&&UI.wh&&x<UI.w*.62){const dx=x-UI.wh.cx,dy=y-UI.wh.cy;if(Math.hypot(dx,dy)<=UI.wh.R*1.5){const t={type:'wheel',la:Math.atan2(dy,dx)};UI.touches.set(id,t);WHL.grab=t;return}UI.touches.set(id,{type:'look',lx:x,ly:y});return}   /* (batch 48: with the wheel on, a touch on it grabs it; elsewhere on the left only looks around) */
     if(x<UI.w*.55){const t={type:'stick',x0:x,y0:y,x:x,y:y,lx:x,ly:y};UI.touches.set(id,t);UI.stickT=t;return}
     UI.touches.set(id,{type:'look',lx:x,ly:y})};   /* a drag on the free part of the right side looks around (when the car is stopped) */
-  const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&t.type=='gcam'){MENU.userCam=1;MENU.camA-=(x-t.lx)*.009;MENU.camP=clamp((MENU.camP||0)+(y-t.ly)*.005,-.05,.75);t.lx=x;t.ly=y;return}if(t&&(t.type=='stick'||t.type=='look')){UI.lookDX=(UI.lookDX||0)+x-t.lx;UI.lookDY=(UI.lookDY||0)+y-t.ly;t.lx=x;t.ly=y}if(t&&t.type=='stick'){t.x=x;t.y=y}else if(t&&t.type=='map')mapMove(id,x,y)};
-  const up=(id)=>{const t=UI.touches.get(id);if(t&&t.type=='map')mapUp(id);if(t&&t.type=='btn'){t.b.on=0;t.b.act&&t.b.act(0)}if(t&&t===UI.stickT)UI.stickT=null;UI.touches.delete(id)};
+  const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&t.type=='wheel'){const a=Math.atan2(y-UI.wh.cy,x-UI.wh.cx);let d=a-t.la;if(d>Math.PI)d-=TAU;else if(d<-Math.PI)d+=TAU;t.la=a;WHL.rot=clamp(WHL.rot+d,-WHL.MAX,WHL.MAX);return}if(t&&t.type=='gcam'){MENU.userCam=1;MENU.camA-=(x-t.lx)*.009;MENU.camP=clamp((MENU.camP||0)+(y-t.ly)*.005,-.05,.75);t.lx=x;t.ly=y;return}if(t&&(t.type=='stick'||t.type=='look')){UI.lookDX=(UI.lookDX||0)+x-t.lx;UI.lookDY=(UI.lookDY||0)+y-t.ly;t.lx=x;t.ly=y}if(t&&t.type=='stick'){t.x=x;t.y=y}else if(t&&t.type=='map')mapMove(id,x,y)};
+  const up=(id)=>{const t=UI.touches.get(id);if(t&&t.type=='map')mapUp(id);if(t&&t.type=='btn'){t.b.on=0;t.b.act&&t.b.act(0)}if(t&&t===UI.stickT)UI.stickT=null;if(t&&t===WHL.grab)WHL.grab=null;UI.touches.delete(id)};
   const opt={passive:false};
   cv.addEventListener('wheel',e=>{if(UI.mapOpen){e.preventDefault();mapWheel(e.offsetX,e.offsetY,e.deltaY)}else if(MENU.open){e.preventDefault();MENU.userCam=1;MENU.camD=clamp((MENU.camD||8.4)*(e.deltaY>0?1.08:1/1.08),4.5,9)}},opt);
   cv.addEventListener('touchstart',e=>{tp(e);for(const t of e.changedTouches)down(t.identifier,t.cx,t.cy);audioStart()},opt);
@@ -26,7 +27,7 @@ function uiInit(){
   let md=false;cv.addEventListener('mousedown',e=>{md=true;down('m',e.offsetX,e.offsetY);audioStart()});window.addEventListener('mousemove',e=>{if(md){const r=cv.getBoundingClientRect();move('m',e.clientX-r.left,e.clientY-r.top)}});window.addEventListener('mouseup',()=>{if(md){md=false;up('m')}});
   const K=UI.keys;window.addEventListener('keydown',e=>{K[e.code]=1;if(CC.on&&!e.repeat)crashSkip();if((e.code=='ShiftLeft'||e.code=='ShiftRight'||e.code=='KeyN')&&!e.repeat)nitroTap();if(e.code=='KeyR')IN.respawn=1;if(e.code=='KeyF'){UI.showStats=!UI.showStats}if((e.code=='KeyP'||e.code=='Escape')&&!MENU.open){if(UI.paused)pauseClose();else pauseOpen()}if(e.code=='KeyG')IN.auto=!IN.auto;if(e.code=='KeyM'){if(UI.mapOpen)UI.mapOpen=false;else mapOpenNow()}if(MENU.open){menuKey(e.code);e.preventDefault()}else if(e.code=='KeyC')garageEnter();audioStart();if(/Arrow|Space/.test(e.code))e.preventDefault()});
   window.addEventListener('keyup',e=>{K[e.code]=0});
-  window.addEventListener('blur',()=>{for(const k in K)K[k]=0;UI.touches.clear();UI.stickT=null;UI.btn.forEach(b=>b.on=0)});
+  window.addEventListener('blur',()=>{for(const k in K)K[k]=0;UI.touches.clear();UI.stickT=null;WHL.grab=null;UI.btn.forEach(b=>b.on=0)});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)UI.paused=true});
   uiLayout()}
 /* tap = boost on (needs some nitro in the tank), tap again = off */
@@ -56,6 +57,7 @@ function uiInputs(dt){
   let gas=K.ArrowUp||K.KeyW?1:0,brk=K.ArrowDown||K.KeyS?1:0;
   let tstick=UI.stickT;
   if(tstick){const R2=Math.max(46,UI.w*.075);st+=clamp((tstick.x-tstick.x0)/R2,-1,1)}
+  if(WHL.on){if(!WHL.grab)WHL.rot*=Math.exp(-dt*6);if(Math.abs(WHL.rot)<.002)WHL.rot=0;st+=WHL.rot/WHL.MAX}   /* (batch 48) the wheel: its turn is the steering, and it springs back to centre */
   /* steering response: eases in so small thumb movements are gentle */
   const target=clamp(st,-1,1),sh=Math.sign(target)*Math.pow(Math.abs(target),1.25);
   C.steer+=(sh-C.steer)*Math.min(1,dt*(Math.abs(sh)>Math.abs(C.steer)?20:26));

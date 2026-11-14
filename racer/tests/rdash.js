@@ -30,7 +30,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     return o});
   console.log(JSON.stringify(r));
   ok(r.ids=='brake,drift,gas,map,nitro,pause','1 the HUD has the hazard pause, the pedals, drift, nitro and the map ('+r.ids+'); the old top-right bar is gone');
-  ok(r.paused&&r.ctl=='drive,fps,assist,lane,units,garage,map,reset,gfx,sky','2 pause opens the console: '+r.ctl);
+  ok(r.paused&&r.ctl=='drive,fps,assist,lane,units,wheel,garage,map,reset,gfx,sky','2 pause opens the console (batch 48: with the WHEEL switch): '+r.ctl);
   ok(r.fps&&r.assist&&r.gfx=='high'&&r.gfx2=='auto'&&r.sky=='sunset'&&r.resumed,'2 the rockers switch FPS and assist, the knobs set graphics ('+r.gfx+') and sky ('+r.sky+'), DRIVE resumes');
   ok(r.route&&/ROUTE SET/.test(r.toast),'3 GARAGE on the road sets the route to the nearest garage ("'+r.toast+'")');
   ok(r.card=='HOME GARAGE'&&r.btns=='ENTER GARAGE/EVENTS/DRIVE ON','4 parked on the home garage pad: '+r.card+' ('+r.btns+')');

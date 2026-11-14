@@ -61,4 +61,8 @@ function randomStart(){const ok=ROADS.filter(r=>r.style!=2&&r.style!=5&&r.len>30
   return null}
 /* lane assist on or off (batch 22), saved; the game starts with it on */
 function laneSet(on){IN.lane=!!on;try{localStorage.setItem('racer.lane',on?'1':'0')}catch(e){}}
+/* (batch 48) steering: the thumb-stick that appears where you touch (default), or an on-screen steering wheel (the WHEEL rocker in the pause console, saved; ?wheel=1 forces it). The wheel turns with the thumb round its centre, up to 120 degrees each way, and springs back when you let go. */
+const WHL={on:0,rot:0,grab:null,MAX:2.1};
+try{const q=new URLSearchParams(location.search).get('wheel');WHL.on=(q!=null?q:localStorage.getItem('racer.wheel'))==='1'?1:0}catch(e){}
+function wheelSet(on){WHL.on=on?1:0;WHL.rot=0;WHL.grab=null;UI.stickT=null;try{localStorage.setItem('racer.wheel',on?'1':'0')}catch(e){}}
 function laneLoad(){let v=null;try{v=localStorage.getItem('racer.lane')}catch(e){}IN.lane=v==null?true:v==='1'}
