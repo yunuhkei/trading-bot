@@ -75,10 +75,10 @@ const SH={
    'if(par.x>.5&&par.y<.5)hc=.5*(Hn(p-vec2(c,0.))+Hn(p+vec2(c,0.)));else if(par.y>.5&&par.x<.5)hc=.5*(Hn(p-vec2(0.,c))+Hn(p+vec2(0.,c)));else if(par.x>.5&&par.y>.5)hc=.5*(Hn(p-vec2(c,c))+Hn(p+vec2(c,c)));'+
    'h=mix(h,hc,k);}'+
   'float cn=c*(1.+k);vec3 n=vec3(Hn(p-vec2(cn,0.))-Hn(p+vec2(cn,0.)),2.*cn,Hn(p-vec2(0.,cn))-Hn(p+vec2(0.,cn)));vN=n;vK=k;vW=vec3(p.x,h,p.y);gl_Position=uVP*vec4(vW,1.);}',
- terF:PRE+'varying vec3 vW;varying vec3 vN;varying float vK;uniform vec3 uHole;uniform sampler2D uCol,uNz;uniform float uHalf;\n'+ENVSRC+SHSRC+CSHSRC+
+ terF:PRE+'varying vec3 vW;varying vec3 vN;varying float vK;uniform vec3 uHole;uniform sampler2D uCol,uNz,uPg;uniform float uHalf;\n'+ENVSRC+SHSRC+CSHSRC+
  'void main(){if(abs(vW.x-uHole.x)<uHole.z&&abs(vW.z-uHole.y)<uHole.z)discard;vec3 n=normalize(vN);vec2 uv=(vW.xz+uHalf)/(2.*uHalf);vec3 a=texture2D(uCol,uv).rgb;a=a*a;'+
   'float dist=length(vW-uCam);float dt=exp(-dist*.0035);float n1=texture2D(uNz,vW.xz*.11).r,n2=texture2D(uNz,vW.xz*.0123).g,n3=texture2D(uNz,vW.xz*.7).b;'+
-  'a*=1.+(((n1-.5)*.55+(n2-.5)*.5)*dt+(n3-.5)*.3*exp(-dist*.02));'+
+  'a*=1.+(((n1-.5)*.55+(n2-.5)*.5)*dt+(n3-.5)*.3*exp(-dist*.02));\n#if LOOK>0\na*=mix(vec3(1.),texture2D(uPg,vW.xz*.23).rgb*texture2D(uPg,vW.xz*.051+.3).rgb*4.,.85*exp(-dist*.004));\n#endif\n'+
   /* grass: patches of yellower and deeper green, blades and clumps close up, bumps that catch the sun */
   '\n#ifdef DET\nfloat gr=smoothstep(.0,.07,a.g-a.r*1.05);float hp=texture2D(uNz,vW.xz*.0043).b,hq=texture2D(uNz,vW.xz*.019).r;a=mix(a,a*mix(vec3(1.1,1.0,.76),vec3(.84,1.0,1.08),hp),gr*.7*(.5+.5*dt));a*=1.+(hq-.5)*.35*gr;\n'+
   'float bl=texture2D(uNz,vW.xz*2.3).g,bl2=texture2D(uNz,vW.xz*6.1).r;a*=1.+((bl-.5)*.55+(bl2-.5)*.4)*exp(-dist*.03)*(.35+.65*gr);\n'+
@@ -105,10 +105,10 @@ const SH={
   'float al=clamp(.45+dp*.35,0.,1.)*smoothstep(0.,.25,dp+.05);col=fogm(col,vW);gl_FragColor=vec4(tone(col),al);}',
  /* ---- road ribbon: markings are analytic (no texture), a = (lateral m, along m, half width, lanes*16+style) ---- */
  rdV:'attribute vec3 aP;attribute vec4 aA;uniform mat4 uVP;varying vec3 vW;varying vec4 vA;void main(){vW=aP;vA=aA;gl_Position=uVP*vec4(aP,1.);}',
- rdF:PRE+'varying vec3 vW;varying vec4 vA;uniform sampler2D uNz;uniform float uWet;\n#ifndef NL\n#define NL 4\n#endif\nuniform vec4 uLt[NL];uniform vec3 uLc[NL];\n'+ENVSRC+SHSRC+CSHSRC+
+ rdF:PRE+'varying vec3 vW;varying vec4 vA;uniform sampler2D uNz,uPh;uniform float uWet;\n#ifndef NL\n#define NL 4\n#endif\nuniform vec4 uLt[NL];uniform vec3 uLc[NL];\n'+ENVSRC+SHSRC+CSHSRC+
  'float ln(float x,float c,float w,float aa){return 1.-smoothstep(w,w+aa,abs(x-c));}\n'+
  'void main(){float x=vA.x,v=vA.y,hw=vA.z,fl=vA.w;float lanes=floor(fl/16.);float ax=abs(x);float dist=length(vW-uCam);float aa=.05+dist*.0009;'+
-  'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;\n#if LOOK>0\nasph*=1.5;\n#endif\n#ifdef DET\n#if LOOK>0\nasph*=.86+.28*texture2D(uNz,vW.xz*.0062).b;\n#endif\n'+
+  'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;\n#if LOOK>0\nasph*=mix(vec3(1.),texture2D(uPh,vW.xz*.36).rgb*texture2D(uPh,vW.xz*.083+.37).rgb*4.,.9);asph*=1.5;\n#endif\n#ifdef DET\n#if LOOK>0\nasph*=.86+.28*texture2D(uNz,vW.xz*.0062).b;\n#endif\n'+
   /* aggregate grain, darker repair patches, hairline cracks, seams across the road */
   'float g1=texture2D(uNz,vW.xz*1.9).b,g2=texture2D(uNz,vW.xz*5.3).g;asph*=1.+((g1-.5)*.6+(g2-.5)*.5)*exp(-dist*.03);asph*=1.-smoothstep(.62,.7,texture2D(uNz,vW.xz*.021+.3).r)*.26;\n'+
   'float cr=abs(texture2D(uNz,vW.xz*.13).g-.5);asph*=1.-(1.-smoothstep(.0,.011,cr))*smoothstep(.46,.6,texture2D(uNz,vW.xz*.011).r)*exp(-dist*.05)*.55;\n'+
@@ -157,8 +157,8 @@ const SH={
   'void main(){vec3 p=aP;vec3 nn=aN.xyz;if(aU.x>9999.){float id=aU.x-10000.;for(int i=0;i<8;i++){if(abs(uKO[i].x-id)<.5){vec3 b=vec3(uKO[i].y,uKO2[i].z,uKO[i].z),q=p-b;vec2 d=vec2(cos(uKO2[i].x),sin(uKO2[i].x));float a=uKO2[i].y,c=cos(a),s=sin(a);'+
   'float h=dot(q.xz,d),h2=h*c+q.y*s;q.y=-h*s+q.y*c;q.xz+=d*(h2-h);p=b+q;float nh=dot(nn.xz,d),nh2=nh*c+nn.y*s;nn.y=-nh*s+nn.y*c;nn.xz+=d*(nh2-nh);}}}'+
   'float sw=aC.a*step(.3,aN.w)*step(aN.w,.7);p.x+=(sin(uT*1.9+aP.x*.31+aP.z*.17)*.11+sin(uT*3.7+aP.z*.9)*.03)*sw;p.z+=cos(uT*1.6+aP.z*.27+aP.x*.1)*.09*sw;p.y+=sin(uT*2.3+aP.x*.5)*.025*sw;vW=p;vN=nn;vC=aC.rgb*aC.rgb;vU=aU;vE=aN.w;gl_Position=uVP*vec4(p,1.);}',
- prF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;uniform sampler2D uWin,uFol;uniform float uNight;\n'+ENVSRC+
- 'void main(){vec3 n=normalize(vN);float isw=step(.8,vE),em=step(vE,-.5),fol=step(.3,vE)*step(vE,.7);vec4 w=texture2D(uWin,vU);vec3 alb=vC*mix(vec3(1.),w.rgb,isw);\n'+
+ prF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;uniform sampler2D uWin,uFol,uFc;uniform float uNight;\n'+ENVSRC+
+ 'void main(){vec3 n=normalize(vN);float isw=step(.8,vE),em=step(vE,-.5),fol=step(.3,vE)*step(vE,.7);vec4 w=texture2D(uWin,vU);\n#if LOOK>0\nif(isw>.5&&vE<.97){float ft=vE>.92?0.:(vE>.865?1.:2.);vec2 fuv=(fract(vU*vec2(.085,.125))*.94+.03+vec2(mod(ft,2.),floor(ft/2.)))*.5;float pl=texture2D(uFc,fuv).r;w=vec4(vec3(mix(.30,.92,pl)),ft>1.5?.88:1.-smoothstep(.40,.60,pl));}\n#endif\nvec3 alb=vC*mix(vec3(1.),w.rgb,isw);\n'+
   /* foliage: the leaf atlas, cut out; lit like a ball (wrapped), glowing a little when the sun is behind it */
   'if(fol>.5){vec4 f=texture2D(uFol,vU);if(f.a<.5)discard;alb=vC*f.rgb*1.9;\n#if LOOK>0\nalb=mix(vec3(dot(alb,vec3(.3,.5,.2))),alb,.72)*vec3(.95,1.,.78)*.8;\n#endif\n}\n'+
   'float nl=max(dot(n,uSun),0.);nl=mix(nl,clamp(dot(n,uSun)*.8+.3,0.,1.),fol);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=alb*irr;col+=alb*uSunC*pow(max(dot(normalize(vW-uCam),uSun),0.),3.)*.3*fol;'+
@@ -274,6 +274,11 @@ function mkTex(w,h,data,o){o=o||{};const gl=G.gl,t=gl.createTexture();gl.bindTex
  const mip=!!o.mip;gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,mip?gl.LINEAR_MIPMAP_LINEAR:(o.near?gl.NEAREST:gl.LINEAR));gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,o.near?gl.NEAREST:gl.LINEAR);
  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,o.repeat?gl.REPEAT:gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,o.repeat?gl.REPEAT:gl.CLAMP_TO_EDGE);
  if(mip){gl.generateMipmap(gl.TEXTURE_2D);if(G.anExt&&o.aniso)gl.texParameterf(gl.TEXTURE_2D,G.anExt.TEXTURE_MAX_ANISOTROPY_EXT,Math.min(4,G.maxAniso))}return t}
+/* (batch 47) photo textures (CC0 from Poly Haven, see README) embedded by build.py as data URLs; a neutral grey stands in until the image has decoded */
+const TEXB64={/*TEXB64*/};
+function mkTexImg(name,o){const gl=G.gl,t=mkTex(1,1,new Uint8Array([128,128,128,255]),Object.assign({repeat:1},o||{})),src=TEXB64[name];if(!src)return t;
+  const im=new Image();im.onload=()=>{try{gl.bindTexture(gl.TEXTURE_2D,t);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.generateMipmap(gl.TEXTURE_2D);
+    if(G.anExt&&G.maxAniso)gl.texParameterf(gl.TEXTURE_2D,G.anExt.TEXTURE_MAX_ANISOTROPY_EXT,Math.min(4,G.maxAniso));BOOT.texLoaded=(BOOT.texLoaded||0)+1}catch(e){}};im.src=src;return t}
 function bindTex(unit,t){const gl=G.gl;gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,t)}
 /* enable exactly the first n vertex attributes */
 let _attrOn=0;function attrs(n){const gl=G.gl;for(let i=0;i<Math.max(n,_attrOn);i++){if(i<n)gl.enableVertexAttribArray(i);else gl.disableVertexAttribArray(i)}_attrOn=n}

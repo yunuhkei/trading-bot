@@ -4,7 +4,7 @@
 class MB{constructor(){this.cap=512;this.f=new Float32Array(this.cap*7);this.u=new Uint8Array(this.f.buffer);this.s=new Int8Array(this.f.buffer);this.n=0;this.ix=new Uint16Array(this.cap*4);this.ni=0;
   this.x0=1e9;this.x1=-1e9;this.y0=1e9;this.y1=-1e9;this.z0=1e9;this.z1=-1e9}
  grow(){const c=this.cap*2,f=new Float32Array(c*7);f.set(this.f);this.f=f;this.u=new Uint8Array(f.buffer);this.s=new Int8Array(f.buffer);this.cap=c;const ix=new Uint16Array(c*4);ix.set(this.ix);this.ix=ix}
- v(x,y,z,nx,ny,nz,r,g,b,u,v,w,al){if(this.n>=this.cap)this.grow();if(PROP_TAG){u=PROP_TAG;v=0}const o=this.n*7,B=this.n*28;this.f[o]=x;this.f[o+1]=y;this.f[o+2]=z;this.s[B+12]=Math.round(nx*127);this.s[B+13]=Math.round(ny*127);this.s[B+14]=Math.round(nz*127);this.s[B+15]=w===2?-127:(w===3?64:(w?127:0));
+ v(x,y,z,nx,ny,nz,r,g,b,u,v,w,al){if(this.n>=this.cap)this.grow();if(PROP_TAG){u=PROP_TAG;v=0}const o=this.n*7,B=this.n*28;this.f[o]=x;this.f[o+1]=y;this.f[o+2]=z;this.s[B+12]=Math.round(nx*127);this.s[B+13]=Math.round(ny*127);this.s[B+14]=Math.round(nz*127);this.s[B+15]=w===2?-127:(w===3?64:(w===4?120:(w===5?113:(w===6?106:(w?127:0)))));
   this.u[B+16]=r;this.u[B+17]=g;this.u[B+18]=b;this.u[B+19]=al==null?255:al;this.f[o+5]=u;this.f[o+6]=v;
   if(x<this.x0)this.x0=x;if(x>this.x1)this.x1=x;if(y<this.y0)this.y0=y;if(y>this.y1)this.y1=y;if(z<this.z0)this.z0=z;if(z>this.z1)this.z1=z;return this.n++}
  t(a,b,c){if(this.ni+3>this.ix.length){const ix=new Uint16Array(this.ix.length*2);ix.set(this.ix);this.ix=ix}this.ix[this.ni++]=a;this.ix[this.ni++]=b;this.ix[this.ni++]=c}
@@ -346,12 +346,12 @@ function buildCity(){LMK.clear();buildGarageRoom();
       at3(.22,.06,tg+.12,tg+2.4,w*.3,.55,52,38,32,false);at3(.2,.05,tg+.12,tg+2.45,w*.3,.7,86,66,52,false);at3(.14,.09,tg+3.35,tg+3.95,0,w*.42,col[0]*.9,col[1]*.9,col[2]*.9,false)}   /* a painted board: the lit flag (2) is a neon, white-hot even by day */
     if(h>=12)pboxR(1,cx,cz,hx+.2,hz+.2,cs,sn,gy+h-.3,gy+h+.2,Math.min(255,c[0]*1.08+8),Math.min(255,c[1]*1.08+8),Math.min(255,c[2]*1.08+8),false,.9)};
   /* (batch 45) facade detail, High only (category 3, no triangle cap): corner piers, a parapet, cornice bands every four floors, window fins on the tall ones (on the tile edges, so they stand between the windows) and a stepped crown with a mast on the highest */
-  const facade=(cx,cz,hx,hz,cs,sn,y0,y1,c,full,nocrown)=>{BOOT.facades=(BOOT.facades||0)+1;const h=y1-y0,lt=[c[0]*.86,c[1]*.86,c[2]*.88],dk=[c[0]*.98,c[1]*.98,c[2]*1.0],
+  const facade=(cx,cz,hx,hz,cs,sn,y0,y1,c,full,nocrown,fins)=>{BOOT.facades=(BOOT.facades||0)+1;const h=y1-y0,lt=[c[0]*.86,c[1]*.86,c[2]*.88],dk=[c[0]*.98,c[1]*.98,c[2]*1.0],
       at=(lx,lz,ax,az,ya,yb,k)=>pboxR(3,cx+lx*cs-lz*sn,cz+lx*sn+lz*cs,ax,az,cs,sn,ya,yb,k[0],k[1],k[2],false,.9);
     for(const sx of[-1,1])for(const sz of[-1,1])at(sx*hx,sz*hz,.34,.34,y0,y1,lt);
     at(0,hz,hx,.22,y1,y1+.9,lt);at(0,-hz,hx,.22,y1,y1+.9,lt);at(hx,0,.22,hz,y1,y1+.9,lt);at(-hx,0,.22,hz,y1,y1+.9,lt);
     for(let y=y0+13.6;y<y1-3;y+=13.6){at(0,hz,hx+.1,.3,y,y+.4,lt);at(0,-hz,hx+.1,.3,y,y+.4,lt);at(hx,0,.3,hz+.1,y,y+.4,lt);at(-hx,0,.3,hz+.1,y,y+.4,lt)}
-    if(full){const ya=y0+3.4,yb=y1-.6,f4=(lx,lz,ax,az)=>pboxR(4,cx+lx*cs-lz*sn,cz+lx*sn+lz*cs,ax,az,cs,sn,ya,yb,dk[0],dk[1],dk[2],false,.9);for(let u=3.2;u<hx*2-1;u+=3.2){f4(-hx+u,hz,.12,.19);f4(hx-u,-hz,.12,.19)}for(let u=3.2;u<hz*2-1;u+=3.2){f4(hx,hz-u,.19,.12);f4(-hx,-hz+u,.19,.12)}}
+    if(full&&fins!==false){const ya=y0+3.4,yb=y1-.6,f4=(lx,lz,ax,az)=>pboxR(4,cx+lx*cs-lz*sn,cz+lx*sn+lz*cs,ax,az,cs,sn,ya,yb,dk[0],dk[1],dk[2],false,.9);for(let u=3.2;u<hx*2-1;u+=3.2){f4(-hx+u,hz,.12,.19);f4(hx-u,-hz,.12,.19)}for(let u=3.2;u<hz*2-1;u+=3.2){f4(hx,hz-u,.19,.12);f4(-hx,-hz+u,.19,.12)}}
     if(full&&h>60&&!nocrown){const q=h*.05;at(0,0,hx*.64,hz*.64,y1+.9,y1+.9+q,lt);at(0,0,hx*.34,hz*.34,y1+.9+q,y1+.9+q*2,dk);at(0,0,.18,.18,y1+.9+q*2,y1+.9+q*2+Math.min(26,h*.14),[200,204,210])}};
   /* an iron fire escape up one wall of a brick or stucco mid-rise: landings with rails, zig-zag stairs */
   const fireEscape=(cx,cz,hx,hz,cs,sn,gy,h,hs)=>{BOOT.escapes=(BOOT.escapes||0)+1;const side=((hs*9973)|0)&3,ax=side&1,sg=side<2?1:-1,len=ax?hz:hx,off=((hs*7919)%1-.5)*len*.7,nf=Math.min(9,Math.floor((h-2)/3.4)),I=[44,46,52],
@@ -359,12 +359,14 @@ function buildCity(){LMK.clear();buildGarageRoom();
       box=(d,u,hd,hu,ya,yb)=>{const p=W(d,u);pboxR(4,p[0],p[1],ax?hd:hu,ax?hu:hd,cs,sn,ya,yb,I[0],I[1],I[2],false,1)};
     for(let k=1;k<=nf;k++){const y=gy+3.4*k;box(.7,0,.7,1.3,y,y+.1);box(1.38,0,.03,1.3,y+.55,y+.62);box(1.38,0,.03,1.3,y+1.05,y+1.12);box(1.38,-1.28,.03,.03,y,y+1.12);box(1.38,1.28,.03,.03,y,y+1.12);
       if(k<nf){const a=k&1?-1:1,p0=W(1.1,-a*1.1),p1=W(1.1,a*1.1);for(const dd of[-.25,.25]){const q0=W(1.1+dd,-a*1.1),q1=W(1.1+dd,a*1.1);pbar(4,q0[0],y+.1,q0[1],q1[0],y+3.4,q1[1],.05,I[0],I[1],I[2])}void p0;void p1}}};
-  const bld=(cx,cz,hx,hz,cs,sn,h,c,win)=>{const gy=gmin(cx,cz,hx,hz,cs,sn);pboxR(1,cx,cz,hx,hz,cs,sn,gy-1.5,gy+h,c[0],c[1],c[2],win!==false,.62);reg(cx,cz,hx,hz,cs,sn,gy+h);nb++;
+  /* (batch 47) which wall a building gets: true = the procedural window tile, 4 / 5 / 6 = a photographed facade (ambientCG, CC0): glass and concrete, brick with windows, glass tiles; tall buildings favour the glass ones (a hash of the place, not the world stream) */
+  const ftype=(cx,cz,h)=>{const r=Math.abs(Math.sin(cx*17.31+cz*5.77)*43758.5453)%1;return h>=28?(r<.4?4:r<.7?6:5):h>=12?(r<.34?5:r<.5?4:true):true};
+  const bld=(cx,cz,hx,hz,cs,sn,h,c,win)=>{const gy=gmin(cx,cz,hx,hz,cs,sn),ft=win!==false?ftype(cx,cz,h):false;pboxR(1,cx,cz,hx,hz,cs,sn,gy-1.5,gy+h,c[0],c[1],c[2],ft,.62);reg(cx,cz,hx,hz,cs,sn,gy+h);nb++;
     /* air-conditioning boxes, a stair head and a tank on the roof of the taller buildings */
     if(h>=9&&win!==false&&hx>2.5&&hz>2.5){const k=1+((roofRng()*3)|0);for(let q=0;q<k;q++){const lx=(roofRng()-.5)*hx*1.3,lz=(roofRng()-.5)*hz*1.3,wx=cx+lx*cs-lz*sn,wz=cz+lx*sn+lz*cs,s1=Math.min(hx*.4,.8+roofRng()*1.4),s2=Math.min(hz*.4,.7+roofRng()*1.2),hh=.8+roofRng()*1.8;pboxR(1,wx,wz,s1,s2,cs,sn,gy+h,gy+h+hh,150+roofRng()*20,152+roofRng()*16,156,false,.8)}}
     if(h>=7&&win!==false&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0))&&nrng()<.7)neon(cx,cz,hx,hz,cs,sn,gy,h);
     if(h>=9&&win!==false&&hx>3&&hz>3&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0)))shops(cx,cz,hx,hz,cs,sn,gy,h,c);
-    if(h>=9&&win!==false&&hx>3&&hz>3){facade(cx,cz,hx,hz,cs,sn,gy,gy+h,c,h>=18);const hs=Math.abs(Math.sin(cx*12.9898+cz*78.233)*43758.5453)%1;if(h>=12&&h<40&&hs<.4&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0)))fireEscape(cx,cz,hx,hz,cs,sn,gy,h,hs)}
+    if(h>=9&&win!==false&&hx>3&&hz>3){facade(cx,cz,hx,hz,cs,sn,gy,gy+h,c,h>=18,false,ft===true);const hs=Math.abs(Math.sin(cx*12.9898+cz*78.233)*43758.5453)%1;if(h>=12&&h<40&&hs<.4&&(inBox(cx,cz,CITY,0)||inBox(cx,cz,VALLEY,0)))fireEscape(cx,cz,hx,hz,cs,sn,gy,h,hs)}
     return gy};
   const treesIn=(B,n)=>{for(let k=0;k<n;k++){const u=lerp(B.u0+4,B.u1-4,rng()),v=lerp(B.v0+4,B.v1-4,rng()),p=B.W(u,v);if(nearRoadXZ(p[0],p[1],6))continue;ptree(p[0],p[1],rng,terrainH(p[0],p[1]),true);COLC.push(p[0],p[1],.55,terrainH(p[0],p[1])-.5,terrainH(p[0],p[1])+12)}};
   for(const g of GRIDS){
@@ -555,8 +557,9 @@ function buildCity(){LMK.clear();buildGarageRoom();
           if(!pyramid&&dcore<150&&a==0){pyramid=true;const gy=gmin(px,pz,hx0,hz0,cs,sn),hb=Math.min(hx0,hz0)-2;pboxR(1,px,pz,hb+4,hb+4,cs,sn,gy-1.5,gy+10,206,204,198,true,.7);ppyramid(1,px,pz,hb,gy+10,230,cs,sn);reg(px,pz,hb*.6,hb*.6,cs,sn,gy+120);nb++;continue}
           const ph=7+rng()*6,gy=bld(px,pz,hx0,hz0,cs,sn,Math.min(h,ph),[c[0]*.92,c[1]*.9,c[2]*.88]);const ins=1+rng()*4,ux=hx0-ins,uz=hz0-ins,yb0=gy+Math.min(h,ph),hsb=Math.abs(Math.sin(px*91.7+pz*17.3)*43758.5453)%1;
           /* (batch 45) the tall towers step back: a lower tier, then a narrower one (hash of the place, not the world stream) */
-          if(h-ph>46&&hsb<.6&&ux>8&&uz>8){const yt=yb0+(h-yb0+gy)*(.5+hsb*.3),k=.66+hsb*.12;pboxR(1,px,pz,ux,uz,cs,sn,yb0,yt,c[0],c[1],c[2],true,.62);pboxR(1,px,pz,ux*k,uz*k,cs,sn,yt,gy+h,c[0],c[1],c[2],true,.62);facade(px,pz,ux,uz,cs,sn,yb0,yt,c,true,true);facade(px,pz,ux*k,uz*k,cs,sn,yt,gy+h,c,true)}
-          else{pboxR(1,px,pz,ux,uz,cs,sn,yb0,gy+h,c[0],c[1],c[2],true,.62);if(h>ph+8&&ux>3&&uz>3)facade(px,pz,ux,uz,cs,sn,yb0,gy+h,c,true)}
+          const ft=ftype(px,pz,h);
+          if(h-ph>46&&hsb<.6&&ux>8&&uz>8){const yt=yb0+(h-yb0+gy)*(.5+hsb*.3),k=.66+hsb*.12;pboxR(1,px,pz,ux,uz,cs,sn,yb0,yt,c[0],c[1],c[2],ft,.62);pboxR(1,px,pz,ux*k,uz*k,cs,sn,yt,gy+h,c[0],c[1],c[2],ft,.62);facade(px,pz,ux,uz,cs,sn,yb0,yt,c,true,true,ft===true);facade(px,pz,ux*k,uz*k,cs,sn,yt,gy+h,c,true,false,ft===true)}
+          else{pboxR(1,px,pz,ux,uz,cs,sn,yb0,gy+h,c[0],c[1],c[2],ft,.62);if(h>ph+8&&ux>3&&uz>3)facade(px,pz,ux,uz,cs,sn,yb0,gy+h,c,true,false,ft===true)}
           reg(px,pz,ux,uz,cs,sn,gy+h);if(nrng()<.85)neon(px,pz,hx0,hz0,cs,sn,gy,Math.min(h,ph))}}
       else if(th>22||rng()<.6){/* Victorian row houses: narrow pastel fronts side by side */
         const depth=Math.min(17,wv/2-1.5);let maxH=0;

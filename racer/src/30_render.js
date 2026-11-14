@@ -90,7 +90,7 @@ function makeFoliageTex(){const S=128,T=64,o=new Uint8Array(S*S*4),rg=mulberry(2
   return o}
 function renderInit(){
   const gl=G.gl,N=R.N;
-  R.tex.h=mkTex(W.N,W.N,heightTexData(),{near:1});R.tex.col=mkTex(W.CN,W.CN,W.col,{});R.tex.nz=mkTex(128,128,makeNoiseTex(),{repeat:1,mip:1});R.tex.win=mkTex(128,128,makeWinTex(),{repeat:1,mip:1,aniso:1});R.tex.fol=mkTex(128,128,makeFoliageTex(),{mip:1,aniso:1});
+  R.tex.h=mkTex(W.N,W.N,heightTexData(),{near:1});R.tex.col=mkTex(W.CN,W.CN,W.col,{});R.tex.nz=mkTex(128,128,makeNoiseTex(),{repeat:1,mip:1});R.tex.ph=mkTexImg('asphalt',{mip:1});R.tex.gr=mkTexImg('ground',{mip:1});R.tex.fc=mkTexImg('facade',{mip:1});R.tex.win=mkTex(128,128,makeWinTex(),{repeat:1,mip:1,aniso:1});R.tex.fol=mkTex(128,128,makeFoliageTex(),{mip:1,aniso:1});
   /* terrain grid: (N+1)^2 vertices (i,j); full index list + a "ring" list that leaves out the middle (it is always covered by the finer level) */
   const vb=new Float32Array((N+1)*(N+1)*2);for(let j=0;j<=N;j++)for(let i=0;i<=N;i++){vb[(j*(N+1)+i)*2]=i;vb[(j*(N+1)+i)*2+1]=j}
   const full=[],ring=[];for(let j=0;j<N;j++)for(let i=0;i<N;i++){const a=j*(N+1)+i,b=a+1,c=a+N+1,d=c+1;full.push(a,c,b,b,c,d);if(!(i>=17&&i<47&&j>=17&&j<47))ring.push(a,c,b,b,c,d)}
@@ -123,7 +123,7 @@ function renderFrame(w,h,sky){
   const cx=R.cx,cz=R.cz;
   /* terrain clipmap, finest level first */
   let P=G.P.ter;gl.useProgram(P.p);setEnvU(P);setMapU(P);shdSetU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform1f(P.u.uHalf,W.half);
-  bindTex(0,R.tex.h);gl.uniform1i(P.u.uH,0);bindTex(1,R.tex.col);gl.uniform1i(P.u.uCol,1);bindTex(2,R.tex.nz);gl.uniform1i(P.u.uNz,2);
+  bindTex(0,R.tex.h);gl.uniform1i(P.u.uH,0);bindTex(1,R.tex.col);gl.uniform1i(P.u.uCol,1);bindTex(2,R.tex.nz);gl.uniform1i(P.u.uNz,2);bindTex(6,R.tex.gr);gl.uniform1i(P.u.uPg,6);
   gl.bindBuffer(gl.ARRAY_BUFFER,R.terVB);attrs(1);gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);
   let phx=0,phz=0,phh=0;
   for(let l=0;l<R.lv;l++){const c=W.T*(1<<l),sn=c*2,lx=Math.round(cx/sn)*sn,lz=Math.round(cz/sn)*sn;
@@ -131,13 +131,13 @@ function renderFrame(w,h,sky){
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,l?R.terRing:R.terIB);gl.drawElements(gl.TRIANGLES,l?R.ringN:R.fullN,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=(l?R.ringN:R.fullN)/3;
     phx=lx;phz=lz;phh=R.N*.5*c}
   /* roads */
-  P=G.P.rd;gl.useProgram(P.p);setEnvU(P);gfxSetRoadU(P);shdSetU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.nz);gl.uniform1i(P.u.uNz,0);attrs(2);gl.disable(gl.CULL_FACE);
+  P=G.P.rd;gl.useProgram(P.p);setEnvU(P);gfxSetRoadU(P);shdSetU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);bindTex(0,R.tex.nz);gl.uniform1i(P.u.uNz,0);bindTex(6,R.tex.ph);gl.uniform1i(P.u.uPh,6);attrs(2);gl.disable(gl.CULL_FACE);
   for(let i=0;i<R.roads.length;i++){const p=R.roads[i],dx=p.cx-cx,dz=p.cz-cz,d=Math.hypot(dx,dz);if(d>R.drawRoad+p.rad||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
     gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.FLOAT,false,28,12);
     /* a piece that is wholly further than R.roadLod is drawn from its lighter index list (stored after the full one) */
     const far=d-p.rad>R.roadLod,nn=far?p.n2:p.n;gl.drawElements(gl.TRIANGLES,nn,gl.UNSIGNED_SHORT,far?p.n*2:0);R.draws++;R.tris+=nn/3}
   /* props */
-  P=G.P.pr;gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uKO,KO.U1);gl.uniform4fv(P.u.uKO2,KO.U2);bindTex(0,R.tex.win);gl.uniform1i(P.u.uWin,0);bindTex(1,R.tex.fol);gl.uniform1i(P.u.uFol,1);gl.uniform1f(P.u.uT,R.time);gl.uniform1f(P.u.uNight,GFX.night);attrs(4);gl.enable(gl.CULL_FACE);
+  P=G.P.pr;gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uKO,KO.U1);gl.uniform4fv(P.u.uKO2,KO.U2);bindTex(0,R.tex.win);gl.uniform1i(P.u.uWin,0);bindTex(1,R.tex.fol);gl.uniform1i(P.u.uFol,1);bindTex(6,R.tex.fc);gl.uniform1i(P.u.uFc,6);gl.uniform1f(P.u.uT,R.time);gl.uniform1f(P.u.uNight,GFX.night);attrs(4);gl.enable(gl.CULL_FACE);
   for(let i=0;i<R.props.length;i++){const p=R.props[i],dist=R.drawProp[p.cat];if(!dist)continue;const dx=p.cx-cx,dz=p.cz-cz;if(dx*dx+dz*dz>(dist+p.rad)*(dist+p.rad)||!M4.sphereIn(R.PL,p.cx,p.cy,p.cz,p.rad))continue;
     gl.bindBuffer(gl.ARRAY_BUFFER,p.vb);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,p.ib);gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,28,12);gl.vertexAttribPointer(2,4,gl.UNSIGNED_BYTE,true,28,16);gl.vertexAttribPointer(3,2,gl.FLOAT,false,28,20);gl.drawElements(gl.TRIANGLES,p.n,gl.UNSIGNED_SHORT,0);R.draws++;R.tris+=p.n/3}
   /* the player's car (+ rivals later) */
