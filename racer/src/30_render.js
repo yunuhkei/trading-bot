@@ -7,7 +7,7 @@ const R={lv:6,N:64,tex:{},terVB:null,terIB:null,terRing:null,ringN:0,fullN:0,sky
    the clouds (lit and shaded colour, how much sky they cover), how wet the road is and how many windows are lit. ENV holds the current ones; envApply copies a preset in. */
 const ENVP={
  /* a clear afternoon (batch 46: the sun lower and warmer, so shadows are long and the light has a colour): warm sun, blue sky with scattered cloud, clean air, dry road, hard shadows */
- day:{label:'DAY',sun:[-.66,.44,-.60],sunC:[3.5,2.78,1.95],ambT:[.36,.52,.86],ambB:[.24,.19,.13],hor:[.60,.70,.94],zen:[.09,.25,.64],fog:1/3400,fogY:.0008,fogSun:.9,gr:[1.2,.8,.4,.92],clA:[1.2,1.2,1.2],clB:[.50,.58,.74],sk:[.42,.72,.04,0],sd:[1,1.3,.40,.28],wet:0,night:0,shadow:.85},
+ day:{label:'DAY',sun:[-.66,.44,-.60],sunC:[3.0,2.45,1.75],ambT:[.36,.52,.86],ambB:[.24,.19,.13],hor:[.60,.70,.94],zen:[.09,.25,.64],fog:1/3400,fogY:.0008,fogSun:.9,gr:[1.2,.8,.4,.92],clA:[1.2,1.2,1.2],clB:[.50,.58,.74],sk:[.42,.72,.04,0],sd:[1,1.3,.40,.28],wet:0,night:0,shadow:.85},
  /* the showroom (the car menu): a dark void, big soft light boxes overhead and at the sides that show as long highlights in the paint, a glossy floor */
  studio:{label:'STUDIO',sun:[.38,.78,.5],sunC:[1.5,1.48,1.46],ambT:[.42,.46,.58],ambB:[.08,.08,.1],hor:[.03,.034,.05],zen:[.01,.012,.022],fog:1/13,fogY:.0,fogSun:0,gr:[1.12,.4,.4,.95],clA:[.2,.2,.2],clB:[.1,.1,.1],sk:[2,3,0,0],sd:[0,0,.5,0],wet:.95,night:0,shadow:.7,stu:1},
  /* inside a garage (batch 19): warm even light from the ceiling, no sky, a little haze */

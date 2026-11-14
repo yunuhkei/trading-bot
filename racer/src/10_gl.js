@@ -12,7 +12,7 @@ const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uF
 'vec3 tone(vec3 c){c*=uGr.w*1.06;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.05)*.84),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));return mix(c,c*c*(3.-2.*c),.22);}\n'+
 '\n#elif LOOK==3\n'+
 /* Burnout: exposure up, vivid saturation, the filmic curve, a stronger S-curve, warm highlights over cool shadows */
-'vec3 tone(vec3 c){c*=uGr.w*1.03;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.25)*1.3),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));float g=dot(c,vec3(.3333));c*=mix(vec3(.93,.99,1.09),vec3(1.07,1.0,.9),smoothstep(.15,.8,g));return mix(c,c*c*(3.-2.*c),.36);}\n'+
+'vec3 tone(vec3 c){c*=uGr.w*1.03;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.25)*1.24),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));float g=dot(c,vec3(.3333));c*=mix(vec3(.93,.99,1.09),vec3(1.07,1.0,.9),smoothstep(.15,.8,g));return mix(c,c*c*(3.-2.*c),.3);}\n'+
 '\n#elif LOOK==2\n'+
 /* cinematic: teal shadows, orange highlights, a strong S-curve, lifted blacks, a little less saturation */
 'vec3 tone(vec3 c){c*=uGr.w*1.04;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,uGr.x*.88),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));'+
