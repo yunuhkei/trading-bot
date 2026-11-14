@@ -28,7 +28,7 @@ const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uF
 '\n#if LOOK>0\n'+
 /* aerial perspective: blue-grey in-scattering that builds with distance even in clear air, then the haze; a glow round the sun (Mie) that is warm, stronger in the cinematic look */
 'vec3 fogm(vec3 c,vec3 wp){vec3 d=wp-uCam;float L=length(d);vec3 v=d/max(L,1e-3);float k=uFogP.x;float hf=exp(-max(wp.y-uCam.y,0.)*uFogP.y*.8);float f=(1.-exp(-L*L*k*k))*hf;'+
- 'float mu=max(dot(v,uSun),0.);float mie=pow(mu,6.)*.5+pow(mu,48.)*.7;vec3 air=mix(uHor,uZen,.45);float ray=(1.-exp(-L*.00055))*hf;'+
+ 'float mu=max(dot(v,uSun),0.);float m2=mu*mu,m6=m2*m2*m2,m12=m6*m6,m24=m12*m12,m48=m24*m24;float mie=m6*.5+m48*.7;vec3 air=mix(uHor,uZen,.45);float ray=(1.-exp(-L*.00055))*hf;'+
  '\n#if LOOK==2\nvec3 fc=mix(uHor,uHor*.6+uSunC*.4,clamp(mie*1.6+.15,0.,1.));f=min(1.,f*1.15+ray*.25);c=mix(c,air,ray*.25);\n#else\nvec3 fc=mix(uHor,uHor*.75+uSunC*.22,clamp(mie*uFogP.z*1.3,0.,1.));c=mix(c,air*.95,ray*.5);\n#endif\n'+
  'return mix(c,fc,clamp(f,0.,1.));}\n'+
 '\n#else\n'+
@@ -84,11 +84,11 @@ const SH={
   'float bl=texture2D(uNz,vW.xz*2.3).g,bl2=texture2D(uNz,vW.xz*6.1).r;a*=1.+((bl-.5)*.55+(bl2-.5)*.4)*exp(-dist*.03)*(.35+.65*gr);\n'+
   'vec2 bp=vW.xz*1.35;float b0=texture2D(uNz,bp).r;n=normalize(n+vec3((b0-texture2D(uNz,bp+vec2(.03,0.)).r)*4.,0.,(b0-texture2D(uNz,bp+vec2(0.,.03)).r)*4.)*exp(-dist*.04)*.6);\n#endif\n'+
   /* (LOOK) natural ground: grass towards olive and less lime, patches of dry earth and darker clumps at several scales, a stronger bump close up */
-  '\n#if LOOK>0\n{float gg=smoothstep(.03,.12,a.g-a.r);float pt=texture2D(uNz,vW.xz*.0026).r,pt2=texture2D(uNz,vW.xz*.041).g,pt3=texture2D(uNz,vW.xz*.17).b;vec3 nat=vec3(dot(a,vec3(.3,.5,.2)));'+
+  '\n#if LOOK>0\n{float gg=smoothstep(.03,.12,a.g-a.r);float pt=n2,pt2=n1,pt3=n1;vec3 nat=vec3(dot(a,vec3(.3,.5,.2)));'+
   'a=mix(a,nat*vec3(.95,1.0,.66),gg*.5);a=mix(a,vec3(.20,.16,.11)*(.85+.3*pt2),gg*smoothstep(.58,.78,pt)*.45);a*=mix(1.,.78+.36*pt3,gg*.6);a*=.82;'+
-  'vec2 bq=vW.xz*.6;float c0=texture2D(uNz,bq).g;n=normalize(n+vec3((c0-texture2D(uNz,bq+vec2(.05,0.)).g)*1.,0.,(c0-texture2D(uNz,bq+vec2(0.,.05)).g)*1.)*exp(-dist*.03));}\n#endif\n'+
+  '\n#ifdef DET\nvec2 bq=vW.xz*.6;float c0=texture2D(uNz,bq).g;n=normalize(n+vec3((c0-texture2D(uNz,bq+vec2(.05,0.)).g)*1.,0.,(c0-texture2D(uNz,bq+vec2(0.,.05)).g)*1.)*exp(-dist*.03));\n#endif\n}\n#endif\n'+
   /* (batch 37) the ground: rock on the steep parts with warm strata, a pale beach just above the sea, dry grass in patches, darker earth in ridged gullies, pebbly relief close up on bare ground */
-  '\n#if LOOK>0\n{float sl=1.-normalize(vN).y;float gg2=smoothstep(.0,.06,a.g-a.r);vec3 rock=mix(vec3(.30,.26,.21),vec3(.44,.39,.33),texture2D(uNz,vW.xz*.05).r);float strata=.5+.5*sin(vW.y*.9+texture2D(uNz,vW.xz*.012).g*6.);rock*=.82+.3*strata;float rm=smoothstep(.18,.34,sl+.05*(n1-.5));a=mix(a,rock*(.85+.3*n3),rm*.85);'+
+  '\n#if LOOK>0\n{float sl=1.-normalize(vN).y;float gg2=smoothstep(.0,.06,a.g-a.r);vec3 rock=mix(vec3(.30,.26,.21),vec3(.44,.39,.33),n2);float strata=.5+.5*sin(vW.y*.9+n2*6.+n1*2.);rock*=.82+.3*strata;float rm=smoothstep(.18,.34,sl+.05*(n1-.5));a=mix(a,rock*(.85+.3*n3),rm*.85);'+
   'float sd2=smoothstep(2.8,.3,vW.y)*smoothstep(.22,.06,sl);a=mix(a,vec3(.66,.58,.40)*(.88+.24*n3),sd2*.85);a=mix(a,a*vec3(1.18,1.0,.62)+vec3(.04,.03,0.),gg2*smoothstep(.55,.8,n2)*.5*(1.-rm));'+
   '\n#ifdef DET\nfloat gul=1.-abs(texture2D(uNz,vW.xz*.0042+.31).g*2.-1.);a=mix(a,vec3(.16,.12,.08)*(.7+.5*n3),smoothstep(.94,.99,gul)*smoothstep(.04,.2,sl)*.55);vec2 pb=vW.xz*2.9;float p0=texture2D(uNz,pb).b;n=normalize(n+vec3((p0-texture2D(uNz,pb+vec2(.02,0.)).b)*5.,0.,(p0-texture2D(uNz,pb+vec2(0.,.02)).b)*5.)*exp(-dist*.05)*(.3+rm*1.2));\n#endif\n}\n#endif\n'+
   'float rk=smoothstep(.78,.52,n.y);\n#if LOOK>0\na=mix(a,vec3(.2,.185,.17)*(.7+.7*n1),rk*.25);\n#else\na=mix(a,vec3(.2,.185,.17)*(.7+.7*n1),rk*.8);\n#endif\n'+
@@ -108,7 +108,7 @@ const SH={
  rdF:PRE+'varying vec3 vW;varying vec4 vA;uniform sampler2D uNz;uniform float uWet;\n#ifndef NL\n#define NL 4\n#endif\nuniform vec4 uLt[NL];uniform vec3 uLc[NL];\n'+ENVSRC+SHSRC+CSHSRC+
  'float ln(float x,float c,float w,float aa){return 1.-smoothstep(w,w+aa,abs(x-c));}\n'+
  'void main(){float x=vA.x,v=vA.y,hw=vA.z,fl=vA.w;float lanes=floor(fl/16.);float ax=abs(x);float dist=length(vW-uCam);float aa=.05+dist*.0009;'+
-  'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;\n#if LOOK>0\nasph*=1.5*(.86+.28*texture2D(uNz,vW.xz*.0062).b);\n#endif\n#ifdef DET\n'+
+  'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;\n#if LOOK>0\nasph*=1.5;\n#endif\n#ifdef DET\n#if LOOK>0\nasph*=.86+.28*texture2D(uNz,vW.xz*.0062).b;\n#endif\n'+
   /* aggregate grain, darker repair patches, hairline cracks, seams across the road */
   'float g1=texture2D(uNz,vW.xz*1.9).b,g2=texture2D(uNz,vW.xz*5.3).g;asph*=1.+((g1-.5)*.6+(g2-.5)*.5)*exp(-dist*.03);asph*=1.-smoothstep(.62,.7,texture2D(uNz,vW.xz*.021+.3).r)*.26;\n'+
   'float cr=abs(texture2D(uNz,vW.xz*.13).g-.5);asph*=1.-(1.-smoothstep(.0,.011,cr))*smoothstep(.46,.6,texture2D(uNz,vW.xz*.011).r)*exp(-dist*.05)*.55;\n'+
@@ -134,7 +134,7 @@ const SH={
   'float jl=(1.-smoothstep(0.,.03+aa*.6,jn))*step(.5,so)*exp(-dist*.025);sdc*=(1.-.5*face)*(1.+.22*stone)*(1.-.3*jl);}'+
   'asph=mix(asph,sdc*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
   '\n#ifdef DET\nfloat lcn=(ax-x0)/lw;float fl2=abs(fract(lcn)-.5)*lw;float trk=exp(-pow((fl2-.82)/.34,2.))*step(0.,lcn)*step(lcn,lanes)*(1.-smoothstep(hw-.6,hw,ax))*(tw||dv?1.:0.);asph*=1.-trk*.2;asph*=1.+(1.-trk)*.04;\n#if LOOK>0\n{vec2 pc=vec2(v/7.,lcn);vec2 pid=floor(pc);float hh=fract(sin(dot(pid,vec2(12.9898,78.233)))*43758.5453);float onr=step(0.,lcn)*step(lcn,lanes)*(tw||dv?1.:0.);float pa=step(.885,hh)*onr;vec2 pf=fract(pc);float de=min(min(pf.x*7.,(1.-pf.x)*7.),min(pf.y*lw,(1.-pf.y)*lw));asph*=1.-pa*(.2+.25*(1.-smoothstep(0.,.07,de)));float oil=exp(-pow(fl2/.11,2.))*smoothstep(.42,.75,texture2D(uNz,vec2(v*.05,floor(lcn)*.37+.11)).r)*onr;asph*=1.-.22*oil;float cr2=abs(texture2D(uNz,vW.xz*.085+.4).r-.5);float tar=(1.-smoothstep(.0,.014,cr2))*smoothstep(.5,.66,texture2D(uNz,vW.xz*.007+.7).g)*onr*exp(-dist*.02);asph*=1.-.5*tar;}\n#endif\n#endif\n'+
-  '\n#if LOOK>0\nfloat wear=.55+.45*smoothstep(.3,.62,texture2D(uNz,vW.xz*.7).g);vec3 alb=asph+vec3(.74)*wh*wear+vec3(.62,.47,.12)*ye*wear;\n#else\nvec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;\n#endif\n'+
+  '\n#if LOOK>0\n\n#ifdef DET\nfloat wear=.55+.45*smoothstep(.3,.62,texture2D(uNz,vW.xz*.7).g);\n#else\nfloat wear=.8;\n#endif\nvec3 alb=asph+vec3(.74)*wh*wear+vec3(.62,.47,.12)*ye*wear;\n#else\nvec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;\n#endif\n'+
   /* wet: darker, puddles that act like mirrors, ripples in the surface, a reflection of the sky and of every light near the car */
   'float pz=texture2D(uNz,vW.xz*.017).g*.55+texture2D(uNz,vW.xz*.071).b*.45;float pud=smoothstep(.5,.68,pz)*uWet*(1.-shd);'+
   'alb*=1.-uWet*.42*(1.-shd*.5);alb*=1.-pud*.3;'+
