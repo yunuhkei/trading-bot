@@ -22,17 +22,17 @@ const POSTF=PRE+'varying vec2 vU;uniform sampler2D uS,uB;uniform vec2 uPx;unifor
   'float lo=min(lM,min(min(lNW,lNE),min(lSW,lSE))),hi=max(lM,max(max(lNW,lNE),max(lSW,lSE)));if(hi-lo<max(.0312,hi*.125))return M;'+
   'vec2 d=vec2(-((lNW+lNE)-(lSW+lSE)),(lNW+lSW)-(lNE+lSE));float dr=max((lNW+lNE+lSW+lSE)*.03125,.0078125);float rc=1./(min(abs(d.x),abs(d.y))+dr);d=clamp(d*rc,-8.,8.)*uPx;'+
   'vec3 A=.5*(T(uv+d*(1./3.-.5))+T(uv+d*(2./3.-.5)));vec3 B=A*.5+.25*(T(uv+d*-.5)+T(uv+d*.5));float lB=lum(B);return (lB<lo||lB>hi)?A:B;}\n'+
- 'void main(){vec2 uv=vU;vec3 c=fxaa(uv);'+
-  '\n#ifdef BLUR\nvec2 q=uv-vec2(.5,.46);float r=length(q*vec2(1.6,1.));float k=uP.x*smoothstep(.20,.62,r);if(k>.002){vec3 s=c;for(int i=1;i<=BLUR;i++){s+=T(uv-q*k*float(i)/float(BLUR)*.28);}c=s/float(BLUR+1);}\n#endif\n'+
+ 'void main(){vec2 uv=vU;vec3 c=fxaa(uv);float bkk=0.;'+
+  '\n#ifdef BLUR\nvec2 q=uv-vec2(.5,.46);float r=length(q*vec2(1.6,1.));float k=uP.x*smoothstep(.20,.62,r);bkk=k;if(k>.002){vec3 s=c;for(int i=1;i<=BLUR;i++){s+=T(uv-q*k*float(i)/float(BLUR)*.28);}c=s/float(BLUR+1);}\n#endif\n'+
   /* a little colour fringing towards the corners (a lens is never perfect) */
-  '\n#ifdef LENS\n{vec2 o=(uv-.5)*dot(uv-.5,uv-.5)*.006;c=vec3(T(uv+o).r*.6+c.r*.4,c.g,T(uv-o).b*.6+c.b*.4);}\n#endif\n'+
-  '\n#ifdef LENS\n{float l0=lum(c);float lb=(lum(T(uv+vec2(3.,0.)*uPx))+lum(T(uv-vec2(3.,0.)*uPx))+lum(T(uv+vec2(0.,3.)*uPx))+lum(T(uv-vec2(0.,3.)*uPx))+lum(T(uv+vec2(2.2,2.2)*uPx))+lum(T(uv-vec2(2.2,2.2)*uPx)))/6.;c*=1.-clamp((lb-l0)*.7,0.,.16);}\n#endif\n'+
+  '\n#ifdef LENS\n{vec2 o=(uv-.5)*dot(uv-.5,uv-.5)*.006;float fk=.6*(1.-smoothstep(.0,.2,bkk));c=vec3(T(uv+o).r*fk+c.r*(1.-fk),c.g,T(uv-o).b*fk+c.b*(1.-fk));}   /* no colour fringe where the speed blur works: the sharp red and blue made green and magenta ghosts of poles */\n#endif\n'+
+  '\n#ifdef BLOOM\n{float l0=lum(c);float lb=(lum(T(uv+vec2(3.,0.)*uPx))+lum(T(uv-vec2(3.,0.)*uPx))+lum(T(uv+vec2(0.,3.)*uPx))+lum(T(uv-vec2(0.,3.)*uPx))+lum(T(uv+vec2(2.2,2.2)*uPx))+lum(T(uv-vec2(2.2,2.2)*uPx)))/6.;c*=1.-clamp((lb-l0)*.7,0.,.16);}\n#endif\n'+
   '\n#ifdef BLOOM\nc+=texture2D(uB,uv).rgb*uP.y;\n#endif\n'+
   /* the sun: a bright core, a wide halo, a thin streak and a few ghosts along the line through the middle of the picture; it dims where the sun's pixel is not bright (hidden by a cloud or a building) */
   '\n#ifdef LENS\nif(uSn.z>.001){vec2 sp=uSn.xy;float vis=smoothstep(.55,.95,lum(T(clamp(sp,.02,.98))))*uSn.z;vec2 dq=(uv-sp)*vec2(uSn.w,1.);float d=length(dq);\n'+
   ' vec3 fl=uSc*(exp(-d*d*40.)*.5+exp(-d*4.5)*.16+exp(-abs(uv.y-sp.y)*70.)*exp(-abs(uv.x-sp.x)*2.2)*.10);\n'+
   ' vec2 ax=(vec2(.5)-sp);for(int i=0;i<3;i++){float k=.55+float(i)*.62;vec2 g=sp+ax*k;float gd=length((uv-g)*vec2(uSn.w,1.));fl+=mix(vec3(1.,.8,.5),vec3(.5,.8,1.),float(i)*.5)*uSc*exp(-gd*gd*(260.-float(i)*70.))*.12;}\n'+
-  ' c+=fl*vis;vec2 sdv=(sp-uv)*.11;vec2 pp=uv;float ac=0.,wt=1.;for(int i=0;i<8;i++){pp+=sdv;ac+=smoothstep(.72,.98,lum(T(clamp(pp,.005,.995))))*wt;wt*=.84;}c+=uSc*ac*.05*vis*exp(-d*1.6);}\n#endif\n'+
+  ' c+=fl*vis;\n#ifdef BLOOM\nvec2 sdv=(sp-uv)*.11;vec2 pp=uv;float ac=0.,wt=1.;for(int i=0;i<8;i++){pp+=sdv;ac+=smoothstep(.72,.98,lum(T(clamp(pp,.005,.995))))*wt;wt*=.84;}c+=uSc*ac*.05*vis*exp(-d*1.6);\n#endif\n}\n#endif\n'+
   'vec2 v=uv-.5;c*=1.-uP.z*dot(v,v)*1.5;'+
   'gl_FragColor=vec4(c+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233))+uP.w)*43758.5453)-.5)/255.,1.);}';
 /* bloom: the bright parts of the picture, shrunk to a quarter, blurred, added back */
@@ -68,7 +68,7 @@ function gfxSetTier(t,force){
   t=Math.max(0,Math.min(2,t|0));if(!force&&t==GFX.tier)return;const T=GFXT[t];GFX.tier=t;GFX.cur=T;
   /* shader variants for this tier */
   const sd=T.shadow?{SHADOW:T.shadow}:{};G.P.rd=gfxProg('rd',Object.assign({NL:T.NL,DET:T.hi},sd));G.P.ter=gfxProg('ter',Object.assign({DET:T.hi},sd));G.P.sky=gfxProg('sky',T.hi?{HI:1}:{});
-  const pd={};if(T.blur)pd.BLUR=T.bloom?6:4;if(T.bloom)pd.BLOOM=1;if(T.hi)pd.LENS=1;G.P.postv=gfxProg2('post',POSTV,POSTF,['aP'],pd);
+  const pd={};if(T.blur)pd.BLUR=T.bloom?9:4;if(T.bloom)pd.BLOOM=1;if(T.hi)pd.LENS=1;G.P.postv=gfxProg2('post',POSTV,POSTF,['aP'],pd);
   if(T.bloom&&!G.P.bright){G.P.bright=gfxProg2('bright',POSTV,BRF,['aP']);G.P.blur=gfxProg2('blur',POSTV,BLF,['aP'])}
   const lo=t==0;R.drawProp=[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw)];R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
   if(!GFX.fixed){Q.min=T.scMin;Q.max=T.scMax;Q.scale=Math.max(Q.min,Math.min(Q.max,Q.scale))}
@@ -110,7 +110,7 @@ function gfxComposite(w,h){
     gl.bindFramebuffer(gl.FRAMEBUFFER,GFX.bl[0]);bindTex(0,GFX.blT[1]);gl.uniform2f(P.u.uPx,0,1/GFX.bh);gl.drawArrays(gl.TRIANGLES,0,3);
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,w,h);R.draws+=3}
   const P=G.P.postv;gl.useProgram(P.p);bindTex(0,GFX.col);gl.uniform1i(P.u.uS,0);if(P.u.uB){bindTex(1,GFX.blT[0]||GFX.col);gl.uniform1i(P.u.uB,1)}gl.uniform2f(P.u.uPx,1/w,1/h);
-  gl.uniform4f(P.u.uP,GFX.blurAmt*(LOOK==3?1.3:1),LOOK==3?.85:.6,LOOK==3?.68:.5,R.time%100);
+  gl.uniform4f(P.u.uP,GFX.blurAmt*(LOOK==3?1.15:1),LOOK==3?.85:.6,LOOK==3?.68:.5,R.time%100);
   if(P.u.uSn){const s=ENV.sun,z=s[0]*R.fw[0]+s[1]*R.fw[1]+s[2]*R.fw[2],x=s[0]*R.rt[0]+s[1]*R.rt[1]+s[2]*R.rt[2],y=s[0]*R.up[0]+s[1]*R.up[1]+s[2]*R.up[2],th=Math.tan(R.fov/2),as=w/h;let k=0,u=.5,v=.5;
     if(z>.02){const nx=x/z/(th*as),ny=y/z/th;u=nx*.5+.5;v=ny*.5+.5;k=Math.min(1,z*4)*(1-Math.min(1,Math.max(0,(Math.max(Math.abs(nx),Math.abs(ny))-1)/.7)))*Math.min(1,ENV.sunC[0]/2.4)*(s[1]>0?1:0)}
     gl.uniform4f(P.u.uSn,u,v,k,as);const m=Math.max(ENV.sunC[0],ENV.sunC[1],ENV.sunC[2]);gl.uniform3f(P.u.uSc,ENV.sunC[0]/m,ENV.sunC[1]/m,ENV.sunC[2]/m)}

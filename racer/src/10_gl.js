@@ -84,11 +84,11 @@ const SH={
   'float bl=texture2D(uNz,vW.xz*2.3).g,bl2=texture2D(uNz,vW.xz*6.1).r;a*=1.+((bl-.5)*.55+(bl2-.5)*.4)*exp(-dist*.03)*(.35+.65*gr);\n'+
   'vec2 bp=vW.xz*1.35;float b0=texture2D(uNz,bp).r;n=normalize(n+vec3((b0-texture2D(uNz,bp+vec2(.03,0.)).r)*4.,0.,(b0-texture2D(uNz,bp+vec2(0.,.03)).r)*4.)*exp(-dist*.04)*.6);\n#endif\n'+
   /* (LOOK) natural ground: grass towards olive and less lime, patches of dry earth and darker clumps at several scales, a stronger bump close up */
-  '\n#if LOOK>0\n{float gg=smoothstep(.0,.06,a.g-a.r);float pt=texture2D(uNz,vW.xz*.0026).r,pt2=texture2D(uNz,vW.xz*.041).g,pt3=texture2D(uNz,vW.xz*.17).b;vec3 nat=vec3(dot(a,vec3(.3,.5,.2)));'+
-  'a=mix(a,nat*vec3(.95,1.0,.66),gg*.5);a=mix(a,vec3(.20,.16,.11)*(.75+.6*pt2),gg*smoothstep(.58,.78,pt)*.6);a*=mix(1.,.62+.6*pt3,gg*.6);a*=.82;'+
-  'vec2 bq=vW.xz*.6;float c0=texture2D(uNz,bq).g;n=normalize(n+vec3((c0-texture2D(uNz,bq+vec2(.05,0.)).g)*3.,0.,(c0-texture2D(uNz,bq+vec2(0.,.05)).g)*3.)*exp(-dist*.012));}\n#endif\n'+
+  '\n#if LOOK>0\n{float gg=smoothstep(.03,.12,a.g-a.r);float pt=texture2D(uNz,vW.xz*.0026).r,pt2=texture2D(uNz,vW.xz*.041).g,pt3=texture2D(uNz,vW.xz*.17).b;vec3 nat=vec3(dot(a,vec3(.3,.5,.2)));'+
+  'a=mix(a,nat*vec3(.95,1.0,.66),gg*.5);a=mix(a,vec3(.20,.16,.11)*(.85+.3*pt2),gg*smoothstep(.58,.78,pt)*.45);a*=mix(1.,.78+.36*pt3,gg*.6);a*=.82;'+
+  'vec2 bq=vW.xz*.6;float c0=texture2D(uNz,bq).g;n=normalize(n+vec3((c0-texture2D(uNz,bq+vec2(.05,0.)).g)*1.,0.,(c0-texture2D(uNz,bq+vec2(0.,.05)).g)*1.)*exp(-dist*.03));}\n#endif\n'+
   /* (batch 37) the ground: rock on the steep parts with warm strata, a pale beach just above the sea, dry grass in patches, darker earth in ridged gullies, pebbly relief close up on bare ground */
-  '\n#if LOOK>0\n{float sl=1.-n.y;float gg2=smoothstep(.0,.06,a.g-a.r);vec3 rock=mix(vec3(.30,.26,.21),vec3(.44,.39,.33),texture2D(uNz,vW.xz*.05).r);float strata=.5+.5*sin(vW.y*.9+texture2D(uNz,vW.xz*.012).g*6.);rock*=.82+.3*strata;float rm=smoothstep(.18,.34,sl+.05*(n1-.5));a=mix(a,rock*(.85+.3*n3),rm*.85);'+
+  '\n#if LOOK>0\n{float sl=1.-normalize(vN).y;float gg2=smoothstep(.0,.06,a.g-a.r);vec3 rock=mix(vec3(.30,.26,.21),vec3(.44,.39,.33),texture2D(uNz,vW.xz*.05).r);float strata=.5+.5*sin(vW.y*.9+texture2D(uNz,vW.xz*.012).g*6.);rock*=.82+.3*strata;float rm=smoothstep(.18,.34,sl+.05*(n1-.5));a=mix(a,rock*(.85+.3*n3),rm*.85);'+
   'float sd2=smoothstep(2.8,.3,vW.y)*smoothstep(.22,.06,sl);a=mix(a,vec3(.66,.58,.40)*(.88+.24*n3),sd2*.85);a=mix(a,a*vec3(1.18,1.0,.62)+vec3(.04,.03,0.),gg2*smoothstep(.55,.8,n2)*.5*(1.-rm));'+
   '\n#ifdef DET\nfloat gul=1.-abs(texture2D(uNz,vW.xz*.0042+.31).g*2.-1.);a=mix(a,vec3(.16,.12,.08)*(.7+.5*n3),smoothstep(.94,.99,gul)*smoothstep(.04,.2,sl)*.55);vec2 pb=vW.xz*2.9;float p0=texture2D(uNz,pb).b;n=normalize(n+vec3((p0-texture2D(uNz,pb+vec2(.02,0.)).b)*5.,0.,(p0-texture2D(uNz,pb+vec2(0.,.02)).b)*5.)*exp(-dist*.05)*(.3+rm*1.2));\n#endif\n}\n#endif\n'+
   'float rk=smoothstep(.78,.52,n.y);\n#if LOOK>0\na=mix(a,vec3(.2,.185,.17)*(.7+.7*n1),rk*.25);\n#else\na=mix(a,vec3(.2,.185,.17)*(.7+.7*n1),rk*.8);\n#endif\n'+
