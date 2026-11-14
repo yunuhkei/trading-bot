@@ -32,6 +32,7 @@ node racer/tests/<name>.js        # one test; RFILE=/path/to/other.html tests an
 | `rsafe.js` | safe houses: pads in front of every garage door, only Home owned, servicing repairs and clears heat, locked garage does nothing, wrecked / busted respawn at the nearest owned pad, save and load |
 | `rboost.js` | earning nitro (batch 27): repair shops fill it, the wrong side of the road, near misses, jumps, takedowns, holding top speed; it flows in gradually |
 | `rcurb.js` | curbs (batch 27): crossing onto a sidewalk does not turn, rock, slow or trip the car |
+| `rspin.js` | wheel spin (batch 35): the wheels of all 23 traffic-type vehicles change with the wheel angle, a full turn looks like zero, the same angle draws the same picture |
 | `rmedian.js` | the raised median (batch 33): whole over most of a divided road, open at every junction box and U-turn gap, 15 cm up on the top and a gentle ramp for the wheels, 24 crossings at 27 and 49 mph do not turn, tip or slow the car |
 | `rcoast.js` | coasting (batch 28): off the gas the car slows like a real car in gear and keeps rolling |
 | `rram.js` | ramming (batch 29): driving into racers and police cars costs you nothing; civilians still damage you |

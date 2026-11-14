@@ -74,10 +74,10 @@ function ccBuild(key,opt){
     for(const sd of[-1,1])cgBox(body,sd*(wb+wt)/2*K,(g1+H)/2*K,(Z(x1)+Z(t1))/2,.025,(H-g1)/2*K,.03,CGM.gloss,0);
     const c0=x0-13,c1=x0+.3,cm=(c0+c1)/2;cgBox(body,0,(fh(cm)+.05)*K,Z(cm),fw(cm)*.68*K,.035,(c1-c0)/2*K,CGM.inter,0);
     for(const sd of[-1,1])cgBox(body,sd*fw(cm)*.33*K,(fh(cm)+2.2)*K,Z(c0+3),.2,.24,.05,CGM.inter,0);roofH=H;cowlX=x1;roofRX=c0}
-  else if(cb){const[x0,x1,t0,t1,H,wb,wt]=cb,Hr=H-.4,seg=(a,b,n,out)=>{for(let i=0;i<n;i++)out.push([a[0]+(b[0]-a[0])*i/n,a[1]+(b[1]-a[1])*i/n,a[2]])};
+  else if(cb){const[x0,x1,t0,t1,H0,wb,wt]=cb,hb=fh((x0+x1)/2),H=d.bus||(H0-hb)*K<.46?H0:hb+(H0-hb)*.8,Hr=H-.4,seg=(a,b,n,out)=>{for(let i=0;i<n;i++)out.push([a[0]+(b[0]-a[0])*i/n,a[1]+(b[1]-a[1])*i/n,a[2]])};
     const prof=[],A=[x0,fh(x0)-.15,0],B=[t0,Hr,1],C=[t1,Hr,2],D=[x1,fh(x1)-.15,2];const n=lo?2:4;seg(A,B,n,prof);seg(B,C,lo?3:5,prof);seg(C,D,n,prof);prof.push(D);
     const roofM=d.gl===0?CGM.paint:d.rc=='G'?CGM.glass:d.rc=='k'?CGM.gloss:CGM.paint,glassM=d.gl===0?CGM.paint:CGM.glass,cr=[],cc=new Float32Array(prof.length*3);
-    prof.forEach(([xs,Hs,seg_],i)=>{const u=Math.max(0,Math.min(1,(xs-x0)/(x1-x0))),sp=Math.pow(Math.max(0,1-Math.pow(Math.abs(2*u-1),6)),.25),gb=fh(xs)-.15,wbR=wb*sp,wtR=wbR+(wt-wb)*sp*Math.max(0,Hs-gb)/Math.max(.01,Hr-gb),Hc=Math.max(gb,Hs);
+    prof.forEach(([xs,Hs,seg_],i)=>{const u=Math.max(0,Math.min(1,(xs-x0)/(x1-x0))),sp=.3+.7*Math.pow(Math.max(0,1-Math.pow(Math.abs(2*u-1),6)),.25),gb=fh(xs)-.15,wbR=wb*sp,wtR=wbR+(wt-wb)*sp*Math.max(0,Hs-gb)/Math.max(.01,Hr-gb),Hc=Math.max(gb,Hs);
       const half=[[0,Hc+.35],[wtR*.5,Hc+.3],[wtR*.82,Hc+.16],[wtR*.98,Hc-.18],[(wtR+wbR)/2,(Hc-.3+gb)/2],[wbR,gb]],ring=half.slice(1).reverse().map(p=>[-p[0],p[1]]).concat(half);cr.push({ring,seg:seg_,gb});cc[i*3+1]=(gb+Hc)/2*K;cc[i*3+2]=Z(xs);
       cr[i].P=ring.map(p=>[p[0]*K,p[1]*K,Z(xs)])});
     const mi=cr.length,mj=cr[0].ring.length,PP=new Float32Array(mi*mj*3);cr.forEach((r,i)=>r.P.forEach((p,j)=>{PP.set(p,(i*mj+j)*3)}));const NN=cgGridNormals(PP,mi,mj,false,cc),cid=[];

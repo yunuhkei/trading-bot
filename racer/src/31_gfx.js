@@ -109,7 +109,7 @@ function gfxComposite(w,h){
     gl.bindFramebuffer(gl.FRAMEBUFFER,GFX.bl[0]);bindTex(0,GFX.blT[1]);gl.uniform2f(P.u.uPx,0,1/GFX.bh);gl.drawArrays(gl.TRIANGLES,0,3);
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,w,h);R.draws+=3}
   const P=G.P.postv;gl.useProgram(P.p);bindTex(0,GFX.col);gl.uniform1i(P.u.uS,0);if(P.u.uB){bindTex(1,GFX.blT[0]||GFX.col);gl.uniform1i(P.u.uB,1)}gl.uniform2f(P.u.uPx,1/w,1/h);
-  gl.uniform4f(P.u.uP,GFX.blurAmt,.6,.5,R.time%100);
+  gl.uniform4f(P.u.uP,GFX.blurAmt*(LOOK==3?1.3:1),LOOK==3?.85:.6,LOOK==3?.68:.5,R.time%100);
   if(P.u.uSn){const s=ENV.sun,z=s[0]*R.fw[0]+s[1]*R.fw[1]+s[2]*R.fw[2],x=s[0]*R.rt[0]+s[1]*R.rt[1]+s[2]*R.rt[2],y=s[0]*R.up[0]+s[1]*R.up[1]+s[2]*R.up[2],th=Math.tan(R.fov/2),as=w/h;let k=0,u=.5,v=.5;
     if(z>.02){const nx=x/z/(th*as),ny=y/z/th;u=nx*.5+.5;v=ny*.5+.5;k=Math.min(1,z*4)*(1-Math.min(1,Math.max(0,(Math.max(Math.abs(nx),Math.abs(ny))-1)/.7)))*Math.min(1,ENV.sunC[0]/2.4)*(s[1]>0?1:0)}
     gl.uniform4f(P.u.uSn,u,v,k,as);const m=Math.max(ENV.sunC[0],ENV.sunC[1],ENV.sunC[2]);gl.uniform3f(P.u.uSc,ENV.sunC[0]/m,ENV.sunC[1]/m,ENV.sunC[2]/m)}

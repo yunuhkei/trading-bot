@@ -86,8 +86,8 @@ function laneInfo(hw,style){const div=style==1||style==4,x0=div?MEDW:.2,nl=Math.
 'use strict';
 /* ===== WebGL1 helpers + all shaders. One program per material class, no per-frame allocation. ===== */
 const G={gl:null,cv:null,w:1,h:1,P:{},ext:{},maxAniso:1};
-/* LOOK (batch 31, default since batch 32): the art direction, 1 = realistic (the default), 0 = the old look (?look=classic), 2 = cinematic (?look=cine); compiled into every shader */
-const LOOK=(()=>{try{const m=/[?&]look=(\w+)/.exec(location.search),t={classic:0,real:1,cine:2};return m&&Object.prototype.hasOwnProperty.call(t,m[1])?t[m[1]]:1}catch(e){return 1}})();
+/* LOOK (batch 31): the art direction, 3 = Burnout (the default since batch 36: vivid, hard contrast, a hot sun, glossy paint, strong bloom), 1 = realistic (?look=real, the default of batch 32), 0 = the old look (?look=classic), 2 = cinematic (?look=cine); compiled into every shader */
+const LOOK=(()=>{try{const m=/[?&]look=(\w+)/.exec(location.search),t={classic:0,real:1,cine:2,burn:3};return m&&Object.prototype.hasOwnProperty.call(t,m[1])?t[m[1]]:3}catch(e){return 3}})();
 const PRE='#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n#define LOOK '+LOOK+'\n';
 /* shared lighting / fog / tone chunk (fragment) */
 const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uFogP,uGr;/* uGr: x saturation, y warm/cool split, z contrast, w exposure */\n'+
@@ -95,6 +95,9 @@ const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uF
 '\n#if LOOK==1\n'+
 /* realistic: exposure a touch up, a natural saturation (the weather's boost held back), the filmic curve, only a mild contrast curve, no split toning */
 'vec3 tone(vec3 c){c*=uGr.w*1.06;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.05)*.84),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));return mix(c,c*c*(3.-2.*c),.22);}\n'+
+'\n#elif LOOK==3\n'+
+/* Burnout: exposure up, vivid saturation, the filmic curve, a stronger S-curve, warm highlights over cool shadows */
+'vec3 tone(vec3 c){c*=uGr.w*1.03;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.25)*1.16),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));float g=dot(c,vec3(.3333));c*=mix(vec3(.95,.99,1.07),vec3(1.05,1.0,.92),smoothstep(.15,.8,g));return mix(c,c*c*(3.-2.*c),.25);}\n'+
 '\n#elif LOOK==2\n'+
 /* cinematic: teal shadows, orange highlights, a strong S-curve, lifted blacks, a little less saturation */
 'vec3 tone(vec3 c){c*=uGr.w*1.04;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,uGr.x*.88),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));'+
@@ -282,7 +285,7 @@ const SH={
   'vec3 F0=mix(vec3(.04),alb,metal);vec3 fr=F0+(1.-F0)*pow(1.-ndv,5.);vec3 col=alb*(1.-metal)*irr*ao;'+
   'col+=cenv(R,max(rg,.35))*fr*ao*mix(.35,1.,metal);'+
   /* clear coat: a second, sharper reflection over the paint */
-  'float cfr=.05+.95*pow(1.-ndv,5.);col+=cenv(R,.05)*cfr*coat*1.3*(1.-dirt*.5);'+
+  'float cfr=.05+.95*pow(1.-ndv,5.);col+=cenv(R,.05)*cfr*coat*1.3*(1.-dirt*.5);\n#if LOOK==3\ncol+=cenv(R,.05)*cfr*coat*.3*(1.-dirt*.5);\n#endif\n'+
   /* the horizon in the paint: a bright band where the reflection looks level, dark road below it: this is what gives a flank its depth */
   'float hzb=exp(-R.y*R.y*26.)*pnt;col+=(uHor*1.25+uSunC*.04)*hzb*(.035+.965*pow(1.-ndv,3.))*coat*(1.-dirt*.6);col*=1.-pnt*coat*.22*smoothstep(.05,-.5,R.y)*(1.-ndv);'+
   /* glass: a clear reflection of the sky, strong at a glancing angle */
@@ -297,21 +300,22 @@ const SH={
   '  crk=(1.-smoothstep(0.,.07+.1*(1.-amt),sqrt(d2)-sqrt(d1)))*mk;}}\n'+
   'col=mix(col,vec3(.86,.9,.95),crk*.8);float al=max(mix(uAlpha,1.,pow(1.-ndv,4.)*.7*step(uAlpha,.99)),crk*.93);gl_FragColor=vec4(tone(col),al);}',
   /* ---- traffic cars: instanced low-poly bodies; per instance x,y,z,yaw | pitch,roll,colour,flags (1 brake lights, 2 siren) ---- */
- trV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;attribute vec4 aI2;attribute vec4 aI3;attribute vec4 aI4;uniform mat4 uVP;uniform vec3 uPal[20];uniform vec4 uMat[16];uniform vec4 uHg[4];uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;\n'+
+ trV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;attribute vec4 aI2;attribute vec4 aI3;attribute vec4 aI4;uniform mat4 uVP;uniform vec3 uPal[20];uniform vec4 uMat[16];uniform vec4 uHg[4];uniform vec4 uWA,uWB;uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;\n'+
   'vec3 rt(vec3 p,float cy,float sy,float cp,float sp,float cr,float sr){float x=p.x*cr-p.y*sr,y=p.x*sr+p.y*cr,z=p.z;float y2=y*cp+z*sp,z2=z*cp-y*sp;return vec3(cy*x+sy*z2,y2,sy*x-cy*z2);}\n'+
   /* dents: up to two per car (centre x,z on the body, depth, radius), the metal near them is pushed in towards the middle of the car and crumpled */
   'float dent(inout vec3 p,vec4 d){if(d.z<=0.)return 0.;vec3 dv=p-vec3(d.x,.62,d.y);float w=exp(-dot(dv,dv)/(d.w*d.w));vec2 dir=-normalize(d.xy+vec2(1e-4));float n=.7+.6*fract(sin(dot(floor(p*9.),vec3(12.9898,78.233,37.719)))*43758.5453);p.xz+=dir*d.z*w*n;p.y-=d.z*w*.22;return w*min(1.,d.z*4.);}\n'+
   'void main(){vec3 p=aP;float dm=max(dent(p,aI2),max(dent(p,aI3),dent(p,aI4)));\n'+
   /* panels that spring open on a damaged car (flag bits 16 bonnet, 32 boot, 64 right door, 128 left door; the part number rides in the high bits of the material byte) */
   'int idr=int(aN.w*127.+.5);float pt=floor(float(idr)/16.+.01);\n'+
-  'if(pt>.5){float bit=pt<1.5?16.:(pt<2.5?32.:(pt<3.5?64.:128.));if(mod(floor(aI1.w/bit+.01),2.)>.5){vec4 h=uHg[int(pt+.01)-1];float a=h.w+sin(uT*(pt<2.5?9.:3.)+aI0.x*.7)*(pt<2.5?.06:.09);float c0=cos(a),s0=sin(a);vec3 q=p;\n'+
+  'vec3 nn=aN.xyz;if(pt>4.5){float sp=floor(aI1.w/256.+.01)*(6.2831853/4096.);vec4 ax=p.z>(uWA.z+uWB.z)*.5?uWA:uWB;vec3 c0=vec3(p.x<0.?-ax.x:ax.x,ax.y,ax.z);vec3 q0=p-c0;float cs=cos(sp),sn=sin(sp);p=c0+vec3(q0.x,q0.y*cs-q0.z*sn,q0.y*sn+q0.z*cs);nn=vec3(nn.x,nn.y*cs-nn.z*sn,nn.y*sn+nn.z*cs);}\n'+
+  'if(pt>.5&&pt<4.5){float bit=pt<1.5?16.:(pt<2.5?32.:(pt<3.5?64.:128.));if(mod(floor(aI1.w/bit+.01),2.)>.5){vec4 h=uHg[int(pt+.01)-1];float a=h.w+sin(uT*(pt<2.5?9.:3.)+aI0.x*.7)*(pt<2.5?.06:.09);float c0=cos(a),s0=sin(a);vec3 q=p;\n'+
   '  if(pt<2.5){float dy=q.y-h.y,dz=q.z-h.z;q.y=h.y+dy*c0+dz*s0;q.z=h.z-dy*s0+dz*c0;}else{float dx=q.x-h.x,dz=q.z-h.z;q.x=h.x+dx*c0+dz*s0;q.z=h.z-dx*s0+dz*c0;}p=q;}}\n'+
-  'float cy=cos(aI0.w),sy=sin(aI0.w),cp=cos(aI1.x),sp=sin(aI1.x),cr=cos(aI1.y),sr=sin(aI1.y);vec3 w=rt(p,cy,sy,cp,sp,cr,sr)+aI0.xyz;vW=w;vN=rt(aN.xyz,cy,sy,cp,sp,cr,sr);'+
+  'float cy=cos(aI0.w),sy=sin(aI0.w),cp=cos(aI1.x),sp=sin(aI1.x),cr=cos(aI1.y),sr=sin(aI1.y);vec3 w=rt(p,cy,sy,cp,sp,cr,sr)+aI0.xyz;vW=w;vN=rt(nn,cy,sy,cp,sp,cr,sr);'+
   'int id=idr-int(pt+.01)*16;vec4 mt=uMat[id];float fw=aI1.w,br=mod(fw,2.),sir=mod(floor(fw/2.+.01),2.),stb=mod(floor(fw/4.+.01),2.),brk=mod(floor(fw/8.+.01),2.);vec3 alb=mt.rgb;float em=max(mt.a,0.);if(mt.a<-.5){alb=uPal[int(aI1.z+.5)];}if(id==4)em+=br*2.4;if((id==3||id==4)&&brk>.5){em=0.;alb=vec3(.03,.03,.035);}if(id==7||id==8){float ph=step(0.,sin(uT*12.)),ps=step(0.,sin(uT*2.6));em+=sir*(id==7?ph*5.+.1:(1.-ph)*5.+.1)+stb*(id==7?ps*1.8:(1.-ps)*1.8);}'+
   'vC=alb*(1.-.55*dm);vD=dm;vE=vec2(em,(id==1?1.:(id==0?.62:(id==5||id==14?.75:.12)))*(1.-.7*dm));gl_Position=uVP*vec4(w,1.);}',
  trF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;\n'+ENVSRC+
   'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float ndv=max(dot(n,V),0.);vec3 R=reflect(-V,n);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl*.9;'+
-  'vec3 col=vC*irr*.9;float fr=.04+.96*pow(1.-ndv,5.);col+=skyc(R)*fr*vE.y*1.1;col+=uSunC*pow(max(dot(R,uSun),0.),70.)*vE.y*.9*(1.-vD);col+=vC*vE.x*1.3;col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
+  'vec3 col=vC*irr*.9;float fr=.04+.96*pow(1.-ndv,5.);col+=skyc(R)*fr*vE.y*1.1;col+=uSunC*pow(max(dot(R,uSun),0.),70.)*vE.y*.9*(1.-vD);\n#if LOOK==3\ncol+=skyc(R)*fr*vE.y*.8+uSunC*pow(max(dot(R,uSun),0.),24.)*vE.y*.12*(1.-vD);col=mix(vec3(dot(col,vec3(.3,.59,.11))),col,1.1);\n#endif\ncol+=vC*vE.x*1.3;col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- effects: ground decals (blob shadow, skid marks) and camera-facing smoke, one dynamic buffer ---- */
  fxV:'attribute vec3 aP;attribute vec4 aC;attribute vec2 aU;uniform mat4 uVP;varying vec4 vC;varying vec2 vU;void main(){vC=aC;vU=aU;gl_Position=uVP*vec4(aP,1.);}',
  fxF:PRE+'varying vec4 vC;varying vec2 vU;uniform float uMode,uQ;\n'+
@@ -2225,7 +2229,7 @@ function renderInit(){
   R.fxN=0;
   carGLInit();trGLInit();gfxInit();envInit();skyCubeInit();
 }
-function setEnvU(P){const gl=G.gl,u=P.u,E=ENV;gl.uniform3f(u.uCam,R.cx,R.cy,R.cz);if(u.uSun!=null){gl.uniform3fv(u.uSun,E.sun);if(LOOK){const ks=LOOK==1?1.12:1.08,ka=LOOK==1?.82:.9;gl.uniform3f(u.uSunC,E.sunC[0]*ks,E.sunC[1]*ks,E.sunC[2]*ks);gl.uniform3f(u.uAmbT,E.ambT[0]*ka,E.ambT[1]*ka,E.ambT[2]*ka*(LOOK==2?1.08:1));gl.uniform3f(u.uAmbB,E.ambB[0]*ka,E.ambB[1]*ka,E.ambB[2]*ka)}else{gl.uniform3fv(u.uSunC,E.sunC);gl.uniform3fv(u.uAmbT,E.ambT);gl.uniform3fv(u.uAmbB,E.ambB)}   /* (LOOK: a harder sun, less fill) */gl.uniform3fv(u.uHor,E.hor);gl.uniform3fv(u.uZen,E.zen);gl.uniform4f(u.uFogP,E.fog,E.fogY,E.fogSun,R.time);gl.uniform4fv(u.uGr,E.gr);if(u.uEnv!=null&&R.cube){gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_CUBE_MAP,R.cube.tex);gl.uniform1i(u.uEnv,5)}if(u.uSk!=null)gl.uniform4fv(u.uSk,E.sk);if(u.uStu!=null)gl.uniform1f(u.uStu,E.stu);if(u.uClA!=null){gl.uniform3fv(u.uClA,E.clA);gl.uniform3fv(u.uClB,E.clB);gl.uniform4fv(u.uSd,E.sd)}}}
+function setEnvU(P){const gl=G.gl,u=P.u,E=ENV;gl.uniform3f(u.uCam,R.cx,R.cy,R.cz);if(u.uSun!=null){gl.uniform3fv(u.uSun,E.sun);if(LOOK){const ks=LOOK==1?1.12:LOOK==3?1.12:1.08,ka=LOOK==1?.82:LOOK==3?.76:.9;gl.uniform3f(u.uSunC,E.sunC[0]*ks,E.sunC[1]*ks,E.sunC[2]*ks);gl.uniform3f(u.uAmbT,E.ambT[0]*ka,E.ambT[1]*ka,E.ambT[2]*ka*(LOOK==2?1.08:1));gl.uniform3f(u.uAmbB,E.ambB[0]*ka,E.ambB[1]*ka,E.ambB[2]*ka)}else{gl.uniform3fv(u.uSunC,E.sunC);gl.uniform3fv(u.uAmbT,E.ambT);gl.uniform3fv(u.uAmbB,E.ambB)}   /* (LOOK: a harder sun, less fill) */gl.uniform3fv(u.uHor,E.hor);gl.uniform3fv(u.uZen,E.zen);gl.uniform4f(u.uFogP,E.fog,E.fogY,E.fogSun,R.time);gl.uniform4fv(u.uGr,E.gr);if(u.uEnv!=null&&R.cube){gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_CUBE_MAP,R.cube.tex);gl.uniform1i(u.uEnv,5)}if(u.uSk!=null)gl.uniform4fv(u.uSk,E.sk);if(u.uStu!=null)gl.uniform1f(u.uStu,E.stu);if(u.uClA!=null){gl.uniform3fv(u.uClA,E.clA);gl.uniform3fv(u.uClB,E.clB);gl.uniform4fv(u.uSd,E.sd)}}}
 function setMapU(P){const gl=G.gl,u=P.u;gl.uniform4f(u.uMap,W.half,.5/W.N,W.hrange,W.hmin)}
 /* camera + frame */
 function viewSet(cx,cy,cz,tx,ty,tz,fov,w,h){R.cx=cx;R.cy=cy;R.cz=cz;R.fov=fov;R.pxm=2*Math.tan(fov/2)/Math.max(1,h);   /* the size of a pixel, in metres per metre of distance (for lines that must stay a pixel wide) */M4.look(R.V,cx,cy,cz,tx,ty,tz);M4.persp(R.Pm,fov,w/h,.8,12000);M4.mul(R.VP,R.Pm,R.V);M4.planes(R.PL,R.VP);
@@ -2383,7 +2387,7 @@ function gfxComposite(w,h){
     gl.bindFramebuffer(gl.FRAMEBUFFER,GFX.bl[0]);bindTex(0,GFX.blT[1]);gl.uniform2f(P.u.uPx,0,1/GFX.bh);gl.drawArrays(gl.TRIANGLES,0,3);
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,w,h);R.draws+=3}
   const P=G.P.postv;gl.useProgram(P.p);bindTex(0,GFX.col);gl.uniform1i(P.u.uS,0);if(P.u.uB){bindTex(1,GFX.blT[0]||GFX.col);gl.uniform1i(P.u.uB,1)}gl.uniform2f(P.u.uPx,1/w,1/h);
-  gl.uniform4f(P.u.uP,GFX.blurAmt,.6,.5,R.time%100);
+  gl.uniform4f(P.u.uP,GFX.blurAmt*(LOOK==3?1.3:1),LOOK==3?.85:.6,LOOK==3?.68:.5,R.time%100);
   if(P.u.uSn){const s=ENV.sun,z=s[0]*R.fw[0]+s[1]*R.fw[1]+s[2]*R.fw[2],x=s[0]*R.rt[0]+s[1]*R.rt[1]+s[2]*R.rt[2],y=s[0]*R.up[0]+s[1]*R.up[1]+s[2]*R.up[2],th=Math.tan(R.fov/2),as=w/h;let k=0,u=.5,v=.5;
     if(z>.02){const nx=x/z/(th*as),ny=y/z/th;u=nx*.5+.5;v=ny*.5+.5;k=Math.min(1,z*4)*(1-Math.min(1,Math.max(0,(Math.max(Math.abs(nx),Math.abs(ny))-1)/.7)))*Math.min(1,ENV.sunC[0]/2.4)*(s[1]>0?1:0)}
     gl.uniform4f(P.u.uSn,u,v,k,as);const m=Math.max(ENV.sunC[0],ENV.sunC[1],ENV.sunC[2]);gl.uniform3f(P.u.uSc,ENV.sunC[0]/m,ENV.sunC[1]/m,ENV.sunC[2]/m)}
@@ -4180,13 +4184,13 @@ function trGenType(i){
   const R=trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
   /* the police livery: white doors, roof and pillars, black bonnet, wings and boot (x, y, z in generator coordinates, front negative) */
   const swat=TTYPES[i].box=='swat',copLivery=(x,y,z,S)=>{if(swat)return 9;const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
-  const add=(mb,dx,dy,dz,mirX,mapM)=>{const n=mb.nv;for(let v=0;v<n;v++){const x=mb.P[v*3]*(mirX?-1:1)+dx,y=mb.P[v*3+1]+dy,z=-(mb.P[v*3+2]+dz);P.push(x,y,z);N.push(mb.N[v*3]*(mirX?-1:1),mb.N[v*3+1],-mb.N[v*3+2]);const m=TRMATMAP[mb.M[v]];
+  const add=(mb,dx,dy,dz,mirX,mapM,isW)=>{const n=mb.nv;for(let v=0;v<n;v++){const x=mb.P[v*3]*(mirX?-1:1)+dx,y=mb.P[v*3+1]+dy,z=-(mb.P[v*3+2]+dz);P.push(x,y,z);N.push(mb.N[v*3]*(mirX?-1:1),mb.N[v*3+1],-mb.N[v*3+2]);const m=TRMATMAP[mb.M[v]];
       /* the black lower body of a police car: the shade ramp of the generator marks it; the paint of the upper part stays the palette colour */
-      const mm=m==0&&mb.S&&mb.S[v]<.4?(spec.lowerDark?9:6):(m==0&&spec.lowerDark&&mb===R.body?copLivery(P[P.length-3],P[P.length-2],-P[P.length-1],S):m),pt=mb===R.body?(mb.Pt[v]||0):0;
-      M.push(mm+(pt>=1&&pt<=4?pt*16:0))}
+      const mm=m==0&&mb.S&&mb.S[v]<.4&&y<S.H*.5?(spec.lowerDark?9:6):(m==0&&spec.lowerDark&&mb===R.body?copLivery(P[P.length-3],P[P.length-2],-P[P.length-1],S):m),pt=mb===R.body?(mb.Pt[v]||0):0;
+      M.push(mm+(isW?80:(pt>=1&&pt<=4?pt*16:0)))}   /* part 5 = a wheel: the vertex shader spins it round its axle (batch 35) */
     for(let k=0;k<mb.I.length;k++)I.push(mb.I[k]+o);o+=n};
   add(R.body,0,0,0,false);
-  for(const[wz,wr,wheel,tx]of[[S.fz,S.rf,R.wheelF,S.tf],[S.rz,S.rr,R.wheelR,S.tr]])for(const sd of[-1,1])add(wheel,sd*tx,wr,wz,sd<0);
+  for(const[wz,wr,wheel,tx]of[[S.fz,S.rf,R.wheelF,S.tf],[S.rz,S.rr,R.wheelR,S.tr]])for(const sd of[-1,1])add(wheel,sd*tx,wr,wz,sd<0,0,true);
   if(TTYPES[i].cop){/* a police car: the light bar (red, clear, blue segments on a black base), a push bar, A-pillar spotlights, an aerial, a rear deck light */
     const bb=new CGB(),yt=S.H+.005,zc=S.zs((S.roofF+S.roofR)/2),T=(m)=>m;
     cgBox(bb,0,yt+.025,zc,.62,.025,.22,CGM.trim,0);
@@ -4202,7 +4206,7 @@ function trGenType(i){
   const pd=R.S._parts||{},H=new Float32Array(16);let pm=0;
   const hh=(slot,p,kind,ang)=>{const d=pd[p];if(!d||d.n<12)return;pm|=1<<slot;H[slot*4]=kind?d.p[0]:0;H[slot*4+1]=kind?0:d.p[1];H[slot*4+2]=-d.p[2];H[slot*4+3]=ang};
   hh(0,1,0,.95);hh(1,2,0,-.8);hh(2,3,1,-1.0);hh(3,4,1,1.0);
-  return{P,N,M,I,H,pm}}
+  return{P,N,M,I,H,pm,wa:[S.tf,S.rf,-S.fz,S.tr,S.rr,-S.rz]}}   /* wa: the two axles in this mesh's frame (half track, radius, z) for the wheel spin */
 function trGLInit(){
   const gl=G.gl;TRM.pal=new Float32Array(TCOLS.length*3);TCOLS.forEach((c,i)=>{TRM.pal[i*3]=c[0];TRM.pal[i*3+1]=c[1];TRM.pal[i*3+2]=c[2]});
   /* materials: rgb albedo, alpha = glow (-1: the body colour of the car) */
@@ -4211,7 +4215,7 @@ function trGLInit(){
     for(let v=0;v<nv;v++){f[v*4]=B.P[v*3];f[v*4+1]=B.P[v*3+1];f[v*4+2]=B.P[v*3+2];b[v*16+12]=Math.round(B.N[v*3]*127);b[v*16+13]=Math.round(B.N[v*3+1]*127);b[v*16+14]=Math.round(B.N[v*3+2]*127);b[v*16+15]=B.M[v]}
     return{vb:mkBuf(gl.ARRAY_BUFFER,ab),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(B.I)),n:B.I.length,nv}};
   /* groups: type * 2 + lod (0 smooth body for the cars near the camera, 1 the 200-triangle body for the rest) */
-  const NT=TTYPES.length;TRM.types=[];TRM.hg=[];TRM.pm=[];TRM.far=[];for(let i=0;i<NT;i++){const g=trGenType(i),f=TTYPES[i].far;TRM.hg.push(g.H);TRM.pm.push(g.pm);TRM.types.push(upload(g));TRM.far.push(f==null||f<0?i:f);TRM.types.push(f==null||f<0?upload(trFarOf(i)):{n:0})}
+  const NT=TTYPES.length;TRM.types=[];TRM.hg=[];TRM.pm=[];TRM.far=[];TRM.wa=[];for(let i=0;i<NT;i++){const g=trGenType(i),f=TTYPES[i].far;TRM.hg.push(g.H);TRM.pm.push(g.pm);TRM.wa.push(g.wa);TRM.types.push(upload(g));TRM.far.push(f==null||f<0?i:f);TRM.types.push(f==null||f<0?upload(trFarOf(i)):{n:0})}
   TRM.inst=new Float32Array(TRN*20);TRM.ibuf=mkBuf(gl.ARRAY_BUFFER,TRM.inst.byteLength,gl.DYNAMIC_DRAW);TRM.cnt=new Int16Array(NT*2);TRM.off=new Int16Array(NT*2);
   R.trDraw=trDraw;TRM.ready=true}
 /* soft blob shadows under the cars (added to the effects batch by fxDraw) */
@@ -4224,11 +4228,11 @@ function trShadows(quad){
 function trPrep(){
   TRM.nv=0;if(!TR.on||!TRM.ready||!TR.nAlive)return 0;
   const gl=G.gl,a=R.alpha,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,vis=TRM.vis,cars=TR.cars,lod2=Math.pow(GFX.cur.name=='Low'?30:46,2);cnt.fill(0);let nv=0;
-  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const x=lerp(c.px,c.x,a),y=lerp(c.py,c.y,a),z=lerp(c.pz,c.z,a),dx=x-R.cx,dz=z-R.cz,d2=dx*dx+dz*dz;if(d2>490000||!M4.sphereIn(R.PL,x,y+1,z,3.6))continue;c.gi=d2<lod2?c.type*2:TRM.far[c.type]*2+1;vis[nv++]=i;cnt[c.gi]++}   /* far bodies are shared between similar types (fewer draw calls) */
+  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const x=lerp(c.px,c.x,a),y=lerp(c.py,c.y,a),z=lerp(c.pz,c.z,a),dx=x-R.cx,dz=z-R.cz,d2=dx*dx+dz*dz;if(d2>490000||!M4.sphereIn(R.PL,x,y+1,z,3.6))continue;c.gi=d2<lod2?c.type*2:TRM.far[c.type]*2+1;vis[nv++]=i;cnt[c.gi]++;const wa=TRM.wa[c.type],dtw=Math.min(.1,R.time-(c.wt1||R.time));c.wt1=R.time;c.wr=((c.wr||0)+(c.v!=null?c.v:Math.hypot(c.vx||0,c.vz||0))*dtw/(wa?wa[1]:.33))%6.2831853}   /* far bodies are shared between similar types (fewer draw calls) */
   if(!nv)return 0;
   const NG=cnt.length;let s0=0;const fill=new Int16Array(NG);for(let g=0;g<NG;g++){off[g]=s0;fill[g]=s0;s0+=cnt[g]}
   for(let q=0;q<nv;q++){const c=cars[vis[q]],o=fill[c.gi]++*20;
-    I[o]=lerp(c.px,c.x,a);I[o+1]=lerp(c.py,c.y,a);I[o+2]=lerp(c.pz,c.z,a);I[o+3]=c.pyaw+angd(c.yaw,c.pyaw)*a;I[o+4]=c.pitch;I[o+5]=c.roll;I[o+6]=c.col;I[o+7]=(c.brake?1:0)+(c.siren?2:0)+((c.dmg||0)>.45?8:0)+(c.pf||0);
+    I[o]=lerp(c.px,c.x,a);I[o+1]=lerp(c.py,c.y,a);I[o+2]=lerp(c.pz,c.z,a);I[o+3]=c.pyaw+angd(c.yaw,c.pyaw)*a;I[o+4]=c.pitch;I[o+5]=c.roll;I[o+6]=c.col;I[o+7]=(c.brake?1:0)+(c.siren?2:0)+((c.dmg||0)>.45?8:0)+(c.pf||0)+256*(Math.floor((c.wr||0)/6.2831853*4096)&4095);
     const d=c.dn;if(d){for(let k=0;k<12;k++)I[o+8+k]=d[k]}else for(let k=8;k<20;k++)I[o+k]=0}
   gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);gl.bufferSubData(gl.ARRAY_BUFFER,0,I.subarray(0,nv*20));TRM.nv=nv;TR.drawn=nv;return nv}
 /* issue the draws of the collected cars with whatever program is bound (the attribute layout is shared by the colour and the shadow program) */
@@ -4236,7 +4240,7 @@ function trIssue(hinge){
   const gl=G.gl,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,ext=G.ext.inst;
   if(ext){attrs(7);for(let k=2;k<7;k++)ext.vertexAttribDivisorANGLE(k,1)}else attrs(2);
   for(let g=0;g<cnt.length;g++){if(!cnt[g])continue;const M=TRM.types[g];
-    if(hinge)gl.uniform4fv(G.P.tr.u.uHg,TRM.hg[g>>1]);
+    if(hinge){gl.uniform4fv(G.P.tr.u.uHg,TRM.hg[g>>1]);const w=TRM.wa[g>>1];if(w){gl.uniform4f(G.P.tr.u.uWA,w[0],w[1],w[2],0);gl.uniform4f(G.P.tr.u.uWB,w[3],w[4],w[5],0)}}
     gl.bindBuffer(gl.ARRAY_BUFFER,M.vb);gl.vertexAttribPointer(0,3,gl.FLOAT,false,16,0);gl.vertexAttribPointer(1,4,gl.BYTE,true,16,12);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,M.ib);
     if(ext){gl.bindBuffer(gl.ARRAY_BUFFER,TRM.ibuf);const b=off[g]*80;for(let k=0;k<5;k++)gl.vertexAttribPointer(2+k,4,gl.FLOAT,false,80,b+k*16);ext.drawElementsInstancedANGLE(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0,cnt[g]);R.draws++}
     else{for(let k=0;k<cnt[g];k++){const o=(off[g]+k)*20;for(let q=0;q<5;q++)gl.vertexAttrib4f(2+q,I[o+q*4],I[o+q*4+1],I[o+q*4+2],I[o+q*4+3]);gl.drawElements(gl.TRIANGLES,M.n,gl.UNSIGNED_SHORT,0);R.draws++}}
@@ -5890,10 +5894,10 @@ function ccBuild(key,opt){
     for(const sd of[-1,1])cgBox(body,sd*(wb+wt)/2*K,(g1+H)/2*K,(Z(x1)+Z(t1))/2,.025,(H-g1)/2*K,.03,CGM.gloss,0);
     const c0=x0-13,c1=x0+.3,cm=(c0+c1)/2;cgBox(body,0,(fh(cm)+.05)*K,Z(cm),fw(cm)*.68*K,.035,(c1-c0)/2*K,CGM.inter,0);
     for(const sd of[-1,1])cgBox(body,sd*fw(cm)*.33*K,(fh(cm)+2.2)*K,Z(c0+3),.2,.24,.05,CGM.inter,0);roofH=H;cowlX=x1;roofRX=c0}
-  else if(cb){const[x0,x1,t0,t1,H,wb,wt]=cb,Hr=H-.4,seg=(a,b,n,out)=>{for(let i=0;i<n;i++)out.push([a[0]+(b[0]-a[0])*i/n,a[1]+(b[1]-a[1])*i/n,a[2]])};
+  else if(cb){const[x0,x1,t0,t1,H0,wb,wt]=cb,hb=fh((x0+x1)/2),H=d.bus||(H0-hb)*K<.46?H0:hb+(H0-hb)*.8,Hr=H-.4,seg=(a,b,n,out)=>{for(let i=0;i<n;i++)out.push([a[0]+(b[0]-a[0])*i/n,a[1]+(b[1]-a[1])*i/n,a[2]])};
     const prof=[],A=[x0,fh(x0)-.15,0],B=[t0,Hr,1],C=[t1,Hr,2],D=[x1,fh(x1)-.15,2];const n=lo?2:4;seg(A,B,n,prof);seg(B,C,lo?3:5,prof);seg(C,D,n,prof);prof.push(D);
     const roofM=d.gl===0?CGM.paint:d.rc=='G'?CGM.glass:d.rc=='k'?CGM.gloss:CGM.paint,glassM=d.gl===0?CGM.paint:CGM.glass,cr=[],cc=new Float32Array(prof.length*3);
-    prof.forEach(([xs,Hs,seg_],i)=>{const u=Math.max(0,Math.min(1,(xs-x0)/(x1-x0))),sp=Math.pow(Math.max(0,1-Math.pow(Math.abs(2*u-1),6)),.25),gb=fh(xs)-.15,wbR=wb*sp,wtR=wbR+(wt-wb)*sp*Math.max(0,Hs-gb)/Math.max(.01,Hr-gb),Hc=Math.max(gb,Hs);
+    prof.forEach(([xs,Hs,seg_],i)=>{const u=Math.max(0,Math.min(1,(xs-x0)/(x1-x0))),sp=.3+.7*Math.pow(Math.max(0,1-Math.pow(Math.abs(2*u-1),6)),.25),gb=fh(xs)-.15,wbR=wb*sp,wtR=wbR+(wt-wb)*sp*Math.max(0,Hs-gb)/Math.max(.01,Hr-gb),Hc=Math.max(gb,Hs);
       const half=[[0,Hc+.35],[wtR*.5,Hc+.3],[wtR*.82,Hc+.16],[wtR*.98,Hc-.18],[(wtR+wbR)/2,(Hc-.3+gb)/2],[wbR,gb]],ring=half.slice(1).reverse().map(p=>[-p[0],p[1]]).concat(half);cr.push({ring,seg:seg_,gb});cc[i*3+1]=(gb+Hc)/2*K;cc[i*3+2]=Z(xs);
       cr[i].P=ring.map(p=>[p[0]*K,p[1]*K,Z(xs)])});
     const mi=cr.length,mj=cr[0].ring.length,PP=new Float32Array(mi*mj*3);cr.forEach((r,i)=>r.P.forEach((p,j)=>{PP.set(p,(i*mj+j)*3)}));const NN=cgGridNormals(PP,mi,mj,false,cc),cid=[];
