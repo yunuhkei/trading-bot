@@ -60,14 +60,15 @@ function pstar(cat,cx,y0,cz,rad,h,r,g,b,n,rot){
   for(let i=0;i<n;i++){const a=rot+(i+.5)/n*TAU,c=Math.cos(a),s=Math.sin(a),sl=rad/h,nl=1/Math.hypot(1,sl),uv=FTILE(1,(i+.5)/n,1);ap.push(m.v(cx,y0+h,cz,c*nl,sl*nl,s*nl,r,g,b,uv[0],uv[1],3,0))}
   for(let i=0;i<n;i++){m.t(ring[i],ap[i],ring[i+1]);m.t(ring[i],ring[i+1],ap[i])}}
 /* the greens of the broadleaf trees: a few desaturated shades and the odd autumn one, so no two stands look the same */
-const TGREEN=[[52,100,46],[62,112,50],[44,88,52],[78,116,48],[66,98,42],[40,82,58],[86,112,56]],TFALL=[[176,128,44],[190,100,46],[156,90,52]];
+const TGREEN=[[52,100,46],[62,112,50],[44,88,52],[78,116,48],[66,98,42],[40,82,58],[86,112,56],[96,126,52],[36,78,62],[58,106,38]],TFALL=[[176,128,44],[190,100,46],[156,90,52]];
 function ptree(x,z,rng,y,hero){if(inGarageLot(x,z))return;const t=rng(),sc=.8+rng()*.7,rot=rng()*6,hh=Math.sin(x*12.9898+z*78.233)*43758.5453,cl=hh-Math.floor(hh),h2=Math.sin(x*39.346+z*11.135)*24634.6345,pk=h2-Math.floor(h2),seed=(x*13.7+z*7.1)|0;
   if(y>110||t<.55){
     if(hero){const h=11*sc,g=[26+cl*16,66+cl*24,38+cl*14];ptrunk(2,x,y-.2,z,.3,2.8*sc,70,52,36);                                          /* a fir: three ragged tiers */
       pstar(2,x,y+1.5*sc,z,3*sc,h*.5,g[0]*.9,g[1]*.9,g[2]*.9,12,rot);pstar(2,x,y+h*.32,z,2.35*sc,h*.46,g[0],g[1],g[2],12,rot+.3);pstar(2,x,y+h*.56,z,1.6*sc,h*.46,g[0]*1.12,g[1]*1.12,g[2]*1.1,10,rot+.6)}
     else{const h=9*sc,rd=2.6*sc;ptrunk(2,x,y-.2,z,.28,2.2*sc,70,52,36);pstar(2,x,y+1.4*sc,z,rd,h*.62,26,70,38,8,rot);pstar(2,x,y+h*.45,z,rd*.68,h*.55,32,82,44,8,rot+.4)}}
-  else{const q1=rng(),q2=rng(),c=pk<.07?TFALL[(cl*3)|0]:TGREEN[(cl*7)|0];
+  else{const q1=rng(),q2=rng(),c=pk<.07?TFALL[(cl*3)|0]:TGREEN[(cl*10)|0];
     if(hero&&pk>.8){ptrunk(2,x,y-.2,z,.2,3*sc,72,60,46);pcrown(2,x,y+1.4*sc+3.4*sc,z,1.5*sc,3.9*sc,1.5*sc,9,2.2*sc,seed,c[0]*.9,c[1]*.95,c[2]*.9,0)}       /* a poplar: a tall narrow column */
+    else if(hero&&pk>.56&&pk<.68){ptrunk(2,x,y-.2,z,.17,4.8*sc,208,204,192);pcrown(2,x,y+5.6*sc,z,2.4*sc,3*sc,2.4*sc,12,2.2*sc,seed,Math.min(255,c[0]*1.22+16),Math.min(255,c[1]*1.18+12),c[2]*1.05,0)}       /* a birch */
     else if(hero){ptrunk(2,x,y-.2,z,.27,4.4*sc,72,54,38);const a=rot*1.7;                                                                            /* an oak: trunk, two boughs, a crown of leaf cards */
       pbar(2,x,y+2.6*sc,z,x+Math.cos(a)*1.8*sc,y+4.6*sc,z+Math.sin(a)*1.8*sc,.16,66,50,36);pbar(2,x,y+3*sc,z,x-Math.cos(a)*1.4*sc,y+4.8*sc,z-Math.sin(a)*1.4*sc,.14,66,50,36);
       pcrown(2,x,y+5.2*sc,z,3.6*sc,2.9*sc,3.6*sc,12,3.1*sc,seed,c[0],c[1],c[2],0)}

@@ -37,7 +37,7 @@ function shdMatrices(cx,cy,cz){
 /* draw the shadow map; returns true if it is ready */
 function shdPass(){
   const T=GFX.cur,gl=G.gl;GFX.shadowOn=false;if(!T.shadow||!GFX.ok||!SHD.ok)return false;
-  const res=T.shadow>1?1024:512;SHD.half=T.shadow>1?46:34;if(!shdTarget(res))return false;
+  const res=T.shadow>1?1024:512;SHD.half=T.shadow>1?50:34;if(!shdTarget(res))return false;
   if(!G.P.shc){G.P.shc=mkProg('shc',SHD_V.car,SHD_F,['aP']);G.P.shp=mkProg('shp',SHD_V.prop,SHD_FP,['aP','aN','aU']);G.P.sht=mkProg('sht',SHD_V.tr,SHD_F,['aP','aN','aI0','aI1'])}
   const a=R.alpha,x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a);SHD.cx=x;SHD.cz=z;shdMatrices(x,y,z);
   gl.bindFramebuffer(gl.FRAMEBUFFER,SHD.fbo);gl.viewport(0,0,res,res);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);

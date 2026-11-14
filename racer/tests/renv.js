@@ -4,7 +4,7 @@ const L=require('./rlib.js');
 (async()=>{
   let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
   const res={};
-  for(const env of['day','overcast','sunset']){
+  for(const env of['day','overcast','sunset','night']){
     const T=await L.launch({q:'go=1&scale=.5&fixed=1&tier=2&env='+env,w:400,h:225,mobile:false,traffic:true,dpr:1});
     await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:180000});
     const o=await T.ev(()=>{const {C,UI,ROADS,carPlace,camStep,renderOnce,worldStep,ENV,R}=RACER;UI.paused=true;UI.hud.style.display='none';
@@ -18,7 +18,7 @@ const L=require('./rlib.js');
     res[env]=o;
     ok(o.err===0&&o.cube&&o.cubeOk&&o.cubeDraws>=1,env+': renders with no GL error, the sky cube map was drawn ('+o.cubeDraws+' times)');
     console.log('     '+env+': brightness '+o.L.toFixed(2)+', saturation '+o.S.toFixed(2)+', clipped '+(o.clip*100).toFixed(1)+' %, crushed '+(o.crush*100).toFixed(1)+' %, wet '+o.wet+', sun elevation '+(Math.asin(o.sunY)*57.3).toFixed(0)+' deg');
-    ok(o.clip<.2&&o.crush<.2,env+': the picture is not blown out ('+(o.clip*100).toFixed(0)+' % clipped) or crushed ('+(o.crush*100).toFixed(0)+' %)');
+    ok(o.clip<.2&&o.crush<(env=='night'?.6:.2),env+': the picture is not blown out ('+(o.clip*100).toFixed(0)+' % clipped) or crushed ('+(o.crush*100).toFixed(0)+' %'+(env=='night'?', the limit is higher at night':'')+')');
     ok(T.errs.length===0,env+': no page errors'+(T.errs.length?' '+T.errs[0]:''));
     await T.close();
   }
@@ -26,11 +26,12 @@ const L=require('./rlib.js');
   ok(res.day.wet===0&&res.overcast.wet>.5&&res.sunset.wet>0,'the road is dry in the day, wet when overcast, a little wet at sunset');
   ok(res.sunset.sunY<res.day.sunY*.5,'the sunset sun is low ('+(Math.asin(res.sunset.sunY)*57.3).toFixed(0)+' deg vs '+(Math.asin(res.day.sunY)*57.3).toFixed(0)+' deg)');
   ok(res.day.fog<res.overcast.fog,'the day air is clearer than the overcast haze');
+  ok(res.night.L<res.day.L*.55&&res.night.L>.04&&res.night.wet>.5,'(batch 42) night is much darker than the day but not black (brightness '+res.night.L.toFixed(2)+' vs '+res.day.L.toFixed(2)+'), the road wet');
   /* the button, the saved choice, and foliage / wind / shadows */
   const T=await L.launch({q:'go=1&scale=.4&fixed=1&tier=2&env=day',w:400,h:225,mobile:false,traffic:true});
   await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:180000});
-  const B=await T.ev(()=>{const a=ENV.name,b=envCycle(),c=envCycle(),d=envCycle();let saved='';try{saved=localStorage.getItem('racer.env')}catch(e){}pauseKnob('sky',1);const kn=ENV.name;pauseKnob('sky',0);return{a,b,c,d,saved,btn:kn=='overcast'&&ENV.name=='day',label:'SKY knob'}});
-  ok(B.a=='day'&&B.b=='overcast'&&B.c=='sunset'&&B.d=='day','the SKY button cycles DAY, OVERCAST, SUNSET and back ('+[B.a,B.b,B.c,B.d].join(' > ')+'), choice saved: '+B.saved);
+  const B=await T.ev(()=>{const a=ENV.name,b=envCycle(),c=envCycle(),d=envCycle(),e=envCycle();let saved='';try{saved=localStorage.getItem('racer.env')}catch(e2){}pauseKnob('sky',1);const kn=ENV.name;pauseKnob('sky',0);return{a,b,c,d,e,saved,btn:kn=='overcast'&&ENV.name=='day',label:'SKY knob'}});
+  ok(B.a=='day'&&B.b=='overcast'&&B.c=='sunset'&&B.d=='night'&&B.e=='day','the SKY button cycles DAY, OVERCAST, SUNSET, NIGHT and back ('+[B.a,B.b,B.c,B.d,B.e].join(' > ')+'), choice saved: '+B.saved);
   ok(B.btn,'the pause console has a SKY knob (it sets OVERCAST and back to DAY)');
   const F=await T.ev(()=>{const gl=G.gl;const t=R.tex.fol;gl.bindTexture(gl.TEXTURE_2D,t);const fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);const px=new Uint8Array(128*128*4);gl.readPixels(0,0,128,128,gl.RGBA,gl.UNSIGNED_BYTE,px);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
     const tile=(tx,ty)=>{let a=0,n=0,lum=0;for(let y=0;y<64;y++)for(let x=0;x<64;x++){const k=((ty*64+y)*128+tx*64+x)*4;n++;if(px[k+3]>127){a++;lum+=px[k+1]}}return{cover:a/n,lum:a?lum/a/255:0}};

@@ -15,9 +15,11 @@ const ENVP={
  /* a gloomy, overcast day: the sun is a pale patch behind cloud, the light comes from the whole sky, the horizon is thick grey haze, the road is wet */
  overcast:{label:'OVERCAST',sun:[-.42,.66,-.62],sunC:[.82,.84,.88],ambT:[.50,.55,.64],ambB:[.19,.19,.20],hor:[.46,.50,.55],zen:[.20,.24,.31],fog:1/1150,fogY:.0010,fogSun:.12,gr:[.72,1,.30,1],clA:[.60,.63,.68],clB:[.27,.29,.34],sk:[.34,.72,.12,.62],sd:[1,0,.5,.55],wet:.85,night:.27,shadow:.5},
  /* golden hour: the sun low and orange, long shadows, a glowing haze, a wet road that mirrors it */
+ /* (batch 42) night: a faint blue moon for the only directional light, a violet horizon glow, stars, lit windows, and everything that glows (street lamps, head lights, tail lights, neon) at full strength on a wet road */
+ night:{label:'NIGHT',sun:[.35,.5,-.8],sunC:[.20,.26,.44],ambT:[.05,.065,.13],ambB:[.022,.024,.04],hor:[.09,.10,.20],zen:[.004,.007,.02],fog:1/1500,fogY:.001,fogSun:0,gr:[1.15,.9,.45,1.4],clA:[.05,.06,.10],clB:[.022,.026,.05],sk:[.5,.82,0,.1],sd:[0,16,.4,0],wet:.8,night:.92,shadow:.18,stu:2},
  sunset:{label:'SUNSET',sun:[-.80,.16,-.58],sunC:[3.4,1.75,.72],ambT:[.34,.30,.44],ambB:[.15,.10,.08],hor:[1.0,.60,.34],zen:[.16,.19,.42],fog:1/1700,fogY:.0009,fogSun:1.0,gr:[1.1,1.4,.34,1],clA:[1.25,.72,.42],clB:[.34,.27,.40],sk:[.46,.76,0,.18],sd:[1.3,1.6,.45,.5],wet:.5,night:.45,shadow:.9}};
 const ENV={sun:new Float32Array(3),sunC:new Float32Array(3),ambT:new Float32Array(3),ambB:new Float32Array(3),hor:new Float32Array(3),zen:new Float32Array(3),clA:new Float32Array(3),clB:new Float32Array(3),gr:new Float32Array(4),sk:new Float32Array(4),sd:new Float32Array(4),fog:0,fogY:0,fogSun:0,wet:0,night:0,shadow:.5,stu:0,name:''};
-const ENV_NAMES=['day','overcast','sunset'];
+const ENV_NAMES=['day','overcast','sunset','night'];
 function envApply(name){const p=ENVP[name]||ENVP.day;ENV.name=ENVP[name]?name:'day';
   const l=Math.hypot(p.sun[0],p.sun[1],p.sun[2]);for(let i=0;i<3;i++)ENV.sun[i]=p.sun[i]/l;
   for(const k of['sunC','ambT','ambB','hor','zen','clA','clB'])ENV[k].set(p[k]);ENV.gr.set(p.gr);ENV.sk.set(p.sk);ENV.sd.set(p.sd);
@@ -55,14 +57,24 @@ function makeNoiseTex(){/* tileable value noise, 3 octaves in R/G/B, 128x128 */c
     const a=h2(w(ix),w(iy),s),b=h2(w(ix+1),w(iy),s),c=h2(w(ix),w(iy+1),s),d=h2(w(ix+1),w(iy+1),s);return a+(b-a)*su+(c-a)*sv+(a-b-c+d)*su*sv};
   for(let y=0;y<S;y++)for(let x=0;x<S;x++){const k=(y*S+x)*4,a=tn(x,y,4,1)*.55+tn(x,y,8,2)*.3+tn(x,y,16,3)*.15,b=tn(x,y,8,4)*.55+tn(x,y,16,5)*.3+tn(x,y,32,6)*.15,c=tn(x,y,16,7)*.5+tn(x,y,32,8)*.3+tn(x,y,64,9)*.2;
     o[k]=Math.min(255,Math.max(0,(a-.5)*1.8*255+128));o[k+1]=Math.min(255,Math.max(0,(b-.5)*1.8*255+128));o[k+2]=Math.min(255,Math.max(0,(c-.5)*1.8*255+128));o[k+3]=255}return o}
-function makeWinTex(){/* 64x64 building tile: a concrete wall with a framed window (a mullion, a transom, a sill); alpha = window mask (lit at night, and the part that reflects the sky) */const S=64,o=new Uint8Array(S*S*4);
+function makeWinTex(){/* 128x128 building tile (batch 39): a wall with a recessed, framed window: a lintel, a bevelled frame (light on the top and left, dark on the bottom and right), an inner shadow under the top and down the left of the pane, a mullion and a transom, a stone sill that catches the light with its shadow below, a floor ledge at the bottom of the tile with its shadow at the top of the next one, and dirt streaks under the sill. alpha = window mask (lit at night, and the part that reflects the sky) */const S=128,o=new Uint8Array(S*S*4);
   const hn=(a,b)=>{const s=Math.sin(a*127.1+b*311.7)*43758.5453;return s-Math.floor(s)};
-  for(let y=0;y<S;y++)for(let x=0;x<S;x++){const k=(y*S+x)*4;const wx=x/S,wy=y/S;const inW=wx>.15&&wx<.85&&wy>.18&&wy<.80,frame=inW&&(wx<.19||wx>.81||wy<.22||wy>.76||Math.abs(wx-.5)<.018||Math.abs(wy-.5)<.014);
-    const grain=.93+.07*hn(x,y);let r=232*grain,g=231*grain,b=228*grain,a=0;
-    if(inW&&!frame){const t=(wy-.2)/.58,sh=.55+.55*(1-t)*(1-t);r=58*sh+30*(1-t);g=78*sh+34*(1-t);b=100*sh+40*(1-t);a=255}
-    else if(frame){r=g=b=196;a=0}
-    else if(wy>=.80&&wy<.86){r=g=b=206}else if(wy>.94||wy<.02){r=g=b=214}
-    o[k]=r;o[k+1]=g;o[k+2]=b;o[k+3]=a}return o}
+  const sm=(a,b,x)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t)};
+  for(let y=0;y<S;y++)for(let x=0;x<S;x++){const k=(y*S+x)*4,wx=x/S,wy=y/S;
+    const inBox=wx>.15&&wx<.85&&wy>.18&&wy<.80,fw=.045,inPane=wx>.15+fw&&wx<.85-fw&&wy>.18+fw*1.1&&wy<.80-fw*1.1,mull=inBox&&(Math.abs(wx-.5)<.014||Math.abs(wy-.5)<.011);
+    const blot=.965+.035*hn((x>>3)+3,(y>>3)+7),grain=(.95+.05*hn(x,y))*blot;let r=232*grain,g=231*grain,b=228*grain,a=0;
+    if(inBox&&(!inPane||mull)){/* the frame: bevelled */const lt=(wx<.15+fw*.5||wy<.18+fw*.5)?1.06:(wx>.85-fw*.5||wy>.80-fw*.5)?.78:.94;r=g=b=204*lt*grain}
+    else if(inPane){const t=(wy-.2)/.58,sh=.55+.55*(1-t)*(1-t);r=58*sh+30*(1-t);g=78*sh+34*(1-t);b=100*sh+40*(1-t);
+      const inner=sm(.30,.22,wy)*.42+sm(.24,.19,wx)*.18;/* the recess: shadow under the top and down the left */r*=1-inner;g*=1-inner;b*=1-inner;
+      const sheen=sm(.05,0,Math.abs(wx*.9-wy*.55-.22))*22;r+=sheen;g+=sheen;b+=sheen;a=255}
+    else{/* the wall: a lintel, the sill, the ledge */
+      if(wy>.12&&wy<.18&&wx>.12&&wx<.88){r=g=b=240*grain;if(wy>.165)r=g=b=196*grain}                                   /* the lintel and the shadow it throws */
+      else if(wy>=.80&&wy<.835&&wx>.12&&wx<.88){r=g=b=228*grain}                                                       /* the sill's top face catches the light */
+      else if(wy>=.835&&wy<.875&&wx>.12&&wx<.88){r=g=b=170*grain}                                                      /* its front face */
+      else if(wy>=.875&&wy<.95){const f=sm(.95,.875,wy);const k2=1-.3*f*(wx>.15&&wx<.85?1:.3);r*=k2;g*=k2;b*=k2;if(wx>.18&&wx<.82){const st=hn(Math.floor(x/2),9)*.5+.5;const d=.14*f*st;r*=1-d;g*=1-d;b*=1-d}}   /* the shadow under the sill and the dirt streaks */
+      else if(wy>=.95){r=g=b=(wy<.965?238:226)*grain}                                                                  /* the floor ledge */
+      else if(wy<.06){const f=sm(.06,0,wy);const k2=1-.34*f;r*=k2;g*=k2;b*=k2}}                                         /* the shadow of the ledge above */
+    o[k]=Math.max(0,Math.min(255,r));o[k+1]=Math.max(0,Math.min(255,g));o[k+2]=Math.max(0,Math.min(255,b));o[k+3]=a}return o}
 /* the leaf atlas, painted on the CPU from a seeded generator (128 x 128, four 64 x 64 tiles; rgb is brightness with a green cast, the tree's own colour multiplies it; alpha is the cut-out): 0 a cluster of broadleaf leaves, 1 fir needles (ragged lower edge), 2 a denser bush cluster, 3 a tuft of grass blades. Row 0 of a tile is the BOTTOM of the card. */
 function makeFoliageTex(){const S=128,T=64,o=new Uint8Array(S*S*4),rg=mulberry(2024);
   const put=(tx,ty,x,y,r,g,b,a)=>{if(x<0||y<0||x>=T||y>=T)return;const k=((ty*T+y)*S+tx*T+x)*4;o[k]=r;o[k+1]=g;o[k+2]=b;o[k+3]=a};
@@ -78,7 +90,7 @@ function makeFoliageTex(){const S=128,T=64,o=new Uint8Array(S*S*4),rg=mulberry(2
   return o}
 function renderInit(){
   const gl=G.gl,N=R.N;
-  R.tex.h=mkTex(W.N,W.N,heightTexData(),{near:1});R.tex.col=mkTex(W.CN,W.CN,W.col,{});R.tex.nz=mkTex(128,128,makeNoiseTex(),{repeat:1,mip:1});R.tex.win=mkTex(64,64,makeWinTex(),{repeat:1,mip:1,aniso:1});R.tex.fol=mkTex(128,128,makeFoliageTex(),{mip:1,aniso:1});
+  R.tex.h=mkTex(W.N,W.N,heightTexData(),{near:1});R.tex.col=mkTex(W.CN,W.CN,W.col,{});R.tex.nz=mkTex(128,128,makeNoiseTex(),{repeat:1,mip:1});R.tex.win=mkTex(128,128,makeWinTex(),{repeat:1,mip:1,aniso:1});R.tex.fol=mkTex(128,128,makeFoliageTex(),{mip:1,aniso:1});
   /* terrain grid: (N+1)^2 vertices (i,j); full index list + a "ring" list that leaves out the middle (it is always covered by the finer level) */
   const vb=new Float32Array((N+1)*(N+1)*2);for(let j=0;j<=N;j++)for(let i=0;i<=N;i++){vb[(j*(N+1)+i)*2]=i;vb[(j*(N+1)+i)*2+1]=j}
   const full=[],ring=[];for(let j=0;j<N;j++)for(let i=0;i<N;i++){const a=j*(N+1)+i,b=a+1,c=a+N+1,d=c+1;full.push(a,c,b,b,c,d);if(!(i>=17&&i<47&&j>=17&&j<47))ring.push(a,c,b,b,c,d)}

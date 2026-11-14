@@ -26,12 +26,13 @@ const POSTF=PRE+'varying vec2 vU;uniform sampler2D uS,uB;uniform vec2 uPx;unifor
   '\n#ifdef BLUR\nvec2 q=uv-vec2(.5,.46);float r=length(q*vec2(1.6,1.));float k=uP.x*smoothstep(.20,.62,r);if(k>.002){vec3 s=c;for(int i=1;i<=BLUR;i++){s+=T(uv-q*k*float(i)/float(BLUR)*.28);}c=s/float(BLUR+1);}\n#endif\n'+
   /* a little colour fringing towards the corners (a lens is never perfect) */
   '\n#ifdef LENS\n{vec2 o=(uv-.5)*dot(uv-.5,uv-.5)*.006;c=vec3(T(uv+o).r*.6+c.r*.4,c.g,T(uv-o).b*.6+c.b*.4);}\n#endif\n'+
+  '\n#ifdef LENS\n{float l0=lum(c);float lb=(lum(T(uv+vec2(3.,0.)*uPx))+lum(T(uv-vec2(3.,0.)*uPx))+lum(T(uv+vec2(0.,3.)*uPx))+lum(T(uv-vec2(0.,3.)*uPx))+lum(T(uv+vec2(2.2,2.2)*uPx))+lum(T(uv-vec2(2.2,2.2)*uPx)))/6.;c*=1.-clamp((lb-l0)*.7,0.,.16);}\n#endif\n'+
   '\n#ifdef BLOOM\nc+=texture2D(uB,uv).rgb*uP.y;\n#endif\n'+
   /* the sun: a bright core, a wide halo, a thin streak and a few ghosts along the line through the middle of the picture; it dims where the sun's pixel is not bright (hidden by a cloud or a building) */
   '\n#ifdef LENS\nif(uSn.z>.001){vec2 sp=uSn.xy;float vis=smoothstep(.55,.95,lum(T(clamp(sp,.02,.98))))*uSn.z;vec2 dq=(uv-sp)*vec2(uSn.w,1.);float d=length(dq);\n'+
   ' vec3 fl=uSc*(exp(-d*d*40.)*.5+exp(-d*4.5)*.16+exp(-abs(uv.y-sp.y)*70.)*exp(-abs(uv.x-sp.x)*2.2)*.10);\n'+
   ' vec2 ax=(vec2(.5)-sp);for(int i=0;i<3;i++){float k=.55+float(i)*.62;vec2 g=sp+ax*k;float gd=length((uv-g)*vec2(uSn.w,1.));fl+=mix(vec3(1.,.8,.5),vec3(.5,.8,1.),float(i)*.5)*uSc*exp(-gd*gd*(260.-float(i)*70.))*.12;}\n'+
-  ' c+=fl*vis;}\n#endif\n'+
+  ' c+=fl*vis;vec2 sdv=(sp-uv)*.11;vec2 pp=uv;float ac=0.,wt=1.;for(int i=0;i<8;i++){pp+=sdv;ac+=smoothstep(.72,.98,lum(T(clamp(pp,.005,.995))))*wt;wt*=.84;}c+=uSc*ac*.05*vis*exp(-d*1.6);}\n#endif\n'+
   'vec2 v=uv-.5;c*=1.-uP.z*dot(v,v)*1.5;'+
   'gl_FragColor=vec4(c+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233))+uP.w)*43758.5453)-.5)/255.,1.);}';
 /* bloom: the bright parts of the picture, shrunk to a quarter, blurred, added back */

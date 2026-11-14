@@ -21,6 +21,8 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - Batch 28: realistic coasting (engine braking instead of a 4.5 m/s2 stop).
 - Batch 29: lane assist holds oncoming lanes; ramming racers and cops is free.
 - Batch 30: dirt trails off the highways; chasers only spawn behind; cops chase across the grass; fewer roadblocks.
+- Batches 37-42: terrain, trees (birch, colours), building window tile, sun shafts and contact shading, traffic lower-body shading, night mode in the SKY cycle.
+- Known: `rtraffic.js` fails on the ring (one car 10 m off its lane on `sc2`) and sometimes on the coast road: both fail identically on the build from before batch 32, so not from the art work.
 - Batch 36: the Burnout look is the default (`?look=real` / `?look=classic` / `?look=cine`); Close Call cabins fixed (no pinched ends, 20 % lower).
 - Batch 35: every vehicle's wheels spin (`rspin.js`).
 - Batch 34: worn realistic asphalt (oil strips, tar cracks, repair patches, chipped ochre paint).

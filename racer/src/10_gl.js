@@ -44,7 +44,7 @@ const HSRC='uniform sampler2D uH;uniform vec4 uMap;/* x=half size, y=0.5/N, z=he
 /* sun shadow lookup (only compiled into the programs of the tiers that have shadows): the depth map holds the distance to the nearest caster (cars, and on the top tier buildings, trees, lamps), packed in 4 bytes */
 const SHSRC='\n#ifdef SHADOW\nuniform sampler2D uSh;uniform mat4 uLS;uniform vec4 uShP;/* x texel, y strength, z bias */\n'+
  'float dcd(vec4 c){return dot(c,vec4(1.,1./255.,1./65025.,1./16581375.));}\n'+
- 'float shadowAt(vec3 wp){vec4 s=uLS*vec4(wp,1.);vec3 p=s.xyz*.5+.5;float e=max(abs(s.x),abs(s.y));if(e>=1.||p.z>=1.||p.z<=0.)return 1.;float z=p.z-uShP.z;float v=0.;float k=uShP.x*1.7;\n'+
+ 'float shadowAt(vec3 wp){vec4 s=uLS*vec4(wp,1.);vec3 p=s.xyz*.5+.5;float e=max(abs(s.x),abs(s.y));if(e>=1.||p.z>=1.||p.z<=0.)return 1.;float z=p.z-uShP.z;float v=0.;float k=uShP.x*(SHADOW>1?2.1:1.7);\n'+
  '#if SHADOW>1\nfor(int i=-1;i<=1;i++)for(int j=-1;j<=1;j++)v+=step(z,dcd(texture2D(uSh,p.xy+vec2(float(i),float(j))*k)));v/=9.;\n#else\n'+
  'v=(step(z,dcd(texture2D(uSh,p.xy+vec2(-.5,-.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(.5,-.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(-.5,.5)*k)))+step(z,dcd(texture2D(uSh,p.xy+vec2(.5,.5)*k))))*.25;\n#endif\n'+
  'return mix(1.,v,uShP.y*(1.-smoothstep(.72,1.,e)));}\n#endif\n';
@@ -64,9 +64,9 @@ const SH={
   /* low layer: darker, faster, ragged strips */
   'vec2 p2=(uCam.xz+rd.xz*(700./yy))*.00055+w*2.6+.5;float n2=texture2D(uNz,p2).g*.6+texture2D(uNz,p2*3.1).r*.4;float th2=smoothstep(.5,.82,n2)*uSk.w*smoothstep(.02,.3,y);col=mix(col,uClB*.62*(.9+.6*lit),th2);occ=max(occ,th2);}'+
  'col+=uSunC*(pow(sd,5.)*.055+pow(sd,60.)*.05)*uSd.x*smoothstep(-.05,.3,y);col+=uSunC*smoothstep(.99985,.99996,sd)*uSd.y*smoothstep(-.01,.03,y)*clamp(1.-occ*1.3,0.,1.);'+
- 'col=mix(col,uHor,exp(-max(y,0.)*7.)*uSd.w);\n'+
+ 'col=mix(col,uHor,exp(-max(y,0.)*7.)*uSd.w);\nif(uStu>1.5&&y>0.){vec3 sp=floor(rd*230.);float h=fract(sin(dot(sp,vec3(12.9898,78.233,37.719)))*43758.5453);float st=step(.9972,h)*smoothstep(.03,.25,y);col+=vec3(.85,.92,1.)*st*(.45+.55*fract(h*91.))*1.8;}\n'+
  /* the showroom: soft boxes overhead and at the sides (they become the long highlights in the paint) */
- '#ifdef CUBE\nif(uStu>.5){float a=smoothstep(.55,.62,rd.y)*(1.-smoothstep(.4,.46,abs(rd.x)))*(1.-smoothstep(.6,.68,abs(rd.z)));float b1=smoothstep(.66,.72,rd.x)*(1.-smoothstep(.32,.38,abs(rd.z)))*smoothstep(-.1,0.,rd.y)*(1.-smoothstep(.5,.6,rd.y));float b2=smoothstep(.66,.72,-rd.x)*(1.-smoothstep(.32,.38,abs(rd.z)))*smoothstep(-.1,0.,rd.y)*(1.-smoothstep(.5,.6,rd.y));float c=smoothstep(.72,.78,-rd.z)*(1.-smoothstep(.2,.26,abs(rd.x)))*smoothstep(.04,.1,rd.y)*(1.-smoothstep(.34,.4,rd.y));col+=vec3(3.2,3.2,3.4)*a+vec3(1.9,2.2,2.7)*b1+vec3(2.7,2.3,1.9)*b2+vec3(2.4)*c;}\n#endif\n#ifdef CUBE\ngl_FragColor=vec4(sqrt(min(col,vec3(4.))*.25),1.);\n#else\n'+
+ '#ifdef CUBE\nif(uStu>.5&&uStu<1.5){float a=smoothstep(.55,.62,rd.y)*(1.-smoothstep(.4,.46,abs(rd.x)))*(1.-smoothstep(.6,.68,abs(rd.z)));float b1=smoothstep(.66,.72,rd.x)*(1.-smoothstep(.32,.38,abs(rd.z)))*smoothstep(-.1,0.,rd.y)*(1.-smoothstep(.5,.6,rd.y));float b2=smoothstep(.66,.72,-rd.x)*(1.-smoothstep(.32,.38,abs(rd.z)))*smoothstep(-.1,0.,rd.y)*(1.-smoothstep(.5,.6,rd.y));float c=smoothstep(.72,.78,-rd.z)*(1.-smoothstep(.2,.26,abs(rd.x)))*smoothstep(.04,.1,rd.y)*(1.-smoothstep(.34,.4,rd.y));col+=vec3(3.2,3.2,3.4)*a+vec3(1.9,2.2,2.7)*b1+vec3(2.7,2.3,1.9)*b2+vec3(2.4)*c;}\n#endif\n#ifdef CUBE\ngl_FragColor=vec4(sqrt(min(col,vec3(4.))*.25),1.);\n#else\n'+
  'gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);\n#endif\n}',
  /* ---- terrain clipmap: one static NxN grid drawn once per level, displaced by the height texture ---- */
  terV:'attribute vec2 aIJ;uniform mat4 uVP;uniform vec4 uLv;varying vec3 vW;varying vec3 vN;varying float vK;\n'+HSRC+
@@ -87,7 +87,11 @@ const SH={
   '\n#if LOOK>0\n{float gg=smoothstep(.0,.06,a.g-a.r);float pt=texture2D(uNz,vW.xz*.0026).r,pt2=texture2D(uNz,vW.xz*.041).g,pt3=texture2D(uNz,vW.xz*.17).b;vec3 nat=vec3(dot(a,vec3(.3,.5,.2)));'+
   'a=mix(a,nat*vec3(.95,1.0,.66),gg*.5);a=mix(a,vec3(.20,.16,.11)*(.75+.6*pt2),gg*smoothstep(.58,.78,pt)*.6);a*=mix(1.,.62+.6*pt3,gg*.6);a*=.82;'+
   'vec2 bq=vW.xz*.6;float c0=texture2D(uNz,bq).g;n=normalize(n+vec3((c0-texture2D(uNz,bq+vec2(.05,0.)).g)*3.,0.,(c0-texture2D(uNz,bq+vec2(0.,.05)).g)*3.)*exp(-dist*.012));}\n#endif\n'+
-  'float rk=smoothstep(.78,.52,n.y);a=mix(a,vec3(.2,.185,.17)*(.7+.7*n1),rk*.8);'+
+  /* (batch 37) the ground: rock on the steep parts with warm strata, a pale beach just above the sea, dry grass in patches, darker earth in ridged gullies, pebbly relief close up on bare ground */
+  '\n#if LOOK>0\n{float sl=1.-n.y;float gg2=smoothstep(.0,.06,a.g-a.r);vec3 rock=mix(vec3(.30,.26,.21),vec3(.44,.39,.33),texture2D(uNz,vW.xz*.05).r);float strata=.5+.5*sin(vW.y*.9+texture2D(uNz,vW.xz*.012).g*6.);rock*=.82+.3*strata;float rm=smoothstep(.18,.34,sl+.05*(n1-.5));a=mix(a,rock*(.85+.3*n3),rm*.85);'+
+  'float sd2=smoothstep(2.8,.3,vW.y)*smoothstep(.22,.06,sl);a=mix(a,vec3(.66,.58,.40)*(.88+.24*n3),sd2*.85);a=mix(a,a*vec3(1.18,1.0,.62)+vec3(.04,.03,0.),gg2*smoothstep(.55,.8,n2)*.5*(1.-rm));'+
+  '\n#ifdef DET\nfloat gul=1.-abs(texture2D(uNz,vW.xz*.0042+.31).g*2.-1.);a=mix(a,vec3(.16,.12,.08)*(.7+.5*n3),smoothstep(.94,.99,gul)*smoothstep(.04,.2,sl)*.55);vec2 pb=vW.xz*2.9;float p0=texture2D(uNz,pb).b;n=normalize(n+vec3((p0-texture2D(uNz,pb+vec2(.02,0.)).b)*5.,0.,(p0-texture2D(uNz,pb+vec2(0.,.02)).b)*5.)*exp(-dist*.05)*(.3+rm*1.2));\n#endif\n}\n#endif\n'+
+  'float rk=smoothstep(.78,.52,n.y);\n#if LOOK>0\na=mix(a,vec3(.2,.185,.17)*(.7+.7*n1),rk*.25);\n#else\na=mix(a,vec3(.2,.185,.17)*(.7+.7*n1),rk*.8);\n#endif\n'+
   'float ds=clamp((uGr.x-.72)/.4,0.,1.);a=mix(vec3(dot(a,vec3(.33))),a,mix(.78,1.,ds))*mix(vec3(.80,.83,.82),vec3(.95,.92,.86),ds);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=a*irr;\n#ifdef SHADOW\ncol*=shadowAt(vW);\n#endif\ncol*=csh(vW.xz);col+=skyc(reflect(normalize(vW-uCam),n))*.035*(1.-n.y*.4);col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- water: one big quad that follows the camera, depth from the height texture ---- */
  watV:'attribute vec2 aP;uniform mat4 uVP;uniform vec3 uCam;varying vec3 vW;void main(){vW=vec3(uCam.x+aP.x*16000.,0.,uCam.z+aP.y*16000.);gl_Position=uVP*vec4(vW,1.);}',
@@ -215,7 +219,7 @@ const SH={
   '  crk=(1.-smoothstep(0.,.07+.1*(1.-amt),sqrt(d2)-sqrt(d1)))*mk;}}\n'+
   'col=mix(col,vec3(.86,.9,.95),crk*.8);float al=max(mix(uAlpha,1.,pow(1.-ndv,4.)*.7*step(uAlpha,.99)),crk*.93);gl_FragColor=vec4(tone(col),al);}',
   /* ---- traffic cars: instanced low-poly bodies; per instance x,y,z,yaw | pitch,roll,colour,flags (1 brake lights, 2 siren) ---- */
- trV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;attribute vec4 aI2;attribute vec4 aI3;attribute vec4 aI4;uniform mat4 uVP;uniform vec3 uPal[20];uniform vec4 uMat[16];uniform vec4 uHg[4];uniform vec4 uWA,uWB;uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;\n'+
+ trV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aI0;attribute vec4 aI1;attribute vec4 aI2;attribute vec4 aI3;attribute vec4 aI4;uniform mat4 uVP;uniform vec3 uPal[20];uniform vec4 uMat[16];uniform vec4 uHg[4];uniform vec4 uWA,uWB;uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;varying float vH;\n'+
   'vec3 rt(vec3 p,float cy,float sy,float cp,float sp,float cr,float sr){float x=p.x*cr-p.y*sr,y=p.x*sr+p.y*cr,z=p.z;float y2=y*cp+z*sp,z2=z*cp-y*sp;return vec3(cy*x+sy*z2,y2,sy*x-cy*z2);}\n'+
   /* dents: up to two per car (centre x,z on the body, depth, radius), the metal near them is pushed in towards the middle of the car and crumpled */
   'float dent(inout vec3 p,vec4 d){if(d.z<=0.)return 0.;vec3 dv=p-vec3(d.x,.62,d.y);float w=exp(-dot(dv,dv)/(d.w*d.w));vec2 dir=-normalize(d.xy+vec2(1e-4));float n=.7+.6*fract(sin(dot(floor(p*9.),vec3(12.9898,78.233,37.719)))*43758.5453);p.xz+=dir*d.z*w*n;p.y-=d.z*w*.22;return w*min(1.,d.z*4.);}\n'+
@@ -227,10 +231,10 @@ const SH={
   '  if(pt<2.5){float dy=q.y-h.y,dz=q.z-h.z;q.y=h.y+dy*c0+dz*s0;q.z=h.z-dy*s0+dz*c0;}else{float dx=q.x-h.x,dz=q.z-h.z;q.x=h.x+dx*c0+dz*s0;q.z=h.z-dx*s0+dz*c0;}p=q;}}\n'+
   'float cy=cos(aI0.w),sy=sin(aI0.w),cp=cos(aI1.x),sp=sin(aI1.x),cr=cos(aI1.y),sr=sin(aI1.y);vec3 w=rt(p,cy,sy,cp,sp,cr,sr)+aI0.xyz;vW=w;vN=rt(nn,cy,sy,cp,sp,cr,sr);'+
   'int id=idr-int(pt+.01)*16;vec4 mt=uMat[id];float fw=aI1.w,br=mod(fw,2.),sir=mod(floor(fw/2.+.01),2.),stb=mod(floor(fw/4.+.01),2.),brk=mod(floor(fw/8.+.01),2.);vec3 alb=mt.rgb;float em=max(mt.a,0.);if(mt.a<-.5){alb=uPal[int(aI1.z+.5)];}if(id==4)em+=br*2.4;if((id==3||id==4)&&brk>.5){em=0.;alb=vec3(.03,.03,.035);}if(id==7||id==8){float ph=step(0.,sin(uT*12.)),ps=step(0.,sin(uT*2.6));em+=sir*(id==7?ph*5.+.1:(1.-ph)*5.+.1)+stb*(id==7?ps*1.8:(1.-ps)*1.8);}'+
-  'vC=alb*(1.-.55*dm);vD=dm;vE=vec2(em,(id==1?1.:(id==0?.62:(id==5||id==14?.75:.12)))*(1.-.7*dm));gl_Position=uVP*vec4(w,1.);}',
- trF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;\n'+ENVSRC+
+  'vH=p.y;vC=alb*(1.-.55*dm);vD=dm;vE=vec2(em,(id==1?1.:(id==0?.62:(id==5||id==14?.75:.12)))*(1.-.7*dm));gl_Position=uVP*vec4(w,1.);}',
+ trF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vE;varying float vD;varying float vH;\n'+ENVSRC+
   'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float ndv=max(dot(n,V),0.);vec3 R=reflect(-V,n);float nl=max(dot(n,uSun),0.);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl*.9;'+
-  'vec3 col=vC*irr*.9;float fr=.04+.96*pow(1.-ndv,5.);col+=skyc(R)*fr*vE.y*1.1;col+=uSunC*pow(max(dot(R,uSun),0.),70.)*vE.y*.9*(1.-vD);\n#if LOOK==3\ncol+=skyc(R)*fr*vE.y*.8+uSunC*pow(max(dot(R,uSun),0.),24.)*vE.y*.12*(1.-vD);col=mix(vec3(dot(col,vec3(.3,.59,.11))),col,1.1);\n#endif\ncol+=vC*vE.x*1.3;col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
+  'vec3 col=vC*irr*.9;float fr=.04+.96*pow(1.-ndv,5.);col+=skyc(R)*fr*vE.y*1.1;col+=uSunC*pow(max(dot(R,uSun),0.),70.)*vE.y*.9*(1.-vD);\n#if LOOK==3\ncol+=skyc(R)*fr*vE.y*.8+uSunC*pow(max(dot(R,uSun),0.),24.)*vE.y*.12*(1.-vD);col=mix(vec3(dot(col,vec3(.3,.59,.11))),col,1.1);\n#endif\n\n#if LOOK>0\ncol*=mix(.58,1.,smoothstep(.04,.62,vH));\n#endif\ncol+=vC*vE.x*1.3;col=fogm(col,vW);gl_FragColor=vec4(tone(col)+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.,1.);}',
  /* ---- effects: ground decals (blob shadow, skid marks) and camera-facing smoke, one dynamic buffer ---- */
  fxV:'attribute vec3 aP;attribute vec4 aC;attribute vec2 aU;uniform mat4 uVP;varying vec4 vC;varying vec2 vU;void main(){vC=aC;vU=aU;gl_Position=uVP*vec4(aP,1.);}',
  fxF:PRE+'varying vec4 vC;varying vec2 vU;uniform float uMode,uQ;\n'+
