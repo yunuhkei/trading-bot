@@ -286,7 +286,7 @@ function trBody(B,c){B.x=c.x;B.z=c.z;B.yaw=c.yaw;if(c.state==0){B.vx=Math.sin(c.
 /* a crash leaves a dent in the car: where (on its body), how deep and how wide; two dents are kept per car and a new one near an old one deepens it. The shader (trV) pushes the metal in. */
 const TDCAP=[170000,150000,230000,280000,250000,900000,900000,400000,170000,260000,170000,170000,170000,150000,260000,170000,170000,260000,170000,170000,230000,300000,900000];      /* energy that finishes a sedan / hatch / SUV / van / police car (J) */
 function trDent(c,wx,wz,E){
-  if(E<2500)return;c.dmg=Math.min(1,(c.dmg||0)+(c.kind==1&&!(TR.hitP&&TR.hitF)?Math.max(0,E-40000)*.5:E*1.6)/(TDCAP[c.type]||180000));   /* (batch 53) traffic cars take 1.6x the wear: they used to shrug off crashes */   /* (batch 24: a cop that rams you wears only from hard rams, at half the rate; pushing and pinning does not wear it; (batch 26) nor do the bumps of a pack of cops among themselves and the traffic, which used to wreck the whole pack before it reached you) */const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
+  if(E<2500)return;c.dmg=Math.min(1,(c.dmg||0)+(c.kind==1&&!(TR.hitP&&TR.hitF)?Math.max(0,E-40000)*.5:E*(c.kind==0?1.6:1))/(TDCAP[c.type]||180000));   /* (batch 53) traffic cars take 1.6x the wear: they used to shrug off crashes */   /* (batch 24: a cop that rams you wears only from hard rams, at half the rate; pushing and pinning does not wear it; (batch 26) nor do the bumps of a pack of cops among themselves and the traffic, which used to wreck the whole pack before it reached you) */const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
   const q=Math.sqrt(E/120000),dep=Math.min(.62,.09+.5*q),rad=.55+.6*q,d=c.dn||(c.dn=new Float32Array(12));let slot=-1;
   for(let s=0;s<3;s++)if(d[s*4+2]>0&&Math.hypot(d[s*4]-lr,d[s*4+1]-lf)<.8){slot=s;break}
   if(slot<0){slot=d[2]<=0?0:d[6]<=0?1:d[10]<=0?2:(d[2]<=d[6]&&d[2]<=d[10]?0:d[6]<=d[10]?1:2)}
@@ -296,6 +296,7 @@ function trDent(c,wx,wz,E){
     if(fr>=side){if(lf>0){if(pm&1)c.pf|=16}else if(pm&2)c.pf|=32}else if(lr>0){if(pm&4)c.pf|=64}else if(pm&8)c.pf|=128;
     if(c.dmg>.75&&rd<.6){if(pm&4)c.pf|=64;if(pm&8&&rd<.35)c.pf|=128}}}
 function trBack(B,c,E){
+  if(c.kind==2&&c.race&&!TR.hitP)E*=.2;   /* (batch 53) racers bump each other and the traffic without being wrecked: only YOU take a racer out */
   trDent(c,HIT.cx,HIT.cz,E);
   if(c.state==3&&(c.kind==1||c.kind==2)&&(c.dmg||0)>=.92){/* (batch 24) a chasing cop or a racer worn down by hits is destroyed, like a car taken out by one big hit */E=Math.max(E,c.kind==1||TR.hitP?140000:230000);if(c.kind==1){c.cm=2;c.siren=0;c.block=0}}
   if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>(TR.hitP?110000:300000)&&c.kind==1){c.state=1;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;trFlipKick(c,E)}if(E>(TR.hitP?70000:220000)&&c.kind==2){c.state=1;c.wt=0;TR.stat.wrecks++;trFlipKick(c,E)}return}   /* a racer wrecked by a big hit is out of the race */

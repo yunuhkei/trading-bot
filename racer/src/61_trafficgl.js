@@ -84,17 +84,19 @@ function trBoxVehicle(kind){
   S.zs=s=>-S.L/2+s;S._parts={};const lw=2;return{S,body:b,wheelF:cgWheel(S.rf,S.wf,S.rf*.6,6,'disc',null,lw,1),wheelR:cgWheel(S.rr,S.wr,S.rr*.6,6,'disc',null,lw,1)}}
 /* the near body of traffic type i: the generator's family cars, a Close Call body, or a working vehicle */
 function trBodyOf(i){const T=TTYPES[i];
+  if(T.rc){const def=CAR_ROSTER.find(d=>d.id==T.rc);return cgBuild(Object.assign({noSkirt:1},def.spec),{lo:1,mid:1})}   /* (batch 53) a racer is one of the playable cars */
   if(T.cc){const gen=!!CC_ARCH[CC_DES[T.cc].ty],sp=Object.assign({noSkirt:1},gen?ccSpec(T.cc):{});if(T.cop)sp.lowerDark=.66;const R=gen?cgBuild(sp,{lo:1,mid:1}):ccBuild(T.cc,{lo:1});if(T.sign){const S=R.S;cgBox(R.body,0,S.H+.12,S.zs(S.roofR-.35),.36,.11,.12,CGM.amber,0);cgBox(R.body,0,S.H+.02,S.zs(S.roofR-.35),.4,.02,.14,CGM.trim,0)}return R}
   if(T.box)return trBoxVehicle(T.box);
   const base=TRGEN[i==4?0:i],spec=Object.assign({noSkirt:1},base);if(i==4)spec.lowerDark=.66;return cgBuild(spec,{lo:1,mid:1})}
 /* the far body: TRSHAPE for the first five, a Close Call body's own low-poly loft, or boxes for the trucks */
 function trFarOf(i){const T=TTYPES[i];if(i<5)return trBuildType(TRSHAPE[i],T.hw);
+  if(T.rc)return trGenType(i,1);
   if(T.cc)return CC_ARCH[CC_DES[T.cc].ty]?trGenType(i,1):trBuildType(ccFar(T.cc),T.hw);   /* (batch 51) the generator's own low body, so the far car has the near car's shape */
   if(T.box=='garbage')return trBuildType({gz:[2.6,3.9],wheel:.52,sec:[[4.05,.5,2.5,2.9,1.2,1.1],[2.2,.5,2.5,2.9,1.2,1.1],[2.1,.5,3.3,3.3,1.25,1.25],[-3.95,.5,3.3,3.3,1.25,1.25]]},T.hw);
   return trBuildType(TRSHAPE[3],T.hw)}
 function trGenType(i,far){
   const spec=Object.assign({noSkirt:1},TRGEN[i==4?0:i]||{});if(TTYPES[i].cop)spec.lowerDark=.66;
-  const R=far?(()=>{const sp=Object.assign({noSkirt:1},ccSpec(TTYPES[i].cc));if(TTYPES[i].cop)sp.lowerDark=.66;const B=cgBuild(sp,{lo:1}),Sx=B.S;B.wheelF=cgWheel(Sx.rf,Sx.wf,Sx.rimF,Sx.spoke,Sx.wheelStyle,null,2,Sx.tread);B.wheelR=cgWheel(Sx.rr,Sx.wr,Sx.rimR,Sx.spoke,Sx.wheelStyle,null,2,Sx.tread);return B})():trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
+  const R=far?(()=>{const sp=Object.assign({noSkirt:1},TTYPES[i].rc?CAR_ROSTER.find(d=>d.id==TTYPES[i].rc).spec:ccSpec(TTYPES[i].cc));if(TTYPES[i].cop)sp.lowerDark=.66;const B=cgBuild(sp,{lo:1}),Sx=B.S;B.wheelF=cgWheel(Sx.rf,Sx.wf,Sx.rimF,Sx.spoke,Sx.wheelStyle,null,2,Sx.tread);B.wheelR=cgWheel(Sx.rr,Sx.wr,Sx.rimR,Sx.spoke,Sx.wheelStyle,null,2,Sx.tread);return B})():trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
   /* the police livery: white doors, roof and pillars, black bonnet, wings and boot (x, y, z in generator coordinates, front negative) */
   const swat=TTYPES[i].box=='swat',copLivery=(x,y,z,S)=>{if(swat)return 9;const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
   const add=(mb,dx,dy,dz,mirX,mapM,isW)=>{const n=mb.nv;for(let v=0;v<n;v++){const x=mb.P[v*3]*(mirX?-1:1)+dx,y=mb.P[v*3+1]+dy,z=-(mb.P[v*3+2]+dz);P.push(x,y,z);N.push(mb.N[v*3]*(mirX?-1:1),mb.N[v*3+1],-mb.N[v*3+2]);const m=TRMATMAP[mb.M[v]];
@@ -128,9 +130,11 @@ function trGLInit(){
     for(let v=0;v<nv;v++){f[v*4]=B.P[v*3];f[v*4+1]=B.P[v*3+1];f[v*4+2]=B.P[v*3+2];b[v*16+12]=Math.round(B.N[v*3]*127);b[v*16+13]=Math.round(B.N[v*3+1]*127);b[v*16+14]=Math.round(B.N[v*3+2]*127);b[v*16+15]=B.M[v]}
     return{vb:mkBuf(gl.ARRAY_BUFFER,ab),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(B.I)),n:B.I.length,nv}};
   /* groups: type * 2 + lod (0 smooth body for the cars near the camera, 1 the 200-triangle body for the rest) */
-  const NT=TTYPES.length;TRM.types=[];TRM.hg=[];TRM.pm=[];TRM.far=[];TRM.wa=[];for(let i=0;i<NT;i++){const g=trGenType(i),f=TTYPES[i].far;TRM.hg.push(g.H);TRM.pm.push(g.pm);TRM.wa.push(g.wa);TRM.types.push(upload(g));TRM.far.push(f==null||f<0?i:f);TRM.types.push(f==null||f<0?upload(trFarOf(i)):{n:0})}
+  const NT=TTYPES.length;TRM.types=[];TRM.hg=[];TRM.pm=[];TRM.far=[];TRM.wa=[];TRM.upload=upload;TRM.lazy={};for(let i=0;i<NT;i++){if(TTYPES[i].rc){TRM.lazy[i]=1;TRM.hg.push(new Float32Array(16));TRM.pm.push(0);TRM.wa.push([0,0,0,0,0,0]);TRM.types.push({n:0},{n:0});TRM.far.push(i);continue}const g=trGenType(i),f=TTYPES[i].far;TRM.hg.push(g.H);TRM.pm.push(g.pm);TRM.wa.push(g.wa);TRM.types.push(upload(g));TRM.far.push(f==null||f<0?i:f);TRM.types.push(f==null||f<0?upload(trFarOf(i)):{n:0})}
   TRM.inst=new Float32Array(TRN*20);TRM.ibuf=mkBuf(gl.ARRAY_BUFFER,TRM.inst.byteLength,gl.DYNAMIC_DRAW);TRM.cnt=new Int16Array(NT*2);TRM.off=new Int16Array(NT*2);
   R.trDraw=trDraw;TRM.ready=true}
+/* (batch 53) a racer car's meshes are built the first time one is seen (twelve playable cars would cost about half a second at load) */
+function trEnsure(i){if(!TRM.lazy||!TRM.lazy[i])return;TRM.lazy[i]=0;const g=trGenType(i);TRM.hg[i]=g.H;TRM.pm[i]=g.pm;TRM.wa[i]=g.wa;TRM.types[i*2]=TRM.upload(g);TRM.types[i*2+1]=TRM.upload(trFarOf(i))}
 /* soft blob shadows under the cars (added to the effects batch by fxDraw) */
 function trShadows(quad){
   if(!TR.on)return;const a=R.alpha;
@@ -141,7 +145,7 @@ function trShadows(quad){
 function trPrep(){
   TRM.nv=0;if(!TR.on||!TRM.ready||!TR.nAlive)return 0;
   const gl=G.gl,a=R.alpha,I=TRM.inst,cnt=TRM.cnt,off=TRM.off,vis=TRM.vis,cars=TR.cars,lod2=Math.pow(GFX.cur.name=='Low'?30:46,2);cnt.fill(0);let nv=0;
-  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const x=lerp(c.px,c.x,a),y=lerp(c.py,c.y,a),z=lerp(c.pz,c.z,a),dx=x-R.cx,dz=z-R.cz,d2=dx*dx+dz*dz;if(d2>490000||!M4.sphereIn(R.PL,x,y+1,z,3.6))continue;c.gi=d2<lod2?c.type*2:TRM.far[c.type]*2+1;vis[nv++]=i;cnt[c.gi]++;const wa=TRM.wa[c.type],dtw=Math.min(.1,R.time-(c.wt1||R.time));c.wt1=R.time;c.wr=((c.wr||0)+(c.v!=null?c.v:Math.hypot(c.vx||0,c.vz||0))*dtw/(wa?wa[1]:.33))%6.2831853}   /* far bodies are shared between similar types (fewer draw calls) */
+  for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;const x=lerp(c.px,c.x,a),y=lerp(c.py,c.y,a),z=lerp(c.pz,c.z,a),dx=x-R.cx,dz=z-R.cz,d2=dx*dx+dz*dz;if(d2>490000||!M4.sphereIn(R.PL,x,y+1,z,3.6))continue;if(TRM.lazy[c.type])trEnsure(c.type);c.gi=d2<lod2?c.type*2:TRM.far[c.type]*2+1;vis[nv++]=i;cnt[c.gi]++;const wa=TRM.wa[c.type],dtw=Math.min(.1,R.time-(c.wt1||R.time));c.wt1=R.time;c.wr=((c.wr||0)+(c.v!=null?c.v:Math.hypot(c.vx||0,c.vz||0))*dtw/(wa?wa[1]:.33))%6.2831853}   /* far bodies are shared between similar types (fewer draw calls) */
   if(!nv)return 0;
   const NG=cnt.length;let s0=0;const fill=new Int16Array(NG);for(let g=0;g<NG;g++){off[g]=s0;fill[g]=s0;s0+=cnt[g]}
   for(let q=0;q<nv;q++){const c=cars[vis[q]],o=fill[c.gi]++*20;

@@ -64,6 +64,11 @@ function baseH(x,z){
   /* coast to the west: beach slope from the waterline, then sea */
   const cx=-2150+(fbm(z*.0008,2.3,13,3)-.5)*560,dc=x-cx;
   h=dc<-700?-40:(dc<0?lerp(-40,0,sstep(-700,0,dc)):(dc<300?lerp(0,h,sstep(0,300,dc)*.85+.15*sstep(0,300,dc)):h));
+  /* (batch 53) the north (-z) and east (+x) edges were straight cuts: now a ragged coast of their own (bays and headlands up to 1.4 km deep in the north, up to 1.1 km in the east, kept shallow beside Las Vegas, whose roads are 611 m from the edge), and the north-east corner is rounded off, so the land is not a square */
+  {const dE=W.half-x,dN=W.half+z;if(dE<1500||dN<1800){
+    const cE=300+800*fbm(z*.0007,7.7,17,3)*sstep(700,1500,Math.abs(z-2080)),cN=300+1500*fbm(x*.0005,3.1,19,3),R=1800,rc=(dE<R&&dN<R)?R-Math.hypot(R-dE,R-dN):1e9;
+    const dc=Math.min(dE-cE,dN-cN,rc);
+    if(dc<200){if(dc<0){const t=sstep(-600,0,dc);h=lerp(-40,Math.min(h,2),t*t)}else h=lerp(Math.min(h,2),h,sstep(0,200,dc))}}}
   for(let i=0;i<TERRACES.length;i++){const q=TERRACES[i],d=Math.hypot(x-q[0],z-q[1]);if(d<q[2])h=lerp(h,q[3],1-sstep(q[2]*.55,q[2],d))}
   /* lakes: a bowl dipping below sea level (the water plane then shows) */
   for(let i=0;i<LAKES.length;i++){const q=LAKES[i],d=Math.hypot(x-q[0],z-q[1]);if(d<q[2])h=lerp(h,q[3],1-sstep(q[2]*.55,q[2],d))}

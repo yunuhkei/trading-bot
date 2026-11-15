@@ -55,9 +55,17 @@ function navUpdate(dt){
   /* progress: the nearest route point in a window ahead of the last one */
   let bi=NAV.prog,bd=1e18;const a=Math.max(0,NAV.prog-6),b=Math.min(n-1,NAV.prog+60);for(let i=a;i<=b;i++){const d=(p[i*3]-C.x)**2+(p[i*3+2]-C.z)**2;if(d<bd){bd=d;bi=i}}
   NAV.prog=bi;NAV.off=Math.sqrt(bd);NAV.remain=R.len-R.S[bi];
+  NAV.manT=(NAV.manT||0)-dt;if(NAV.manT<=0){NAV.manT=.2;NAV.man=navManeuver()}
   const dw=Math.hypot(NAV.wp.x-C.x,NAV.wp.z-C.z);
   if(dw<26||(NAV.remain<18&&dw<60)){navClear();NAV.arrivedT=NAV.t;safeToast('You have arrived',3);return}
-  if(NAV.off>24&&NAV.t-NAV.routeT>1.2){                       /* only when you have left the route (a wrong turn): a new route from where you are */NAV.routeT=NAV.t;const rt=navRouteFromPlayer({ri:NAV.wp.ri,i:NAV.wp.i,x:NAV.wp.x,z:NAV.wp.z});if(rt){NAV.route=rt;NAV.prog=0;NAV.len=rt.len}}}
+  if(NAV.off>16&&NAV.t-NAV.routeT>.9){                       /* only when you have left the route (a wrong turn): a new route from where you are */NAV.routeT=NAV.t;const rt=navRouteFromPlayer({ri:NAV.wp.ri,i:NAV.wp.i,x:NAV.wp.x,z:NAV.wp.z});if(rt){NAV.route=rt;NAV.prog=0;NAV.len=rt.len}}}
+/* (batch 53) turn-by-turn: the next real turn on the route (a heading change of more than 0.5 rad inside 24 m), how far away it is and which way */
+function navManeuver(){const R=NAV.route;if(!R)return null;const p=R.pts,n=R.n,S0=R.S[NAV.prog],idx=s=>{let k=NAV.prog;while(k<n-1&&R.S[k]<s)k++;return k};
+  const hd=(a,b)=>Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2]));
+  for(let s=S0+14;s<Math.min(R.len-20,S0+1500);s+=6){const a=idx(s-18),b=idx(s),c2=idx(s+18);if(a===b||b===c2)continue;const th=angd(hd(b,c2),hd(a,b));
+    if(Math.abs(th)>.5){/* the sharpest point of this bend within the next 30 m */let best=th,bs=s;for(let t=s+4;t<s+30;t+=4){const a2=idx(t-18),b2=idx(t),c3=idx(t+18);if(a2===b2||b2===c2)continue;const th2=angd(hd(b2,c3),hd(a2,b2));if(Math.abs(th2)>Math.abs(best)){best=th2;bs=t}}
+      return{d:bs-S0,ang:best,kind:Math.abs(best)>2.3?'uturn':Math.abs(best)>1.0?'turn':'bear'}}}
+  return{d:R.len-S0,ang:0,kind:'end'}}
 /* the path on the road, drawn by fxDraw: a glowing ribbon with light running along it, and a pillar of light at the waypoint */
 function navFx(quad,sprite,time){
   if(!NAV.wp||!NAV.route)return 0;const R=NAV.route,p=R.pts,n=R.n,start=Math.max(0,NAV.prog-1);let drawn=0;const maxS=R.S[start]+420;
@@ -65,16 +73,30 @@ function navFx(quad,sprite,time){
     const x0=p[i*3],y0=p[i*3+1]+.1,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.1,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*.8,nz=dx/l*.8;
     const s=R.S[i],fade=Math.min(1,(maxS-s)/120),pulse=.55+.35*Math.sin(s*.22-time*7);
     quad(x0-nx,y0,z0-nz,x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz,.15,.8,1,.62*pulse*fade);drawn++}
+  /* a pulsing ring on the ground at the waypoint */
+  {const w=NAV.wp,gy=w.y+.2,k=.5+.5*Math.sin(time*4);for(let i=0;i<28;i++){const a0=i/28*TAU,a1=(i+1)/28*TAU,r0=5+k*1.2,r1=r0+1.5;quad(w.x+Math.cos(a0)*r0,gy,w.z+Math.sin(a0)*r0,w.x+Math.cos(a0)*r1,gy,w.z+Math.sin(a0)*r1,w.x+Math.cos(a1)*r1,gy,w.z+Math.sin(a1)*r1,w.x+Math.cos(a1)*r0,gy,w.z+Math.sin(a1)*r0,.2,.85,1,.55-.25*k)}}
   return drawn}
 function navBeacon(sprite){
-  if(!NAV.wp)return;const w=NAV.wp,gy=w.y;for(let k=0;k<9;k++)sprite(w.x,gy+1.5+k*7,w.z,3.2+k*.25,.2,.85,1,.55-.04*k)}
+  if(!NAV.wp)return;const w=NAV.wp,gy=w.y;for(let k=0;k<12;k++)sprite(w.x,gy+1.5+k*8,w.z,2.2+k*.12,.35,.9,1,.62-.04*k)}
 /* ---------------- HUD: distance to the waypoint and a pointer ---------------- */
 function navHud(c,W_,H_,u){
-  if(!NAV.wp)return;const w=NAV.wp,dx=w.x-C.x,dz=w.z-C.z,d=Math.hypot(dx,dz),rel=angd(Math.atan2(dx,-dz),C.camYaw),km=fmtLen(NAV.remain);
-  c.save();const x=UI.mm.cx-UI.mm.r,y=UI.mm.cy+UI.mm.r+u*.98,wd=u*2.3,h=u*.34;c.fillStyle='rgba(8,20,32,.7)';rr(c,x,y,wd,h,h/2);c.fill();c.strokeStyle='rgba(60,210,255,.8)';c.lineWidth=1.5;c.stroke();
-  c.fillStyle='#7fe3ff';c.font='800 '+Math.round(u*.22)+'px '+UIF;c.textAlign='left';c.fillText('WAYPOINT  '+km,x+h*.6,y+h*.68);
+  if(!NAV.wp)return;const w=NAV.wp,dx=w.x-C.x,dz=w.z-C.z,rel=angd(Math.atan2(dx,-dz),C.camYaw),km=fmtLen(NAV.remain),m=NAV.man;
+  c.save();
+  /* the turn card, top centre: a big arrow, the distance to the turn, and the distance left */
+  if(!UI.paused&&!MENU.open&&!EV.card){const cw=u*3.1,ch=u*.9,cx=W_*.5-cw/2,cy=u*.3;c.fillStyle='rgba(8,18,30,.78)';rr(c,cx,cy,cw,ch,u*.16);c.fill();c.strokeStyle='rgba(60,210,255,.75)';c.lineWidth=1.5;c.stroke();
+    const ax=cx+u*.5,ay=cy+ch/2;c.save();c.translate(ax,ay);c.strokeStyle='#7fe3ff';c.fillStyle='#7fe3ff';c.lineWidth=u*.1;c.lineCap='round';c.lineJoin='round';
+    if(m&&m.kind!=='end'){const a=m.kind=='uturn'?Math.PI:m.ang;c.beginPath();c.moveTo(0,u*.28);c.lineTo(0,-u*.02);c.stroke();c.save();c.translate(0,-u*.02);c.rotate(a);c.beginPath();c.moveTo(0,-u*.3);c.lineTo(u*.2,-u*.04);c.lineTo(-u*.2,-u*.04);c.closePath();c.fill();c.beginPath();c.moveTo(0,-u*.06);c.lineTo(0,u*.02);c.stroke();c.restore()}
+    else{c.beginPath();c.moveTo(-u*.14,u*.26);c.lineTo(-u*.14,-u*.26);c.lineTo(u*.22,-u*.14);c.lineTo(-u*.14,-u*.02);c.stroke()}
+    c.restore();
+    const dist=m?m.d:NAV.remain,txt=dist>=950?(dist/1000).toFixed(1)+' km':Math.max(10,Math.round(dist/10)*10)+' m',what=!m||m.kind=='end'?'ARRIVE':m.kind=='uturn'?'U-TURN':m.kind=='bear'?(m.ang<0?'BEAR LEFT':'BEAR RIGHT'):(m.ang<0?'TURN LEFT':'TURN RIGHT');
+    fxText(c,txt,cx+u*.95,cy+ch*.52,u*.42,'#ffffff','left');c.fillStyle='#7fe3ff';c.font='800 '+Math.round(u*.2)+'px '+UIF;c.textAlign='left';c.fillText(what+'   ·   '+km+' TO GO',cx+u*.95,cy+ch*.86)}
+  /* the waypoint itself, pinned on the screen where it is */
+  {const V=R.VP,wy=w.y+9,cwp=V[3]*w.x+V[7]*wy+V[11]*w.z+V[15];if(cwp>1){const nx=(V[0]*w.x+V[4]*wy+V[8]*w.z+V[12])/cwp,ny=(V[1]*w.x+V[5]*wy+V[9]*w.z+V[13])/cwp;
+    if(Math.abs(nx)<.92&&Math.abs(ny)<.9){const px=(nx*.5+.5)*W_,py=(1-(ny*.5+.5))*H_,d=Math.hypot(dx,dz),sc=Math.max(.7,Math.min(1.25,60/Math.max(30,d)*1.4));c.save();c.translate(px,py);c.scale(sc,sc);c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=6;
+      c.fillStyle='#38d3ff';c.strokeStyle='#fff';c.lineWidth=2.4;c.beginPath();c.moveTo(0,u*.34);c.lineTo(-u*.22,-u*.04);c.arc(0,-u*.12,u*.22,Math.PI,0,false);c.lineTo(0,u*.34);c.closePath();c.fill();c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(0,-u*.12,u*.08,0,TAU);c.fill();c.shadowBlur=0;
+      fxText(c,fmtLen(d),0,-u*.5,u*.26,'#ffffff','center','rgba(56,211,255,.6)');c.restore()}}}
   /* an arrow along the top edge when it is not in front of you */
-  if(Math.abs(rel)>.55){const ax=W_*.5+Math.max(-1,Math.min(1,rel/1.5))*W_*.34,ay=u*2.2;c.translate(ax,ay);c.rotate(Math.abs(rel)>1.9?PI:rel>0?PI/2:-PI/2);c.fillStyle='#7fe3ff';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;c.beginPath();c.moveTo(0,-u*.26);c.lineTo(u*.2,u*.2);c.lineTo(0,u*.1);c.lineTo(-u*.2,u*.2);c.closePath();c.fill()}
+  if(Math.abs(rel)>.55){const ax=W_*.5+Math.max(-1,Math.min(1,rel/1.5))*W_*.34,ay=u*1.7;c.translate(ax,ay);c.rotate(Math.abs(rel)>1.9?PI:rel>0?PI/2:-PI/2);c.fillStyle='#7fe3ff';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;c.beginPath();c.moveTo(0,-u*.26);c.lineTo(u*.2,u*.2);c.lineTo(0,u*.1);c.lineTo(-u*.2,u*.2);c.closePath();c.fill()}
   c.restore()}
 /* drawn on the minimap and the world map (canvas 2D, in map pixels): the route and the flag */
 function navMapOverlay(ctx,pxm,s){

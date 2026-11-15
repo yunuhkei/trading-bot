@@ -7,8 +7,8 @@ const COPD={
   /* top: the slowest a chaser's top speed can be; follow: chasers match your speed times this (up to 105 m/s) and get a rubber-band boost when they fall behind; accel: how hard they accelerate;
      loseT / loseD: you only lose them by being more than loseD metres from every chaser AND out of sight for loseT seconds; passV: speed at which blowing past a cop gets you chased (120 mph) */
   forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,2,4,5,6,8],patrol:1,ramLevel:2,ramCd:4.2,ramV:10,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:10,loseD:170,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
-  medium:{name:'Medium',top:66,follow:1.15,accel:14,react:.7,chaseN:[0,3,5,6,7,9],patrol:1,ramLevel:2,ramCd:3,ramV:12,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:12,loseD:200,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
-  hard:{name:'Hard',top:76,follow:1.2,accel:16,react:.5,chaseN:[0,3,5,7,8,10],patrol:2,ramLevel:2,ramCd:2.2,ramV:15,blockLevel:3,bustT:2,bustSpd:8,bustN:2,loseT:14,loseD:240,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
+  medium:{name:'Medium',top:72,follow:1.22,accel:16,react:.6,chaseN:[0,3,5,7,8,10],patrol:1,ramLevel:2,ramCd:2.6,ramV:13,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:14,loseD:230,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
+  hard:{name:'Hard',top:84,follow:1.3,accel:18,react:.4,chaseN:[0,4,6,8,9,12],patrol:2,ramLevel:2,ramCd:1.8,ramV:16,blockLevel:2,bustT:2,bustSpd:8,bustN:2,loseT:16,loseD:260,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
 /* WHAT EACH STAR ADDS (batch 3; the difficulty presets above set the speeds, the number of chasers and how often they ram):
    1 a couple of patrol cars follow you, no contact; 2 more cars and they RAM you (interceptors join); 3 PIT manoeuvres (they aim at your rear quarter), bigger roadblocks (4 cars across, 5 at four stars, 6 at five; one fewer on Forgiving, which leaves a gap; fewer on a narrow road);
    4 a HELICOPTER with a spotlight follows you (it always knows where you are) and SPIKE STRIPS are laid on the road ahead; 5 SWAT trucks block, two or three helicopters, near-constant PIT
@@ -18,13 +18,13 @@ const STARS=[{types:[4]},{types:[4],pit:0,block:0,heli:0,spikes:0,ramMul:1},{typ
 /* (batch 27) LOCK-ON: cops have to be close to see you (a crime counts only with a cop within 60 m, or 120 m in clear sight; a patrol notices you the same way), but once they
    are after you they always know where you are while any police car (chasing, wrecked or in a roadblock) is within a mile (COP_LOCK); reinforcements come only while one is within
    600 m. Put a mile between you and the nearest one and within about 5 s the heat is gone. */
-const COP_LOCK=1609,COP_SEE=120,COP_NEAR=60;
+const COP_LOCK=560,COP_SEE=190,COP_NEAR=60;   /* (batch 53) lock-on was a whole mile (they always knew where you were); now 560 m, then they drive to the last place they saw you; they see further in clear sight (190 m) */
 /* the call that goes out with a crime: when and where it happened (for 20 s they know you are near there; reinforcements are sent there for 15 s) */
 function copCall(){COP.callT=0;COP.callX=C.x;COP.callZ=C.z}
 const copCallD=()=>COP.callX===undefined?1e9:Math.hypot(C.x-COP.callX,C.z-COP.callZ);
 function copWitness(){for(const c of TR.cars){if(!c.alive||c.kind!==1)continue;const d=Math.hypot(c.x-C.x,c.z-C.z);if(d<COP_NEAR||(d<COP_SEE&&c.state!==1&&copLos(c)))return true}
   for(const h of HELI.list)if(!h.leave&&Math.hypot(h.x-C.x,h.z-C.z)<220)return true;return false}
-const COP={on:true,D:COPD.forgiving,diff:'forgiving',heat:0,w:0,t:0,sightT:99,minD:1e9,bust:0,spawnT:2,nC:0,nP:0,sirenVol:0,lastBlock:-99,warnT:0,heatT:0,seenNow:false,rbN:0};
+const COP={on:true,D:COPD.medium,diff:'medium',heat:0,w:0,t:0,sightT:99,minD:1e9,bust:0,spawnT:2,nC:0,nP:0,sirenVol:0,lastBlock:-99,warnT:0,heatT:0,seenNow:false,rbN:0};
 function copSetDiff(n){if(COPD[n]){COP.D=COPD[n];COP.diff=n}}
 /* ---- heat ---- */
 function copLevelOf(){const t=COP.D.thr;let L=0;for(let i=1;i<6;i++)if(COP.w>=t[i]*(i<=COP.heat?.7:1))L=i;return L}

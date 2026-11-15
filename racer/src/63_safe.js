@@ -81,5 +81,5 @@ function safeHud(c,W_,H_,u){
   if(SAFE.msgT>0)dashToast(c,W_,H_,u,SAFE.msg,Math.min(1,SAFE.msgT*1.5));   /* (batch 19: an amber trip-computer line) */
   /* wrecked / busted screen */
   if(GAME.state){const k=Math.min(1,GAME.t/1.2),f=GAME.t>2.6?Math.min(1,(GAME.t-2.6)/.7):0;c.save();c.fillStyle='rgba(0,0,0,'+(.35*k+.65*f)+')';c.fillRect(0,0,W_,H_);c.globalAlpha=k;c.textAlign='center';c.font='900 '+Math.round(u*1.1)+'px '+UIF;
-    c.fillStyle=GAME.state==2?'#7fb4ff':'#ff6a4a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=10;c.fillText(GAME.msg,W_*.5,H_*.5);if(GAME.state==2&&GAME.fine>0){c.font='800 '+Math.round(u*.32)+'px '+UIF;c.fillStyle='#ffb0a0';c.fillText('FINE  -'+evMoney(GAME.fine),W_*.5,H_*.5+u*.6)}
+    fxText(c,GAME.msg,W_*.5,H_*.5,u*1.15,GAME.state==2?'#7fb4ff':'#ff6a4a','center',GAME.state==2?'rgba(90,150,255,.7)':'rgba(255,80,40,.7)');if(GAME.state==2&&GAME.fine>0){c.font='800 '+Math.round(u*.32)+'px '+UIF;c.fillStyle='#ffb0a0';c.fillText('FINE  -'+evMoney(GAME.fine),W_*.5,H_*.5+u*.6)}
     c.font='700 '+Math.round(u*.3)+'px '+UIF;c.fillStyle='rgba(255,255,255,.85)';c.fillText(GAME.state==2?'The cops got you.':'The car is finished.',W_*.5,H_*.5+u*.55);c.restore()}}

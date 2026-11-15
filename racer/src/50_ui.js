@@ -112,7 +112,7 @@ function hudDraw(){
    const toast=(txt,col,y,age,hold)=>{   /* age: seconds since it appeared (or since it ended, for the hold) */
      let al=1,rise=0,sc=1;if(age<0){const k=Math.min(1,-age/.16);al=k;sc=.8+.2*k;rise=(1-k)*7}
      else if(age>hold){const k=(age-hold)/.6;if(k>=1)return;const e=1-(1-k)*(1-k);al=1-k;rise=e*22;sc=1-.15*k}
-     c.save();c.globalAlpha=al;c.translate(W_*.5,y-rise);c.scale(sc,sc);c.textAlign='center';c.font=font;c.fillStyle=col;c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=4;c.fillText(txt,0,0);c.restore()};
+     c.save();c.globalAlpha=al;c.translate(W_*.5,y-rise);c.scale(sc,sc);fxText(c,txt,0,0,(parseInt(font.match(/(\d+)px/)[1])||20),col,'center',col);c.restore()};
    /* drift: counting up while sliding, then held and floated away */
    if(C.dActive&&C.dTime>.3)toast('DRIFT  '+Math.round(C.dCombo)+(C.tapN>0&&C.tapT>0?'   x'+(C.tapN+1):''),'#7fd4ff',H_*.31,-Math.min(.16,C.t-C.dStart-.3)-.0001,1);
    else if(C.dLast){const age=C.t-C.dLast.t;if(age<2.4)toast('DRIFT  '+C.dLast.pts,'#7fd4ff',H_*.31,age,1.8)}
@@ -123,7 +123,7 @@ function hudDraw(){
   const mm=UI.mm;drawMap(c,mm.cx,mm.cy,mm.r,420,-C.yaw);c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px '+UIF;c.fillStyle='rgba(255,255,255,.85)';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText('MAP',mm.cx,mm.cy+mm.r+u*.3);c.restore();
   /* location banner */
   if(C.t-UI.locT>1.5){const n=regionName();if(n!==UI.locName){UI.locName=n;UI.locT=C.t}}
-  if(UI.locName&&C.t-UI.locT<3.5&&!UI.paused&&!EV.run){const a=Math.min(1,(3.5-(C.t-UI.locT)),(C.t-UI.locT)*3);c.save();c.globalAlpha=a;c.textAlign='center';c.font='800 '+Math.round(u*.55)+'px '+UIF;c.fillStyle='#fff';c.shadowColor='rgba(0,0,0,.7)';c.shadowBlur=6;c.fillText(UI.locName.toUpperCase(),W_*.5,H_*.2);c.restore()}
+  if(UI.locName&&C.t-UI.locT<3.5&&!UI.paused&&!EV.run){const a=Math.min(1,(3.5-(C.t-UI.locT)),(C.t-UI.locT)*3);c.save();c.globalAlpha=a;fxText(c,UI.locName.toUpperCase(),W_*.5,NAV.wp?H_*.3:H_*.2,u*.6,'#ffd24a','center','rgba(255,170,40,.6)');c.restore()}
   /* the instruments and the controls (52_dash.js) */
   dashDraw(c,W_,H_,u);
   /* the thumb-stick ring where the left thumb is */

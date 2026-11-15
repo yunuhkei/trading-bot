@@ -663,7 +663,7 @@ function buildCity(){LMK.clear();buildGarageRoom();
     pbox(1,px,h0-.4,pz,hx,h0+h,hz,wall[0],wall[1],wall[2],true,.7);proof(1,px,h0+h,pz,hx,hz,2.2+sub(),120+sub()*40,70,58,hx>hz);COLR.push(px-hx,pz-hz,px+hx,pz+hz,h0+h);ns++}
   /* trees: forests and a few roadside trees */
   const tr=mulberry(4242);let nt=0;
-  for(let x=-2800;x<2800;x+=19)for(let z=-2800;z<2800;z+=19){
+  for(let x=-2400;x<3500;x+=21)for(let z=-4700;z<2900;z+=21){   /* (batch 53) the woods used to stop at +-2.8 km: the whole north (z down to -4.7 km) and the east were bare. Same density, a slightly wider grid step */
     const px=x+(tr()-.5)*16,pz=z+(tr()-.5)*16,gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(gi<2||gj<2||gi>=W.N-2||gj>=W.N-2)continue;
     const h=W.hm[gj*W.N+gi],dr=W.D8[gj*W.N+gi],sl=terrainSlope(px,pz);let p=0;
     if(forestAt(px,pz,h,sl,dr))p=.66;else if(dr>13&&dr<95&&h>6&&sl<.4&&!inUrban(px,pz,60))p=(.11+.3*sstep(1,2,fbm(px*.003,pz*.003,55,2)*2))*(1-.65*sstep(40,95,dr));

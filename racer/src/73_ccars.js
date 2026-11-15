@@ -191,3 +191,10 @@ TTYPES[4].cop=1;TTYPES[4].cc='t_cop';TTYPES[4].vtop=1;TTYPES[20].vtop=1.25;TTYPE
 CAR_ROSTER.sort((a,b)=>(a.real.top-b.real.top)||(b.real.t100-a.real.t100)||(a.real.hp-b.real.hp));
 function carIndex(id){const i=CAR_ROSTER.findIndex(d=>d.id===id);return i<0?0:i}
 CARSEL.cur=carIndex('k1');
+
+/* ===== (batch 53) THE RACERS DRIVE THE PLAYABLE CARS: twelve roster cars, from a hot hatch to the Bugatti-like hypercar, are traffic types of their own (built the first time one is seen); a racer is picked to be about as fast as your own car, and drives with that car's real figures (see 69_racers.js) ===== */
+const RACER_POOL=[];
+for(const id of['cc_n_courier','cc_n_nitro','cc_n_magnet','k1','j1','c1','t1','u2','m1','cc_h_reaper','h3','h2']){const def=CAR_ROSTER.find(d=>d.id==id);if(!def)continue;const S=def.spec;
+  /* the traffic palette colour nearest the car's paint */let bc=0,bd=1e9;TCOLS.forEach((c,k)=>{const d=Math.pow(Math.pow(def.paint[0]/255,2.2)-c[0],2)+Math.pow(Math.pow(def.paint[1]/255,2.2)-c[1],2)+Math.pow(Math.pow(def.paint[2]/255,2.2)-c[2],2);if(d<bd){bd=d;bc=k}});
+  TTYPES.push({n:'rc_'+id,rc:id,hl:S.L/2-.05,hw:S.W/2-.04,m:def.real.kg,far:-1,vtop:1,col:bc});RACER_POOL.push({id,type:TTYPES.length-1,def,top:def.real.top,col:bc})}
+RACER_POOL.sort((a,b)=>a.top-b.top);
