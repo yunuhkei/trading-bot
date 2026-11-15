@@ -4050,7 +4050,7 @@ function trBody(B,c){B.x=c.x;B.z=c.z;B.yaw=c.yaw;if(c.state==0){B.vx=Math.sin(c.
 /* a crash leaves a dent in the car: where (on its body), how deep and how wide; two dents are kept per car and a new one near an old one deepens it. The shader (trV) pushes the metal in. */
 const TDCAP=[170000,150000,230000,280000,250000,900000,900000,400000,170000,260000,170000,170000,170000,150000,260000,170000,170000,260000,170000,170000,230000,300000,900000];      /* energy that finishes a sedan / hatch / SUV / van / police car (J) */
 function trDent(c,wx,wz,E){
-  if(E<2500)return;c.dmg=Math.min(1,(c.dmg||0)+(c.kind==1&&!(TR.hitP&&TR.hitF)?Math.max(0,E-40000)*.5:E*(c.kind==0?1.6:1))/(TDCAP[c.type]||180000));   /* (batch 53) traffic cars take 1.6x the wear: they used to shrug off crashes */   /* (batch 24: a cop that rams you wears only from hard rams, at half the rate; pushing and pinning does not wear it; (batch 26) nor do the bumps of a pack of cops among themselves and the traffic, which used to wreck the whole pack before it reached you) */const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
+  if(E<2500)return;c.dmg=Math.min(1,(c.dmg||0)+(c.kind==1&&!(TR.hitP&&TR.hitF)?Math.max(0,E-40000)*.5:E*(c.kind==0?1.6:c.kind==2?(TR.rRam?.1:.5):1))/(TDCAP[c.type]||180000));   /* (batch 53) traffic cars take 1.6x the wear: they used to shrug off crashes */   /* (batch 24: a cop that rams you wears only from hard rams, at half the rate; pushing and pinning does not wear it; (batch 26) nor do the bumps of a pack of cops among themselves and the traffic, which used to wreck the whole pack before it reached you) */const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw),dx=wx-c.x,dz=wz-c.z;let lr=dx*cy+dz*sy,lf=dx*sy-dz*cy;const k=Math.max(Math.abs(lr)/c.hw,Math.abs(lf)/c.hl,1e-3);lr/=k;lf/=k;
   const q=Math.sqrt(E/120000),dep=Math.min(.62,.09+.5*q),rad=.55+.6*q,d=c.dn||(c.dn=new Float32Array(12));let slot=-1;
   for(let s=0;s<3;s++)if(d[s*4+2]>0&&Math.hypot(d[s*4]-lr,d[s*4+1]-lf)<.8){slot=s;break}
   if(slot<0){slot=d[2]<=0?0:d[6]<=0?1:d[10]<=0?2:(d[2]<=d[6]&&d[2]<=d[10]?0:d[6]<=d[10]?1:2)}
@@ -4063,7 +4063,7 @@ function trBack(B,c,E){
   if(c.kind==2&&c.race&&!TR.hitP)E*=.2;   /* (batch 53) racers bump each other and the traffic without being wrecked: only YOU take a racer out */
   trDent(c,HIT.cx,HIT.cz,E);
   if(c.state==3&&(c.kind==1||c.kind==2)&&(c.dmg||0)>=.92){/* (batch 24) a chasing cop or a racer worn down by hits is destroyed, like a car taken out by one big hit */E=Math.max(E,c.kind==1||TR.hitP?140000:230000);if(c.kind==1){c.cm=2;c.siren=0;c.block=0}}
-  if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>(TR.hitP?110000:300000)&&c.kind==1){c.state=1;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;trFlipKick(c,E)}if(E>(TR.hitP?70000:220000)&&c.kind==2){c.state=1;c.wt=0;TR.stat.wrecks++;trFlipKick(c,E)}return}   /* a racer wrecked by a big hit is out of the race */
+  if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>(TR.hitP?110000:300000)&&c.kind==1){c.state=1;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;trFlipKick(c,E)}if(E>(TR.hitP?(TR.rRam?1e9:110000):220000)&&c.kind==2){   /* (batch 53) a racer takes a much bigger hit to wreck (it was 70 kJ: a tap), and never wrecks itself ramming you */c.state=1;c.wt=0;TR.stat.wrecks++;trFlipKick(c,E)}return}   /* a racer wrecked by a big hit is out of the race */
   if(c.state==0&&E<2500){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.v=Math.max(0,B.vx*hx+B.vz*hz);c.x=B.x;c.z=B.z;return}
   if(c.state==0){c.state=1;c.wt=0;c.brake=0;c.L=null;TR.stat.wrecks++;c.rec=(c.kind==0&&E<32000&&(c.dmg||0)<.72)?1:0}      /* a knock spins it round and it drives on, limping; a big hit finishes it */
   c.x=B.x;c.z=B.z;c.vx=B.vx;c.vz=B.vz;c.om=B.om>5?5:B.om<-5?-5:B.om;c.v=Math.hypot(c.vx,c.vz);trFlipKick(c,E)}   /* batch 6: a big hit throws it up and rolls it */
@@ -4086,7 +4086,7 @@ function trPlayerCollide(){
         /* WHO WAS AT FAULT: only a crash YOU drive into is a crime. The normal points from the car to you: your speed into it against its speed into you (being rear-ended, or a patrol nudging you at a standstill, used to make you wanted) */
         const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
         const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
-        TR.hitP=1;TR.hitF=fault?1:0;trBack(BB,c,e);TR.hitP=0;c.hitT=C.t;if(was!==1&&c.state==1){evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic&&!ram)tumbleFromCar(hnx,hnz,vn,e,c.m)}
+        TR.hitP=1;TR.hitF=fault?1:0;TR.rRam=c.kind==2&&cin>pin+1;if(TR.rRam){/* (batch 53) a racer that rams YOU knocks you about the way you knock it: a real shove sideways and a spin */const k=Math.min(1,cin/20);C.wyaw+=(TR.rng()<.5?-1:1)*(1.2+2.2*k);C.vx-=HIT.nx*cin*.35;C.vz-=HIT.nz*cin*.35}trBack(BB,c,e);TR.hitP=0;TR.rRam=0;c.hitT=C.t;if(was!==1&&c.state==1){evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic&&!ram)tumbleFromCar(hnx,hnz,vn,e,c.m)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){
@@ -5381,7 +5381,7 @@ function racerStep(c,dt){
       tx+=-dz/l*R.off;tz+=dx/l*R.off}
     /* a death racer goes for you when you are close */
     if(R.aggr&&EV.run&&!TUM.on){R.ramCd-=dt;const dpx=C.x-c.x,dpz=C.z-c.z,dp=Math.hypot(dpx,dpz);if(EV.run.ev&&EV.run.ev.type=='death'&&(dpx*sy+dpz*cy)<-6&&dp<110)vt=Math.min(vt,Math.max(C.speed*1.04,26));   /* (batch 53) a death racer stays in reach of you instead of running away from you: it is a fight */
-      if(dp<34&&R.ramCd<=0&&(dpx*sy+dpz*cy)>-14){tx=C.x+C.vx*.4;tz=C.z+C.vz*.4;vt=Math.max(vt,C.speed+10);if(dp<4.5)R.ramCd=3.5}}
+      if(dp<48&&R.ramCd<=0&&(dpx*sy+dpz*cy)>-20){tx=C.x+C.vx*.4;tz=C.z+C.vz*.4;vt=Math.max(vt,C.speed+15);if(dp<4.5)R.ramCd=1.8}}
     if(c.rev>0){c.rev-=dt;c.yaw+=c.revS*1.1*dt;c.v=0;c.x-=sy*4*dt;c.z-=cy*4*dt;c.vx=-sy*4;c.vz=-cy*4;if(trStatic(c.x,c.z,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz}const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);return}
     if(c.stk>.8&&c.v<2){c.rev=1;c.revS=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw)>0?-1:1;c.stk=.3}
     const err=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw),maxYr=Math.min(2.4,sk.grip*1.3/Math.max(v,4)),yr=Math.max(-maxYr,Math.min(maxYr,err*3));c.om=yr;c.yaw+=yr*dt;
@@ -6060,7 +6060,7 @@ for(const d of CAR_ROSTER)if(d._late)Object.assign(d.spec,d._late);   /* (batch 
 /* ---------------- handling from the real figures ---------------- */
 /* Everything is measured against the first car, so it keeps exactly the old numbers. Top speed, acceleration, grip, braking and agility come from the figures; the drive layout changes how the tail behaves:
    all-wheel drive grips more and slides less, front-engine rear-drive cars light up the rear tyres under power (the more power for the weight, the more), mid-engine cars turn in sharply and let go suddenly. */
-const HND0=Object.assign({},HND,{vmax:80,vmaxG:62,powerOS:0,mass:1530,rollK:1});
+const HND0=Object.assign({},HND,{vmax:80,vmaxG:62,powerOS:0,mass:1530,rollK:1,betaFast:HND.betaFast*1.45,betaSlow:HND.betaSlow*1.1,gripDrift:HND.gripDrift*.8,driftFric:HND.driftFric*.85,respondDrift:HND.respondDrift*.62,driftRelease:HND.driftRelease*.7});   /* (batch 53) drifts slide out further (a bigger angle at speed, less grip in the slide) and settle back more smoothly (a softer yaw response, a gentler release) */
 const CAR_REF={hp:443,kg:1530,top:308,t100:3.7,lat:1.05,brk:34,wb:2.45};
 function carHandling(def){
   const r=def.real,B=HND0,S=def.spec,wb=S.wb||2.45;Object.assign(HND,B);

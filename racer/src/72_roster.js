@@ -122,7 +122,7 @@ for(const d of CAR_ROSTER)if(d._late)Object.assign(d.spec,d._late);   /* (batch 
 /* ---------------- handling from the real figures ---------------- */
 /* Everything is measured against the first car, so it keeps exactly the old numbers. Top speed, acceleration, grip, braking and agility come from the figures; the drive layout changes how the tail behaves:
    all-wheel drive grips more and slides less, front-engine rear-drive cars light up the rear tyres under power (the more power for the weight, the more), mid-engine cars turn in sharply and let go suddenly. */
-const HND0=Object.assign({},HND,{vmax:80,vmaxG:62,powerOS:0,mass:1530,rollK:1});
+const HND0=Object.assign({},HND,{vmax:80,vmaxG:62,powerOS:0,mass:1530,rollK:1,betaFast:HND.betaFast*1.45,betaSlow:HND.betaSlow*1.1,gripDrift:HND.gripDrift*.8,driftFric:HND.driftFric*.85,respondDrift:HND.respondDrift*.62,driftRelease:HND.driftRelease*.7});   /* (batch 53) drifts slide out further (a bigger angle at speed, less grip in the slide) and settle back more smoothly (a softer yaw response, a gentler release) */
 const CAR_REF={hp:443,kg:1530,top:308,t100:3.7,lat:1.05,brk:34,wb:2.45};
 function carHandling(def){
   const r=def.real,B=HND0,S=def.spec,wb=S.wb||2.45;Object.assign(HND,B);

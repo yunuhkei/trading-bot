@@ -60,7 +60,7 @@ function racerStep(c,dt){
       tx+=-dz/l*R.off;tz+=dx/l*R.off}
     /* a death racer goes for you when you are close */
     if(R.aggr&&EV.run&&!TUM.on){R.ramCd-=dt;const dpx=C.x-c.x,dpz=C.z-c.z,dp=Math.hypot(dpx,dpz);if(EV.run.ev&&EV.run.ev.type=='death'&&(dpx*sy+dpz*cy)<-6&&dp<110)vt=Math.min(vt,Math.max(C.speed*1.04,26));   /* (batch 53) a death racer stays in reach of you instead of running away from you: it is a fight */
-      if(dp<34&&R.ramCd<=0&&(dpx*sy+dpz*cy)>-14){tx=C.x+C.vx*.4;tz=C.z+C.vz*.4;vt=Math.max(vt,C.speed+10);if(dp<4.5)R.ramCd=3.5}}
+      if(dp<48&&R.ramCd<=0&&(dpx*sy+dpz*cy)>-20){tx=C.x+C.vx*.4;tz=C.z+C.vz*.4;vt=Math.max(vt,C.speed+15);if(dp<4.5)R.ramCd=1.8}}
     if(c.rev>0){c.rev-=dt;c.yaw+=c.revS*1.1*dt;c.v=0;c.x-=sy*4*dt;c.z-=cy*4*dt;c.vx=-sy*4;c.vz=-cy*4;if(trStatic(c.x,c.z,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz}const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);return}
     if(c.stk>.8&&c.v<2){c.rev=1;c.revS=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw)>0?-1:1;c.stk=.3}
     const err=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw),maxYr=Math.min(2.4,sk.grip*1.3/Math.max(v,4)),yr=Math.max(-maxYr,Math.min(maxYr,err*3));c.om=yr;c.yaw+=yr*dt;
