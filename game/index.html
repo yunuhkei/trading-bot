@@ -277,6 +277,7 @@
   #dmgdir { position: absolute; left: 50%; top: 50%; width: min(52vh, 300px); height: min(52vh, 300px); opacity: 0; border-radius: 50%; transform: translate(-50%, -50%);
     background: conic-gradient(from -18deg, rgba(220, 20, 30, 0.85) 0deg, rgba(220, 20, 30, 0) 36deg, transparent 36deg);
     -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%, #000 70%, transparent 72%); mask: radial-gradient(circle, transparent 62%, #000 64%, #000 70%, transparent 72%); }
+  #btnFire2 { width: 64px; height: 64px; left: calc(28px + var(--sal)); bottom: calc(236px + var(--sab)); font-size: 12px; box-shadow: 0 0 0 2px rgba(179, 18, 30, 0.85); }
   #btnAim { width: 70px; height: 70px; right: calc(116px + var(--sar)); bottom: calc(182px + var(--sab)); font-size: 13px; }
   #btnAim.on { background: rgba(255, 51, 68, 0.5); box-shadow: 0 0 0 2px #ff3344; }
   #btnCrouch { width: 60px; height: 60px; left: calc(30px + var(--sal)); bottom: calc(160px + var(--sab)); font-size: 10px; }
@@ -330,6 +331,7 @@
   <button class="tbtn foot" id="btnAim">AIM</button>
   <button class="tbtn foot" id="btnCrouch">CROUCH</button>
   <button class="tbtn foot" id="btnFire">FIRE</button>
+  <button class="tbtn foot" id="btnFire2" aria-label="Fire">FIRE</button>
   <button class="tbtn drive arrow" id="btnLeft" aria-label="Steer left"></button>
   <button class="tbtn drive arrow" id="btnRight" aria-label="Steer right"></button>
   <button class="tbtn drive" id="btnGas">GAS</button>
@@ -412,9 +414,11 @@
 <div id="err" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="vendor/addons.js"></script>
 <script src="js/core.js"></script>
 <script src="js/world.js"></script>
 <script src="js/body.js"></script>
+<script src="js/skin.js"></script>
 <script src="js/actors.js"></script>
 <script src="js/traffic.js"></script>
 <script src="js/arsenal.js"></script>

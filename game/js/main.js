@@ -23,6 +23,20 @@
   G.MODE = location.hash === '#island' ? 'island' : 'range';
   const RANGE = G.MODE === 'range';
   if (RANGE) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap; }
+  renderer.toneMapping = T.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = RANGE ? 0.95 : 1.3;
+  let composer = null, bloom = null;
+  function setupPost() {
+    const ADD = window.THREE_ADDONS;
+    if (!ADD || !ADD.EffectComposer) return;
+    try {
+      composer = new ADD.EffectComposer(renderer);
+      composer.addPass(new ADD.RenderPass(scene, camera));
+      bloom = new ADD.UnrealBloomPass(new T.Vector2(256, 256), 0.55, 0.5, 0.82);
+      composer.addPass(bloom);
+      composer.addPass(new ADD.OutputPass());
+    } catch (e) { console.error(e); composer = null; }
+  }
   const scene = (G.scene = new T.Scene());
   const FOG = 0x182030;
   scene.background = new T.Color(FOG);
@@ -39,6 +53,7 @@
   function resize() {
     const w = window.innerWidth, h = window.innerHeight;
     renderer.setSize(w, h, false);
+    if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }
     camera.aspect = w / h;
     camera.fov = w < h ? 75 : 62;
     camera.updateProjectionMatrix();
@@ -124,14 +139,17 @@
     k = k || activeWeapon();
     const w = G.WEAPONS[k], inv = G.inv;
     if (w.melee || player.reloadT > 0 || inv.mag[k] >= w.mag || inv.reserve[k] <= 0) return false;
-    player.reloadT = w.reload; player.reloadK = k;
-    G.audio.click();
+    player.reloadT = w.reload; player.reloadK = k; player.reloadStage = 0;
+    G.audio.mech(k === 'shotgun' ? 'shell' : 'magOut');
     return true;
   }
   function tickReload(dt) {
     if (player.reloadT <= 0) return;
     player.reloadT -= dt;
+    const w0 = G.WEAPONS[player.reloadK], f = 1 - player.reloadT / w0.reload;
+    if (player.reloadStage === 0 && f > 0.55) { player.reloadStage = 1; G.audio.mech(player.reloadK === 'shotgun' ? 'shell' : 'magIn'); }
     if (player.reloadT <= 0) {
+      G.audio.mech(player.reloadK === 'shotgun' ? 'pump' : 'rack');
       const k = player.reloadK, w = G.WEAPONS[k], inv = G.inv;
       const take = Math.min(w.mag - inv.mag[k], inv.reserve[k]);
       inv.mag[k] += take; inv.reserve[k] -= take;
@@ -144,7 +162,7 @@
     if (w.melee) { punch(); return; }
     if (inv.mag[k] > 0) { inv.mag[k]--; if (fromCar) driveBy(k); else playerShoot(k); return; }
     if (startReload(k)) return;
-    G.audio.click(); player.fireCD = 0.35;
+    G.audio.mech('dry'); player.fireCD = 0.35;
     if (!fromCar) { inv.cycle(1); G.hud.say('Out of ammo.', 1.5); }
   }
   function punch() {
@@ -224,8 +242,10 @@
     const kick = w.kick * (player.aimMode ? 1 : 0.5) * (player.crouch ? 0.7 : 1);
     recoilPitch += kick; camYaw += (Math.random() - 0.5) * kick * 0.6;
     player.bloom = Math.min(w.bloomMax, player.bloom + w.bloom);
-    G.audio.shot(w.vol);
-    if (k === 'shotgun' || k === 'rifle') { G.audio.thud(0.5); G.shake(0.14); }
+    G.audio.gun(k, 0.95);
+    if (k === 'shotgun' || k === 'rifle') G.shake(0.14);
+    if (k === 'shotgun') setTimeout(() => G.audio.mech('pump'), 360);
+    else if (k === 'rifle') setTimeout(() => G.audio.mech('rack'), 420);
     A.alarm(player.x, player.z, k === 'rifle' ? 70 : 45);
     if (!G.suppressShotHeat && G.wanted.level < 1 && witnesses(25)) G.addHeat(1);
   }
@@ -430,6 +450,7 @@
     if (face !== null) player.rot = G.angleLerp(player.rot, face, Math.min(1, dt * (player.aimMode ? 30 : aiming ? 20 : 10)));
     if (player.aimMode) aimAssist(dt);
     player.weaponK = activeWeapon() === 'fists' ? null : activeWeapon();
+    player.aimPitch = player.aimMode ? G.clamp((0.22 - (camPitch - recoilPitch)) * 0.9, -0.6, 0.7) : 0;
     player.reloading = player.reloadT > 0;
     G.body.pose(player, dt, speed, aiming || !!player.reloading);
 
@@ -813,6 +834,19 @@
   function bindUI() {
     G.initInput($('touch'), joyUI);
     G.bindHold(el.fire, (v) => G.setTouch('fire', v));
+    G.bindHold($('btnFire2'), (v) => G.setTouch('fire', v));
+    // dragging a thumb that's on FIRE also turns the camera, so you never have to let go to aim
+    for (const b of [el.fire, $('btnFire2'), $('btnShoot')]) {
+      let lx = null, ly = null;
+      b.addEventListener('pointerdown', (e) => { lx = e.clientX; ly = e.clientY; });
+      b.addEventListener('pointermove', (e) => {
+        if (lx === null || e.pointerType === 'mouse') return;
+        input.lookDX += (e.clientX - lx) * 0.9; input.lookDY += (e.clientY - ly) * 0.9;
+        lx = e.clientX; ly = e.clientY;
+      });
+      const end = () => { lx = ly = null; };
+      b.addEventListener('pointerup', end); b.addEventListener('pointercancel', end);
+    }
     G.bindHold($('btnShoot'), (v) => G.setTouch('fire', v));
     G.bindHold($('btnGas'), (v) => G.setTouch('gas', v));
     G.bindHold($('btnBrake'), (v) => G.setTouch('brake', v));
@@ -956,11 +990,14 @@
     } else {
       G.clearEdges();
     }
-    renderer.render(scene, camera);
+    if (composer && G.qualityLevel !== 'low') composer.render(dt); else renderer.render(scene, camera);
   }
 
   // ---------------------------------------------------------------- boot
-  function boot() {
+  async function boot() {
+    $('loading').textContent = 'Loading people…';
+    await G.skin.load();
+    setupPost();
     if (RANGE) G.range.build(scene); else W.build(scene);
     scene.add(beam);
     G.fx.init(scene);

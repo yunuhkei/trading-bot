@@ -36,3 +36,8 @@ Open http://localhost:8000. On a phone on the same Wi-Fi, use your computer's lo
 ## Publishing
 
 `node tools/build.js` bundles everything into one self-contained page at `dist/index.html`. That single file is what gets published, because some embedded viewers block a page from loading its own separate script files.
+
+## Third-party assets
+
+- `models/Soldier.glb` and `models/Michelle.glb`: rigged, animated characters from the three.js examples (`examples/models/gltf`), originally made with Adobe Mixamo. Fine to use inside the game; check Mixamo's terms before any commercial release, and don't redistribute the models on their own.
+- `vendor/addons.js`: three.js r160 example modules (GLTFLoader, SkeletonUtils, EffectComposer, UnrealBloomPass, OutputPass and their dependencies), MIT licensed, converted for classic-script loading by `node tools/addons.js`.

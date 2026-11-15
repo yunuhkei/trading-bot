@@ -62,7 +62,8 @@
       range: kind === 'cop' ? 22 : 18, fleeT: 0, tx: 0, tz: 0, walk: G.R(1.0, 1.5), born: Math.random() * 100,
     };
     if (!G.body.hasFree() && G.player) freeSlot();
-    if (!G.body.create(c, outfit(kind))) return null;
+    const o = outfit(kind); o.kind = kind;
+    if (!G.body.create(c, o)) return null;
     if (opts.anchor) c.anchor = opts.anchor;
     c.weaponK = opts.weapon !== undefined ? opts.weapon : kind === 'saint' ? (Math.random() < 0.35 ? 'shotgun' : 'smg') : kind === 'cop' ? 'pistol' : null;
     if (kind === 'local') c.kind = 'ped';
@@ -376,7 +377,7 @@
     if (pl.crouch && !pl.car) p *= 0.75;
     c.recoil = 1;
     const pd = Math.hypot(G.camera.position.x - c.x, G.camera.position.z - c.z);
-    G.audio.shot(G.clamp(1 - pd / 70, 0.05, 0.75) * w.vol);
+    G.audio.gun(c.weaponK || 'pistol', G.clamp(1 - pd / 80, 0.04, 0.8) * w.vol);
     const hit = G.gun.enemyShot(c, d, p);
     if (hit) {
       let dmg = G.R(w.dmg[0], w.dmg[1]);

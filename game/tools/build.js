@@ -3,9 +3,12 @@
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
-const order = ['core', 'world', 'body', 'actors', 'traffic', 'arsenal', 'gunplay', 'range', 'story', 'main'];
+const order = ['core', 'world', 'body', 'skin', 'actors', 'traffic', 'arsenal', 'gunplay', 'range', 'story', 'main'];
 let html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const code = order.map((n) => `// ---- js/${n}.js\n` + fs.readFileSync(path.join(root, 'js', n + '.js'), 'utf8')).join('\n');
+// three.js addons (model loader, post-processing) and the character model, embedded so the page needs no other files
+const addons = fs.readFileSync(path.join(root, 'vendor', 'addons.js'), 'utf8');
+const models = 'window.__MODELS = { soldier: "' + fs.readFileSync(path.join(root, 'models', 'Soldier.glb')).toString('base64') + '" };\n';
+const code = addons + '\n' + models + order.map((n) => `// ---- js/${n}.js\n` + fs.readFileSync(path.join(root, 'js', n + '.js'), 'utf8')).join('\n');
 const loader = `<script>
 window.__showErr = function (msg) {
   var el = document.getElementById('err');

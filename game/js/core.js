@@ -172,6 +172,15 @@
     const d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     A.noise = buf;
+    // the yard's echo: a generated impulse response (decaying, slightly stereo noise)
+    const irLen = Math.floor(ctx.sampleRate * 1.6), ir = ctx.createBuffer(2, irLen, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d2 = ir.getChannelData(ch);
+      for (let i = 0; i < irLen; i++) { const t = i / irLen; d2[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3.2) * (i < ctx.sampleRate * 0.012 ? 0 : 1); }
+    }
+    A.verb = ctx.createConvolver(); A.verb.buffer = ir;
+    A.verbIn = ctx.createGain(); A.verbIn.gain.value = 0.5;
+    A.verbIn.connect(A.verb).connect(A.master);
     // rain bed
     const rain = ctx.createBufferSource(); rain.buffer = buf; rain.loop = true;
     const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 600;
@@ -216,7 +225,59 @@
     g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     o.connect(g).connect(A.master); o.start(t); o.stop(t + dur + 0.05);
   }
-  A.shot = (vol = 1) => { burst(0.8 * vol, 6000, 280, 0.32); thump(0.6 * vol, 150, 38, 0.2); };
+  A.shot = (vol = 1) => A.gun('pistol', vol);
+  // a layered gunshot: crack (transient), body (filtered blast), thump (low end), mechanism click, echo
+  const GUNS = {
+    pistol: { crack: 0.7, body: 0.75, bodyF: [3200, 260], bodyT: 0.16, low: [140, 42, 0.16, 0.6], click: 0.12, verb: 0.35 },
+    smg: { crack: 0.55, body: 0.55, bodyF: [4200, 420], bodyT: 0.1, low: [170, 60, 0.1, 0.4], click: 0.1, verb: 0.25 },
+    shotgun: { crack: 0.8, body: 1.0, bodyF: [2400, 120], bodyT: 0.34, low: [85, 28, 0.32, 1.0], click: 0, verb: 0.5 },
+    rifle: { crack: 1.0, body: 0.9, bodyF: [5200, 200], bodyT: 0.28, low: [110, 32, 0.26, 0.85], click: 0.08, verb: 0.65 },
+  };
+  A.gun = function (kind, vol = 1) {
+    if (!A.ctx || A.muted || vol < 0.02) return;
+    const g = GUNS[kind] || GUNS.pistol, ctx = A.ctx, t = ctx.currentTime;
+    const out = ctx.createGain(); out.gain.value = vol;
+    out.connect(A.master);
+    const send = ctx.createGain(); send.gain.value = g.verb; out.connect(send).connect(A.verbIn);
+    // crack
+    const c = ctx.createBufferSource(); c.buffer = A.noise;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2200;
+    const cg = ctx.createGain(); cg.gain.setValueAtTime(g.crack, t); cg.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    c.connect(hp).connect(cg).connect(out); c.start(t, Math.random(), 0.05);
+    // body
+    const b = ctx.createBufferSource(); b.buffer = A.noise;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.8;
+    lp.frequency.setValueAtTime(g.bodyF[0], t); lp.frequency.exponentialRampToValueAtTime(g.bodyF[1], t + g.bodyT);
+    const bg = ctx.createGain(); bg.gain.setValueAtTime(g.body, t + 0.002); bg.gain.exponentialRampToValueAtTime(0.001, t + g.bodyT * 1.3);
+    b.connect(lp).connect(bg).connect(out); b.start(t, Math.random(), g.bodyT * 1.4);
+    // thump
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(g.low[0], t); o.frequency.exponentialRampToValueAtTime(g.low[1], t + g.low[2]);
+    const og = ctx.createGain(); og.gain.setValueAtTime(g.low[3], t); og.gain.exponentialRampToValueAtTime(0.001, t + g.low[2] * 1.2);
+    o.connect(og).connect(out); o.start(t); o.stop(t + g.low[2] * 1.3);
+    // the action cycling
+    if (g.click) metal(g.click * vol, 2800, 0.02, 0.012);
+  };
+  function metal(vol, f, dur, delay) {
+    if (!A.ctx || A.muted || vol < 0.01) return;
+    const ctx = A.ctx, t = ctx.currentTime + (delay || 0);
+    const s2 = ctx.createBufferSource(); s2.buffer = A.noise;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 7;
+    const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
+    s2.connect(bp).connect(g).connect(A.master); s2.start(t, Math.random(), dur + 0.02);
+  }
+  // reloads and pumps: a few metallic clicks and clacks at the right moments
+  A.mech = function (kind) {
+    const seq = {
+      magOut: [[0.35, 1800, 0.04, 0], [0.25, 900, 0.06, 0.05]],
+      magIn: [[0.45, 1300, 0.05, 0], [0.3, 2600, 0.03, 0.04]],
+      rack: [[0.4, 2200, 0.05, 0], [0.5, 1500, 0.06, 0.12]],
+      pump: [[0.5, 900, 0.07, 0], [0.55, 1200, 0.07, 0.16]],
+      shell: [[0.3, 1600, 0.04, 0]],
+      dry: [[0.35, 3200, 0.025, 0]],
+    }[kind] || [];
+    for (const [v, f, d, dl] of seq) metal(v, f, d, dl);
+  };
   A.thud = (vol = 1) => { burst(0.5 * vol, 900, 120, 0.25); thump(0.5 * vol, 90, 30, 0.18); };
   A.click = () => burst(0.25, 3000, 1500, 0.05, 'highpass');
   A.boom = () => { burst(1, 2000, 60, 1.8); thump(1, 80, 20, 1.2); };

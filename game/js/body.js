@@ -86,6 +86,7 @@
       bloody: 0, visible: true, written: false, trailD: 0, lx: c.x, lz: c.z, crouch: 0,
     };
     list.push(c);
+    if (G.skin && G.skin.ready && (G.MODE === 'range' || c.kind !== 'ped')) G.skin.make(c, o.kind || c.kind);
     B.recolor(c);
     return true;
   };
@@ -96,6 +97,7 @@
     const b = c.body;
     if (!b) return;
     hideAll(b.slot);
+    if (b.skin) G.skin.remove(c);
     free.push(b.slot);
     const k = list.indexOf(c);
     if (k >= 0) list.splice(k, 1);
@@ -105,10 +107,10 @@
   B.revive = function (c, soft) {
     const b = c.body;
     if (!b) return;
-    if (!soft) { b.rag = null; b.posed = false; b.bloody = 0; b.pooled = false; c.headshot = false; c.bigPool = false; B.recolor(c); }
+    if (!soft) { b.rag = null; b.posed = false; b.bloody = 0; b.pooled = false; c.headshot = false; c.bigPool = false; if (b.skin) G.skin.revive(c); B.recolor(c); }
     b.written = false;
   };
-  B.setVisible = function (c, v) { if (c.body) { c.body.visible = v; c.body.written = false; } };
+  B.setVisible = function (c, v) { if (c.body) { c.body.visible = v; c.body.written = false; if (c.body.skin) G.skin.setVisible(c, v); } };
 
   // colours for every part, per person. [mesh, local index, colour key, how much blood soaks it]
   const shade = (hex, k) => { col.set(hex); col.multiplyScalar(k); return '#' + col.getHexString(); };
@@ -147,9 +149,11 @@
   B.recolor = function (c) {
     const b = c.body, slot = b.slot;
     b.vis = {};
+    const SKIN_KEEP = { halo0: 1, box8: 1, box7: 1, box9: 1, box10: 1, box11: 1, box12: 1, barrel0: 1, barrel1: 1, barrel2: 1, hair0: b.o.hood || b.o.cap };
+    if (b.skin) G.skin.tintBlood(c);
     for (const [mk, k, hex, soak] of partColors(b.o)) {
       const key = mk + k;
-      b.vis[key] = !!hex;
+      b.vis[key] = !!hex && (!b.skin || !!SKIN_KEEP[key]);
       if (!hex) continue;
       col.set(hex);
       if (soak && b.bloody > 0) col.lerp(BLOODC, Math.min(1, b.bloody) * soak);
@@ -185,6 +189,7 @@
   B.pose = function (c, dt, speed, aiming) {
     const b = c.body;
     if (!b || b.rag) return;
+    if (b.skin) { G.skin.pose(c, dt, speed, aiming); return; }
     b.lastDt = dt;
     if (b.posed) b.jp.set(b.j);
     c.phase += dt * speed * 2.5;
@@ -274,6 +279,7 @@
     const rigid = new Float32Array(RIGID.length);
     RIGID.forEach((r, k) => { rigid[k] = dist(p, r[0], r[1]); });
     b.rag = { p, o, rigid, still: 0, t: 0, sleep: false, acc: 0 };
+    if (b.skin) G.skin.startRag(c);
     b.written = false;
     return b.rag;
   };
@@ -346,6 +352,7 @@
     const r = B.startRag(c);
     for (let k = 0; k < steps && !r.sleep; k++) step(c, r);
     c.body.j.set(r.p);
+    if (c.body.skin) G.skin.driveRag(c, r.p);
     c.x = (r.p[0] + r.p[3]) / 2; c.z = (r.p[2] + r.p[5]) / 2;
   };
 
@@ -571,6 +578,7 @@
           b.j.set(r.p);
           c.x = (r.p[0] + r.p[3]) / 2; c.z = (r.p[2] + r.p[5]) / 2;
           b.written = false;
+          if (b.skin) G.skin.driveRag(c, r.p);
         }
         if (!b.pooled && (r.sleep || r.t > 1.4)) {
           b.pooled = true;
