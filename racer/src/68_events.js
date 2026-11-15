@@ -76,6 +76,8 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
   if(r.t<0){r.t+=dt;C.vx=C.vz=0;C.x=C.px=ev.s.x;C.z=C.pz=ev.s.z;C.yaw=C.pyaw=ev.s.yaw;C.wyaw=0;const k=Math.ceil(-r.t);if(k<r.lastBeep&&k>0){r.lastBeep=k;evBeep(440,.12)}
     if(r.t>=0){evBeep(880,.25);for(const c of r.racers)if(c.race)c.race.go=true;if(ev.type=='escape'){const t=COP.D.thr,L=ev.stars;COP.w=t[L]+(L<5?(t[L+1]-t[L])*.3:20);COP.heat=L;COP.heatT=0;COP.sightT=0;copCall();(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:'event',level:L})}}return}
   r.t+=dt;
+  /* (batch 53) the GPS never drops out in an event: if the route to the next checkpoint (or the end) could not be found, or got lost, it is looked for again every half second */
+  if(ev.cps&&ev.type!='escape'){r.navT=(r.navT||0)-dt;if((!NAV.wp||!NAV.route)&&r.navT<=0){r.navT=.5;const q=ev.type=='rage'?ev.cps[ev.cps.length-1]:ev.cps[Math.min(r.cp,ev.cps.length-1)];if(q)navSetPt(q)}}
   if(r.racers&&r.racers.length&&ev.R){/* your progress along the race route (for the order) */const R=ev.R,p=R.pts;let bi=r.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(R.n,bi+50);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
   if(ev.type=='race'||ev.type=='death'){const p=ev.cps[r.cp],R=Math.max(14,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+5);if(Math.hypot(C.x-p.x,C.z-p.z)<R&&Math.abs(C.y-p.y)<6){r.cp++;if(r.cp>=ev.cps.length){evFinish(true);return}evBeep(660,.08);navSetPt(ev.cps[r.cp])}
     if(r.t>Math.max(ev.bronze*2.4,ev.bronze+150))evFinishFail('TOO SLOW')}

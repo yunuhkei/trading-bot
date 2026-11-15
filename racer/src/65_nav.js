@@ -60,7 +60,7 @@ function navUpdate(dt){
   NAV.prog=bi;NAV.off=Math.sqrt(bd);NAV.remain=R.len-R.S[bi];
   NAV.manT=(NAV.manT||0)-dt;if(NAV.manT<=0){NAV.manT=.2;NAV.man=navManeuver()}
   const dw=Math.hypot(NAV.wp.x-C.x,NAV.wp.z-C.z);
-  if(dw<26||(NAV.remain<18&&dw<60)){navClear();NAV.arrivedT=NAV.t;safeToast('You have arrived',3);return}
+  if(!EV.run&&(dw<26||(NAV.remain<18&&dw<60))){navClear();NAV.arrivedT=NAV.t;safeToast('You have arrived',3);return}
   if(NAV.off>16&&NAV.t-NAV.routeT>.9){                       /* only when you have left the route (a wrong turn): a new route from where you are */NAV.routeT=NAV.t;const rt=navRouteFromPlayer({ri:NAV.wp.ri,i:NAV.wp.i,x:NAV.wp.x,z:NAV.wp.z});if(rt){NAV.route=rt;NAV.prog=0;NAV.len=rt.len}}}
 /* (batch 53) turn-by-turn: the next real turn on the route (a heading change of more than 0.5 rad inside 24 m), how far away it is and which way */
 function navManeuver(){const R=NAV.route;if(!R)return null;const p=R.pts,n=R.n,S0=R.S[NAV.prog],idx=s=>{let k=NAV.prog;while(k<n-1&&R.S[k]<s)k++;return k};
