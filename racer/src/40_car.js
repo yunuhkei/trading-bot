@@ -140,7 +140,8 @@ function carStep(dt){
   else{C.handOn=0;C.handT=0;C.hk*=Math.max(0,1-dt*6);C.slideT=Math.max(0,C.slideT-dt)}
   const sl=hand?1:(gr&&spd>6?C.slideT/Math.max(.05,C.slideMax):0);   /* a tap keeps the slide going for a moment after the finger lifts */
   if(Math.abs(steer)>.3)C.lastSteer=Math.sign(steer);
-  {const dT=hand?1:.75*sl;C.drift+=(dT-C.drift)*Math.min(1,dt*(dT>C.drift?14:lerp(9,HND.driftRelease,Math.min(1,C.slip*4))))}   /* a real slide lets go of the tyres more slowly */
+  if(C.spinT>0)C.spinT-=dt;   /* (batch 53) spun out by a hit: the tyres let go for a moment */
+  {const dT=(hand||C.spinT>0)?1:.75*sl;C.drift+=(dT-C.drift)*Math.min(1,dt*(dT>C.drift?14:lerp(9,HND.driftRelease,Math.min(1,C.slip*4))))}   /* a real slide lets go of the tyres more slowly */
   const dr=C.drift;let beta=0,sK=0;
   if(gr){
     /* the most sideways acceleration the tyres give: a little aero grip at speed, much less on grass */
