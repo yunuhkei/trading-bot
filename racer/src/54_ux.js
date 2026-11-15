@@ -59,6 +59,10 @@ function randomStart(){const ok=ROADS.filter(r=>r.style!=2&&r.style!=5&&r.len>30
     const i=Math.max(10,Math.min(r.n-11,Math.floor(Math.random()*r.n)));if(r.br&&r.br[i])continue;const x=r.X[i],z=r.Z[i];if(JUNC.some(J=>Math.hypot(J.x-x,J.z-z)<50))continue;if(r.Y[i]<2)continue;
     const tg=_tan(r,i),li=laneInfo(r.hw,r.style),off=li.x0+li.lw*.5,nx=-tg[1],nz=tg[0];return{x:x+nx*off,z:z+nz*off,yaw:Math.atan2(tg[0],-tg[1]),y:r.Y[i]+.5,road:r.id}}
   return null}
-/* lane assist on or off (batch 22), saved; the game starts with it on */
-function laneSet(on){IN.lane=!!on;try{localStorage.setItem('racer.lane',on?'1':'0')}catch(e){}}
-function laneLoad(){let v=null;try{v=localStorage.getItem('racer.lane')}catch(e){}IN.lane=v==null?true:v==='1'}
+/* lane assist (batch 22), now with a strength (batch 53): 0 off, 1 low, 2 medium, 3 high (what it used to be: it was too strong). Saved; the game starts on medium. */
+const LANE_LBL=['OFF','LOW','MED','HIGH'],LANE_K=[0,.3,.6,1];
+function laneSet(lv){if(lv===true)lv=2;if(lv===false)lv=0;lv=Math.max(0,Math.min(3,lv|0));IN.laneLv=lv;IN.lane=lv>0;IN.laneK=LANE_K[lv];try{localStorage.setItem('racer.lane2',String(lv))}catch(e){}}
+function laneLoad(){let v=null;try{v=localStorage.getItem('racer.lane2')}catch(e){}laneSet(v==null?2:+v);}
+/* on-screen steering arrows (batch 53): an option, saved; the stick still works */
+function arrowsSet(on){IN.arrows=!!on;try{localStorage.setItem('racer.arrows',on?'1':'0')}catch(e){}}
+function arrowsLoad(){let v=null;try{v=localStorage.getItem('racer.arrows')}catch(e){}IN.arrows=v==='1'}

@@ -300,6 +300,8 @@ function cgDetails2(S,mb,opt){
   if(S.grille=='wide'){const p=S.near(0,S.sill+.2,S.zs(.12));cgDisc(mb,p,hw*.46,.1,CGM.grille,18,.005);for(const k of[-1,0,1])cgStrip(mb,[-3,-2,-1,0,1,2,3].map(q=>S.near(q*hw*.13,S.sill+.2+k*.04,S.zs(.12))),.012,CGM.chrome,.007)}
   else if(S.grille=='twin'){for(const sg of[-1,1]){const p=S.near(sg*.2,ny+.1,S.zs(.1));cgDisc(mb,p,.2,.09,CGM.chrome,14,.004);cgDisc(mb,p,.18,.075,CGM.grille,14,.007)}}
   else if(S.grille=='horseshoe'){const pts=[];for(let k=0;k<=10;k++){const a=Math.PI*k/10,x=Math.cos(a)*.26,y=ny+.1+Math.sin(a)*.2-.07;pts.push(S.near(x,y,S.zs(.1)))}cgStrip(mb,pts,.02,CGM.chrome,.006);cgDisc(mb,S.near(0,ny+.09,S.zs(.1)),.22,.14,CGM.grille,16,.004)}
+  else if(S.grille=='kidney'){/* (batch 53) two upright kidneys with a chrome rim, a little tilted in at the top (BMW) */
+    for(const sg of[-1,1]){const cx=sg*.145,cy=ny+.12;cgDisc(mb,S.near(cx,cy,S.zs(.1)),.115,.088,CGM.chrome,16,.004,sg*.12);cgDisc(mb,S.near(cx,cy,S.zs(.1)),.097,.071,CGM.grille,16,.007,sg*.12)}}
   else if(S.grille=='slit'){cgDisc(mb,S.near(0,S.sill+.2,S.zs(.1)),hw*.36,.032,CGM.grille,14,.005)}
   /* daytime running lights over the headlights */
   if(S.drl){for(const sg of[-1,1]){const hx=S.hw0*.66,pts=[];for(let k=0;k<5;k++)pts.push(S.near(sg*(hx-.12+.06*k),S.nose+.095,S.zs(.2)));cgStrip(mb,pts,.014,CGM.head,.008)}}

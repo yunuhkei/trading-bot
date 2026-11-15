@@ -92,6 +92,30 @@ const CAR_STYLE={
  l1:{h:'round',t:'quad',n:[2.4,.45,.3],r:[5,.3,.5],q:5.5,k:.7,c:1.3,f:0},l2:{h:'led',t:'ring',n:[3,.4,.35],r:[3,.45,.32],q:4.6,k:.5,c:.9,f:1},l3:{h:'round',t:'dots',n:[1.8,.5,.24],r:[4,.35,.4],q:6,k:.8,c:1.5,f:3},
  j1:{h:'box',t:'ring',n:[5.5,.3,.6],r:[8,.24,.75],q:8.5,k:1,c:2,f:1},j2:{h:'tri',t:'bar',n:[2,.6,.24],r:[5,.32,.45],q:6.5,k:.9,c:1.8,f:2,p2:[120,40,200]},j3:{h:'blade',t:'slash',n:[2.3,.55,.26],r:[6,.3,.6],q:6,k:.85,c:1.7,sp:.02,f:2,p2:[255,190,215]},
  h1:{h:'twin',t:'quad',n:[2.2,.6,.2],r:[3,.5,.3],q:5,k:.6,c:1.1,f:1},h2:{h:'box',t:'wide',n:[3.6,.4,.4],r:[2.8,.55,.32],q:4.6,k:.5,c:.8,f:1},h3:{h:'led',t:'slit',n:[2,.6,.2],r:[4.5,.35,.42],q:5.5,k:.75,c:1.4,f:3}};
+/* ===== (batch 53) THE MARQUES: Ferrari-, Lamborghini-, Porsche-, BMW- and Bugatti-like cars each get their own silhouette, and a BMW-like family and a Bugatti-like fastest car are added =====
+   Made-up names, real kinds: every car is modelled on a real one (`like`) and shaped by what makes that make recognisable from behind and from the side:
+   PORSCHE (Kestrel): round lamps, one long fastback, a full-width tail bar; FERRARI (Cavallo): round quad tail lamps, flying buttresses, side gills, a long low rear deck;
+   LAMBORGHINI (Toro): cab-forward wedge, flat roof, hexagonal / Y-shaped lamps, sharp creases; BMW (Baron): notchback coupe, twin round lamps, two kidney grilles, L tail lamps;
+   MUSCLE (Union): long bonnet with a scoop, short deck, stripes, big round tail lamps; BUGATTI (Veyra): huge, wide, horseshoe grille, two-tone body, the C line, one blade tail lamp, 490 km/h. */
+CAR_ROSTER.push(
+ {id:'b1',name:'Baron M-Four',cls:'Notchback sports coupe',like:'BMW M4',paint:P(36,92,196),rim:P(30,30,34),caliper:P(30,30,34),spec:_C('coupe',{L:4.79,W:1.89,H:1.39,wb:2.86,fo:.9,nose:.64,hood:.9,cowl:1.62,roofF:2.38,roofR:2.98,rearS:3.5,deck:1.02,tail:.98,head:'twin',tail_:'wide',wing:'lip',exh:4,exhS:'twin',grille:'kidney',glassRoof:0,rf:.34,rr:.35,wf:.255,wr:.29}),real:{hp:503,kg:1725,drive:'RWD',top:290,t100:3.8,lat:1.05,brk:34}},
+ {id:'b2',name:'Baron Eight',cls:'Hybrid mid-engine sports car',like:'BMW i8',paint:P(236,238,240),rim:P(30,30,34),caliper:P(36,92,196),spec:_C('mid',{L:4.69,W:1.94,H:1.3,wb:2.8,head:'blade',tail_:'vert',wing:'none',exh:2,exhS:'center',sideIntake:.5,louvres:0,grille:'kidney',stripe:.0,glassRoof:1,tum:.1}),real:{hp:369,kg:1490,drive:'AWD',top:250,t100:4.4,lat:1.05,brk:34}},
+ {id:'b3',name:'Baron M-Eight',cls:'Grand coupe, all-wheel drive',like:'BMW M8 Competition',paint:P(58,62,70),rim:P(30,30,34),caliper:P(36,92,196),spec:_C('gt',{L:4.87,W:1.91,H:1.36,wb:2.83,nose:.66,hood:.92,cowl:1.9,roofF:2.62,roofR:3.12,rearS:3.95,deck:1.02,head:'twin',tail_:'wide',wing:'lip',exh:4,exhS:'twin',grille:'kidney'}),real:{hp:617,kg:1950,drive:'AWD',top:305,t100:3.2,lat:1.02,brk:36}});
+Object.assign(CAR_EXTRA,{b1:{drl:1,gills:1,chromeTrim:0,int:[24,24,28]},b2:{drl:1,sideIntake:.5,int:[40,40,44]},b3:{drl:1,gills:1,chromeTrim:1,int:[60,44,36]}});
+Object.assign(CAR_STYLE,{b1:{h:'twin',t:'wide',n:[4.2,.34,.5],r:[6,.3,.55],q:7,k:.8,c:1.4,f:1},b2:{h:'blade',t:'vert',n:[2.2,.55,.26],r:[5,.3,.5],q:6,k:.9,c:1.8,f:2,p2:[120,170,255]},b3:{h:'twin',t:'wide',n:[4,.36,.45],r:[5.5,.3,.5],q:6.5,k:.7,c:1.2,f:1}});
+/* the marque pass: per-car silhouette changes on top of the arch (Object.assign into the spec) */
+const MARQUE={
+ k1:{wing:'duck',fo:.9,roofR:2.6,rearS:4.0},k2:{sideIntake:.5},
+ c1:{cowl:1.6,roofF:2.36,roofR:2.7,rearS:3.62,hood:.84,tail:.9,crown:.1},c2:{cowl:2.0,roofF:2.76,roofR:3.16,rearS:4.05,hood:.92,sideIntake:0},c3:{cowl:1.55,roofF:2.34,roofR:2.62,rearS:3.5},c4:{louvres:3,rearS:3.3,roofR:2.45},
+ t1:{cowl:1.34,roofF:2.05,roofR:2.42,rearS:3.28,nose:.4,hood:.74,crown:.03,tum:.04},t2:{cowl:1.42,roofF:2.12,roofR:2.48,rearS:3.4,nose:.4,hood:.72,crown:.03,tum:.04},t4:{cowl:1.5,roofF:2.2,roofR:2.52,rearS:3.5,nose:.42},
+ u2:{cowl:1.88,roofF:2.5,roofR:3.0,rearS:3.8,hood:1.0,deck:.9,scoop:1},u3:{cowl:1.96,roofF:2.6,roofR:3.1,rearS:4.0},u5:{scoop:1,cowl:2.1,roofF:2.8,roofR:3.3,rearS:4.3},u4:{cowl:1.45,roofF:2.2,roofR:2.55,rearS:3.5},u1:{cowl:1.5,roofF:2.2,roofR:2.55,rearS:3.5},
+ m1:{cowl:1.5,roofF:2.25,roofR:2.6,rearS:3.5,glassRoof:1},m2:{cowl:1.45,roofF:2.2,roofR:2.5,rearS:3.4,canards:1},
+ l2:{wing:'none',rearS:3.4},j1:{cowl:1.7,roofF:2.5,roofR:3.15,rearS:4.0,hood:.9},j2:{cowl:1.46,roofF:2.2,roofR:2.55,rearS:3.5},
+ h1:{wing:'none',roofF:2.4,roofR:2.7},h3:{cowl:1.55,roofF:2.3,roofR:2.55,rearS:3.6},
+ /* the Bugatti-like car: the widest, tallest and heaviest of the hypercars, two-tone, a horseshoe grille, one blade tail lamp */
+ h2:{L:4.54,W:2.04,H:1.21,wb:2.71,fo:.88,nose:.7,hood:.98,cowl:1.78,roofF:2.38,roofR:3.0,rearS:3.78,deck:1.0,tail:.92,hwMax:1.02,hwMaxS:2.9,hwTail:.96,rf:.365,rr:.385,wf:.285,wr:.34,rimF:.27,rimR:.285,head:'led',tail_:'slit',wing:'lip',exh:1,exhS:'center',stripe:0,grille:'horseshoe',chromeTrim:1,lowerDark:.46,noSkirt:1,spoke:6,tum:.04,crown:.06}};
+for(const d of CAR_ROSTER){const m=MARQUE[d.id];if(m)Object.assign(d.spec,m)}
+{const h2=CAR_ROSTER.find(d=>d.id=='h2');if(h2){h2.cls='Quad-turbo W16 hypercar, all-wheel drive';h2.like='Bugatti Chiron Super Sport';h2.paint=P(24,48,120);h2.real={hp:1578,kg:1995,drive:'AWD',top:490,t100:2.4,lat:1.15,brk:31}}}
 for(const d of CAR_ROSTER){const e=CAR_EXTRA[d.id]||{};Object.assign(d.spec,e);if(e.int)d.interior=e.int;delete d.spec.int;d.spec._name=d.name;
   const y=CAR_STYLE[d.id];if(y){Object.assign(d.spec,{head:y.h,tail_:y.t,noseP:y.n[0],capF:y.n[1],noseDrop:y.n[2],tailP:y.r[0],capR:y.r[1],tailDrop:y.r[2],sq:y.q,hard:y.k,crease:y.c,spine:y.sp||0});d.fin=y.f|0;if(y.p2)d.paint2=y.p2}}
 /* ---------------- handling from the real figures ---------------- */

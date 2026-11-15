@@ -26,14 +26,14 @@ function dmgConsume(){
   if(IMP.n===DMG.cur)return;const q=IMP.q,k=Math.min(IMP.n-DMG.cur,q.length);
   for(let i=q.length-k;i<q.length;i++)dmgApply(q[i]);DMG.cur=IMP.n;dmgEffects()}
 function dmgApply(r){
-  let E=r.E*DMG.scale;if(r.src==2)return;   /* (batch 18: landing a jump, however big, does no damage; landing on the roof or a side is a tumble, src 5) */else if(r.src!=4){const k=r.src==5?sstep(2.5,7,r.vn):r.src==3?sstep(3,10,r.vn):sstep(4.5,13,r.vn);E*=k*Math.sqrt(k);if(E<DMG.minE)return}else if(E<DMG.minE)return;   /* batch 5: a tap is not a crash. Into a wall or a post the damage fades in from 16 to 47 km/h (a car from 11 to 36 km/h): a 20 km/h nudge leaves almost nothing */   /* (src 4, a rail scrape, counts by its energy alone) */     /* scrapes do nothing; a landing only hurts above 11 m/s */
+  let E=r.E*DMG.scale;if(r.src==2)return;if(typeof CC!='undefined'&&CC.on)E*=2.2;   /* (batch 53) the crash movie is a wild crash: it hurts about twice as much */   /* (batch 18: landing a jump, however big, does no damage; landing on the roof or a side is a tumble, src 5) */else if(r.src!=4){const k=r.src==5?sstep(2.5,7,r.vn):r.src==3?sstep(3,10,r.vn):sstep(4.5,13,r.vn);E*=k*Math.sqrt(k);if(E<DMG.minE)return}else if(E<DMG.minE)return;   /* batch 5: a tap is not a crash. Into a wall or a post the damage fades in from 16 to 47 km/h (a car from 11 to 36 km/h): a 20 km/h nudge leaves almost nothing */   /* (src 4, a rail scrape, counts by its energy alone) */     /* scrapes do nothing; a landing only hurts above 11 m/s */
   const z=DMG.z;let zone=r.zone;
   if(r.src==2){/* the suspension bottoms out: the axles and the roof take it */z[0]+=E*.3/DZ_CAP[0];z[1]+=E*.3/DZ_CAP[1];z[4]+=E*.4/DZ_CAP[4];zone=4}
   else if(zone>=0){z[zone]+=E/DZ_CAP[zone];
     /* a hit also shakes the neighbours */const sp=E*.14;if(zone<2){z[2]+=sp/DZ_CAP[2];z[3]+=sp/DZ_CAP[3]}else{z[0]+=sp/DZ_CAP[0];z[1]+=sp/DZ_CAP[1]}}
   for(let i=0;i<5;i++)if(z[i]>1)z[i]=1;
   /* (batch 27) one crash (every hit within 2 s of the last, or the whole crash movie) takes at most DMG_CRASH of the health bar: you live through four bad crashes, the fifth wrecks you */
-  if(!(typeof CC!='undefined'&&CC.on)&&Math.abs(C.t-DMG.lastHit)>2)DMG.crashE=0;const lim=DMG_CRASH*DMG_POOL*(typeof UPG!='undefined'?UPG.arm:1),add=Math.max(0,Math.min(E,lim-(DMG.crashE||0)));DMG.crashE=(DMG.crashE||0)+E;
+  if(!(typeof CC!='undefined'&&CC.on)&&Math.abs(C.t-DMG.lastHit)>2)DMG.crashE=0;const lim=((typeof CC!='undefined'&&CC.on)?.5:DMG_CRASH)*DMG_POOL*(typeof UPG!='undefined'?UPG.arm:1),add=Math.max(0,Math.min(E,lim-(DMG.crashE||0)));DMG.crashE=(DMG.crashE||0)+E;
   DMG.total+=add;DMG.lastHit=C.t;
   r.Ed=E;DMG.pend.push(r);if(DMG.pend.length>12)DMG.pend.shift();partsHit(zone,E,r.src)}
 /* the dents are applied at once for a big hit and at most every 0.2 s for a run of small ones */

@@ -12,7 +12,7 @@ function uiInit(){
     if(UI.mapOpen){mapDown(id,x,y);UI.touches.set(id,{type:'map'});return}
     if(MENU.open){if(!menuTap(x,y))UI.touches.set(id,{type:'gcam',lx:x,ly:y});else UI.touches.set(id,{type:'none'});return}   /* (batch 21: a drag off the buttons turns the garage camera) */
     if(evTap(x,y)){UI.touches.set(id,{type:'none'});return}
-    for(const b of UI.btn){const hit=b.circle?Math.hypot(x-b.cx,y-b.cy)<=b.circle:(x>=b.x-8&&x<=b.x+b.w+8&&y>=b.y-8&&y<=b.y+b.h+8);if(hit){UI.touches.set(id,{type:'btn',b});b.on=1;b.act&&b.act(1);return}}
+    for(const b of UI.btn){if(b.arrow&&!IN.arrows)continue;const hit=b.circle?Math.hypot(x-b.cx,y-b.cy)<=b.circle:(x>=b.x-8&&x<=b.x+b.w+8&&y>=b.y-8&&y<=b.y+b.h+8);if(hit){UI.touches.set(id,{type:'btn',b});b.on=1;b.act&&b.act(1);return}}
     if(x<UI.w*.55){const t={type:'stick',x0:x,y0:y,x:x,y:y,lx:x,ly:y};UI.touches.set(id,t);UI.stickT=t;return}
     UI.touches.set(id,{type:'look',lx:x,ly:y})};   /* a drag on the free part of the right side looks around (when the car is stopped) */
   const move=(id,x,y)=>{const t=UI.touches.get(id);if(t&&t.type=='gcam'){MENU.userCam=1;MENU.camA-=(x-t.lx)*.009;MENU.camP=clamp((MENU.camP||0)+(y-t.ly)*.005,-.05,.75);t.lx=x;t.ly=y;return}if(t&&(t.type=='stick'||t.type=='look')){UI.lookDX=(UI.lookDX||0)+x-t.lx;UI.lookDY=(UI.lookDY||0)+y-t.ly;t.lx=x;t.ly=y}if(t&&t.type=='stick'){t.x=x;t.y=y}else if(t&&t.type=='map')mapMove(id,x,y)};
@@ -54,6 +54,7 @@ function uiInputs(dt){
   const K=UI.keys;let st=0;
   if(K.ArrowLeft||K.KeyA)st-=1;if(K.ArrowRight||K.KeyD)st+=1;
   let gas=K.ArrowUp||K.KeyW?1:0,brk=K.ArrowDown||K.KeyS?1:0;
+  if(IN.arrows&&UI.bn){if(UI.bn.arL.on)st-=1;if(UI.bn.arR.on)st+=1}
   let tstick=UI.stickT;
   if(tstick){const R2=Math.max(46,UI.w*.075);st+=clamp((tstick.x-tstick.x0)/R2,-1,1)}
   /* steering response: eases in so small thumb movements are gentle */
