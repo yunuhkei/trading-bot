@@ -116,8 +116,22 @@
   @media (pointer: coarse) { .tbtn { display: grid; } }
   .tbtn:active { background: rgba(179, 18, 30, 0.55); }
   .tbtn.dim { opacity: 0.35; }
+  body.driving .foot, body:not(.driving) .drive { display: none !important; }
+  body.driving #joyHint { display: none !important; }
   #btnFire { width: 88px; height: 88px; right: calc(22px + var(--sar)); bottom: calc(26px + var(--sab)); font-size: 16px; box-shadow: 0 0 0 2px rgba(179, 18, 30, 0.85); }
-  #btnBrake { width: 88px; height: 88px; right: calc(22px + var(--sar)); bottom: calc(26px + var(--sab)); font-size: 15px; }
+  /* driving: steer with the left thumb, pedals and gun under the right */
+  #btnLeft, #btnRight { width: 86px; height: 86px; bottom: calc(26px + var(--sab)); }
+  #btnLeft { left: calc(22px + var(--sal)); }
+  #btnRight { left: calc(122px + var(--sal)); }
+  .arrow::before { content: ""; width: 0; height: 0; border-top: 14px solid transparent; border-bottom: 14px solid transparent; }
+  #btnLeft::before { border-right: 22px solid var(--bone); margin-right: 6px; }
+  #btnRight::before { border-left: 22px solid var(--bone); margin-left: 6px; }
+  #btnGas { width: 94px; height: 94px; right: calc(20px + var(--sar)); bottom: calc(24px + var(--sab)); font-size: 16px; box-shadow: 0 0 0 2px rgba(80, 200, 120, 0.8); }
+  #btnBrake { width: 74px; height: 74px; right: calc(128px + var(--sar)); bottom: calc(22px + var(--sab)); }
+  #btnHand { width: 64px; height: 64px; right: calc(214px + var(--sar)); bottom: calc(26px + var(--sab)); font-size: 11px; line-height: 1.15; }
+  #btnShoot { width: 72px; height: 72px; right: calc(32px + var(--sar)); bottom: calc(134px + var(--sab)); box-shadow: 0 0 0 2px rgba(179, 18, 30, 0.85); }
+  #btnExit { width: 52px; height: 52px; right: calc(138px + var(--sar)); bottom: calc(112px + var(--sab)); font-size: 11px; }
+  #bloodScreen { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; mix-blend-mode: multiply; }
   #btnAct { width: 62px; height: 62px; right: calc(124px + var(--sar)); bottom: calc(34px + var(--sab)); }
   #btnReload { width: 50px; height: 50px; right: calc(40px + var(--sar)); bottom: calc(128px + var(--sab)); font-size: 11px; }
   #joyBase {
@@ -238,10 +252,17 @@
   <div id="vignette"></div>
   <div id="joyHint">MOVE</div>
   <div id="joyBase" hidden><div id="joyKnob"></div></div>
-  <button class="tbtn" id="btnReload">RELOAD</button>
-  <button class="tbtn dim" id="btnAct">CAR</button>
-  <button class="tbtn" id="btnFire">FIRE</button>
-  <button class="tbtn" id="btnBrake" hidden>BRAKE</button>
+  <canvas id="bloodScreen" width="640" height="360"></canvas>
+  <button class="tbtn foot" id="btnReload">RELOAD</button>
+  <button class="tbtn foot dim" id="btnAct">CAR</button>
+  <button class="tbtn foot" id="btnFire">FIRE</button>
+  <button class="tbtn drive arrow" id="btnLeft" aria-label="Steer left"></button>
+  <button class="tbtn drive arrow" id="btnRight" aria-label="Steer right"></button>
+  <button class="tbtn drive" id="btnGas">GAS</button>
+  <button class="tbtn drive" id="btnBrake">BRAKE</button>
+  <button class="tbtn drive" id="btnHand">HAND<br>BRAKE</button>
+  <button class="tbtn drive" id="btnShoot">SHOOT</button>
+  <button class="tbtn drive" id="btnExit">EXIT</button>
 </div>
 
 <div class="overlay" id="cards" hidden>
@@ -261,8 +282,8 @@
     <button class="primary" id="startBtn" disabled>Begin</button>
     <div id="loading">Building Port Calvary…</div>
     <div class="fineprint">
-      <span><b>Phone:</b> turn it sideways. Left thumb moves, right thumb looks around. Push the stick all the way to sprint. FIRE auto-aims at whoever is in front of you.</span>
-      <span class="kb"><b>Keyboard:</b> WASD move · mouse look · click fire · F car · R reload · Shift sprint · Space brake · P pause</span>
+      <span><b>Phone:</b> turn it sideways. Left thumb moves, right thumb looks around. Push the stick all the way to sprint. FIRE auto-aims at whoever is in front of you. In a car: arrows steer, GAS, BRAKE (hold to reverse), HAND BRAKE to drift, SHOOT out the window.</span>
+      <span class="kb"><b>Keyboard:</b> WASD move or drive · mouse look · click fire · F car · R reload · Shift sprint · Space handbrake · P pause</span>
     </div>
     <div class="warn">Contains graphic violence</div>
   </div>
@@ -287,7 +308,7 @@
       Start Chapter One over from the crash?
       <div><button class="item" id="restartYes">Restart</button><button class="item" id="restartNo">Cancel</button></div>
     </div>
-    <div class="keys"><b>WASD</b> move · <b>mouse</b> look · <b>click</b> fire · <b>F</b> car · <b>R</b> reload · <b>Shift</b> sprint · <b>Space</b> brake</div>
+    <div class="keys"><b>WASD</b> move · <b>mouse</b> look · <b>click</b> fire · <b>F</b> car · <b>R</b> reload · <b>Shift</b> sprint · <b>Space</b> handbrake</div>
   </div>
 </div>
 
@@ -296,6 +317,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="js/core.js"></script>
 <script src="js/world.js"></script>
+<script src="js/body.js"></script>
 <script src="js/actors.js"></script>
 <script src="js/story.js"></script>
 <script src="js/main.js"></script>

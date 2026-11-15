@@ -29,14 +29,16 @@
   // ---------------------------------------------------------------- input
   const input = (G.input = {
     mx: 0, my: 0, lookDX: 0, lookDY: 0,
-    fire: false, action: false, reload: false, brake: false, sprint: false,
+    fire: false, action: false, reload: false, sprint: false,
+    gas: false, brakeIn: false, handbrake: false, steer: 0,
     usingTouch: false,
   });
   const keys = {};
   const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
   const look = { id: null, x: 0, y: 0 };
   const JR = 56;
-  let fireTouch = false, brakeTouch = false, mouseFire = false, ui = null, area = null;
+  const touch = { fire: false, gas: false, brake: false, hand: false, left: false, right: false };
+  let mouseFire = false, ui = null, area = null;
 
   G.initInput = function (el, uiHooks) {
     area = el; ui = uiHooks;
@@ -51,7 +53,7 @@
       }
       e.preventDefault();
       if (!input.usingTouch) { input.usingTouch = true; document.body.classList.add('touch'); }
-      if (e.clientX < window.innerWidth * 0.42 && joy.id === null) {
+      if (!G.driving && e.clientX < window.innerWidth * 0.42 && joy.id === null) {
         joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; joy.x = joy.y = 0;
         ui && ui.joyShow(joy.ox, joy.oy);
       } else if (look.id === null) {
@@ -111,8 +113,7 @@
     el.addEventListener('pointercancel', up);
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   };
-  G.setFireTouch = (v) => { fireTouch = v; };
-  G.setBrakeTouch = (v) => { brakeTouch = v; };
+  G.setTouch = (name, v) => { touch[name] = v; };
 
   G.readInput = function () {
     if (joy.id !== null) {
@@ -125,13 +126,17 @@
       input.mx = kx / l; input.my = ky / l;
       input.sprint = !!(keys.ShiftLeft || keys.ShiftRight);
     }
-    input.fire = mouseFire || fireTouch;
-    input.brake = brakeTouch || !!keys.Space;
+    input.fire = mouseFire || touch.fire || !!keys.KeyJ;
+    input.gas = touch.gas || !!(keys.KeyW || keys.ArrowUp);
+    input.brakeIn = touch.brake || !!(keys.KeyS || keys.ArrowDown);
+    input.handbrake = touch.hand || !!keys.Space;
+    input.steer = (touch.right || keys.KeyD || keys.ArrowRight ? 1 : 0) - (touch.left || keys.KeyA || keys.ArrowLeft ? 1 : 0);
   };
   G.clearEdges = function () { input.action = false; input.reload = false; input.lookDX = 0; input.lookDY = 0; };
   G.resetInput = function () {
     for (const k in keys) keys[k] = false;
-    mouseFire = fireTouch = brakeTouch = false;
+    mouseFire = false;
+    for (const k in touch) touch[k] = false;
     joy.id = null; joy.x = joy.y = 0; look.id = null;
     ui && ui.joyHide();
     G.clearEdges();

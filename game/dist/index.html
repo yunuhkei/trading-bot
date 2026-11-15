@@ -116,8 +116,22 @@
   @media (pointer: coarse) { .tbtn { display: grid; } }
   .tbtn:active { background: rgba(179, 18, 30, 0.55); }
   .tbtn.dim { opacity: 0.35; }
+  body.driving .foot, body:not(.driving) .drive { display: none !important; }
+  body.driving #joyHint { display: none !important; }
   #btnFire { width: 88px; height: 88px; right: calc(22px + var(--sar)); bottom: calc(26px + var(--sab)); font-size: 16px; box-shadow: 0 0 0 2px rgba(179, 18, 30, 0.85); }
-  #btnBrake { width: 88px; height: 88px; right: calc(22px + var(--sar)); bottom: calc(26px + var(--sab)); font-size: 15px; }
+  /* driving: steer with the left thumb, pedals and gun under the right */
+  #btnLeft, #btnRight { width: 86px; height: 86px; bottom: calc(26px + var(--sab)); }
+  #btnLeft { left: calc(22px + var(--sal)); }
+  #btnRight { left: calc(122px + var(--sal)); }
+  .arrow::before { content: ""; width: 0; height: 0; border-top: 14px solid transparent; border-bottom: 14px solid transparent; }
+  #btnLeft::before { border-right: 22px solid var(--bone); margin-right: 6px; }
+  #btnRight::before { border-left: 22px solid var(--bone); margin-left: 6px; }
+  #btnGas { width: 94px; height: 94px; right: calc(20px + var(--sar)); bottom: calc(24px + var(--sab)); font-size: 16px; box-shadow: 0 0 0 2px rgba(80, 200, 120, 0.8); }
+  #btnBrake { width: 74px; height: 74px; right: calc(128px + var(--sar)); bottom: calc(22px + var(--sab)); }
+  #btnHand { width: 64px; height: 64px; right: calc(214px + var(--sar)); bottom: calc(26px + var(--sab)); font-size: 11px; line-height: 1.15; }
+  #btnShoot { width: 72px; height: 72px; right: calc(32px + var(--sar)); bottom: calc(134px + var(--sab)); box-shadow: 0 0 0 2px rgba(179, 18, 30, 0.85); }
+  #btnExit { width: 52px; height: 52px; right: calc(138px + var(--sar)); bottom: calc(112px + var(--sab)); font-size: 11px; }
+  #bloodScreen { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; mix-blend-mode: multiply; }
   #btnAct { width: 62px; height: 62px; right: calc(124px + var(--sar)); bottom: calc(34px + var(--sab)); }
   #btnReload { width: 50px; height: 50px; right: calc(40px + var(--sar)); bottom: calc(128px + var(--sab)); font-size: 11px; }
   #joyBase {
@@ -238,10 +252,17 @@
   <div id="vignette"></div>
   <div id="joyHint">MOVE</div>
   <div id="joyBase" hidden><div id="joyKnob"></div></div>
-  <button class="tbtn" id="btnReload">RELOAD</button>
-  <button class="tbtn dim" id="btnAct">CAR</button>
-  <button class="tbtn" id="btnFire">FIRE</button>
-  <button class="tbtn" id="btnBrake" hidden>BRAKE</button>
+  <canvas id="bloodScreen" width="640" height="360"></canvas>
+  <button class="tbtn foot" id="btnReload">RELOAD</button>
+  <button class="tbtn foot dim" id="btnAct">CAR</button>
+  <button class="tbtn foot" id="btnFire">FIRE</button>
+  <button class="tbtn drive arrow" id="btnLeft" aria-label="Steer left"></button>
+  <button class="tbtn drive arrow" id="btnRight" aria-label="Steer right"></button>
+  <button class="tbtn drive" id="btnGas">GAS</button>
+  <button class="tbtn drive" id="btnBrake">BRAKE</button>
+  <button class="tbtn drive" id="btnHand">HAND<br>BRAKE</button>
+  <button class="tbtn drive" id="btnShoot">SHOOT</button>
+  <button class="tbtn drive" id="btnExit">EXIT</button>
 </div>
 
 <div class="overlay" id="cards" hidden>
@@ -261,8 +282,8 @@
     <button class="primary" id="startBtn" disabled>Begin</button>
     <div id="loading">Building Port Calvary…</div>
     <div class="fineprint">
-      <span><b>Phone:</b> turn it sideways. Left thumb moves, right thumb looks around. Push the stick all the way to sprint. FIRE auto-aims at whoever is in front of you.</span>
-      <span class="kb"><b>Keyboard:</b> WASD move · mouse look · click fire · F car · R reload · Shift sprint · Space brake · P pause</span>
+      <span><b>Phone:</b> turn it sideways. Left thumb moves, right thumb looks around. Push the stick all the way to sprint. FIRE auto-aims at whoever is in front of you. In a car: arrows steer, GAS, BRAKE (hold to reverse), HAND BRAKE to drift, SHOOT out the window.</span>
+      <span class="kb"><b>Keyboard:</b> WASD move or drive · mouse look · click fire · F car · R reload · Shift sprint · Space handbrake · P pause</span>
     </div>
     <div class="warn">Contains graphic violence</div>
   </div>
@@ -287,7 +308,7 @@
       Start Chapter One over from the crash?
       <div><button class="item" id="restartYes">Restart</button><button class="item" id="restartNo">Cancel</button></div>
     </div>
-    <div class="keys"><b>WASD</b> move · <b>mouse</b> look · <b>click</b> fire · <b>F</b> car · <b>R</b> reload · <b>Shift</b> sprint · <b>Space</b> brake</div>
+    <div class="keys"><b>WASD</b> move · <b>mouse</b> look · <b>click</b> fire · <b>F</b> car · <b>R</b> reload · <b>Shift</b> sprint · <b>Space</b> handbrake</div>
   </div>
 </div>
 
@@ -333,14 +354,16 @@ window.__startGame = function () {
   // ---------------------------------------------------------------- input
   const input = (G.input = {
     mx: 0, my: 0, lookDX: 0, lookDY: 0,
-    fire: false, action: false, reload: false, brake: false, sprint: false,
+    fire: false, action: false, reload: false, sprint: false,
+    gas: false, brakeIn: false, handbrake: false, steer: 0,
     usingTouch: false,
   });
   const keys = {};
   const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
   const look = { id: null, x: 0, y: 0 };
   const JR = 56;
-  let fireTouch = false, brakeTouch = false, mouseFire = false, ui = null, area = null;
+  const touch = { fire: false, gas: false, brake: false, hand: false, left: false, right: false };
+  let mouseFire = false, ui = null, area = null;
 
   G.initInput = function (el, uiHooks) {
     area = el; ui = uiHooks;
@@ -355,7 +378,7 @@ window.__startGame = function () {
       }
       e.preventDefault();
       if (!input.usingTouch) { input.usingTouch = true; document.body.classList.add('touch'); }
-      if (e.clientX < window.innerWidth * 0.42 && joy.id === null) {
+      if (!G.driving && e.clientX < window.innerWidth * 0.42 && joy.id === null) {
         joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; joy.x = joy.y = 0;
         ui && ui.joyShow(joy.ox, joy.oy);
       } else if (look.id === null) {
@@ -415,8 +438,7 @@ window.__startGame = function () {
     el.addEventListener('pointercancel', up);
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   };
-  G.setFireTouch = (v) => { fireTouch = v; };
-  G.setBrakeTouch = (v) => { brakeTouch = v; };
+  G.setTouch = (name, v) => { touch[name] = v; };
 
   G.readInput = function () {
     if (joy.id !== null) {
@@ -429,13 +451,17 @@ window.__startGame = function () {
       input.mx = kx / l; input.my = ky / l;
       input.sprint = !!(keys.ShiftLeft || keys.ShiftRight);
     }
-    input.fire = mouseFire || fireTouch;
-    input.brake = brakeTouch || !!keys.Space;
+    input.fire = mouseFire || touch.fire || !!keys.KeyJ;
+    input.gas = touch.gas || !!(keys.KeyW || keys.ArrowUp);
+    input.brakeIn = touch.brake || !!(keys.KeyS || keys.ArrowDown);
+    input.handbrake = touch.hand || !!keys.Space;
+    input.steer = (touch.right || keys.KeyD || keys.ArrowRight ? 1 : 0) - (touch.left || keys.KeyA || keys.ArrowLeft ? 1 : 0);
   };
   G.clearEdges = function () { input.action = false; input.reload = false; input.lookDX = 0; input.lookDY = 0; };
   G.resetInput = function () {
     for (const k in keys) keys[k] = false;
-    mouseFire = fireTouch = brakeTouch = false;
+    mouseFire = false;
+    for (const k in touch) touch[k] = false;
     joy.id = null; joy.x = joy.y = 0; look.id = null;
     ui && ui.joyHide();
     G.clearEdges();
@@ -910,7 +936,7 @@ window.__startGame = function () {
 
     // ground
     const asphalt = makeAsphalt(); asphalt.repeat.set(112, 112);
-    const ground = new T.Mesh(new T.PlaneGeometry(560, 560), new T.MeshLambertMaterial({ map: asphalt, color: 0x8a8d94 }));
+    const ground = new T.Mesh(new T.PlaneGeometry(560, 560), new T.MeshLambertMaterial({ map: asphalt, color: 0xa4a7ae }));
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
 
@@ -986,9 +1012,9 @@ window.__startGame = function () {
     scene.add(cross);
 
     // lights
-    W.hemi = new T.HemisphereLight(0x55688a, 0x0d0c10, 1.15);
+    W.hemi = new T.HemisphereLight(0x7487b0, 0x2a2630, 2.3);
     scene.add(W.hemi);
-    const moon = new T.DirectionalLight(0x8090c0, 0.55);
+    const moon = new T.DirectionalLight(0x9aa8d8, 1.1);
     moon.position.set(-60, 120, 40);
     scene.add(moon);
 
@@ -1063,9 +1089,9 @@ window.__startGame = function () {
     if (flashSeq > 0) {
       flashT += dt;
       const on = flashT < 0.07;
-      W.hemi.intensity = on ? 4.5 : 1.15;
+      W.hemi.intensity = on ? 7 : 2.3;
       if (flashT > 0.16) { flashSeq--; flashT = 0; }
-    } else W.hemi.intensity = 1.15;
+    } else W.hemi.intensity = 2.3;
 
     for (const s of W.signs) {
       s.t -= dt;
@@ -1143,6 +1169,29 @@ window.__startGame = function () {
     }
     return best;
   };
+  // like raycast, but also reports which face was hit (for wall decals)
+  W.rayNormal = function (ox, oz, dx, dz, maxT) {
+    let best = maxT, nx = 0, nz = 0;
+    for (const b of W.boxes) {
+      let t0 = 0, t1 = best, axis = 0;
+      if (Math.abs(dx) < 1e-9) { if (ox < b.minX || ox > b.maxX) continue; }
+      else {
+        let ta = (b.minX - ox) / dx, tb = (b.maxX - ox) / dx;
+        if (ta > tb) { const s = ta; ta = tb; tb = s; }
+        if (ta > t0) { t0 = ta; axis = 1; } if (tb < t1) t1 = tb;
+        if (t0 > t1) continue;
+      }
+      if (Math.abs(dz) < 1e-9) { if (oz < b.minZ || oz > b.maxZ) continue; }
+      else {
+        let ta = (b.minZ - oz) / dz, tb = (b.maxZ - oz) / dz;
+        if (ta > tb) { const s = ta; ta = tb; tb = s; }
+        if (ta > t0) { t0 = ta; axis = 2; } if (tb < t1) t1 = tb;
+        if (t0 > t1) continue;
+      }
+      if (axis && t0 < best) { best = t0; nx = axis === 1 ? -Math.sign(dx) : 0; nz = axis === 2 ? -Math.sign(dz) : 0; }
+    }
+    return best < maxT ? { t: best, nx, nz } : null;
+  };
   W.hasLOS = function (ax, az, bx, bz) {
     const dx = bx - ax, dz = bz - az, d = Math.hypot(dx, dz);
     if (d < 0.01) return true;
@@ -1211,9 +1260,620 @@ window.__startGame = function () {
   };
 })();
 
+// ---- js/body.js
+'use strict';
+// Bodies: instanced low-poly people, procedural animation, Verlet ragdolls, and blood.
+// Every person is 15 joints. Alive, the joints come from a walk/aim pose; dead, they are
+// physics particles held together by bone constraints. Body parts are boxes drawn between joints.
+(function () {
+  const T = THREE, W = G.world;
+  const B = (G.body = {});
+  const PARTS = 23, MAXB = 90, STEP = 1 / 60;
+  const PELVIS = 0, NECK = 1, HEAD = 2, SHL = 3, SHR = 4, ELL = 5, ELR = 6, HAL = 7, HAR = 8,
+    HPL = 9, HPR = 10, KNL = 11, KNR = 12, FTL = 13, FTR = 14;
+  B.J = { PELVIS, NECK, HEAD, SHL, SHR, ELL, ELR, HAL, HAR, HPL, HPR, KNL, KNR, FTL, FTR };
+  const RAD = [0.11, 0.1, 0.13, 0.08, 0.08, 0.06, 0.06, 0.05, 0.05, 0.09, 0.09, 0.07, 0.07, 0.06, 0.06];
+  const RIGID = [[PELVIS, NECK], [NECK, HEAD], [SHL, SHR], [SHL, NECK], [SHR, NECK], [SHL, PELVIS], [SHR, PELVIS],
+    [HPL, HPR], [HPL, PELVIS], [HPR, PELVIS], [HPL, NECK], [HPR, NECK], [SHL, HPR], [SHR, HPL], [SHL, HPL], [SHR, HPR],
+    [SHL, ELL], [ELL, HAL], [SHR, ELR], [ELR, HAR], [HPL, KNL], [KNL, FTL], [HPR, KNR], [KNR, FTR]];
+  // minimum distances (× body height) so limbs bend but never fold through themselves
+  const MINS = [[HEAD, SHL, 0.25], [HEAD, SHR, 0.25], [HEAD, PELVIS, 0.62], [SHL, HAL, 0.24], [SHR, HAR, 0.24],
+    [HPL, FTL, 0.5], [HPR, FTR, 0.5], [KNL, KNR, 0.1], [FTL, FTR, 0.1], [HEAD, HPL, 0.6], [HEAD, HPR, 0.6], [ELL, PELVIS, 0.12], [ELR, PELVIS, 0.12]];
+
+  let mesh, haloMesh, M, HM;
+  const free = [], list = [];
+  B.list = list;
+  const col = new T.Color(), BLOODC = new T.Color('#4a0508');
+
+  B.init = function (scene) {
+    mesh = new T.InstancedMesh(new T.BoxGeometry(1, 1, 1), new T.MeshLambertMaterial({ color: 0xffffff }), PARTS * MAXB);
+    mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
+    mesh.setColorAt(0, col.set(0xffffff));
+    M = mesh.instanceMatrix.array; M.fill(0);
+    mesh.frustumCulled = false; mesh.count = 0;
+    scene.add(mesh);
+    haloMesh = new T.InstancedMesh(new T.TorusGeometry(0.2, 0.024, 6, 20), new T.MeshBasicMaterial({ color: 0xffffff }), MAXB);
+    haloMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
+    haloMesh.setColorAt(0, col.set(0xffffff));
+    HM = haloMesh.instanceMatrix.array; HM.fill(0);
+    haloMesh.frustumCulled = false; haloMesh.count = 0;
+    scene.add(haloMesh);
+    for (let k = MAXB - 1; k >= 0; k--) free.push(k);
+    initBlood(scene);
+  };
+  B.hasFree = () => free.length > 0;
+
+  // ---------------------------------------------------------------- creation
+  B.create = function (c, o) {
+    const slot = free.pop();
+    if (slot === undefined) return false;
+    c.body = {
+      slot, o, h: o.h || G.R(0.93, 1.07), w: o.w || G.R(0.92, 1.14),
+      j: new Float32Array(45), jp: new Float32Array(45), rag: null, posed: false,
+      vis: new Uint8Array(PARTS), bloody: 0, visible: true, written: false, trailD: 0, lx: c.x, lz: c.z,
+    };
+    list.push(c);
+    B.recolor(c);
+    return true;
+  };
+  B.release = function (c) {
+    const b = c.body;
+    if (!b) return;
+    M.fill(0, b.slot * PARTS * 16, (b.slot + 1) * PARTS * 16);
+    HM.fill(0, b.slot * 16, b.slot * 16 + 16);
+    mesh.instanceMatrix.needsUpdate = true; haloMesh.instanceMatrix.needsUpdate = true;
+    free.push(b.slot);
+    const k = list.indexOf(c);
+    if (k >= 0) list.splice(k, 1);
+    c.body = null;
+  };
+  // back on their feet: drop the ragdoll (and, unless soft, the blood) and pose again
+  B.revive = function (c, soft) {
+    const b = c.body;
+    if (!b) return;
+    if (!soft) { b.rag = null; b.posed = false; b.bloody = 0; b.pooled = false; c.headshot = false; c.bigPool = false; B.recolor(c); }
+    b.written = false;
+  };
+  B.setVisible = function (c, v) { if (c.body) { c.body.visible = v; c.body.written = false; } };
+
+  const BLOODMIX = { 0: 0.75, 1: 0.45, 2: 0.3, 3: 0.55, 6: 0.55, 15: 0.5, 22: 0.6 };
+  B.recolor = function (c) {
+    const b = c.body, o = b.o, base = b.slot * PARTS;
+    const shade = (hex, k) => { col.set(hex); col.multiplyScalar(k); return '#' + col.getHexString(); };
+    const C = [
+      o.shirt, o.long ? o.shirt : o.pants, o.skin, o.shirt, o.shirt, o.skin, o.shirt, o.shirt, o.skin,
+      o.pants, o.pants, o.shoes, o.pants, o.pants, o.shoes,
+      o.long ? o.shirt : null,
+      o.hood || o.cap || o.hair || null, o.cap || null,
+      o.mask ? '#d9d3c4' : shade(o.skin, 0.88),
+      o.mask ? '#030303' : '#160f0c', o.mask ? '#030303' : '#160f0c',
+      o.gun ? '#0c0c0d' : null,
+      o.badge ? '#c9a24a' : o.long ? shade(o.shirt, 0.7) : null,
+    ];
+    for (let k = 0; k < PARTS; k++) {
+      b.vis[k] = C[k] ? 1 : 0;
+      if (!C[k]) continue;
+      col.set(C[k]);
+      const m = BLOODMIX[k];
+      if (m && b.bloody > 0) col.lerp(BLOODC, Math.min(1, b.bloody) * m);
+      mesh.setColorAt(base + k, col);
+    }
+    mesh.instanceColor.needsUpdate = true;
+    if (o.halo || o.tinHalo) { haloMesh.setColorAt(b.slot, col.set(o.halo ? '#f1e6c4' : '#8c8c88')); haloMesh.instanceColor.needsUpdate = true; }
+  };
+  B.addBlood = function (c, amt) {
+    if (!c.body) return;
+    c.body.bloody = Math.min(1, c.body.bloody + amt);
+    B.recolor(c);
+  };
+
+  // ---------------------------------------------------------------- living pose
+  B.pose = function (c, dt, speed, aiming) {
+    const b = c.body;
+    if (!b || b.rag) return;
+    b.lastDt = dt;
+    if (b.posed) b.jp.set(b.j);
+    c.phase += dt * speed * 2.6;
+    const amp = Math.min(1, speed / 4.5);
+    const ph = c.phase;
+    const bob = Math.abs(Math.cos(ph)) * 0.045 * amp + Math.sin(G.time * 2.1 + c.born) * 0.004;
+    if (c.flinch > 0) c.flinch = Math.max(0, c.flinch - dt * 2.5);
+    const lean = Math.min(0.2, speed * 0.022) - (c.flinch || 0) * 0.5;
+    const r = c.rot, s = Math.sin(r), co = Math.cos(r);
+    const bx = c.x, by = W.groundY(c.x, c.z), bz = c.z, h = b.h, w = b.w, j = b.j;
+    const put = (k, lx, ly, lz) => {
+      lx *= w; ly *= h; lz *= h;
+      const o = k * 3;
+      j[o] = bx + co * lx + s * lz; j[o + 1] = by + ly; j[o + 2] = bz - s * lx + co * lz;
+    };
+    put(PELVIS, 0, 0.95 + bob, 0);
+    put(NECK, 0, 1.45 + bob, lean * 0.5);
+    put(HEAD, 0, 1.66 + bob, lean * 0.72 + 0.01);
+    put(SHL, 0.2, 1.42 + bob, lean * 0.47);
+    put(SHR, -0.2, 1.42 + bob, lean * 0.47);
+    for (let side = 0; side < 2; side++) {
+      const sg = side === 0 ? 1 : -1, p = side === 0 ? ph : ph + Math.PI;
+      const a = Math.sin(p) * 0.6 * amp, bend = Math.max(0, Math.sin(p - 1.3)) * 1.1 * amp + 0.04;
+      const hy = 0.92 + bob, ky = hy - 0.43 * Math.cos(a), kz = 0.43 * Math.sin(a);
+      let fy = ky - 0.43 * Math.cos(a - bend);
+      const fz = kz + 0.43 * Math.sin(a - bend);
+      if (fy < 0.07) fy = 0.07;
+      put(side === 0 ? HPL : HPR, sg * 0.1, hy, 0);
+      put(side === 0 ? KNL : KNR, sg * 0.11, ky, kz);
+      put(side === 0 ? FTL : FTR, sg * 0.11, fy, fz);
+    }
+    const lz = lean * 0.47;
+    if (aiming) {
+      put(ELR, -0.13, 1.37 + bob, 0.27 + lz); put(HAR, -0.04, 1.4 + bob, 0.53 + lz);
+      put(ELL, 0.12, 1.3 + bob, 0.22 + lz); put(HAL, 0.0, 1.37 + bob, 0.5 + lz);
+    } else {
+      const panic = c.fleeT > 0 ? 1 : 0;
+      for (let side = 0; side < 2; side++) {
+        const sg = side === 0 ? 1 : -1, p = side === 0 ? ph + Math.PI : ph;
+        const sa = Math.sin(p) * (0.55 + panic * 0.4) * amp, eb = 0.12 + 0.95 * amp + panic * 0.5;
+        const sy = 1.42 + bob, ey = sy - 0.29 * Math.cos(sa), ez = lz + 0.29 * Math.sin(sa);
+        const hy = ey - 0.27 * Math.cos(sa + eb), hz = ez + 0.27 * Math.sin(sa + eb);
+        put(side === 0 ? ELL : ELR, sg * 0.23, ey, ez);
+        put(side === 0 ? HAL : HAR, sg * 0.24, hy, hz);
+      }
+    }
+    if (!b.posed) { b.jp.set(j); b.posed = true; }
+  };
+
+  // ---------------------------------------------------------------- ragdoll
+  function dist(p, a, b) {
+    const dx = p[b * 3] - p[a * 3], dy = p[b * 3 + 1] - p[a * 3 + 1], dz = p[b * 3 + 2] - p[a * 3 + 2];
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  }
+  B.startRag = function (c) {
+    const b = c.body;
+    if (b.rag) return b.rag;
+    const p = Float32Array.from(b.j), o = new Float32Array(45);
+    const fd = Math.max(b.lastDt || STEP, 1 / 120);
+    for (let i = 0; i < 45; i++) {
+      const v = G.clamp((b.j[i] - b.jp[i]) / fd, -14, 14);
+      o[i] = p[i] - v * STEP;
+    }
+    const rigid = new Float32Array(RIGID.length);
+    RIGID.forEach((r, k) => { rigid[k] = dist(p, r[0], r[1]); });
+    b.rag = { p, o, rigid, still: 0, t: 0, sleep: false, acc: 0 };
+    b.written = false;
+    return b.rag;
+  };
+  // add velocity (m/s) to one joint (k) and a share of it to the rest of the body
+  B.push = function (c, k, vx, vy, vz, spread) {
+    const r = B.startRag(c);
+    r.sleep = false; r.still = 0; r.t = Math.min(r.t, 6);
+    c.body.written = false;
+    for (let i = 0; i < 15; i++) {
+      const f = k < 0 || i === k ? 1 : spread;
+      r.o[i * 3] -= vx * f * STEP; r.o[i * 3 + 1] -= vy * f * STEP; r.o[i * 3 + 2] -= vz * f * STEP;
+    }
+  };
+  B.pushJoint = function (c, i, vx, vy, vz) {
+    const r = B.startRag(c);
+    r.sleep = false; r.still = 0; c.body.written = false;
+    r.o[i * 3] -= vx * STEP; r.o[i * 3 + 1] -= vy * STEP; r.o[i * 3 + 2] -= vz * STEP;
+  };
+
+  const tmp = { x: 0, z: 0 };
+  function step(c, r) {
+    const p = r.p, o = r.o, g = 9.8 * STEP * STEP, h = c.body.h;
+    for (let i = 0; i < 45; i += 3) {
+      const vx = (p[i] - o[i]) * 0.996, vy = (p[i + 1] - o[i + 1]) * 0.996, vz = (p[i + 2] - o[i + 2]) * 0.996;
+      o[i] = p[i]; o[i + 1] = p[i + 1]; o[i + 2] = p[i + 2];
+      p[i] += vx; p[i + 1] += vy - g; p[i + 2] += vz;
+    }
+    for (let it = 0; it < 5; it++) {
+      for (let k = 0; k < RIGID.length; k++) {
+        const a = RIGID[k][0] * 3, b = RIGID[k][1] * 3;
+        const dx = p[b] - p[a], dy = p[b + 1] - p[a + 1], dz = p[b + 2] - p[a + 2];
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-5;
+        const f = (d - r.rigid[k]) / d * 0.5;
+        p[a] += dx * f; p[a + 1] += dy * f; p[a + 2] += dz * f;
+        p[b] -= dx * f; p[b + 1] -= dy * f; p[b + 2] -= dz * f;
+      }
+      for (let k = 0; k < MINS.length; k++) {
+        const a = MINS[k][0] * 3, b = MINS[k][1] * 3, m = MINS[k][2] * h;
+        const dx = p[b] - p[a], dy = p[b + 1] - p[a + 1], dz = p[b + 2] - p[a + 2];
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-5;
+        if (d >= m) continue;
+        const f = (d - m) / d * 0.5;
+        p[a] += dx * f; p[a + 1] += dy * f; p[a + 2] += dz * f;
+        p[b] -= dx * f; p[b + 1] -= dy * f; p[b + 2] -= dz * f;
+      }
+      for (let i = 0; i < 15; i++) {
+        const q = i * 3, gy = W.groundY(p[q], p[q + 2]) + RAD[i];
+        if (p[q + 1] < gy) p[q + 1] = gy;
+        if (p[q + 1] < 30) {
+          tmp.x = p[q]; tmp.z = p[q + 2];
+          if (W.collide(tmp, RAD[i])) { p[q] = tmp.x; p[q + 2] = tmp.z; }
+        }
+      }
+    }
+    let moved = 0;
+    for (let i = 0; i < 15; i++) {
+      const q = i * 3, gy = W.groundY(p[q], p[q + 2]) + RAD[i];
+      if (p[q + 1] <= gy + 0.004) { // ground friction
+        o[q] = p[q] - (p[q] - o[q]) * 0.55;
+        o[q + 2] = p[q + 2] - (p[q + 2] - o[q + 2]) * 0.55;
+      }
+      const m = Math.abs(p[q] - o[q]) + Math.abs(p[q + 1] - o[q + 1]) + Math.abs(p[q + 2] - o[q + 2]);
+      if (m > moved) moved = m;
+    }
+    r.t += STEP;
+    if (moved < 0.0016) r.still += STEP; else r.still = 0;
+    if (r.still > 0.5 || r.t > 12) r.sleep = true;
+  }
+  B.settle = function (c, steps) {
+    const r = B.startRag(c);
+    for (let k = 0; k < steps && !r.sleep; k++) step(c, r);
+    c.body.j.set(r.p);
+    c.x = (r.p[0] + r.p[3]) / 2; c.z = (r.p[2] + r.p[5]) / 2;
+  };
+
+  // nearest dead body along a ray in x/z
+  B.rayDead = function (ox, oz, dx, dz, maxT) {
+    let best = null, bt = maxT;
+    for (const c of list) {
+      const b = c.body;
+      if (c.alive || !b.rag || !b.visible) continue;
+      const p = b.rag.p;
+      for (const k of [PELVIS, NECK, HEAD, KNL, KNR]) {
+        const vx = p[k * 3] - ox, vz = p[k * 3 + 2] - oz;
+        const t = vx * dx + vz * dz;
+        if (t < 0 || t > bt) continue;
+        if (Math.abs(vx * dz - vz * dx) < 0.32) { bt = t; best = { c, t, k }; }
+      }
+    }
+    return best;
+  };
+  B.jointPos = function (c, k) {
+    const j = c.body.j;
+    return { x: j[k * 3], y: j[k * 3 + 1], z: j[k * 3 + 2] };
+  };
+
+  // a moving car shoves any dead body under or against it
+  B.carSweep = function (car, vx, vz) {
+    const sp = Math.hypot(vx, vz);
+    if (sp < 1.5) return;
+    const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
+    for (const c of list) {
+      if (c.alive || !c.body || !c.body.rag) continue;
+      const dx0 = c.x - car.x, dz0 = c.z - car.z;
+      if (dx0 * dx0 + dz0 * dz0 > 16) continue;
+      const r = c.body.rag, p = r.p;
+      let hit = false;
+      for (let i = 0; i < 15; i++) {
+        const q = i * 3, dx = p[q] - car.x, dz = p[q + 2] - car.z;
+        const lz = dx * fx + dz * fz, lx = dx * fz - dz * fx;
+        if (Math.abs(lx) < car.hw + 0.15 && Math.abs(lz) < car.hl + 0.15 && p[q + 1] < 1.3) {
+          const up = 1.5 + sp * 0.12 + Math.random() * 1.5;
+          r.o[q] = p[q] - (vx * 0.9 + G.R(-1, 1)) * STEP;
+          r.o[q + 1] = p[q + 1] - up * STEP;
+          r.o[q + 2] = p[q + 2] - (vz * 0.9 + G.R(-1, 1)) * STEP;
+          hit = true;
+        }
+      }
+      if (hit) {
+        r.sleep = false; r.still = 0; c.body.written = false;
+        if (Math.random() < 0.3) G.blood.splat(c.x + G.R(-1, 1), W.groundY(c.x, c.z) + 0.012, c.z + G.R(-1, 1), 0, 1, 0, G.R(0.3, 0.7));
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------- render
+  const P = new T.Vector3(), N = new T.Vector3(), H = new T.Vector3(), SL = new T.Vector3(), SR = new T.Vector3();
+  const up = new T.Vector3(), ax = new T.Vector3(), fw = new T.Vector3();
+  const hx = new T.Vector3(), hy = new T.Vector3(), hz = new T.Vector3();
+  const lX = new T.Vector3(), lY = new T.Vector3(), lZ = new T.Vector3();
+  const A = new T.Vector3(), Bv = new T.Vector3(), C = new T.Vector3();
+  const jv = (j, k, v) => v.set(j[k * 3], j[k * 3 + 1], j[k * 3 + 2]);
+  function setM(arr, i, px, py, pz, X, Y, Z, sx, sy, sz) {
+    const o = i * 16;
+    arr[o] = X.x * sx; arr[o + 1] = X.y * sx; arr[o + 2] = X.z * sx; arr[o + 3] = 0;
+    arr[o + 4] = Y.x * sy; arr[o + 5] = Y.y * sy; arr[o + 6] = Y.z * sy; arr[o + 7] = 0;
+    arr[o + 8] = Z.x * sz; arr[o + 9] = Z.y * sz; arr[o + 10] = Z.z * sz; arr[o + 11] = 0;
+    arr[o + 12] = px; arr[o + 13] = py; arr[o + 14] = pz; arr[o + 15] = 1;
+  }
+  function basisAlong(a, b) { // lY along a→b, lX from the body's side axis
+    lY.subVectors(b, a);
+    const len = lY.length() || 1e-4;
+    lY.multiplyScalar(1 / len);
+    lX.copy(ax).addScaledVector(lY, -ax.dot(lY));
+    let l = lX.length();
+    if (l < 1e-3) { lX.copy(fw).addScaledVector(lY, -fw.dot(lY)); l = lX.length() || 1; }
+    lX.multiplyScalar(1 / l);
+    lZ.crossVectors(lX, lY);
+    return len;
+  }
+  function headPart(base, k, ox, oy, oz, sx, sy, sz, b) {
+    if (!b.vis[k]) { M.fill(0, (base + k) * 16, (base + k + 1) * 16); return; }
+    setM(M, base + k, H.x + hx.x * ox + hy.x * oy + hz.x * oz, H.y + hx.y * ox + hy.y * oy + hz.y * oz, H.z + hx.z * ox + hy.z * oy + hz.z * oz, hx, hy, hz, sx, sy, sz);
+  }
+  function torsoPart(base, k, ox, oy, oz, sx, sy, sz, b) {
+    if (!b.vis[k]) { M.fill(0, (base + k) * 16, (base + k + 1) * 16); return; }
+    setM(M, base + k, P.x + ax.x * ox + up.x * oy + fw.x * oz, P.y + ax.y * ox + up.y * oy + fw.y * oz, P.z + ax.z * ox + up.z * oy + fw.z * oz, ax, up, fw, sx, sy, sz);
+  }
+
+  function writeBody(c) {
+    const b = c.body, j = b.j, base = b.slot * PARTS, o = b.o, w = b.w, h = b.h;
+    if (!b.visible) {
+      M.fill(0, base * 16, (base + PARTS) * 16);
+      HM.fill(0, b.slot * 16, b.slot * 16 + 16);
+      return;
+    }
+    jv(j, PELVIS, P); jv(j, NECK, N); jv(j, HEAD, H); jv(j, SHL, SL); jv(j, SHR, SR);
+    up.subVectors(N, P);
+    const tl = up.length() || 1e-4;
+    up.multiplyScalar(1 / tl);
+    ax.subVectors(SL, SR);
+    ax.addScaledVector(up, -ax.dot(up));
+    if (ax.lengthSq() < 1e-6) ax.set(1, 0, 0);
+    ax.normalize();
+    fw.crossVectors(ax, up);
+    // torso, pelvis, coat skirt, collar/badge
+    torsoPart(base, 0, 0, tl * 0.5 + 0.03, 0, 0.4 * w, tl + 0.12, 0.23 * w, b);
+    torsoPart(base, 1, 0, -0.05, 0, 0.36 * w, 0.2, 0.24 * w, b);
+    torsoPart(base, 15, 0, -0.27 * h, -0.005, 0.44 * w, 0.52 * h, 0.28 * w, b);
+    if (o.badge) torsoPart(base, 22, 0.1 * w, tl * 0.75, 0.122 * w, 0.06, 0.06, 0.015, b);
+    else torsoPart(base, 22, 0, tl + 0.02, -0.01, 0.44 * w, 0.08, 0.27 * w, b);
+    // head
+    hy.subVectors(H, N).normalize();
+    hx.copy(ax).addScaledVector(hy, -ax.dot(hy)).normalize();
+    hz.crossVectors(hx, hy);
+    headPart(base, 2, 0, 0, 0, 0.23, 0.27, 0.25, b);
+    if (o.hood) headPart(base, 16, 0, 0.02, -0.035, 0.29, 0.33, 0.24, b);
+    else if (o.cap) headPart(base, 16, 0, 0.135, 0, 0.26, 0.07, 0.27, b);
+    else headPart(base, 16, 0, 0.125, -0.012, 0.25, 0.06, 0.27, b);
+    headPart(base, 17, 0, 0.105, 0.17, 0.25, 0.025, 0.11, b);
+    if (o.mask) headPart(base, 18, 0, 0, 0.128, 0.22, 0.25, 0.02, b);
+    else headPart(base, 18, 0, -0.015, 0.13, 0.04, 0.06, 0.04, b);
+    const ez = o.mask ? 0.14 : 0.127;
+    headPart(base, 19, 0.055, 0.035, ez, 0.045, 0.028, 0.012, b);
+    headPart(base, 20, -0.055, 0.035, ez, 0.045, 0.028, 0.012, b);
+    // arms
+    const limb = (k, ja, jb, sw, sd, ext) => {
+      jv(j, ja, A); jv(j, jb, Bv);
+      const len = basisAlong(A, Bv);
+      C.addVectors(A, Bv).multiplyScalar(0.5);
+      setM(M, base + k, C.x, C.y, C.z, lX, lY, lZ, sw, len + ext, sd);
+    };
+    const hand = (k, at) => {
+      jv(j, at, A);
+      setM(M, base + k, A.x + lY.x * 0.055, A.y + lY.y * 0.055, A.z + lY.z * 0.055, lX, lY, lZ, 0.085, 0.11, 0.1);
+    };
+    limb(3, SHL, ELL, 0.12 * w, 0.13 * w, 0.05); limb(4, ELL, HAL, 0.1 * w, 0.11 * w, 0.03); hand(5, HAL);
+    limb(6, SHR, ELR, 0.12 * w, 0.13 * w, 0.05); limb(7, ELR, HAR, 0.1 * w, 0.11 * w, 0.03); hand(8, HAR);
+    if (b.vis[21]) setM(M, base + 21, A.x + lY.x * 0.1 + lZ.x * 0.02, A.y + lY.y * 0.1 + lZ.y * 0.02, A.z + lY.z * 0.1 + lZ.z * 0.02, lX, lY, lZ, 0.05, 0.24, 0.12);
+    else M.fill(0, (base + 21) * 16, (base + 22) * 16);
+    // legs
+    const foot = (k, kn, ft) => {
+      jv(j, kn, A); jv(j, ft, Bv);
+      basisAlong(Bv, A); // lY points up the shin
+      setM(M, base + k, Bv.x + lZ.x * 0.07 - lY.x * 0.03, Bv.y + lZ.y * 0.07 - lY.y * 0.03, Bv.z + lZ.z * 0.07 - lY.z * 0.03, lX, lY, lZ, 0.11 * w, 0.08, 0.27);
+    };
+    limb(9, HPL, KNL, 0.15 * w, 0.17 * w, 0.06); limb(10, KNL, FTL, 0.12 * w, 0.13 * w, 0.02); foot(11, KNL, FTL);
+    limb(12, HPR, KNR, 0.15 * w, 0.17 * w, 0.06); limb(13, KNR, FTR, 0.12 * w, 0.13 * w, 0.02); foot(14, KNR, FTR);
+    // halo
+    if (o.halo) setM(HM, b.slot, H.x + hy.x * 0.33, H.y + hy.y * 0.33, H.z + hy.z * 0.33, hz, hx, hy, 1, 1, 1);
+    else if (o.tinHalo) setM(HM, b.slot, N.x - up.x * 0.04 + fw.x * 0.03, N.y - up.y * 0.04 + fw.y * 0.03, N.z - up.z * 0.04 + fw.z * 0.03, fw, ax, up, 0.85, 0.85, 0.85);
+  }
+
+  B.update = function (dt) {
+    let maxSlot = 0;
+    for (const c of list) {
+      const b = c.body;
+      if (b.slot + 1 > maxSlot) maxSlot = b.slot + 1;
+      if (b.rag) {
+        const r = b.rag;
+        if (!r.sleep) {
+          r.acc += dt;
+          let n = 0;
+          while (r.acc >= STEP && n < 3) { step(c, r); r.acc -= STEP; n++; }
+          if (n === 3) r.acc = 0;
+          b.j.set(r.p);
+          c.x = (r.p[0] + r.p[3]) / 2; c.z = (r.p[2] + r.p[5]) / 2;
+          b.written = false;
+        }
+        if (!b.pooled && (r.sleep || r.t > 1.4)) {
+          b.pooled = true;
+          const gy = W.groundY(c.x, c.z);
+          BL.pool(c.x, gy, c.z, G.R(1.0, 1.6) * (c.bigPool ? 1.4 : 1));
+          if (c.headshot) BL.pool(r.p[6], gy, r.p[8], G.R(0.5, 0.8));
+        }
+        if (b.written) continue;
+        if (r.sleep) b.written = true;
+      } else if (c.alive && c.hp < c.maxHp * 0.75 && b.visible) {
+        b.trailD += Math.hypot(c.x - b.lx, c.z - b.lz);
+        if (b.trailD > 1.1) { b.trailD = 0; BL.splat(c.x + G.R(-0.2, 0.2), W.groundY(c.x, c.z) + 0.012, c.z + G.R(-0.2, 0.2), 0, 1, 0, G.R(0.1, 0.22)); }
+      } else if (!b.visible && b.written) continue;
+      b.lx = c.x; b.lz = c.z;
+      writeBody(c);
+      if (!b.visible) b.written = true;
+    }
+    mesh.count = maxSlot * PARTS;
+    haloMesh.count = maxSlot;
+    mesh.instanceMatrix.needsUpdate = true;
+    haloMesh.instanceMatrix.needsUpdate = true;
+    BL.update(dt);
+  };
+
+  // ---------------------------------------------------------------- blood
+  const BL = (G.blood = {});
+  let splatMesh, poolMesh, splatI = 0, poolI = 0, dropGeo, dropPos, dropVel, dropLife, mistGeo, mistPos, mistVel, mistLife;
+  const SPLATS = 700, POOLS = 140, DROPS = 500, MISTS = 180;
+  const growing = [];
+  const q1 = new T.Quaternion(), q2 = new T.Quaternion(), mtx = new T.Matrix4(), vpos = new T.Vector3(), vsc = new T.Vector3(), vn = new T.Vector3();
+  const ZAX = new T.Vector3(0, 0, 1);
+
+  function splatTexture(pool) {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const x = c.getContext('2d');
+    const blob = (cx, cy, r, n) => { for (let k = 0; k < n; k++) { const a = Math.random() * 6.28, d = Math.random() * r * 0.6; x.beginPath(); x.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, r * (0.45 + Math.random() * 0.45), 0, 6.28); x.fill(); } };
+    if (pool) {
+      x.fillStyle = 'rgba(58,2,6,0.97)';
+      blob(64, 64, 46, 14);
+      const g = x.createRadialGradient(52, 50, 2, 58, 58, 40);
+      g.addColorStop(0, 'rgba(150,30,35,0.4)'); g.addColorStop(1, 'rgba(150,30,35,0)');
+      x.globalCompositeOperation = 'source-atop'; x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    } else {
+      x.fillStyle = 'rgba(105,4,10,0.95)';
+      blob(64, 64, 22, 9);
+      for (let k = 0; k < 26; k++) {
+        const a = Math.random() * 6.28, d = 24 + Math.random() * 36, r = 1 + Math.random() * 5;
+        x.beginPath(); x.arc(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, r, 0, 6.28); x.fill();
+      }
+      x.strokeStyle = 'rgba(105,4,10,0.9)'; x.lineCap = 'round';
+      for (let k = 0; k < 7; k++) {
+        const a = Math.random() * 6.28, d = 30 + Math.random() * 28;
+        x.lineWidth = 2 + Math.random() * 4;
+        x.beginPath(); x.moveTo(64, 64); x.lineTo(64 + Math.cos(a) * d, 64 + Math.sin(a) * d); x.stroke();
+      }
+    }
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
+    return t;
+  }
+  B.splatCanvas = null;
+
+  function initBlood(scene) {
+    const plane = new T.PlaneGeometry(1, 1);
+    const mk = (tex, cap) => {
+      const m = new T.InstancedMesh(plane, new T.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), cap);
+      m.instanceMatrix.setUsage(T.DynamicDrawUsage);
+      m.setColorAt(0, col.set(0xffffff));
+      m.instanceMatrix.array.fill(0);
+      m.frustumCulled = false; m.renderOrder = 2;
+      scene.add(m);
+      return m;
+    };
+    const st = splatTexture(false);
+    B.splatCanvas = st.image;
+    splatMesh = mk(st, SPLATS);
+    poolMesh = mk(splatTexture(true), POOLS);
+    splatMesh.count = 0; poolMesh.count = 0;
+    poolMesh.renderOrder = 1;
+    const pts = (cap, color, size, opacity) => {
+      const pos = new Float32Array(cap * 3);
+      for (let k = 0; k < cap; k++) pos[k * 3 + 1] = -50;
+      const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+      const p = new T.Points(geo, new T.PointsMaterial({ color, size, map: W.radialTex, transparent: true, opacity, depthWrite: false }));
+      p.frustumCulled = false; scene.add(p);
+      return { geo, pos, vel: new Float32Array(cap * 3), life: new Float32Array(cap), next: 0 };
+    };
+    const d = pts(DROPS, 0x8a0610, 0.11, 1);
+    dropGeo = d.geo; dropPos = d.pos; dropVel = d.vel; dropLife = d.life;
+    const m = pts(MISTS, 0x9a1018, 0.55, 0.55);
+    mistGeo = m.geo; mistPos = m.pos; mistVel = m.vel; mistLife = m.life;
+  }
+  let dropNext = 0, mistNext = 0;
+  function addDrop(x, y, z, vx, vy, vz) {
+    const i = dropNext; dropNext = (dropNext + 1) % DROPS;
+    dropPos[i * 3] = x; dropPos[i * 3 + 1] = y; dropPos[i * 3 + 2] = z;
+    dropVel[i * 3] = vx; dropVel[i * 3 + 1] = vy; dropVel[i * 3 + 2] = vz;
+    dropLife[i] = 2.5;
+  }
+  function addMist(x, y, z, vx, vy, vz) {
+    const i = mistNext; mistNext = (mistNext + 1) % MISTS;
+    mistPos[i * 3] = x; mistPos[i * 3 + 1] = y; mistPos[i * 3 + 2] = z;
+    mistVel[i * 3] = vx; mistVel[i * 3 + 1] = vy; mistVel[i * 3 + 2] = vz;
+    mistLife[i] = G.R(0.15, 0.35);
+  }
+
+  BL.splat = function (x, y, z, nx, ny, nz, size, tone) {
+    const i = splatI; splatI = (splatI + 1) % SPLATS;
+    vn.set(nx, ny, nz);
+    q1.setFromUnitVectors(ZAX, vn);
+    q2.setFromAxisAngle(vn, Math.random() * 6.28);
+    q2.multiply(q1);
+    vpos.set(x + nx * 0.012 + (ny ? 0 : 0), y + (ny ? (i % 12) * 0.0006 : 0), z + nz * 0.012);
+    vsc.set(size, size * G.R(0.8, 1.2), 1);
+    mtx.compose(vpos, q2, vsc);
+    splatMesh.setMatrixAt(i, mtx);
+    const t = tone || G.R(0.6, 1);
+    splatMesh.setColorAt(i, col.setRGB(t, t * 0.9, t * 0.9));
+    splatMesh.instanceMatrix.needsUpdate = true; splatMesh.instanceColor.needsUpdate = true;
+    if (splatMesh.count < i + 1) splatMesh.count = i + 1;
+  };
+  BL.pool = function (x, y, z, target) {
+    const i = poolI; poolI = (poolI + 1) % POOLS;
+    for (let k = growing.length - 1; k >= 0; k--) if (growing[k].i === i) growing.splice(k, 1);
+    growing.push({ i, x, y: y + 0.008 + (i % 8) * 0.0005, z, s: 0.15, target, rot: Math.random() * 6.28 });
+    poolMesh.setColorAt(i, col.setRGB(1, 1, 1)); poolMesh.instanceColor.needsUpdate = true;
+    if (poolMesh.count < i + 1) poolMesh.count = i + 1;
+  };
+  // a bullet hit: exit spray along the shot, back spatter, a red mist, and a splash on any wall behind
+  BL.spray = function (x, y, z, dx, dz, power, head) {
+    power = power || 1;
+    const n = Math.round((head ? 30 : 16) * power);
+    const a0 = Math.atan2(dx, dz);
+    for (let k = 0; k < n; k++) {
+      const a = a0 + G.R(-0.45, 0.45), s = G.R(1.5, 6) * power;
+      addDrop(x, y, z, Math.sin(a) * s, G.R(-0.6, 2.4), Math.cos(a) * s);
+    }
+    for (let k = 0; k < 5; k++) {
+      const a = a0 + Math.PI + G.R(-0.6, 0.6), s = G.R(0.8, 2.2);
+      addDrop(x, y, z, Math.sin(a) * s, G.R(0, 1.5), Math.cos(a) * s);
+    }
+    const nm = head ? 16 : 8;
+    for (let k = 0; k < nm; k++) addMist(x, y, z, dx * G.R(0.5, 2.5) + G.R(-0.7, 0.7), G.R(-0.3, 0.8), dz * G.R(0.5, 2.5) + G.R(-0.7, 0.7));
+    const hit = W.rayNormal(x, z, dx, dz, 3.6);
+    if (hit) {
+      const hy2 = G.clamp(y + G.R(-0.35, 0.4), 0.35, 2.7);
+      BL.splat(x + dx * hit.t, hy2, z + dz * hit.t, hit.nx, 0, hit.nz, G.R(0.6, 1.2) * power * (head ? 1.5 : 1));
+    }
+    const d = G.R(0.4, 1.3), gx = x + dx * d, gz = z + dz * d;
+    BL.splat(gx, W.groundY(gx, gz) + 0.012, gz, 0, 1, 0, G.R(0.35, 0.75) * power);
+  };
+
+  BL.update = function (dt) {
+    let anyD = false;
+    for (let i = 0; i < DROPS; i++) {
+      if (dropLife[i] <= 0) continue;
+      anyD = true;
+      const q = i * 3;
+      dropLife[i] -= dt;
+      dropVel[q + 1] -= 9.8 * dt;
+      dropPos[q] += dropVel[q] * dt; dropPos[q + 1] += dropVel[q + 1] * dt; dropPos[q + 2] += dropVel[q + 2] * dt;
+      const gy = W.groundY(dropPos[q], dropPos[q + 2]);
+      if (dropPos[q + 1] <= gy + 0.02 || dropLife[i] <= 0) {
+        if (dropLife[i] > 0 && Math.random() < 0.35) BL.splat(dropPos[q], gy + 0.012, dropPos[q + 2], 0, 1, 0, G.R(0.07, 0.2));
+        dropLife[i] = 0; dropPos[q + 1] = -50;
+      }
+    }
+    if (anyD || BL.dDirty) { dropGeo.attributes.position.needsUpdate = true; BL.dDirty = anyD; }
+    let anyM = false;
+    for (let i = 0; i < MISTS; i++) {
+      if (mistLife[i] <= 0) continue;
+      anyM = true;
+      const q = i * 3;
+      mistLife[i] -= dt;
+      if (mistLife[i] <= 0) { mistPos[q + 1] = -50; continue; }
+      mistPos[q] += mistVel[q] * dt; mistPos[q + 1] += mistVel[q + 1] * dt; mistPos[q + 2] += mistVel[q + 2] * dt;
+      mistVel[q] *= 1 - 4 * dt; mistVel[q + 2] *= 1 - 4 * dt;
+    }
+    if (anyM || BL.mDirty) { mistGeo.attributes.position.needsUpdate = true; BL.mDirty = anyM; }
+    if (growing.length) {
+      for (let k = growing.length - 1; k >= 0; k--) {
+        const g = growing[k];
+        g.s = Math.min(g.target, g.s + dt * 0.28 * (1.15 - g.s / g.target));
+        vpos.set(g.x, g.y, g.z);
+        q1.setFromAxisAngle(vn.set(1, 0, 0), -Math.PI / 2);
+        q2.setFromAxisAngle(vn.set(0, 1, 0), g.rot).multiply(q1);
+        vsc.set(g.s, g.s * 0.85, 1);
+        mtx.compose(vpos, q2, vsc);
+        poolMesh.setMatrixAt(g.i, mtx);
+        if (g.s >= g.target) growing.splice(k, 1);
+      }
+      poolMesh.instanceMatrix.needsUpdate = true;
+    }
+  };
+})();
+
 // ---- js/actors.js
 'use strict';
-// Actors: people (peds, cops, Saints), cars, AI, and hit effects.
+// Actors: people (peds, cops, Saints) and their AI, cars, and effects.
+// Bodies, ragdolls and blood live in body.js.
 (function () {
   const T = THREE, W = G.world;
   const A = (G.actors = {});
@@ -1223,195 +1883,110 @@ window.__startGame = function () {
   const mats = {};
   const mat = (hex) => mats[hex] || (mats[hex] = new T.MeshLambertMaterial({ color: hex }));
   const basic = (hex) => mats['b' + hex] || (mats['b' + hex] = new T.MeshBasicMaterial({ color: hex }));
-  const geo = {
-    leg: new T.BoxGeometry(0.2, 0.86, 0.22).translate(0, -0.43, 0),
-    arm: new T.BoxGeometry(0.14, 0.66, 0.15).translate(0, -0.33, 0),
-    hand: new T.BoxGeometry(0.11, 0.12, 0.12).translate(0, -0.71, 0),
-    torso: new T.BoxGeometry(0.5, 0.68, 0.28),
-    coat: new T.BoxGeometry(0.55, 1.06, 0.32),
-    head: new T.BoxGeometry(0.25, 0.28, 0.26),
-    hair: new T.BoxGeometry(0.27, 0.08, 0.28),
-    hood: new T.BoxGeometry(0.31, 0.33, 0.25),
-    cap: new T.BoxGeometry(0.28, 0.08, 0.29),
-    brim: new T.BoxGeometry(0.27, 0.03, 0.12),
-    mask: new T.BoxGeometry(0.23, 0.26, 0.03),
-    eye: new T.BoxGeometry(0.05, 0.03, 0.01),
-    halo: new T.TorusGeometry(0.2, 0.022, 6, 18),
-    badge: new T.BoxGeometry(0.07, 0.07, 0.02),
-    gun: new T.BoxGeometry(0.06, 0.28, 0.1).translate(0, -0.84, 0.04),
-    pool: new T.CircleGeometry(1, 14).rotateX(-Math.PI / 2),
-  };
-  const poolMat = new T.MeshBasicMaterial({ color: 0x3e0508, transparent: true, opacity: 0.92, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-  const BURNT = new T.MeshLambertMaterial({ color: 0x111111 });
+  const BURNT = new T.MeshLambertMaterial({ color: 0x141414 });
 
-  const PED_TOPS = ['#2b2f36', '#3b2f2a', '#4a4038', '#22303a', '#523233', '#39402f', '#6b5f50', '#1e1e22', '#5a5040', '#30283a', '#5c3b2b', '#3e4a52'];
-  const PED_PANTS = ['#16171b', '#22252b', '#2c2a26', '#1d2430', '#35302a'];
-  const SKINS = ['#8d5a3b', '#c08a63', '#e0b18f', '#5a3a28', '#a8714f', '#d49b78', '#6e4630'];
-  const HAIR = ['#120e0b', '#2a1d14', '#3a3a3a', '#5a4630', '#1a1a1a', '#6a6a6a'];
+  const PED_TOPS = ['#3b4350', '#5a4436', '#6a5a48', '#2f4454', '#743838', '#4f5a3c', '#8a7a62', '#2a2a30', '#7a6a50', '#4a3c58', '#8a4f34', '#556672', '#9a8f7a', '#2c5a5a', '#6b2a3a'];
+  const PED_PANTS = ['#1c1d22', '#2c3038', '#3c3830', '#26324a', '#4a4236', '#5a5a5e'];
+  const SHOES = ['#121212', '#2a1c12', '#3a3a3a', '#d8d8d0', '#4a2a1a'];
+  const SKINS = ['#8d5a3b', '#c08a63', '#e0b18f', '#5a3a28', '#a8714f', '#d49b78', '#6e4630', '#f0c8a8'];
+  const HAIR = ['#120e0b', '#2a1d14', '#3a3a3a', '#5a4630', '#1a1a1a', '#8a8a8a', '#6a3a1a', '#b08a50'];
 
   function outfit(kind) {
     switch (kind) {
-      case 'player': return { shirt: '#3b2b20', long: true, pants: '#18191d', skin: '#a8714f', hair: '#1a1410', gun: true };
-      case 'cop': return { shirt: '#1c2a4d', pants: '#121829', skin: G.pick(SKINS), cap: '#0d0f14', gun: true, badge: true };
-      case 'saint': return { shirt: '#141417', long: true, pants: '#0c0c0e', skin: '#cfc9bb', hood: '#0e0e10', mask: true, halo: true, gun: true };
-      case 'guard': return { shirt: '#3c4234', pants: '#2a2d25', skin: G.pick(SKINS), cap: '#22251e' };
-      case 'mars': return { shirt: '#5a1f2e', pants: '#1d1b22', skin: '#9a6446', hair: '#0e0b0a', tinHalo: true };
+      case 'player': return { shirt: '#4a3626', long: true, pants: '#1e2026', shoes: '#141210', skin: '#b07a58', hair: '#1a1410', gun: true, h: 1.04, w: 1.06 };
+      case 'cop': return { shirt: '#24365e', pants: '#151c30', shoes: '#0c0c0c', skin: G.pick(SKINS), cap: '#10131a', gun: true, badge: true };
+      case 'saint': return { shirt: '#1a1a1e', long: true, pants: '#101012', shoes: '#0a0a0a', skin: '#cfc9bb', hood: '#121215', mask: true, halo: true, gun: true };
+      case 'guard': return { shirt: '#4a5240', pants: '#33372c', shoes: '#141414', skin: G.pick(SKINS), cap: '#2a2d24' };
+      case 'mars': return { shirt: '#7a2a3e', pants: '#24222a', shoes: '#1a1012', skin: '#9a6446', hair: '#0e0b0a', tinHalo: true, h: 0.95, w: 0.95 };
       default: {
-        const long = Math.random() < 0.35;
+        const long = Math.random() < 0.3;
         return {
-          shirt: G.pick(PED_TOPS), long, pants: G.pick(PED_PANTS), skin: G.pick(SKINS),
-          hood: Math.random() < 0.2 ? G.pick(PED_TOPS) : null, cap: Math.random() < 0.12 ? '#1a1a1a' : null, hair: G.pick(HAIR),
+          shirt: G.pick(PED_TOPS), long, pants: G.pick(PED_PANTS), shoes: G.pick(SHOES), skin: G.pick(SKINS),
+          hood: Math.random() < 0.18 ? G.pick(PED_TOPS) : null, cap: Math.random() < 0.12 ? G.pick(['#1a1a1a', '#7a1a1a', '#1a2a4a']) : null,
+          hair: Math.random() < 0.08 ? null : G.pick(HAIR),
         };
       }
     }
   }
 
-  function buildHuman(o) {
-    const g = new T.Group(); g.rotation.order = 'YXZ';
-    const body = new T.Group(); g.add(body);
-    const legL = new T.Group(); legL.position.set(0.12, 0.9, 0); legL.add(new T.Mesh(geo.leg, mat(o.pants)));
-    const legR = new T.Group(); legR.position.set(-0.12, 0.9, 0); legR.add(new T.Mesh(geo.leg, mat(o.pants)));
-    body.add(legL, legR);
-    const torso = new T.Mesh(o.long ? geo.coat : geo.torso, mat(o.shirt));
-    torso.position.y = o.long ? 1.06 : 1.24;
-    body.add(torso);
-    const armL = new T.Group(); armL.position.set(0.33, 1.52, 0);
-    const armR = new T.Group(); armR.position.set(-0.33, 1.52, 0);
-    for (const a of [armL, armR]) { a.add(new T.Mesh(geo.arm, mat(o.shirt))); a.add(new T.Mesh(geo.hand, mat(o.skin))); }
-    if (o.gun) armR.add(new T.Mesh(geo.gun, mat('#0b0b0c')));
-    body.add(armL, armR);
-    const head = new T.Mesh(geo.head, mat(o.skin)); head.position.y = 1.74;
-    body.add(head);
-    if (o.hair && !o.hood && !o.cap) { const h = new T.Mesh(geo.hair, mat(o.hair)); h.position.y = 1.9; body.add(h); }
-    if (o.hood) { const h = new T.Mesh(geo.hood, mat(o.hood)); h.position.set(0, 1.77, -0.045); body.add(h); }
-    if (o.cap) {
-      const c = new T.Mesh(geo.cap, mat(o.cap)); c.position.y = 1.9;
-      const b = new T.Mesh(geo.brim, mat(o.cap)); b.position.set(0, 1.87, 0.18);
-      body.add(c, b);
+  // make room in the body pool: oldest corpse first, then the farthest bystander
+  function freeSlot() {
+    let old = null;
+    for (const c of G.chars) if (!c.alive && !c.prop && (!old || c.diedAt < old.diedAt)) old = c;
+    if (old) { A.remove(old); return; }
+    let far = null, fd = 0;
+    for (const c of G.chars) {
+      if (c.kind !== 'ped' || c.mission || c.persistent) continue;
+      const d = Math.hypot(c.x - G.player.x, c.z - G.player.z);
+      if (d > fd) { fd = d; far = c; }
     }
-    if (o.mask) {
-      const m = new T.Mesh(geo.mask, basic('#b9b2a2')); m.position.set(0, 1.74, 0.14);
-      const e1 = new T.Mesh(geo.eye, basic('#000000')); e1.position.set(0.055, 1.78, 0.156);
-      const e2 = new T.Mesh(geo.eye, basic('#000000')); e2.position.set(-0.055, 1.78, 0.156);
-      body.add(m, e1, e2);
-    }
-    if (o.halo) { const h = new T.Mesh(geo.halo, basic('#efe4c2')); h.rotation.x = Math.PI / 2; h.position.y = 2.06; body.add(h); }
-    if (o.tinHalo) { const h = new T.Mesh(geo.halo, mat('#8a8a86')); h.rotation.x = Math.PI / 2 - 0.3; h.position.set(0, 1.5, 0.04); h.scale.setScalar(0.9); body.add(h); }
-    if (o.badge) { const b = new T.Mesh(geo.badge, basic('#c9a24a')); b.position.set(0.12, 1.42, 0.145); body.add(b); }
-    return { group: g, body, legL, legR, armL, armR, head, torso };
+    if (far) A.remove(far);
   }
 
   A.spawn = function (kind, x, z, opts = {}) {
-    const parts = buildHuman(outfit(kind));
-    G.scene.add(parts.group);
     const hp = kind === 'saint' ? 110 : kind === 'cop' ? 90 : kind === 'player' ? 100 : 40;
     const c = {
-      kind, parts, mesh: parts.group, x, z, rot: opts.rot !== undefined ? opts.rot : Math.random() * Math.PI * 2,
-      hp, maxHp: hp, alive: true, deadT: 0, phase: Math.random() * 6,
+      kind, x, z, rot: opts.rot !== undefined ? opts.rot : Math.random() * Math.PI * 2,
+      hp, maxHp: hp, alive: true, phase: Math.random() * 6, flinch: 0,
       hostile: !!opts.hostile, mission: !!opts.mission, persistent: !!opts.persistent,
       fireCD: G.R(0.8, 1.6), los: false, losT: Math.random() * 0.3, navT: 0, nav: null, strafeT: 0, strafeDir: 0,
-      range: kind === 'cop' ? 22 : 18, fleeT: 0, tx: 0, tz: 0, walk: G.R(1.0, 1.5), pool: null, fvx: 0, fvz: 0, fling: 0,
-      born: G.time || 0,
+      range: kind === 'cop' ? 22 : 18, fleeT: 0, tx: 0, tz: 0, walk: G.R(1.0, 1.5), born: Math.random() * 100,
     };
+    if (!G.body.hasFree() && G.player) freeSlot();
+    if (!G.body.create(c, outfit(kind))) return null;
     if (kind === 'ped') {
       const r = opts.ring || W.nearestRing(x, z);
       c.ri = r.i; c.rj = r.j; c.rs = r.s; c.rdir = Math.random() < 0.5 ? 1 : -1;
     }
-    c.mesh.position.set(x, W.groundY(x, z), z);
-    c.mesh.rotation.y = c.rot;
+    G.body.pose(c, 0.016, 0, false);
     if (opts.dead) {
-      c.alive = false; c.prop = true; c.deadT = 5;
-      if (opts.pose === 'sit') poseSit(c); else poseDead(c, 1);
-      addPool(c, opts.pose === 'sit' ? 0.9 : 1.15, opts.pose === 'sit' ? 0.35 : -0.9);
+      c.alive = false; c.prop = true; c.diedAt = -1;
+      G.body.startRag(c);
+      const fx = Math.sin(c.rot), fz = Math.cos(c.rot);
+      G.body.push(c, G.body.J.NECK, -fx * (opts.fall || 3), 0, -fz * (opts.fall || 3), 0.2);
+      G.body.settle(c, 600);
+      G.blood.pool(c.x, W.groundY(c.x, c.z), c.z, G.R(1.2, 1.7));
+      c.body.pooled = true;
+      G.body.addBlood(c, 0.8);
     }
     if (kind !== 'player') G.chars.push(c);
     return c;
   };
 
   A.remove = function (c) {
-    G.scene.remove(c.mesh);
-    if (c.pool) G.scene.remove(c.pool);
+    G.body.release(c);
     const k = G.chars.indexOf(c);
     if (k >= 0) G.chars.splice(k, 1);
   };
 
-  function addPool(c, size, back) {
-    const p = new T.Mesh(geo.pool, poolMat);
-    const fx = Math.sin(c.rot), fz = Math.cos(c.rot);
-    p.position.set(c.x + fx * back, W.groundY(c.x, c.z) + 0.02, c.z + fz * back);
-    p.scale.setScalar(size);
-    p.userData.target = size;
-    G.scene.add(p);
-    c.pool = p;
-  }
-
-  function poseDead(c, t) {
-    const p = c.parts, e = t * t;
-    c.mesh.rotation.x = (-Math.PI / 2) * e;
-    c.mesh.position.y = W.groundY(c.x, c.z) + 0.14 * e;
-    p.legL.rotation.x = 0.25 * e; p.legR.rotation.x = -0.1 * e;
-    p.armL.rotation.x = -0.3 * e; p.armR.rotation.x = -0.6 * e;
-    p.armL.rotation.z = 1.1 * e; p.armR.rotation.z = -0.9 * e;
-    p.body.position.y = 0;
-  }
-  function poseSit(c) {
-    const p = c.parts;
-    c.mesh.rotation.x = -0.28;
-    p.body.position.y = -0.72;
-    p.body.position.z = -0.1;
-    p.legL.rotation.x = -1.45; p.legR.rotation.x = -1.35;
-    p.armL.rotation.x = -0.2; p.armR.rotation.x = -0.5; p.armR.rotation.z = -0.25;
-    p.head.rotation.x = 0.55; p.head.rotation.z = 0.25;
-  }
-  A.poseDead = poseDead;
-
-  A.animate = function (c, dt, speed, aiming) {
-    const p = c.parts;
-    c.phase += dt * Math.max(speed, 0.0) * 2.7;
-    const amp = Math.min(1, speed / 3) * 0.75;
-    const s = Math.sin(c.phase) * amp;
-    p.legL.rotation.x = s; p.legR.rotation.x = -s;
-    if (aiming) {
-      p.armR.rotation.x = -1.5; p.armR.rotation.z = 0;
-      p.armL.rotation.x = -1.3; p.armL.rotation.z = -0.4;
+  // death: hand the body to physics, pushed the way the hit pushed it
+  A.kill = function (c, hit) {
+    c.alive = false; c.hp = 0; c.diedAt = G.time;
+    if (!c.body) return;
+    const B = G.body, J = B.J;
+    B.startRag(c);
+    hit = hit || { kind: 'bullet', dx: 0, dz: 1, power: 3 };
+    if (hit.kind === 'car') {
+      const vx = hit.vx, vz = hit.vz, sp = Math.hypot(vx, vz);
+      B.push(c, -1, vx * 0.75, 2.2 + sp * 0.13, vz * 0.75, 1);
+      for (const k of [J.KNL, J.KNR, J.FTL, J.FTR]) B.pushJoint(c, k, vx * 0.45, 1.5 + sp * 0.12, vz * 0.45);
+      B.pushJoint(c, J.HEAD, -vx * 0.2, 0.5, -vz * 0.2);
+      c.bigPool = true;
+    } else if (hit.kind === 'blast') {
+      for (let i = 0; i < 15; i++) B.pushJoint(c, i, hit.dx * G.R(7, 12) + G.R(-2.5, 2.5), G.R(5, 9), hit.dz * G.R(7, 12) + G.R(-2.5, 2.5));
+      c.bigPool = true;
     } else {
-      p.armL.rotation.x = -s * 0.8; p.armR.rotation.x = s * 0.8;
-      p.armL.rotation.z = 0; p.armR.rotation.z = 0;
+      const pw = hit.power || 4;
+      B.push(c, hit.joint !== undefined ? hit.joint : J.NECK, hit.dx * pw, 0.9, hit.dz * pw, 0.3);
+      B.pushJoint(c, Math.random() < 0.5 ? J.KNL : J.KNR, hit.dx * G.R(-1, 1.5), 0, hit.dz * G.R(-1, 1.5));
+      if (hit.head) c.headshot = true;
     }
-    p.body.position.y = Math.abs(Math.cos(c.phase)) * 0.06 * amp;
-  };
-
-  A.kill = function (c, fromX, fromZ) {
-    c.alive = false; c.deadT = 0; c.hp = 0; c.diedAt = G.time;
-    if (fromX !== undefined) c.rot = Math.atan2(fromX - c.x, fromZ - c.z);
-    c.mesh.rotation.y = c.rot;
-  };
-
-  A.updateDead = function (c, dt) {
-    if (c.prop) return;
-    c.deadT += dt;
-    if (c.fling > 0) {
-      c.fling -= dt;
-      c.x += c.fvx * dt; c.z += c.fvz * dt;
-      c.fvx *= 1 - 2.5 * dt; c.fvz *= 1 - 2.5 * dt;
-      W.collide(c, 0.3);
-    }
-    if (c.deadT < 0.7 || c.fling > 0) {
-      poseDead(c, Math.min(1, c.deadT / 0.45));
-      c.mesh.position.x = c.x; c.mesh.position.z = c.z;
-    }
-    if (!c.pool && c.deadT > 0.6 && c.fling <= 0) { addPool(c, 0.1, -0.9); c.pool.userData.target = G.R(0.9, 1.4); }
-    if (c.pool && c.pool.scale.x < c.pool.userData.target) c.pool.scale.setScalar(Math.min(c.pool.userData.target, c.pool.scale.x + dt * 0.3));
   };
 
   function moveChar(c, vx, vz, dt) {
     c.x += vx * dt; c.z += vz * dt;
     W.collide(c, 0.35);
     A.pushFromCars(c, 0.35);
-  }
-  function place(c) {
-    c.mesh.position.set(c.x, W.groundY(c.x, c.z), c.z);
-    c.mesh.rotation.y = c.rot;
   }
 
   A.pushFromCars = function (c, r) {
@@ -1464,8 +2039,7 @@ window.__startGame = function () {
         if (Math.random() < dt * 0.04) c.idleT = G.R(2, 6);
       }
     }
-    A.animate(c, dt, speed, false);
-    place(c);
+    G.body.pose(c, dt, speed, false);
   }
 
   function pickNav(c, tx, tz) {
@@ -1497,7 +2071,7 @@ window.__startGame = function () {
       speed = 1.6;
       c.rot = G.angleLerp(c.rot, Math.atan2(-dx / l, -dz / l), Math.min(1, dt * 3));
       moveChar(c, Math.sin(c.rot) * speed, Math.cos(c.rot) * speed, dt);
-      A.animate(c, dt, speed, false); place(c);
+      G.body.pose(c, dt, speed, false);
       return;
     }
     c.losT -= dt;
@@ -1538,8 +2112,7 @@ window.__startGame = function () {
       if (d2 < 1.4 && d2 > 1e-4) { const k = (1.2 - Math.sqrt(d2)) * 3; vx += ox * k; vz += oz * k; }
     }
     moveChar(c, vx, vz, dt);
-    A.animate(c, dt, speed, aiming);
-    place(c);
+    G.body.pose(c, dt, speed, aiming);
   }
 
   function hostileShoot(c, d) {
@@ -1563,7 +2136,7 @@ window.__startGame = function () {
   A.updateChars = function (dt) {
     for (let k = G.chars.length - 1; k >= 0; k--) {
       const c = G.chars[k];
-      if (!c.alive) { A.updateDead(c, dt); continue; }
+      if (!c.alive) continue;
       if (c.kind === 'ped') updatePed(c, dt);
       else if (c.kind === 'cop' || c.kind === 'saint') updateHostile(c, dt);
     }
@@ -1582,7 +2155,6 @@ window.__startGame = function () {
     }
     return best ? { c: best, t: bt } : null;
   };
-
   // ---------------------------------------------------------------- cars
   const CAR_COLORS = ['#5a1a1a', '#1f2a3a', '#3a3a36', '#2a3a2a', '#6a5a3a', '#202022', '#4a4a50', '#5a3a1a', '#2a2240', '#7a7a72'];
   const carGeo = {
@@ -1631,7 +2203,7 @@ window.__startGame = function () {
     g.position.set(x, 0, z); g.rotation.y = heading;
     G.scene.add(g);
     const car = {
-      mesh: g, x, z, heading, speed: 0, steer: 0, hp: opts.hp || 100, cop, van, driver: null, wheels, parts, beam,
+      mesh: g, x, z, heading, speed: 0, slip: 0, steer: 0, hp: opts.hp || 100, cop, van, driver: null, wheels, parts, beam,
       hl, hw, wrecked: false, persistent: !!opts.persistent, lightsOn: false, burnT: 0, born: G.time || 0,
     };
     if (opts.lights) A.setLights(car, true);
@@ -1667,54 +2239,72 @@ window.__startGame = function () {
     for (const car of G.cars) updateCar(car, dt, car.driver === G.player ? input : null);
   };
 
+  // Car physics: forward speed + sideways slip. Tyres bleed slip off (grip); the handbrake
+  // drops grip so the back steps out and you drift.
   function updateCar(car, dt, ctrl) {
     if (car.wrecked) {
       car.burnT -= dt;
       if (car.burnT > 0 && Math.random() < dt * 30) G.fx.fire.emit(car.x + G.R(-0.8, 0.8), 1.2, car.z + G.R(-1.5, 1.5), 1, 0.4, 1.5, 0.9);
+      if (car.burnT > 0 && Math.random() < dt * 12) G.fx.smoke.emit(car.x, 2, car.z, 1, 0.6, 1.2, 2.5);
       return;
     }
+    let dh = 0, grip = 6;
+    car.braking = false;
     if (ctrl) {
-      const thr = ctrl.my;
-      if (thr > 0.05) {
-        if (car.speed < -0.5) car.speed += 30 * thr * dt;
-        else car.speed += 14 * thr * dt * (1 - Math.max(0, car.speed) / 31);
-      } else if (thr < -0.05) {
-        if (car.speed > 0.5) car.speed += 28 * thr * dt;
-        else car.speed = Math.max(-9, car.speed + 9 * thr * dt);
-      } else car.speed *= 1 - 0.55 * dt;
-      if (ctrl.brake) car.speed *= 1 - 3.2 * dt;
-      car.steer = G.lerp(car.steer, ctrl.mx, Math.min(1, dt * 6));
+      const gas = ctrl.gas, brk = ctrl.brakeIn, hb = ctrl.handbrake;
+      if (gas) { if (car.speed < -0.5) car.speed += 32 * dt; else car.speed += 15 * dt * (1 - Math.max(0, car.speed) / 32); }
+      if (brk) {
+        if (car.speed > 0.5) { car.speed -= 30 * dt; car.braking = true; }
+        else car.speed = Math.max(-10, car.speed - 11 * dt);
+      }
+      if (!gas && !brk) car.speed *= 1 - 0.45 * dt;
+      grip = 9;
+      if (hb) { car.speed *= 1 - 1.3 * dt; grip = 1.1; car.braking = true; }
+      car.steer = G.lerp(car.steer, ctrl.steer, Math.min(1, dt * 8));
       const sp = Math.abs(car.speed);
-      const rate = car.steer * 2.0 * Math.min(1, sp / 7) / (1 + sp / 28) * (ctrl.brake ? 1.5 : 1);
-      car.heading -= rate * Math.sign(car.speed) * dt;
+      dh = -car.steer * 2.1 * Math.min(1, sp / 6) / (1 + sp / 32) * (hb ? 1.8 : 1) * Math.sign(car.speed) * dt;
     } else {
       car.speed *= 1 - 1.6 * dt;
-      if (Math.abs(car.speed) < 0.05) car.speed = 0;
       car.steer *= 1 - 3 * dt;
     }
-    const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
-    if (car.speed !== 0) {
-      car.x += fx * car.speed * dt; car.z += fz * car.speed * dt;
-      // buildings: two circles along the body
+    if (dh) {
+      // the body turns; the momentum doesn't (yet)
+      car.heading += dh;
+      const c = Math.cos(dh), s = Math.sin(dh), vf = car.speed, vs = car.slip;
+      car.speed = vf * c + vs * s; car.slip = -vf * s + vs * c;
+    }
+    const ns = car.slip * Math.exp(-grip * dt), lost = car.slip * car.slip - ns * ns;
+    car.slip = ns;
+    if (car.speed !== 0) car.speed = Math.sign(car.speed) * Math.sqrt(car.speed * car.speed + lost * (grip > 3 ? 0.9 : 0.3));
+    if (Math.abs(car.speed) < 0.05 && !ctrl) car.speed = 0;
+    if (Math.abs(car.slip) < 0.02) car.slip = 0;
+
+    const fx = Math.sin(car.heading), fz = Math.cos(car.heading), sx = Math.cos(car.heading), sz = -Math.sin(car.heading);
+    let vx = fx * car.speed + sx * car.slip, vz = fz * car.speed + sz * car.slip;
+    if (ctrl && Math.abs(car.slip) > 3.2 && Math.random() < dt * 40) {
+      for (const side of [-1, 1]) G.fx.smoke.emit(car.x - fx * 1.4 + sx * side * 0.9, 0.3, car.z - fz * 1.4 + sz * side * 0.9, 1, 0.8, 0.8, 1.2);
+    }
+    if (vx !== 0 || vz !== 0) {
+      car.x += vx * dt; car.z += vz * dt;
       let bumped = false;
       for (const o of [car.hl - 1.05, -(car.hl - 1.05)]) {
         const p = { x: car.x + fx * o, z: car.z + fz * o };
         const px = p.x, pz = p.z;
         if (W.collide(p, car.hw + 0.12)) { car.x += p.x - px; car.z += p.z - pz; bumped = true; }
       }
+      const sp = Math.hypot(vx, vz);
       if (bumped) {
-        const sp = Math.abs(car.speed);
         if (sp > 4) {
           if (car.driver) { G.shake(Math.min(0.8, sp / 25)); G.audio.thud(Math.min(1, sp / 20)); }
           if (sp > 9) A.damageCar(car, sp * 1.4);
-          car.speed *= -0.28;
-        } else car.speed *= 0.6;
+          car.speed *= -0.28; car.slip *= 0.4;
+        } else { car.speed *= 0.6; car.slip *= 0.6; }
       }
       // other cars
       for (const o of G.cars) {
         if (o === car) continue;
-        const dx = o.x - car.x, dz = o.z - car.z, d2 = dx * dx + dz * dz;
-        if (d2 > 30) continue;
+        const dx = o.x - car.x, dz = o.z - car.z;
+        if (dx * dx + dz * dz > 30) continue;
         const ofx = Math.sin(o.heading), ofz = Math.cos(o.heading);
         for (const a of [car.hl - 1.05, -(car.hl - 1.05)]) {
           for (const b of [o.hl - 1.05, -(o.hl - 1.05)]) {
@@ -1723,12 +2313,12 @@ window.__startGame = function () {
             if (d < m && d > 1e-4) {
               const push = (m - d) / d * 0.5;
               car.x -= ex * push; car.z -= ez * push; o.x += ex * push; o.z += ez * push;
-              const sp = Math.abs(car.speed);
               if (sp > 3) {
-                o.speed += car.speed * 0.35 * (ofx * fx + ofz * fz);
+                o.speed += (vx * ofx + vz * ofz) * 0.35;
+                o.slip += (vx * Math.cos(o.heading) - vz * Math.sin(o.heading)) * 0.35;
                 if (car.driver) { G.shake(Math.min(0.6, sp / 30)); G.audio.thud(Math.min(1, sp / 25)); }
                 if (sp > 9) { A.damageCar(car, sp * 0.8); A.damageCar(o, sp * 1.2); }
-                car.speed *= 0.55;
+                car.speed *= 0.55; car.slip *= 0.55;
               }
             }
           }
@@ -1736,7 +2326,6 @@ window.__startGame = function () {
         o.mesh.position.set(o.x, 0, o.z);
       }
       // people
-      const sp = Math.abs(car.speed);
       for (const c of G.chars) {
         if (!c.alive) continue;
         const dx = c.x - car.x, dz = c.z - car.z;
@@ -1744,19 +2333,20 @@ window.__startGame = function () {
         const lz = dx * fx + dz * fz, lx = dx * fz - dz * fx;
         if (Math.abs(lx) < car.hw + 0.3 && Math.abs(lz) < car.hl + 0.3) {
           if (sp > 5) {
-            G.damageChar(c, 30 + sp * 6, car.x - fx * 3, car.z - fz * 3, car.driver === G.player);
-            if (!c.alive) { c.fling = 0.6; c.fvx = fx * car.speed * 0.7 + G.R(-2, 2); c.fvz = fz * car.speed * 0.7 + G.R(-2, 2); }
-            G.audio.thud(0.6);
+            G.damageChar(c, 30 + sp * 6, car.x - fx * 3, car.z - fz * 3, car.driver === G.player, { kind: 'car', vx, vz });
+            G.audio.thud(0.7);
             car.speed *= 0.9;
           } else A.pushFromCars(c, 0.35);
         }
       }
+      G.body.carSweep(car, vx, vz);
     }
     car.mesh.position.set(car.x, 0, car.z);
     car.mesh.rotation.y = car.heading;
-    car.mesh.rotation.z = -car.steer * Math.min(1, Math.abs(car.speed) / 25) * 0.05;
+    car.mesh.rotation.z = -car.steer * Math.min(1, Math.abs(car.speed) / 25) * 0.05 + car.slip * 0.006;
     const spin = car.speed * dt / 0.36;
     for (const w of car.wheels) w.rotation.x += spin;
+    if (car.lightsOn) for (const t of car.parts.tails) t.scale.set(car.braking ? 1.3 : 1, car.braking ? 1.6 : 1, 1);
   }
 
   A.damageCar = function (car, amt) {
@@ -1766,25 +2356,25 @@ window.__startGame = function () {
   };
 
   A.explode = function (car) {
-    car.wrecked = true; car.hp = 0; car.speed *= 0.3; car.burnT = 25; car.sirenOn = false;
+    car.wrecked = true; car.hp = 0; car.speed *= 0.3; car.slip *= 0.3; car.burnT = 25; car.sirenOn = false;
     car.mesh.traverse((m) => { if (m.isMesh && m !== car.beam) m.material = BURNT; });
     car.beam.visible = false;
     G.fx.boom(car.x, car.z);
     G.audio.boom();
     G.shake(1);
+    const byPlayer = car.lastDriver === G.player;
     for (const c of G.chars) {
-      if (!c.alive) continue;
       const d = Math.hypot(c.x - car.x, c.z - car.z);
-      if (d < 6) {
-        G.damageChar(c, 200 * (1 - d / 6) + 30, car.x, car.z, car.lastDriver === G.player);
-        if (!c.alive) { const l = d || 1; c.fling = 0.5; c.fvx = (c.x - car.x) / l * 9; c.fvz = (c.z - car.z) / l * 9; }
-      }
+      if (d > 7) continue;
+      const l = d || 1, dx = (c.x - car.x) / l, dz = (c.z - car.z) / l;
+      if (c.alive) G.damageChar(c, 200 * (1 - d / 7) + 30, car.x, car.z, byPlayer, { kind: 'blast', dx, dz });
+      else if (c.body) for (let i = 0; i < 15; i++) G.body.pushJoint(c, i, dx * G.R(5, 9), G.R(4, 7), dz * G.R(5, 9));
     }
     const pl = G.player;
-    if (pl.car === car) { G.exitCar(true); G.damagePlayer(55, car.x, car.z, true); }
+    if (pl.car === car) { G.exitCar(true); G.damagePlayer(55, car.x, car.z, true, 'blast'); }
     else {
       const d = Math.hypot(pl.x - car.x, pl.z - car.z);
-      if (d < 6) G.damagePlayer(70 * (1 - d / 6), car.x, car.z, true);
+      if (d < 7) G.damagePlayer(75 * (1 - d / 7), car.x, car.z, true, 'blast');
     }
     for (const o of G.cars) {
       if (o === car || o.wrecked) continue;
@@ -1833,9 +2423,10 @@ window.__startGame = function () {
 
   const FX = (G.fx = {});
   FX.init = function (scene) {
-    FX.bloodP = new Particles(scene, 260, 0x6a0509, 0.14, false, 1);
     FX.sparkP = new Particles(scene, 120, 0xffc070, 0.16, true, 0.6);
     FX.fire = new Particles(scene, 220, 0xff6a1a, 1.2, true, -0.2);
+    FX.smoke = new Particles(scene, 160, 0x9a9aa0, 1.5, false, -0.04);
+    FX.smoke.pts.material.opacity = 0.35;
     FX.tracers = [];
     for (let k = 0; k < 16; k++) {
       const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(6), 3));
@@ -1861,10 +2452,6 @@ window.__startGame = function () {
     FX.light.intensity = Math.max(FX.light.intensity, 40 * power);
     FX.lightT = 0.05 + 0.05 * power;
   };
-  FX.blood = function (x, y, z, fromX, fromZ) {
-    let dx = x - fromX, dz = z - fromZ; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-    FX.bloodP.emit(x, y, z, 10, 1.6, 2.2, 0.9, dx, dz, 2.6);
-  };
   FX.spark = function (x, y, z, n = 6) { FX.sparkP.emit(x, y, z, n, 3, 3, 0.3); };
   FX.boom = function (x, z) {
     FX.flash(x, 2, z, 8); FX.lightT = 0.35;
@@ -1872,7 +2459,7 @@ window.__startGame = function () {
     FX.sparkP.emit(x, 1, z, 40, 14, 9, 0.8);
   };
   FX.update = function (dt) {
-    FX.bloodP.update(dt); FX.sparkP.update(dt); FX.fire.update(dt);
+    FX.smoke.update(dt); FX.sparkP.update(dt); FX.fire.update(dt);
     for (const t of FX.tracers) {
       if (t.life > 0) { t.life -= dt; t.l.material.opacity = Math.max(0, t.life / 0.07) * 0.9; }
     }
@@ -2084,9 +2671,9 @@ window.__startGame = function () {
     return;
   }
   const scene = (G.scene = new T.Scene());
-  const FOG = 0x0b0e15;
+  const FOG = 0x182030;
   scene.background = new T.Color(FOG);
-  scene.fog = new T.FogExp2(FOG, 0.016);
+  scene.fog = new T.FogExp2(FOG, 0.012);
   const camera = (G.camera = new T.PerspectiveCamera(62, 1, 0.1, 280));
 
   G.time = 0; G.running = false; G.cardMode = false; G.paused = false;
@@ -2106,7 +2693,7 @@ window.__startGame = function () {
   function applyQuality() {
     const low = G.qualityLevel === 'low';
     renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio || 1, 1.6));
-    scene.fog.density = low ? 0.021 : 0.016;
+    scene.fog.density = low ? 0.016 : 0.012;
     G.maxPeds = low ? 13 : 22;
     W.setRainDensity(low ? 0.45 : 1);
     resize();
@@ -2130,9 +2717,8 @@ window.__startGame = function () {
     if (player.car) G.exitCar(true);
     player.x = x; player.z = z; player.rot = rot; camYaw = rot; camPitch = 0.3;
     player.hp = 100; player.alive = true; player.ammo = player.mag; player.reloadT = 0;
-    player.mesh.visible = true; player.mesh.rotation.x = 0;
-    A.poseDead(player, 0);
-    if (player.pool) { scene.remove(player.pool); player.pool = null; }
+    G.body.revive(player);
+    setDriving(false);
     deathT = 0;
     $('death').hidden = true;
     G.resetInput();
@@ -2150,7 +2736,8 @@ window.__startGame = function () {
   function enterCar(car) {
     player.car = car; car.driver = player; car.lastDriver = player;
     if (!car.lightsOn) A.setLights(car, true);
-    player.mesh.visible = false;
+    G.body.setVisible(player, false);
+    setDriving(true);
     car.persistent = true;
     G.hud.say(car.cop ? 'A squad car. They will notice.' : '', car.cop ? 3 : 0);
     if (car.cop) G.addHeat(1);
@@ -2167,7 +2754,9 @@ window.__startGame = function () {
     }
     if (!placed) { player.x = car.x; player.z = car.z; W.collide(player, 0.4); }
     car.driver = null; player.car = null;
-    player.mesh.visible = true;
+    G.body.setVisible(player, true);
+    G.body.revive(player, true);
+    setDriving(false);
     player.rot = car.heading;
   };
 
@@ -2179,7 +2768,8 @@ window.__startGame = function () {
 
   function computeAim() {
     aimTarget = null;
-    if (player.car || !player.alive) return;
+    if (!player.alive) return;
+    const inCar = !!player.car;
     const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
     let best = null, bestS = 1e9;
     for (const c of G.chars) {
@@ -2188,7 +2778,7 @@ window.__startGame = function () {
       if (d > 36 || d < 0.3) continue;
       const cos = (dx * fx + dz * fz) / d;
       const hostile = c.hostile;
-      if (cos < (hostile ? 0.84 : 0.94)) continue;
+      if (cos < (inCar ? (hostile ? 0.45 : 0.75) : hostile ? 0.84 : 0.94)) continue;
       const ang = Math.acos(Math.min(1, cos));
       const s = ang * 22 + d * (hostile ? 0.45 : 1.4) - (hostile ? 25 : 0);
       if (s < bestS && W.hasLOS(player.x, player.z, c.x, c.z)) { bestS = s; best = c; }
@@ -2203,15 +2793,14 @@ window.__startGame = function () {
     return false;
   }
 
-  function playerShoot() {
+  // one pistol shot from (ox, oz): at the aim target if there is one, else straight down the camera
+  function shootFrom(ox, oy, oz) {
     player.fireCD = 0.27; player.ammo--; player.aimHold = 0.9;
-    const fx = Math.sin(player.rot), fz = Math.cos(player.rot);
-    const ox = player.x + fx * 0.6 - fz * 0.28, oz = player.z + fz * 0.6 + fx * 0.28, oy = 1.45 + W.groundY(player.x, player.z);
     let dx, dz, forced = null;
     if (aimTarget) {
       const t = aimTarget, d = Math.hypot(t.x - ox, t.z - oz) || 1;
       dx = (t.x - ox) / d; dz = (t.z - oz) / d;
-      const p = G.clamp(1.03 - d * 0.012, 0.62, 0.97);
+      const p = G.clamp(1.03 - d * 0.012, 0.62, 0.97) * (player.car ? 0.85 : 1);
       if (Math.random() < p) forced = t;
       else { const a = Math.atan2(dx, dz) + (Math.random() < 0.5 ? -1 : 1) * G.R(0.05, 0.1); dx = Math.sin(a); dz = Math.cos(a); }
     } else {
@@ -2222,13 +2811,22 @@ window.__startGame = function () {
     let hit = forced ? { c: forced, t: Math.hypot(forced.x - ox, forced.z - oz) } : A.rayChars(ox, oz, dx, dz, wallT, null);
     let ex, ey, ez;
     if (hit) {
-      ex = hit.c.x; ez = hit.c.z; ey = 1.3;
-      const head = Math.random() < 0.12;
-      G.damageChar(hit.c, head ? 120 : G.R(36, 48), player.x, player.z, true);
+      const head = Math.random() < (hit.t < 8 ? 0.2 : 0.12);
+      ex = hit.c.x; ez = hit.c.z; ey = head ? 1.66 : 1.25;
+      G.damageChar(hit.c, head ? 150 : G.R(36, 48), ox, oz, true, { kind: 'bullet', dx, dz, power: head ? 5.5 : 4, joint: head ? G.body.J.HEAD : G.body.J.NECK, head });
       if (head && !hit.c.alive) G.hud.toast('Headshot');
     } else {
-      ex = ox + dx * wallT; ez = oz + dz * wallT; ey = oy - 0.1;
-      if (wallT < 70) G.fx.spark(ex, ey, ez, 6);
+      const dead = !forced && G.body.rayDead(ox, oz, dx, dz, Math.min(wallT, 25));
+      if (dead) {
+        const jp = G.body.jointPos(dead.c, dead.k);
+        ex = jp.x; ey = jp.y; ez = jp.z;
+        G.body.push(dead.c, dead.k, dx * 3.2, 1.2, dz * 3.2, 0.12);
+        G.blood.spray(jp.x, jp.y, jp.z, dx, dz, 0.7, dead.k === G.body.J.HEAD);
+        G.body.addBlood(dead.c, 0.15);
+      } else {
+        ex = ox + dx * wallT; ez = oz + dz * wallT; ey = oy - 0.1;
+        if (wallT < 70) G.fx.spark(ex, ey, ez, 6);
+      }
     }
     G.fx.tracer(ox, oy, oz, ex, ey, ez);
     G.fx.flash(ox, oy + 0.1, oz, 1);
@@ -2236,36 +2834,65 @@ window.__startGame = function () {
     A.alarm(player.x, player.z, 45);
     if (!G.suppressShotHeat && G.wanted.level < 1 && witnesses(25)) G.addHeat(1);
   }
+  function playerShoot() {
+    const fx = Math.sin(player.rot), fz = Math.cos(player.rot);
+    shootFrom(player.x + fx * 0.6 - fz * 0.28, 1.45 + W.groundY(player.x, player.z), player.z + fz * 0.6 + fx * 0.28);
+  }
+  // shooting out of the driver's window, toward the target
+  function driveBy() {
+    const car = player.car;
+    let tx = aimTarget ? aimTarget.x : car.x + Math.sin(camYaw) * 10, tz = aimTarget ? aimTarget.z : car.z + Math.cos(camYaw) * 10;
+    const dx = tx - car.x, dz = tz - car.z, l = Math.hypot(dx, dz) || 1;
+    shootFrom(car.x + (dx / l) * 1.3, 1.35, car.z + (dz / l) * 1.3);
+  }
 
   // ---------------------------------------------------------------- damage
-  G.damageChar = function (c, amt, fx, fz, byPlayer) {
+  G.damageChar = function (c, amt, fx, fz, byPlayer, hit) {
     if (!c.alive) return;
     c.hp -= amt;
-    G.fx.blood(c.x, 1.3, c.z, fx, fz);
+    let dx = c.x - fx, dz = c.z - fz;
+    const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    hit = hit || { kind: 'bullet', dx, dz, power: 4 };
+    if (hit.kind === 'bullet') {
+      G.blood.spray(c.x, hit.head ? 1.66 : 1.25, c.z, dx, dz, hit.head ? 1.3 : 1, hit.head);
+      G.body.addBlood(c, hit.head ? 0.5 : 0.3);
+      c.flinch = 1;
+    } else {
+      const sdx = hit.kind === 'car' ? hit.vx : dx, sdz = hit.kind === 'car' ? hit.vz : dz, sl = Math.hypot(sdx, sdz) || 1;
+      G.blood.spray(c.x, 1.0, c.z, sdx / sl, sdz / sl, 1.6, false);
+      G.body.addBlood(c, 0.7);
+    }
     if (c.kind === 'ped') { c.fleeT = 14; c.tx = fx; c.tz = fz; }
     if (c.kind === 'cop' && byPlayer) G.addHeat(G.wanted.level < 2 ? 2 - G.wanted.level : 0.3);
-    if (c.hp <= 0) G.killChar(c, fx, fz, byPlayer);
+    if (c.hp <= 0) G.killChar(c, hit, byPlayer);
     else if (c.hostile) c.fireCD = Math.max(c.fireCD, 0.35);
   };
-  G.killChar = function (c, fx, fz, byPlayer) {
-    A.kill(c, fx, fz);
+  G.killChar = function (c, hit, byPlayer) {
+    A.kill(c, hit);
     if (!byPlayer) return;
     G.stats.kills++;
     if (c.kind === 'ped') { G.stats.civs++; G.addHeat(G.wanted.level < 1 ? 1 : 0.5); }
     else if (c.kind === 'cop') { G.stats.cops++; G.addHeat(1); }
     else if (c.kind === 'saint') { G.stats.saints++; G.story.onKill(c); }
   };
-  G.damagePlayer = function (amt, fx, fz, direct) {
+  G.damagePlayer = function (amt, fx, fz, direct, kind) {
     if (!player.alive) return;
     if (player.car && !direct) { A.damageCar(player.car, amt * 0.9); amt *= 0.35; }
     player.hp -= amt;
     player.lastHurt = G.time;
+    let dx = player.x - fx, dz = player.z - fz;
+    const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    if (!player.car) {
+      G.blood.spray(player.x, 1.3, player.z, dx, dz, 0.7, false);
+      G.body.addBlood(player, 0.12);
+      player.flinch = 0.7;
+    }
     G.hud.hurt(Math.min(1, amt / 25));
     G.shake(0.25);
     if (player.hp <= 0) {
       player.hp = 0; player.alive = false; deathT = 0;
       if (player.car) G.exitCar(true);
-      A.kill(player, fx, fz);
+      A.kill(player, kind === 'blast' ? { kind: 'blast', dx, dz } : { kind: 'bullet', dx, dz, power: 4.5, joint: G.body.J.NECK });
       G.resetInput();
     }
   };
@@ -2393,9 +3020,7 @@ window.__startGame = function () {
     if (aiming) face = aimTarget ? Math.atan2(aimTarget.x - player.x, aimTarget.z - player.z) : camYaw;
     else if (speed > 0) face = Math.atan2(vx, vz);
     if (face !== null) player.rot = G.angleLerp(player.rot, face, Math.min(1, dt * (aiming ? 20 : 10)));
-    A.animate(player, dt, speed, aiming);
-    player.mesh.position.set(player.x, W.groundY(player.x, player.z), player.z);
-    player.mesh.rotation.y = player.rot;
+    G.body.pose(player, dt, speed, aiming);
 
     if (player.reloadT > 0) { player.reloadT -= dt; if (player.reloadT <= 0) player.ammo = player.mag; }
     if (input.reload) startReload();
@@ -2406,16 +3031,27 @@ window.__startGame = function () {
     if (input.action) { const car = nearestCar(3.8); if (car) enterCar(car); }
   }
 
-  function updateDriving() {
+  function updateDriving(dt) {
     const car = player.car;
-    player.x = car.x; player.z = car.z; player.moving = Math.abs(car.speed);
-    player.mesh.position.set(car.x, 0, car.z);
-    if (input.action) G.exitCar(false);
+    player.x = car.x; player.z = car.z; player.moving = Math.hypot(car.speed, car.slip);
+    if (input.action) { G.exitCar(false); return; }
+    computeAim();
+    if (player.reloadT > 0) { player.reloadT -= dt; if (player.reloadT <= 0) player.ammo = player.mag; }
+    if (input.reload) startReload();
+    player.fireCD -= dt;
+    if (input.fire && player.fireCD <= 0 && player.reloadT <= 0) {
+      if (player.ammo > 0) driveBy(); else { startReload(); player.fireCD = 0.3; }
+    }
+  }
+  function setDriving(v) {
+    G.driving = v;
+    document.body.classList.toggle('driving', v);
+    G.resetInput();
   }
 
   // ---------------------------------------------------------------- camera
   const camPos = new T.Vector3();
-  const fill = new T.PointLight(0xc9d2ee, 26, 20, 1.4);
+  const fill = new T.PointLight(0xd6dcf2, 34, 22, 1.3);
   scene.add(fill);
   function updateCamera(dt) {
     let px, pz, py, dist;
@@ -2475,7 +3111,7 @@ window.__startGame = function () {
   const el = {
     hp: $('hpFill'), ammo: $('ammo'), stars: $('stars'), obj: $('objective'), sub: $('subtitle'), toast: $('toast'),
     ret: $('reticle'), arrow: $('wpArrow'), wpDist: $('wpDist'), wp: $('wp'), vig: $('vignette'),
-    act: $('btnAct'), fire: $('btnFire'), brake: $('btnBrake'), reload: $('btnReload'),
+    act: $('btnAct'), fire: $('btnFire'), reload: $('btnReload'), blood: $('bloodScreen'),
     joyBase: $('joyBase'), joyKnob: $('joyKnob'), cards: $('cards'), cardH: $('cardH'), cardT: $('cardT'), cardNext: $('cardNext'),
   };
   for (let k = 0; k < 5; k++) { const s = document.createElement('i'); el.stars.appendChild(s); }
@@ -2494,7 +3130,26 @@ window.__startGame = function () {
   let toastT = 0;
   hud.toast = (text) => { el.toast.textContent = text; el.toast.hidden = false; toastT = 1.2; };
   let hurtV = 0;
-  hud.hurt = (a) => { hurtV = Math.min(1, hurtV + 0.35 + a * 0.4); };
+  const bctx = el.blood.getContext('2d');
+  let bloodAlpha = 0;
+  hud.hurt = (a) => {
+    hurtV = Math.min(1, hurtV + 0.35 + a * 0.4);
+    // blood spatters across the screen and slowly fades
+    const W2 = el.blood.width = el.blood.width || 640, H2 = el.blood.height = el.blood.height || 360;
+    const img = G.body.splatCanvas;
+    if (!img) return;
+    const n = 1 + (Math.random() * 2) | 0;
+    for (let k = 0; k < n; k++) {
+      const edge = Math.random() < 0.5;
+      const x = edge ? (Math.random() < 0.5 ? 0 : W2) + G.R(-60, 60) : G.R(0, W2), y = edge ? G.R(0, H2) : (Math.random() < 0.5 ? 0 : H2) + G.R(-50, 50);
+      const sz = G.R(140, 280) * (0.6 + a);
+      bctx.globalAlpha = 0.85;
+      bctx.save(); bctx.translate(x, y); bctx.rotate(Math.random() * 6.28);
+      bctx.drawImage(img, -sz / 2, -sz / 2, sz, sz);
+      bctx.restore();
+    }
+    bloodAlpha = 1;
+  };
   hud.flashStars = () => { el.stars.classList.remove('flash'); void el.stars.offsetWidth; el.stars.classList.add('flash'); };
 
   // story cards with a typewriter reveal
@@ -2622,22 +3277,21 @@ window.__startGame = function () {
     hurtV = Math.max(0, hurtV - dt * 0.9);
     const low = player.alive && player.hp < 30 ? 0.35 + Math.sin(G.time * 5) * 0.1 : 0;
     el.vig.style.opacity = Math.max(hurtV, low).toFixed(3);
+    if (bloodAlpha > 0) {
+      bloodAlpha = Math.max(0, bloodAlpha - dt * 0.35);
+      el.blood.style.opacity = Math.min(1, bloodAlpha * 1.5).toFixed(3);
+      if (bloodAlpha === 0) bctx.clearRect(0, 0, el.blood.width, el.blood.height);
+    }
 
     // context button
     let act = '';
     if (player.alive) {
-      if (player.car) act = 'EXIT';
-      else if (nearestCar(3.8)) act = 'CAR';
+      if (!player.car && nearestCar(3.8)) act = 'CAR';
     }
     if (act !== last.act) { el.act.textContent = act || 'CAR'; el.act.classList.toggle('dim', !act); last.act = act; }
-    const inCar = !!player.car;
-    if (inCar !== last.car) {
-      el.fire.hidden = inCar; el.reload.hidden = inCar; el.brake.hidden = !inCar;
-      last.car = inCar;
-    }
 
     // aim reticle
-    if (aimTarget && player.alive && !player.car) {
+    if (aimTarget && player.alive) {
       proj.set(aimTarget.x, 1.35, aimTarget.z).project(camera);
       if (proj.z < 1) {
         el.ret.hidden = false;
@@ -2683,9 +3337,15 @@ window.__startGame = function () {
 
   function bindUI() {
     G.initInput($('touch'), joyUI);
-    G.bindHold(el.fire, (v) => G.setFireTouch(v));
-    G.bindHold(el.brake, (v) => G.setBrakeTouch(v));
+    G.bindHold(el.fire, (v) => G.setTouch('fire', v));
+    G.bindHold($('btnShoot'), (v) => G.setTouch('fire', v));
+    G.bindHold($('btnGas'), (v) => G.setTouch('gas', v));
+    G.bindHold($('btnBrake'), (v) => G.setTouch('brake', v));
+    G.bindHold($('btnHand'), (v) => G.setTouch('hand', v));
+    G.bindHold($('btnLeft'), (v) => G.setTouch('left', v));
+    G.bindHold($('btnRight'), (v) => G.setTouch('right', v));
     G.bindHold(el.act, (v) => { if (v) input.action = true; });
+    G.bindHold($('btnExit'), (v) => { if (v) input.action = true; });
     G.bindHold(el.reload, (v) => { if (v) input.reload = true; });
     $('btnPause').addEventListener('click', () => setPaused(true));
     $('resumeBtn').addEventListener('click', () => setPaused(false));
@@ -2733,15 +3393,15 @@ window.__startGame = function () {
     camPitch = G.clamp(camPitch + input.lookDY * sens, -0.3, 1.1);
 
     if (player.alive) {
-      if (player.car) updateDriving(); else updateOnFoot(dt);
+      if (player.car) updateDriving(dt); else updateOnFoot(dt);
       if (G.time - player.lastHurt > 4 && player.hp < 100) player.hp = Math.min(100, player.hp + 8 * dt);
     } else {
-      A.updateDead(player, dt);
       deathT += dt;
       if (deathT > 1.6 && $('death').hidden) $('death').hidden = false;
     }
     A.updateCars(dt, input);
     A.updateChars(dt);
+    G.body.update(dt);
     populate(dt);
     updateWanted(dt);
     G.story.update(dt);
@@ -2776,6 +3436,7 @@ window.__startGame = function () {
       titleCamera(G.time);
       W.update(dt, camera.position);
       A.updateChars(dt);
+      G.body.update(dt);
       populate(dt);
     } else if (!G.paused && !G.cardMode) {
       update(dt);
@@ -2790,6 +3451,7 @@ window.__startGame = function () {
     W.build(scene);
     scene.add(beam);
     G.fx.init(scene);
+    G.body.init(scene);
     makePlayer();
     drawBaseMap();
     bindUI();

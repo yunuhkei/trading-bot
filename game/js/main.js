@@ -20,9 +20,9 @@
     return;
   }
   const scene = (G.scene = new T.Scene());
-  const FOG = 0x0b0e15;
+  const FOG = 0x182030;
   scene.background = new T.Color(FOG);
-  scene.fog = new T.FogExp2(FOG, 0.016);
+  scene.fog = new T.FogExp2(FOG, 0.012);
   const camera = (G.camera = new T.PerspectiveCamera(62, 1, 0.1, 280));
 
   G.time = 0; G.running = false; G.cardMode = false; G.paused = false;
@@ -42,7 +42,7 @@
   function applyQuality() {
     const low = G.qualityLevel === 'low';
     renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio || 1, 1.6));
-    scene.fog.density = low ? 0.021 : 0.016;
+    scene.fog.density = low ? 0.016 : 0.012;
     G.maxPeds = low ? 13 : 22;
     W.setRainDensity(low ? 0.45 : 1);
     resize();
@@ -66,9 +66,8 @@
     if (player.car) G.exitCar(true);
     player.x = x; player.z = z; player.rot = rot; camYaw = rot; camPitch = 0.3;
     player.hp = 100; player.alive = true; player.ammo = player.mag; player.reloadT = 0;
-    player.mesh.visible = true; player.mesh.rotation.x = 0;
-    A.poseDead(player, 0);
-    if (player.pool) { scene.remove(player.pool); player.pool = null; }
+    G.body.revive(player);
+    setDriving(false);
     deathT = 0;
     $('death').hidden = true;
     G.resetInput();
@@ -86,7 +85,8 @@
   function enterCar(car) {
     player.car = car; car.driver = player; car.lastDriver = player;
     if (!car.lightsOn) A.setLights(car, true);
-    player.mesh.visible = false;
+    G.body.setVisible(player, false);
+    setDriving(true);
     car.persistent = true;
     G.hud.say(car.cop ? 'A squad car. They will notice.' : '', car.cop ? 3 : 0);
     if (car.cop) G.addHeat(1);
@@ -103,7 +103,9 @@
     }
     if (!placed) { player.x = car.x; player.z = car.z; W.collide(player, 0.4); }
     car.driver = null; player.car = null;
-    player.mesh.visible = true;
+    G.body.setVisible(player, true);
+    G.body.revive(player, true);
+    setDriving(false);
     player.rot = car.heading;
   };
 
@@ -115,7 +117,8 @@
 
   function computeAim() {
     aimTarget = null;
-    if (player.car || !player.alive) return;
+    if (!player.alive) return;
+    const inCar = !!player.car;
     const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
     let best = null, bestS = 1e9;
     for (const c of G.chars) {
@@ -124,7 +127,7 @@
       if (d > 36 || d < 0.3) continue;
       const cos = (dx * fx + dz * fz) / d;
       const hostile = c.hostile;
-      if (cos < (hostile ? 0.84 : 0.94)) continue;
+      if (cos < (inCar ? (hostile ? 0.45 : 0.75) : hostile ? 0.84 : 0.94)) continue;
       const ang = Math.acos(Math.min(1, cos));
       const s = ang * 22 + d * (hostile ? 0.45 : 1.4) - (hostile ? 25 : 0);
       if (s < bestS && W.hasLOS(player.x, player.z, c.x, c.z)) { bestS = s; best = c; }
@@ -139,15 +142,14 @@
     return false;
   }
 
-  function playerShoot() {
+  // one pistol shot from (ox, oz): at the aim target if there is one, else straight down the camera
+  function shootFrom(ox, oy, oz) {
     player.fireCD = 0.27; player.ammo--; player.aimHold = 0.9;
-    const fx = Math.sin(player.rot), fz = Math.cos(player.rot);
-    const ox = player.x + fx * 0.6 - fz * 0.28, oz = player.z + fz * 0.6 + fx * 0.28, oy = 1.45 + W.groundY(player.x, player.z);
     let dx, dz, forced = null;
     if (aimTarget) {
       const t = aimTarget, d = Math.hypot(t.x - ox, t.z - oz) || 1;
       dx = (t.x - ox) / d; dz = (t.z - oz) / d;
-      const p = G.clamp(1.03 - d * 0.012, 0.62, 0.97);
+      const p = G.clamp(1.03 - d * 0.012, 0.62, 0.97) * (player.car ? 0.85 : 1);
       if (Math.random() < p) forced = t;
       else { const a = Math.atan2(dx, dz) + (Math.random() < 0.5 ? -1 : 1) * G.R(0.05, 0.1); dx = Math.sin(a); dz = Math.cos(a); }
     } else {
@@ -158,13 +160,22 @@
     let hit = forced ? { c: forced, t: Math.hypot(forced.x - ox, forced.z - oz) } : A.rayChars(ox, oz, dx, dz, wallT, null);
     let ex, ey, ez;
     if (hit) {
-      ex = hit.c.x; ez = hit.c.z; ey = 1.3;
-      const head = Math.random() < 0.12;
-      G.damageChar(hit.c, head ? 120 : G.R(36, 48), player.x, player.z, true);
+      const head = Math.random() < (hit.t < 8 ? 0.2 : 0.12);
+      ex = hit.c.x; ez = hit.c.z; ey = head ? 1.66 : 1.25;
+      G.damageChar(hit.c, head ? 150 : G.R(36, 48), ox, oz, true, { kind: 'bullet', dx, dz, power: head ? 5.5 : 4, joint: head ? G.body.J.HEAD : G.body.J.NECK, head });
       if (head && !hit.c.alive) G.hud.toast('Headshot');
     } else {
-      ex = ox + dx * wallT; ez = oz + dz * wallT; ey = oy - 0.1;
-      if (wallT < 70) G.fx.spark(ex, ey, ez, 6);
+      const dead = !forced && G.body.rayDead(ox, oz, dx, dz, Math.min(wallT, 25));
+      if (dead) {
+        const jp = G.body.jointPos(dead.c, dead.k);
+        ex = jp.x; ey = jp.y; ez = jp.z;
+        G.body.push(dead.c, dead.k, dx * 3.2, 1.2, dz * 3.2, 0.12);
+        G.blood.spray(jp.x, jp.y, jp.z, dx, dz, 0.7, dead.k === G.body.J.HEAD);
+        G.body.addBlood(dead.c, 0.15);
+      } else {
+        ex = ox + dx * wallT; ez = oz + dz * wallT; ey = oy - 0.1;
+        if (wallT < 70) G.fx.spark(ex, ey, ez, 6);
+      }
     }
     G.fx.tracer(ox, oy, oz, ex, ey, ez);
     G.fx.flash(ox, oy + 0.1, oz, 1);
@@ -172,36 +183,65 @@
     A.alarm(player.x, player.z, 45);
     if (!G.suppressShotHeat && G.wanted.level < 1 && witnesses(25)) G.addHeat(1);
   }
+  function playerShoot() {
+    const fx = Math.sin(player.rot), fz = Math.cos(player.rot);
+    shootFrom(player.x + fx * 0.6 - fz * 0.28, 1.45 + W.groundY(player.x, player.z), player.z + fz * 0.6 + fx * 0.28);
+  }
+  // shooting out of the driver's window, toward the target
+  function driveBy() {
+    const car = player.car;
+    let tx = aimTarget ? aimTarget.x : car.x + Math.sin(camYaw) * 10, tz = aimTarget ? aimTarget.z : car.z + Math.cos(camYaw) * 10;
+    const dx = tx - car.x, dz = tz - car.z, l = Math.hypot(dx, dz) || 1;
+    shootFrom(car.x + (dx / l) * 1.3, 1.35, car.z + (dz / l) * 1.3);
+  }
 
   // ---------------------------------------------------------------- damage
-  G.damageChar = function (c, amt, fx, fz, byPlayer) {
+  G.damageChar = function (c, amt, fx, fz, byPlayer, hit) {
     if (!c.alive) return;
     c.hp -= amt;
-    G.fx.blood(c.x, 1.3, c.z, fx, fz);
+    let dx = c.x - fx, dz = c.z - fz;
+    const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    hit = hit || { kind: 'bullet', dx, dz, power: 4 };
+    if (hit.kind === 'bullet') {
+      G.blood.spray(c.x, hit.head ? 1.66 : 1.25, c.z, dx, dz, hit.head ? 1.3 : 1, hit.head);
+      G.body.addBlood(c, hit.head ? 0.5 : 0.3);
+      c.flinch = 1;
+    } else {
+      const sdx = hit.kind === 'car' ? hit.vx : dx, sdz = hit.kind === 'car' ? hit.vz : dz, sl = Math.hypot(sdx, sdz) || 1;
+      G.blood.spray(c.x, 1.0, c.z, sdx / sl, sdz / sl, 1.6, false);
+      G.body.addBlood(c, 0.7);
+    }
     if (c.kind === 'ped') { c.fleeT = 14; c.tx = fx; c.tz = fz; }
     if (c.kind === 'cop' && byPlayer) G.addHeat(G.wanted.level < 2 ? 2 - G.wanted.level : 0.3);
-    if (c.hp <= 0) G.killChar(c, fx, fz, byPlayer);
+    if (c.hp <= 0) G.killChar(c, hit, byPlayer);
     else if (c.hostile) c.fireCD = Math.max(c.fireCD, 0.35);
   };
-  G.killChar = function (c, fx, fz, byPlayer) {
-    A.kill(c, fx, fz);
+  G.killChar = function (c, hit, byPlayer) {
+    A.kill(c, hit);
     if (!byPlayer) return;
     G.stats.kills++;
     if (c.kind === 'ped') { G.stats.civs++; G.addHeat(G.wanted.level < 1 ? 1 : 0.5); }
     else if (c.kind === 'cop') { G.stats.cops++; G.addHeat(1); }
     else if (c.kind === 'saint') { G.stats.saints++; G.story.onKill(c); }
   };
-  G.damagePlayer = function (amt, fx, fz, direct) {
+  G.damagePlayer = function (amt, fx, fz, direct, kind) {
     if (!player.alive) return;
     if (player.car && !direct) { A.damageCar(player.car, amt * 0.9); amt *= 0.35; }
     player.hp -= amt;
     player.lastHurt = G.time;
+    let dx = player.x - fx, dz = player.z - fz;
+    const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    if (!player.car) {
+      G.blood.spray(player.x, 1.3, player.z, dx, dz, 0.7, false);
+      G.body.addBlood(player, 0.12);
+      player.flinch = 0.7;
+    }
     G.hud.hurt(Math.min(1, amt / 25));
     G.shake(0.25);
     if (player.hp <= 0) {
       player.hp = 0; player.alive = false; deathT = 0;
       if (player.car) G.exitCar(true);
-      A.kill(player, fx, fz);
+      A.kill(player, kind === 'blast' ? { kind: 'blast', dx, dz } : { kind: 'bullet', dx, dz, power: 4.5, joint: G.body.J.NECK });
       G.resetInput();
     }
   };
@@ -329,9 +369,7 @@
     if (aiming) face = aimTarget ? Math.atan2(aimTarget.x - player.x, aimTarget.z - player.z) : camYaw;
     else if (speed > 0) face = Math.atan2(vx, vz);
     if (face !== null) player.rot = G.angleLerp(player.rot, face, Math.min(1, dt * (aiming ? 20 : 10)));
-    A.animate(player, dt, speed, aiming);
-    player.mesh.position.set(player.x, W.groundY(player.x, player.z), player.z);
-    player.mesh.rotation.y = player.rot;
+    G.body.pose(player, dt, speed, aiming);
 
     if (player.reloadT > 0) { player.reloadT -= dt; if (player.reloadT <= 0) player.ammo = player.mag; }
     if (input.reload) startReload();
@@ -342,16 +380,27 @@
     if (input.action) { const car = nearestCar(3.8); if (car) enterCar(car); }
   }
 
-  function updateDriving() {
+  function updateDriving(dt) {
     const car = player.car;
-    player.x = car.x; player.z = car.z; player.moving = Math.abs(car.speed);
-    player.mesh.position.set(car.x, 0, car.z);
-    if (input.action) G.exitCar(false);
+    player.x = car.x; player.z = car.z; player.moving = Math.hypot(car.speed, car.slip);
+    if (input.action) { G.exitCar(false); return; }
+    computeAim();
+    if (player.reloadT > 0) { player.reloadT -= dt; if (player.reloadT <= 0) player.ammo = player.mag; }
+    if (input.reload) startReload();
+    player.fireCD -= dt;
+    if (input.fire && player.fireCD <= 0 && player.reloadT <= 0) {
+      if (player.ammo > 0) driveBy(); else { startReload(); player.fireCD = 0.3; }
+    }
+  }
+  function setDriving(v) {
+    G.driving = v;
+    document.body.classList.toggle('driving', v);
+    G.resetInput();
   }
 
   // ---------------------------------------------------------------- camera
   const camPos = new T.Vector3();
-  const fill = new T.PointLight(0xc9d2ee, 26, 20, 1.4);
+  const fill = new T.PointLight(0xd6dcf2, 34, 22, 1.3);
   scene.add(fill);
   function updateCamera(dt) {
     let px, pz, py, dist;
@@ -411,7 +460,7 @@
   const el = {
     hp: $('hpFill'), ammo: $('ammo'), stars: $('stars'), obj: $('objective'), sub: $('subtitle'), toast: $('toast'),
     ret: $('reticle'), arrow: $('wpArrow'), wpDist: $('wpDist'), wp: $('wp'), vig: $('vignette'),
-    act: $('btnAct'), fire: $('btnFire'), brake: $('btnBrake'), reload: $('btnReload'),
+    act: $('btnAct'), fire: $('btnFire'), reload: $('btnReload'), blood: $('bloodScreen'),
     joyBase: $('joyBase'), joyKnob: $('joyKnob'), cards: $('cards'), cardH: $('cardH'), cardT: $('cardT'), cardNext: $('cardNext'),
   };
   for (let k = 0; k < 5; k++) { const s = document.createElement('i'); el.stars.appendChild(s); }
@@ -430,7 +479,26 @@
   let toastT = 0;
   hud.toast = (text) => { el.toast.textContent = text; el.toast.hidden = false; toastT = 1.2; };
   let hurtV = 0;
-  hud.hurt = (a) => { hurtV = Math.min(1, hurtV + 0.35 + a * 0.4); };
+  const bctx = el.blood.getContext('2d');
+  let bloodAlpha = 0;
+  hud.hurt = (a) => {
+    hurtV = Math.min(1, hurtV + 0.35 + a * 0.4);
+    // blood spatters across the screen and slowly fades
+    const W2 = el.blood.width = el.blood.width || 640, H2 = el.blood.height = el.blood.height || 360;
+    const img = G.body.splatCanvas;
+    if (!img) return;
+    const n = 1 + (Math.random() * 2) | 0;
+    for (let k = 0; k < n; k++) {
+      const edge = Math.random() < 0.5;
+      const x = edge ? (Math.random() < 0.5 ? 0 : W2) + G.R(-60, 60) : G.R(0, W2), y = edge ? G.R(0, H2) : (Math.random() < 0.5 ? 0 : H2) + G.R(-50, 50);
+      const sz = G.R(140, 280) * (0.6 + a);
+      bctx.globalAlpha = 0.85;
+      bctx.save(); bctx.translate(x, y); bctx.rotate(Math.random() * 6.28);
+      bctx.drawImage(img, -sz / 2, -sz / 2, sz, sz);
+      bctx.restore();
+    }
+    bloodAlpha = 1;
+  };
   hud.flashStars = () => { el.stars.classList.remove('flash'); void el.stars.offsetWidth; el.stars.classList.add('flash'); };
 
   // story cards with a typewriter reveal
@@ -558,22 +626,21 @@
     hurtV = Math.max(0, hurtV - dt * 0.9);
     const low = player.alive && player.hp < 30 ? 0.35 + Math.sin(G.time * 5) * 0.1 : 0;
     el.vig.style.opacity = Math.max(hurtV, low).toFixed(3);
+    if (bloodAlpha > 0) {
+      bloodAlpha = Math.max(0, bloodAlpha - dt * 0.35);
+      el.blood.style.opacity = Math.min(1, bloodAlpha * 1.5).toFixed(3);
+      if (bloodAlpha === 0) bctx.clearRect(0, 0, el.blood.width, el.blood.height);
+    }
 
     // context button
     let act = '';
     if (player.alive) {
-      if (player.car) act = 'EXIT';
-      else if (nearestCar(3.8)) act = 'CAR';
+      if (!player.car && nearestCar(3.8)) act = 'CAR';
     }
     if (act !== last.act) { el.act.textContent = act || 'CAR'; el.act.classList.toggle('dim', !act); last.act = act; }
-    const inCar = !!player.car;
-    if (inCar !== last.car) {
-      el.fire.hidden = inCar; el.reload.hidden = inCar; el.brake.hidden = !inCar;
-      last.car = inCar;
-    }
 
     // aim reticle
-    if (aimTarget && player.alive && !player.car) {
+    if (aimTarget && player.alive) {
       proj.set(aimTarget.x, 1.35, aimTarget.z).project(camera);
       if (proj.z < 1) {
         el.ret.hidden = false;
@@ -619,9 +686,15 @@
 
   function bindUI() {
     G.initInput($('touch'), joyUI);
-    G.bindHold(el.fire, (v) => G.setFireTouch(v));
-    G.bindHold(el.brake, (v) => G.setBrakeTouch(v));
+    G.bindHold(el.fire, (v) => G.setTouch('fire', v));
+    G.bindHold($('btnShoot'), (v) => G.setTouch('fire', v));
+    G.bindHold($('btnGas'), (v) => G.setTouch('gas', v));
+    G.bindHold($('btnBrake'), (v) => G.setTouch('brake', v));
+    G.bindHold($('btnHand'), (v) => G.setTouch('hand', v));
+    G.bindHold($('btnLeft'), (v) => G.setTouch('left', v));
+    G.bindHold($('btnRight'), (v) => G.setTouch('right', v));
     G.bindHold(el.act, (v) => { if (v) input.action = true; });
+    G.bindHold($('btnExit'), (v) => { if (v) input.action = true; });
     G.bindHold(el.reload, (v) => { if (v) input.reload = true; });
     $('btnPause').addEventListener('click', () => setPaused(true));
     $('resumeBtn').addEventListener('click', () => setPaused(false));
@@ -669,15 +742,15 @@
     camPitch = G.clamp(camPitch + input.lookDY * sens, -0.3, 1.1);
 
     if (player.alive) {
-      if (player.car) updateDriving(); else updateOnFoot(dt);
+      if (player.car) updateDriving(dt); else updateOnFoot(dt);
       if (G.time - player.lastHurt > 4 && player.hp < 100) player.hp = Math.min(100, player.hp + 8 * dt);
     } else {
-      A.updateDead(player, dt);
       deathT += dt;
       if (deathT > 1.6 && $('death').hidden) $('death').hidden = false;
     }
     A.updateCars(dt, input);
     A.updateChars(dt);
+    G.body.update(dt);
     populate(dt);
     updateWanted(dt);
     G.story.update(dt);
@@ -712,6 +785,7 @@
       titleCamera(G.time);
       W.update(dt, camera.position);
       A.updateChars(dt);
+      G.body.update(dt);
       populate(dt);
     } else if (!G.paused && !G.cardMode) {
       update(dt);
@@ -726,6 +800,7 @@
     W.build(scene);
     scene.add(beam);
     G.fx.init(scene);
+    G.body.init(scene);
     makePlayer();
     drawBaseMap();
     bindUI();

@@ -1,5 +1,6 @@
 'use strict';
-// Actors: people (peds, cops, Saints), cars, AI, and hit effects.
+// Actors: people (peds, cops, Saints) and their AI, cars, and effects.
+// Bodies, ragdolls and blood live in body.js.
 (function () {
   const T = THREE, W = G.world;
   const A = (G.actors = {});
@@ -9,195 +10,110 @@
   const mats = {};
   const mat = (hex) => mats[hex] || (mats[hex] = new T.MeshLambertMaterial({ color: hex }));
   const basic = (hex) => mats['b' + hex] || (mats['b' + hex] = new T.MeshBasicMaterial({ color: hex }));
-  const geo = {
-    leg: new T.BoxGeometry(0.2, 0.86, 0.22).translate(0, -0.43, 0),
-    arm: new T.BoxGeometry(0.14, 0.66, 0.15).translate(0, -0.33, 0),
-    hand: new T.BoxGeometry(0.11, 0.12, 0.12).translate(0, -0.71, 0),
-    torso: new T.BoxGeometry(0.5, 0.68, 0.28),
-    coat: new T.BoxGeometry(0.55, 1.06, 0.32),
-    head: new T.BoxGeometry(0.25, 0.28, 0.26),
-    hair: new T.BoxGeometry(0.27, 0.08, 0.28),
-    hood: new T.BoxGeometry(0.31, 0.33, 0.25),
-    cap: new T.BoxGeometry(0.28, 0.08, 0.29),
-    brim: new T.BoxGeometry(0.27, 0.03, 0.12),
-    mask: new T.BoxGeometry(0.23, 0.26, 0.03),
-    eye: new T.BoxGeometry(0.05, 0.03, 0.01),
-    halo: new T.TorusGeometry(0.2, 0.022, 6, 18),
-    badge: new T.BoxGeometry(0.07, 0.07, 0.02),
-    gun: new T.BoxGeometry(0.06, 0.28, 0.1).translate(0, -0.84, 0.04),
-    pool: new T.CircleGeometry(1, 14).rotateX(-Math.PI / 2),
-  };
-  const poolMat = new T.MeshBasicMaterial({ color: 0x3e0508, transparent: true, opacity: 0.92, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-  const BURNT = new T.MeshLambertMaterial({ color: 0x111111 });
+  const BURNT = new T.MeshLambertMaterial({ color: 0x141414 });
 
-  const PED_TOPS = ['#2b2f36', '#3b2f2a', '#4a4038', '#22303a', '#523233', '#39402f', '#6b5f50', '#1e1e22', '#5a5040', '#30283a', '#5c3b2b', '#3e4a52'];
-  const PED_PANTS = ['#16171b', '#22252b', '#2c2a26', '#1d2430', '#35302a'];
-  const SKINS = ['#8d5a3b', '#c08a63', '#e0b18f', '#5a3a28', '#a8714f', '#d49b78', '#6e4630'];
-  const HAIR = ['#120e0b', '#2a1d14', '#3a3a3a', '#5a4630', '#1a1a1a', '#6a6a6a'];
+  const PED_TOPS = ['#3b4350', '#5a4436', '#6a5a48', '#2f4454', '#743838', '#4f5a3c', '#8a7a62', '#2a2a30', '#7a6a50', '#4a3c58', '#8a4f34', '#556672', '#9a8f7a', '#2c5a5a', '#6b2a3a'];
+  const PED_PANTS = ['#1c1d22', '#2c3038', '#3c3830', '#26324a', '#4a4236', '#5a5a5e'];
+  const SHOES = ['#121212', '#2a1c12', '#3a3a3a', '#d8d8d0', '#4a2a1a'];
+  const SKINS = ['#8d5a3b', '#c08a63', '#e0b18f', '#5a3a28', '#a8714f', '#d49b78', '#6e4630', '#f0c8a8'];
+  const HAIR = ['#120e0b', '#2a1d14', '#3a3a3a', '#5a4630', '#1a1a1a', '#8a8a8a', '#6a3a1a', '#b08a50'];
 
   function outfit(kind) {
     switch (kind) {
-      case 'player': return { shirt: '#3b2b20', long: true, pants: '#18191d', skin: '#a8714f', hair: '#1a1410', gun: true };
-      case 'cop': return { shirt: '#1c2a4d', pants: '#121829', skin: G.pick(SKINS), cap: '#0d0f14', gun: true, badge: true };
-      case 'saint': return { shirt: '#141417', long: true, pants: '#0c0c0e', skin: '#cfc9bb', hood: '#0e0e10', mask: true, halo: true, gun: true };
-      case 'guard': return { shirt: '#3c4234', pants: '#2a2d25', skin: G.pick(SKINS), cap: '#22251e' };
-      case 'mars': return { shirt: '#5a1f2e', pants: '#1d1b22', skin: '#9a6446', hair: '#0e0b0a', tinHalo: true };
+      case 'player': return { shirt: '#4a3626', long: true, pants: '#1e2026', shoes: '#141210', skin: '#b07a58', hair: '#1a1410', gun: true, h: 1.04, w: 1.06 };
+      case 'cop': return { shirt: '#24365e', pants: '#151c30', shoes: '#0c0c0c', skin: G.pick(SKINS), cap: '#10131a', gun: true, badge: true };
+      case 'saint': return { shirt: '#1a1a1e', long: true, pants: '#101012', shoes: '#0a0a0a', skin: '#cfc9bb', hood: '#121215', mask: true, halo: true, gun: true };
+      case 'guard': return { shirt: '#4a5240', pants: '#33372c', shoes: '#141414', skin: G.pick(SKINS), cap: '#2a2d24' };
+      case 'mars': return { shirt: '#7a2a3e', pants: '#24222a', shoes: '#1a1012', skin: '#9a6446', hair: '#0e0b0a', tinHalo: true, h: 0.95, w: 0.95 };
       default: {
-        const long = Math.random() < 0.35;
+        const long = Math.random() < 0.3;
         return {
-          shirt: G.pick(PED_TOPS), long, pants: G.pick(PED_PANTS), skin: G.pick(SKINS),
-          hood: Math.random() < 0.2 ? G.pick(PED_TOPS) : null, cap: Math.random() < 0.12 ? '#1a1a1a' : null, hair: G.pick(HAIR),
+          shirt: G.pick(PED_TOPS), long, pants: G.pick(PED_PANTS), shoes: G.pick(SHOES), skin: G.pick(SKINS),
+          hood: Math.random() < 0.18 ? G.pick(PED_TOPS) : null, cap: Math.random() < 0.12 ? G.pick(['#1a1a1a', '#7a1a1a', '#1a2a4a']) : null,
+          hair: Math.random() < 0.08 ? null : G.pick(HAIR),
         };
       }
     }
   }
 
-  function buildHuman(o) {
-    const g = new T.Group(); g.rotation.order = 'YXZ';
-    const body = new T.Group(); g.add(body);
-    const legL = new T.Group(); legL.position.set(0.12, 0.9, 0); legL.add(new T.Mesh(geo.leg, mat(o.pants)));
-    const legR = new T.Group(); legR.position.set(-0.12, 0.9, 0); legR.add(new T.Mesh(geo.leg, mat(o.pants)));
-    body.add(legL, legR);
-    const torso = new T.Mesh(o.long ? geo.coat : geo.torso, mat(o.shirt));
-    torso.position.y = o.long ? 1.06 : 1.24;
-    body.add(torso);
-    const armL = new T.Group(); armL.position.set(0.33, 1.52, 0);
-    const armR = new T.Group(); armR.position.set(-0.33, 1.52, 0);
-    for (const a of [armL, armR]) { a.add(new T.Mesh(geo.arm, mat(o.shirt))); a.add(new T.Mesh(geo.hand, mat(o.skin))); }
-    if (o.gun) armR.add(new T.Mesh(geo.gun, mat('#0b0b0c')));
-    body.add(armL, armR);
-    const head = new T.Mesh(geo.head, mat(o.skin)); head.position.y = 1.74;
-    body.add(head);
-    if (o.hair && !o.hood && !o.cap) { const h = new T.Mesh(geo.hair, mat(o.hair)); h.position.y = 1.9; body.add(h); }
-    if (o.hood) { const h = new T.Mesh(geo.hood, mat(o.hood)); h.position.set(0, 1.77, -0.045); body.add(h); }
-    if (o.cap) {
-      const c = new T.Mesh(geo.cap, mat(o.cap)); c.position.y = 1.9;
-      const b = new T.Mesh(geo.brim, mat(o.cap)); b.position.set(0, 1.87, 0.18);
-      body.add(c, b);
+  // make room in the body pool: oldest corpse first, then the farthest bystander
+  function freeSlot() {
+    let old = null;
+    for (const c of G.chars) if (!c.alive && !c.prop && (!old || c.diedAt < old.diedAt)) old = c;
+    if (old) { A.remove(old); return; }
+    let far = null, fd = 0;
+    for (const c of G.chars) {
+      if (c.kind !== 'ped' || c.mission || c.persistent) continue;
+      const d = Math.hypot(c.x - G.player.x, c.z - G.player.z);
+      if (d > fd) { fd = d; far = c; }
     }
-    if (o.mask) {
-      const m = new T.Mesh(geo.mask, basic('#b9b2a2')); m.position.set(0, 1.74, 0.14);
-      const e1 = new T.Mesh(geo.eye, basic('#000000')); e1.position.set(0.055, 1.78, 0.156);
-      const e2 = new T.Mesh(geo.eye, basic('#000000')); e2.position.set(-0.055, 1.78, 0.156);
-      body.add(m, e1, e2);
-    }
-    if (o.halo) { const h = new T.Mesh(geo.halo, basic('#efe4c2')); h.rotation.x = Math.PI / 2; h.position.y = 2.06; body.add(h); }
-    if (o.tinHalo) { const h = new T.Mesh(geo.halo, mat('#8a8a86')); h.rotation.x = Math.PI / 2 - 0.3; h.position.set(0, 1.5, 0.04); h.scale.setScalar(0.9); body.add(h); }
-    if (o.badge) { const b = new T.Mesh(geo.badge, basic('#c9a24a')); b.position.set(0.12, 1.42, 0.145); body.add(b); }
-    return { group: g, body, legL, legR, armL, armR, head, torso };
+    if (far) A.remove(far);
   }
 
   A.spawn = function (kind, x, z, opts = {}) {
-    const parts = buildHuman(outfit(kind));
-    G.scene.add(parts.group);
     const hp = kind === 'saint' ? 110 : kind === 'cop' ? 90 : kind === 'player' ? 100 : 40;
     const c = {
-      kind, parts, mesh: parts.group, x, z, rot: opts.rot !== undefined ? opts.rot : Math.random() * Math.PI * 2,
-      hp, maxHp: hp, alive: true, deadT: 0, phase: Math.random() * 6,
+      kind, x, z, rot: opts.rot !== undefined ? opts.rot : Math.random() * Math.PI * 2,
+      hp, maxHp: hp, alive: true, phase: Math.random() * 6, flinch: 0,
       hostile: !!opts.hostile, mission: !!opts.mission, persistent: !!opts.persistent,
       fireCD: G.R(0.8, 1.6), los: false, losT: Math.random() * 0.3, navT: 0, nav: null, strafeT: 0, strafeDir: 0,
-      range: kind === 'cop' ? 22 : 18, fleeT: 0, tx: 0, tz: 0, walk: G.R(1.0, 1.5), pool: null, fvx: 0, fvz: 0, fling: 0,
-      born: G.time || 0,
+      range: kind === 'cop' ? 22 : 18, fleeT: 0, tx: 0, tz: 0, walk: G.R(1.0, 1.5), born: Math.random() * 100,
     };
+    if (!G.body.hasFree() && G.player) freeSlot();
+    if (!G.body.create(c, outfit(kind))) return null;
     if (kind === 'ped') {
       const r = opts.ring || W.nearestRing(x, z);
       c.ri = r.i; c.rj = r.j; c.rs = r.s; c.rdir = Math.random() < 0.5 ? 1 : -1;
     }
-    c.mesh.position.set(x, W.groundY(x, z), z);
-    c.mesh.rotation.y = c.rot;
+    G.body.pose(c, 0.016, 0, false);
     if (opts.dead) {
-      c.alive = false; c.prop = true; c.deadT = 5;
-      if (opts.pose === 'sit') poseSit(c); else poseDead(c, 1);
-      addPool(c, opts.pose === 'sit' ? 0.9 : 1.15, opts.pose === 'sit' ? 0.35 : -0.9);
+      c.alive = false; c.prop = true; c.diedAt = -1;
+      G.body.startRag(c);
+      const fx = Math.sin(c.rot), fz = Math.cos(c.rot);
+      G.body.push(c, G.body.J.NECK, -fx * (opts.fall || 3), 0, -fz * (opts.fall || 3), 0.2);
+      G.body.settle(c, 600);
+      G.blood.pool(c.x, W.groundY(c.x, c.z), c.z, G.R(1.2, 1.7));
+      c.body.pooled = true;
+      G.body.addBlood(c, 0.8);
     }
     if (kind !== 'player') G.chars.push(c);
     return c;
   };
 
   A.remove = function (c) {
-    G.scene.remove(c.mesh);
-    if (c.pool) G.scene.remove(c.pool);
+    G.body.release(c);
     const k = G.chars.indexOf(c);
     if (k >= 0) G.chars.splice(k, 1);
   };
 
-  function addPool(c, size, back) {
-    const p = new T.Mesh(geo.pool, poolMat);
-    const fx = Math.sin(c.rot), fz = Math.cos(c.rot);
-    p.position.set(c.x + fx * back, W.groundY(c.x, c.z) + 0.02, c.z + fz * back);
-    p.scale.setScalar(size);
-    p.userData.target = size;
-    G.scene.add(p);
-    c.pool = p;
-  }
-
-  function poseDead(c, t) {
-    const p = c.parts, e = t * t;
-    c.mesh.rotation.x = (-Math.PI / 2) * e;
-    c.mesh.position.y = W.groundY(c.x, c.z) + 0.14 * e;
-    p.legL.rotation.x = 0.25 * e; p.legR.rotation.x = -0.1 * e;
-    p.armL.rotation.x = -0.3 * e; p.armR.rotation.x = -0.6 * e;
-    p.armL.rotation.z = 1.1 * e; p.armR.rotation.z = -0.9 * e;
-    p.body.position.y = 0;
-  }
-  function poseSit(c) {
-    const p = c.parts;
-    c.mesh.rotation.x = -0.28;
-    p.body.position.y = -0.72;
-    p.body.position.z = -0.1;
-    p.legL.rotation.x = -1.45; p.legR.rotation.x = -1.35;
-    p.armL.rotation.x = -0.2; p.armR.rotation.x = -0.5; p.armR.rotation.z = -0.25;
-    p.head.rotation.x = 0.55; p.head.rotation.z = 0.25;
-  }
-  A.poseDead = poseDead;
-
-  A.animate = function (c, dt, speed, aiming) {
-    const p = c.parts;
-    c.phase += dt * Math.max(speed, 0.0) * 2.7;
-    const amp = Math.min(1, speed / 3) * 0.75;
-    const s = Math.sin(c.phase) * amp;
-    p.legL.rotation.x = s; p.legR.rotation.x = -s;
-    if (aiming) {
-      p.armR.rotation.x = -1.5; p.armR.rotation.z = 0;
-      p.armL.rotation.x = -1.3; p.armL.rotation.z = -0.4;
+  // death: hand the body to physics, pushed the way the hit pushed it
+  A.kill = function (c, hit) {
+    c.alive = false; c.hp = 0; c.diedAt = G.time;
+    if (!c.body) return;
+    const B = G.body, J = B.J;
+    B.startRag(c);
+    hit = hit || { kind: 'bullet', dx: 0, dz: 1, power: 3 };
+    if (hit.kind === 'car') {
+      const vx = hit.vx, vz = hit.vz, sp = Math.hypot(vx, vz);
+      B.push(c, -1, vx * 0.75, 2.2 + sp * 0.13, vz * 0.75, 1);
+      for (const k of [J.KNL, J.KNR, J.FTL, J.FTR]) B.pushJoint(c, k, vx * 0.45, 1.5 + sp * 0.12, vz * 0.45);
+      B.pushJoint(c, J.HEAD, -vx * 0.2, 0.5, -vz * 0.2);
+      c.bigPool = true;
+    } else if (hit.kind === 'blast') {
+      for (let i = 0; i < 15; i++) B.pushJoint(c, i, hit.dx * G.R(7, 12) + G.R(-2.5, 2.5), G.R(5, 9), hit.dz * G.R(7, 12) + G.R(-2.5, 2.5));
+      c.bigPool = true;
     } else {
-      p.armL.rotation.x = -s * 0.8; p.armR.rotation.x = s * 0.8;
-      p.armL.rotation.z = 0; p.armR.rotation.z = 0;
+      const pw = hit.power || 4;
+      B.push(c, hit.joint !== undefined ? hit.joint : J.NECK, hit.dx * pw, 0.9, hit.dz * pw, 0.3);
+      B.pushJoint(c, Math.random() < 0.5 ? J.KNL : J.KNR, hit.dx * G.R(-1, 1.5), 0, hit.dz * G.R(-1, 1.5));
+      if (hit.head) c.headshot = true;
     }
-    p.body.position.y = Math.abs(Math.cos(c.phase)) * 0.06 * amp;
-  };
-
-  A.kill = function (c, fromX, fromZ) {
-    c.alive = false; c.deadT = 0; c.hp = 0; c.diedAt = G.time;
-    if (fromX !== undefined) c.rot = Math.atan2(fromX - c.x, fromZ - c.z);
-    c.mesh.rotation.y = c.rot;
-  };
-
-  A.updateDead = function (c, dt) {
-    if (c.prop) return;
-    c.deadT += dt;
-    if (c.fling > 0) {
-      c.fling -= dt;
-      c.x += c.fvx * dt; c.z += c.fvz * dt;
-      c.fvx *= 1 - 2.5 * dt; c.fvz *= 1 - 2.5 * dt;
-      W.collide(c, 0.3);
-    }
-    if (c.deadT < 0.7 || c.fling > 0) {
-      poseDead(c, Math.min(1, c.deadT / 0.45));
-      c.mesh.position.x = c.x; c.mesh.position.z = c.z;
-    }
-    if (!c.pool && c.deadT > 0.6 && c.fling <= 0) { addPool(c, 0.1, -0.9); c.pool.userData.target = G.R(0.9, 1.4); }
-    if (c.pool && c.pool.scale.x < c.pool.userData.target) c.pool.scale.setScalar(Math.min(c.pool.userData.target, c.pool.scale.x + dt * 0.3));
   };
 
   function moveChar(c, vx, vz, dt) {
     c.x += vx * dt; c.z += vz * dt;
     W.collide(c, 0.35);
     A.pushFromCars(c, 0.35);
-  }
-  function place(c) {
-    c.mesh.position.set(c.x, W.groundY(c.x, c.z), c.z);
-    c.mesh.rotation.y = c.rot;
   }
 
   A.pushFromCars = function (c, r) {
@@ -250,8 +166,7 @@
         if (Math.random() < dt * 0.04) c.idleT = G.R(2, 6);
       }
     }
-    A.animate(c, dt, speed, false);
-    place(c);
+    G.body.pose(c, dt, speed, false);
   }
 
   function pickNav(c, tx, tz) {
@@ -283,7 +198,7 @@
       speed = 1.6;
       c.rot = G.angleLerp(c.rot, Math.atan2(-dx / l, -dz / l), Math.min(1, dt * 3));
       moveChar(c, Math.sin(c.rot) * speed, Math.cos(c.rot) * speed, dt);
-      A.animate(c, dt, speed, false); place(c);
+      G.body.pose(c, dt, speed, false);
       return;
     }
     c.losT -= dt;
@@ -324,8 +239,7 @@
       if (d2 < 1.4 && d2 > 1e-4) { const k = (1.2 - Math.sqrt(d2)) * 3; vx += ox * k; vz += oz * k; }
     }
     moveChar(c, vx, vz, dt);
-    A.animate(c, dt, speed, aiming);
-    place(c);
+    G.body.pose(c, dt, speed, aiming);
   }
 
   function hostileShoot(c, d) {
@@ -349,7 +263,7 @@
   A.updateChars = function (dt) {
     for (let k = G.chars.length - 1; k >= 0; k--) {
       const c = G.chars[k];
-      if (!c.alive) { A.updateDead(c, dt); continue; }
+      if (!c.alive) continue;
       if (c.kind === 'ped') updatePed(c, dt);
       else if (c.kind === 'cop' || c.kind === 'saint') updateHostile(c, dt);
     }
@@ -368,7 +282,6 @@
     }
     return best ? { c: best, t: bt } : null;
   };
-
   // ---------------------------------------------------------------- cars
   const CAR_COLORS = ['#5a1a1a', '#1f2a3a', '#3a3a36', '#2a3a2a', '#6a5a3a', '#202022', '#4a4a50', '#5a3a1a', '#2a2240', '#7a7a72'];
   const carGeo = {
@@ -417,7 +330,7 @@
     g.position.set(x, 0, z); g.rotation.y = heading;
     G.scene.add(g);
     const car = {
-      mesh: g, x, z, heading, speed: 0, steer: 0, hp: opts.hp || 100, cop, van, driver: null, wheels, parts, beam,
+      mesh: g, x, z, heading, speed: 0, slip: 0, steer: 0, hp: opts.hp || 100, cop, van, driver: null, wheels, parts, beam,
       hl, hw, wrecked: false, persistent: !!opts.persistent, lightsOn: false, burnT: 0, born: G.time || 0,
     };
     if (opts.lights) A.setLights(car, true);
@@ -453,54 +366,72 @@
     for (const car of G.cars) updateCar(car, dt, car.driver === G.player ? input : null);
   };
 
+  // Car physics: forward speed + sideways slip. Tyres bleed slip off (grip); the handbrake
+  // drops grip so the back steps out and you drift.
   function updateCar(car, dt, ctrl) {
     if (car.wrecked) {
       car.burnT -= dt;
       if (car.burnT > 0 && Math.random() < dt * 30) G.fx.fire.emit(car.x + G.R(-0.8, 0.8), 1.2, car.z + G.R(-1.5, 1.5), 1, 0.4, 1.5, 0.9);
+      if (car.burnT > 0 && Math.random() < dt * 12) G.fx.smoke.emit(car.x, 2, car.z, 1, 0.6, 1.2, 2.5);
       return;
     }
+    let dh = 0, grip = 6;
+    car.braking = false;
     if (ctrl) {
-      const thr = ctrl.my;
-      if (thr > 0.05) {
-        if (car.speed < -0.5) car.speed += 30 * thr * dt;
-        else car.speed += 14 * thr * dt * (1 - Math.max(0, car.speed) / 31);
-      } else if (thr < -0.05) {
-        if (car.speed > 0.5) car.speed += 28 * thr * dt;
-        else car.speed = Math.max(-9, car.speed + 9 * thr * dt);
-      } else car.speed *= 1 - 0.55 * dt;
-      if (ctrl.brake) car.speed *= 1 - 3.2 * dt;
-      car.steer = G.lerp(car.steer, ctrl.mx, Math.min(1, dt * 6));
+      const gas = ctrl.gas, brk = ctrl.brakeIn, hb = ctrl.handbrake;
+      if (gas) { if (car.speed < -0.5) car.speed += 32 * dt; else car.speed += 15 * dt * (1 - Math.max(0, car.speed) / 32); }
+      if (brk) {
+        if (car.speed > 0.5) { car.speed -= 30 * dt; car.braking = true; }
+        else car.speed = Math.max(-10, car.speed - 11 * dt);
+      }
+      if (!gas && !brk) car.speed *= 1 - 0.45 * dt;
+      grip = 9;
+      if (hb) { car.speed *= 1 - 1.3 * dt; grip = 1.1; car.braking = true; }
+      car.steer = G.lerp(car.steer, ctrl.steer, Math.min(1, dt * 8));
       const sp = Math.abs(car.speed);
-      const rate = car.steer * 2.0 * Math.min(1, sp / 7) / (1 + sp / 28) * (ctrl.brake ? 1.5 : 1);
-      car.heading -= rate * Math.sign(car.speed) * dt;
+      dh = -car.steer * 2.1 * Math.min(1, sp / 6) / (1 + sp / 32) * (hb ? 1.8 : 1) * Math.sign(car.speed) * dt;
     } else {
       car.speed *= 1 - 1.6 * dt;
-      if (Math.abs(car.speed) < 0.05) car.speed = 0;
       car.steer *= 1 - 3 * dt;
     }
-    const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
-    if (car.speed !== 0) {
-      car.x += fx * car.speed * dt; car.z += fz * car.speed * dt;
-      // buildings: two circles along the body
+    if (dh) {
+      // the body turns; the momentum doesn't (yet)
+      car.heading += dh;
+      const c = Math.cos(dh), s = Math.sin(dh), vf = car.speed, vs = car.slip;
+      car.speed = vf * c + vs * s; car.slip = -vf * s + vs * c;
+    }
+    const ns = car.slip * Math.exp(-grip * dt), lost = car.slip * car.slip - ns * ns;
+    car.slip = ns;
+    if (car.speed !== 0) car.speed = Math.sign(car.speed) * Math.sqrt(car.speed * car.speed + lost * (grip > 3 ? 0.9 : 0.3));
+    if (Math.abs(car.speed) < 0.05 && !ctrl) car.speed = 0;
+    if (Math.abs(car.slip) < 0.02) car.slip = 0;
+
+    const fx = Math.sin(car.heading), fz = Math.cos(car.heading), sx = Math.cos(car.heading), sz = -Math.sin(car.heading);
+    let vx = fx * car.speed + sx * car.slip, vz = fz * car.speed + sz * car.slip;
+    if (ctrl && Math.abs(car.slip) > 3.2 && Math.random() < dt * 40) {
+      for (const side of [-1, 1]) G.fx.smoke.emit(car.x - fx * 1.4 + sx * side * 0.9, 0.3, car.z - fz * 1.4 + sz * side * 0.9, 1, 0.8, 0.8, 1.2);
+    }
+    if (vx !== 0 || vz !== 0) {
+      car.x += vx * dt; car.z += vz * dt;
       let bumped = false;
       for (const o of [car.hl - 1.05, -(car.hl - 1.05)]) {
         const p = { x: car.x + fx * o, z: car.z + fz * o };
         const px = p.x, pz = p.z;
         if (W.collide(p, car.hw + 0.12)) { car.x += p.x - px; car.z += p.z - pz; bumped = true; }
       }
+      const sp = Math.hypot(vx, vz);
       if (bumped) {
-        const sp = Math.abs(car.speed);
         if (sp > 4) {
           if (car.driver) { G.shake(Math.min(0.8, sp / 25)); G.audio.thud(Math.min(1, sp / 20)); }
           if (sp > 9) A.damageCar(car, sp * 1.4);
-          car.speed *= -0.28;
-        } else car.speed *= 0.6;
+          car.speed *= -0.28; car.slip *= 0.4;
+        } else { car.speed *= 0.6; car.slip *= 0.6; }
       }
       // other cars
       for (const o of G.cars) {
         if (o === car) continue;
-        const dx = o.x - car.x, dz = o.z - car.z, d2 = dx * dx + dz * dz;
-        if (d2 > 30) continue;
+        const dx = o.x - car.x, dz = o.z - car.z;
+        if (dx * dx + dz * dz > 30) continue;
         const ofx = Math.sin(o.heading), ofz = Math.cos(o.heading);
         for (const a of [car.hl - 1.05, -(car.hl - 1.05)]) {
           for (const b of [o.hl - 1.05, -(o.hl - 1.05)]) {
@@ -509,12 +440,12 @@
             if (d < m && d > 1e-4) {
               const push = (m - d) / d * 0.5;
               car.x -= ex * push; car.z -= ez * push; o.x += ex * push; o.z += ez * push;
-              const sp = Math.abs(car.speed);
               if (sp > 3) {
-                o.speed += car.speed * 0.35 * (ofx * fx + ofz * fz);
+                o.speed += (vx * ofx + vz * ofz) * 0.35;
+                o.slip += (vx * Math.cos(o.heading) - vz * Math.sin(o.heading)) * 0.35;
                 if (car.driver) { G.shake(Math.min(0.6, sp / 30)); G.audio.thud(Math.min(1, sp / 25)); }
                 if (sp > 9) { A.damageCar(car, sp * 0.8); A.damageCar(o, sp * 1.2); }
-                car.speed *= 0.55;
+                car.speed *= 0.55; car.slip *= 0.55;
               }
             }
           }
@@ -522,7 +453,6 @@
         o.mesh.position.set(o.x, 0, o.z);
       }
       // people
-      const sp = Math.abs(car.speed);
       for (const c of G.chars) {
         if (!c.alive) continue;
         const dx = c.x - car.x, dz = c.z - car.z;
@@ -530,19 +460,20 @@
         const lz = dx * fx + dz * fz, lx = dx * fz - dz * fx;
         if (Math.abs(lx) < car.hw + 0.3 && Math.abs(lz) < car.hl + 0.3) {
           if (sp > 5) {
-            G.damageChar(c, 30 + sp * 6, car.x - fx * 3, car.z - fz * 3, car.driver === G.player);
-            if (!c.alive) { c.fling = 0.6; c.fvx = fx * car.speed * 0.7 + G.R(-2, 2); c.fvz = fz * car.speed * 0.7 + G.R(-2, 2); }
-            G.audio.thud(0.6);
+            G.damageChar(c, 30 + sp * 6, car.x - fx * 3, car.z - fz * 3, car.driver === G.player, { kind: 'car', vx, vz });
+            G.audio.thud(0.7);
             car.speed *= 0.9;
           } else A.pushFromCars(c, 0.35);
         }
       }
+      G.body.carSweep(car, vx, vz);
     }
     car.mesh.position.set(car.x, 0, car.z);
     car.mesh.rotation.y = car.heading;
-    car.mesh.rotation.z = -car.steer * Math.min(1, Math.abs(car.speed) / 25) * 0.05;
+    car.mesh.rotation.z = -car.steer * Math.min(1, Math.abs(car.speed) / 25) * 0.05 + car.slip * 0.006;
     const spin = car.speed * dt / 0.36;
     for (const w of car.wheels) w.rotation.x += spin;
+    if (car.lightsOn) for (const t of car.parts.tails) t.scale.set(car.braking ? 1.3 : 1, car.braking ? 1.6 : 1, 1);
   }
 
   A.damageCar = function (car, amt) {
@@ -552,25 +483,25 @@
   };
 
   A.explode = function (car) {
-    car.wrecked = true; car.hp = 0; car.speed *= 0.3; car.burnT = 25; car.sirenOn = false;
+    car.wrecked = true; car.hp = 0; car.speed *= 0.3; car.slip *= 0.3; car.burnT = 25; car.sirenOn = false;
     car.mesh.traverse((m) => { if (m.isMesh && m !== car.beam) m.material = BURNT; });
     car.beam.visible = false;
     G.fx.boom(car.x, car.z);
     G.audio.boom();
     G.shake(1);
+    const byPlayer = car.lastDriver === G.player;
     for (const c of G.chars) {
-      if (!c.alive) continue;
       const d = Math.hypot(c.x - car.x, c.z - car.z);
-      if (d < 6) {
-        G.damageChar(c, 200 * (1 - d / 6) + 30, car.x, car.z, car.lastDriver === G.player);
-        if (!c.alive) { const l = d || 1; c.fling = 0.5; c.fvx = (c.x - car.x) / l * 9; c.fvz = (c.z - car.z) / l * 9; }
-      }
+      if (d > 7) continue;
+      const l = d || 1, dx = (c.x - car.x) / l, dz = (c.z - car.z) / l;
+      if (c.alive) G.damageChar(c, 200 * (1 - d / 7) + 30, car.x, car.z, byPlayer, { kind: 'blast', dx, dz });
+      else if (c.body) for (let i = 0; i < 15; i++) G.body.pushJoint(c, i, dx * G.R(5, 9), G.R(4, 7), dz * G.R(5, 9));
     }
     const pl = G.player;
-    if (pl.car === car) { G.exitCar(true); G.damagePlayer(55, car.x, car.z, true); }
+    if (pl.car === car) { G.exitCar(true); G.damagePlayer(55, car.x, car.z, true, 'blast'); }
     else {
       const d = Math.hypot(pl.x - car.x, pl.z - car.z);
-      if (d < 6) G.damagePlayer(70 * (1 - d / 6), car.x, car.z, true);
+      if (d < 7) G.damagePlayer(75 * (1 - d / 7), car.x, car.z, true, 'blast');
     }
     for (const o of G.cars) {
       if (o === car || o.wrecked) continue;
@@ -619,9 +550,10 @@
 
   const FX = (G.fx = {});
   FX.init = function (scene) {
-    FX.bloodP = new Particles(scene, 260, 0x6a0509, 0.14, false, 1);
     FX.sparkP = new Particles(scene, 120, 0xffc070, 0.16, true, 0.6);
     FX.fire = new Particles(scene, 220, 0xff6a1a, 1.2, true, -0.2);
+    FX.smoke = new Particles(scene, 160, 0x9a9aa0, 1.5, false, -0.04);
+    FX.smoke.pts.material.opacity = 0.35;
     FX.tracers = [];
     for (let k = 0; k < 16; k++) {
       const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(6), 3));
@@ -647,10 +579,6 @@
     FX.light.intensity = Math.max(FX.light.intensity, 40 * power);
     FX.lightT = 0.05 + 0.05 * power;
   };
-  FX.blood = function (x, y, z, fromX, fromZ) {
-    let dx = x - fromX, dz = z - fromZ; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-    FX.bloodP.emit(x, y, z, 10, 1.6, 2.2, 0.9, dx, dz, 2.6);
-  };
   FX.spark = function (x, y, z, n = 6) { FX.sparkP.emit(x, y, z, n, 3, 3, 0.3); };
   FX.boom = function (x, z) {
     FX.flash(x, 2, z, 8); FX.lightT = 0.35;
@@ -658,7 +586,7 @@
     FX.sparkP.emit(x, 1, z, 40, 14, 9, 0.8);
   };
   FX.update = function (dt) {
-    FX.bloodP.update(dt); FX.sparkP.update(dt); FX.fire.update(dt);
+    FX.smoke.update(dt); FX.sparkP.update(dt); FX.fire.update(dt);
     for (const t of FX.tracers) {
       if (t.life > 0) { t.life -= dt; t.l.material.opacity = Math.max(0, t.life / 0.07) * 0.9; }
     }

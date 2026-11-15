@@ -388,7 +388,7 @@
 
     // ground
     const asphalt = makeAsphalt(); asphalt.repeat.set(112, 112);
-    const ground = new T.Mesh(new T.PlaneGeometry(560, 560), new T.MeshLambertMaterial({ map: asphalt, color: 0x8a8d94 }));
+    const ground = new T.Mesh(new T.PlaneGeometry(560, 560), new T.MeshLambertMaterial({ map: asphalt, color: 0xa4a7ae }));
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
 
@@ -464,9 +464,9 @@
     scene.add(cross);
 
     // lights
-    W.hemi = new T.HemisphereLight(0x55688a, 0x0d0c10, 1.15);
+    W.hemi = new T.HemisphereLight(0x7487b0, 0x2a2630, 2.3);
     scene.add(W.hemi);
-    const moon = new T.DirectionalLight(0x8090c0, 0.55);
+    const moon = new T.DirectionalLight(0x9aa8d8, 1.1);
     moon.position.set(-60, 120, 40);
     scene.add(moon);
 
@@ -541,9 +541,9 @@
     if (flashSeq > 0) {
       flashT += dt;
       const on = flashT < 0.07;
-      W.hemi.intensity = on ? 4.5 : 1.15;
+      W.hemi.intensity = on ? 7 : 2.3;
       if (flashT > 0.16) { flashSeq--; flashT = 0; }
-    } else W.hemi.intensity = 1.15;
+    } else W.hemi.intensity = 2.3;
 
     for (const s of W.signs) {
       s.t -= dt;
@@ -620,6 +620,29 @@
       if (t0 < best) best = t0;
     }
     return best;
+  };
+  // like raycast, but also reports which face was hit (for wall decals)
+  W.rayNormal = function (ox, oz, dx, dz, maxT) {
+    let best = maxT, nx = 0, nz = 0;
+    for (const b of W.boxes) {
+      let t0 = 0, t1 = best, axis = 0;
+      if (Math.abs(dx) < 1e-9) { if (ox < b.minX || ox > b.maxX) continue; }
+      else {
+        let ta = (b.minX - ox) / dx, tb = (b.maxX - ox) / dx;
+        if (ta > tb) { const s = ta; ta = tb; tb = s; }
+        if (ta > t0) { t0 = ta; axis = 1; } if (tb < t1) t1 = tb;
+        if (t0 > t1) continue;
+      }
+      if (Math.abs(dz) < 1e-9) { if (oz < b.minZ || oz > b.maxZ) continue; }
+      else {
+        let ta = (b.minZ - oz) / dz, tb = (b.maxZ - oz) / dz;
+        if (ta > tb) { const s = ta; ta = tb; tb = s; }
+        if (ta > t0) { t0 = ta; axis = 2; } if (tb < t1) t1 = tb;
+        if (t0 > t1) continue;
+      }
+      if (axis && t0 < best) { best = t0; nx = axis === 1 ? -Math.sign(dx) : 0; nz = axis === 2 ? -Math.sign(dz) : 0; }
+    }
+    return best < maxT ? { t: best, nx, nz } : null;
   };
   W.hasLOS = function (ax, az, bx, bz) {
     const dx = bx - ax, dz = bz - az, d = Math.hypot(dx, dz);
