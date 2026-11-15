@@ -12,7 +12,7 @@ const ENVSRC='uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor,uZen;uniform vec4 uF
 'vec3 tone(vec3 c){c*=uGr.w*1.06;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.05)*.84),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));return mix(c,c*c*(3.-2.*c),.22);}\n'+
 '\n#elif LOOK==3\n'+
 /* Burnout: exposure up, vivid saturation, the filmic curve, a stronger S-curve, warm highlights over cool shadows */
-'vec3 tone(vec3 c){c*=uGr.w*1.03;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.25)*1.24),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));float g=dot(c,vec3(.3333));c*=mix(vec3(.93,.99,1.09),vec3(1.07,1.0,.9),smoothstep(.15,.8,g));return mix(c,c*c*(3.-2.*c),.3);}\n'+
+'vec3 tone(vec3 c){c*=uGr.w*1.03;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,min(uGr.x,1.25)*1.06),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));float g=dot(c,vec3(.3333));c*=mix(vec3(.98,.98,.99),vec3(1.03,1.01,.9),smoothstep(.12,.7,g));return mix(c,c*c*(3.-2.*c),.28);}\n'+
 '\n#elif LOOK==2\n'+
 /* cinematic: teal shadows, orange highlights, a strong S-curve, lifted blacks, a little less saturation */
 'vec3 tone(vec3 c){c*=uGr.w*1.04;float l=dot(c,vec3(.2126,.7152,.0722));c=max(mix(vec3(l),c,uGr.x*.88),0.);c=(c*(2.51*c+.03))/(c*(2.43*c+.59)+.14);c=pow(clamp(c,0.,1.),vec3(.4545));'+
@@ -78,14 +78,14 @@ const SH={
  terF:PRE+'varying vec3 vW;varying vec3 vN;varying float vK;uniform vec3 uHole;uniform sampler2D uCol,uNz,uPg;uniform float uHalf;\n'+ENVSRC+SHSRC+CSHSRC+
  'void main(){if(abs(vW.x-uHole.x)<uHole.z&&abs(vW.z-uHole.y)<uHole.z)discard;vec3 n=normalize(vN);vec2 uv=(vW.xz+uHalf)/(2.*uHalf);vec3 a=texture2D(uCol,uv).rgb;a=a*a;'+
   'float dist=length(vW-uCam);float dt=exp(-dist*.0035);float n1=texture2D(uNz,vW.xz*.11).r,n2=texture2D(uNz,vW.xz*.0123).g,n3=texture2D(uNz,vW.xz*.7).b;'+
-  'a*=1.+(((n1-.5)*.55+(n2-.5)*.5)*dt+(n3-.5)*.3*exp(-dist*.02));\n#if LOOK>0\na*=mix(vec3(1.),texture2D(uPg,vW.xz*.23).rgb*texture2D(uPg,vW.xz*.051+.3).rgb*4.,.85*exp(-dist*.004));\n#endif\n'+
+  'a*=1.+(((n1-.5)*.55+(n2-.5)*.5)*dt+(n3-.5)*.3*exp(-dist*.02));\n#if LOOK>0\na*=mix(vec3(1.),texture2D(uPg,vW.xz*.55).rgb*texture2D(uPg,vW.xz*.12+.3).rgb*4.,1.0*exp(-dist*.003));\n#endif\n'+
   /* grass: patches of yellower and deeper green, blades and clumps close up, bumps that catch the sun */
   '\n#ifdef DET\nfloat gr=smoothstep(.0,.07,a.g-a.r*1.05);float hp=texture2D(uNz,vW.xz*.0043).b,hq=texture2D(uNz,vW.xz*.019).r;a=mix(a,a*mix(vec3(1.1,1.0,.76),vec3(.84,1.0,1.08),hp),gr*.7*(.5+.5*dt));a*=1.+(hq-.5)*.35*gr;\n'+
   'float bl=texture2D(uNz,vW.xz*2.3).g,bl2=texture2D(uNz,vW.xz*6.1).r;a*=1.+((bl-.5)*.55+(bl2-.5)*.4)*exp(-dist*.03)*(.35+.65*gr);\n'+
   'vec2 bp=vW.xz*1.35;float b0=texture2D(uNz,bp).r;n=normalize(n+vec3((b0-texture2D(uNz,bp+vec2(.03,0.)).r)*4.,0.,(b0-texture2D(uNz,bp+vec2(0.,.03)).r)*4.)*exp(-dist*.04)*.6);\n#endif\n'+
   /* (LOOK) natural ground: grass towards olive and less lime, patches of dry earth and darker clumps at several scales, a stronger bump close up */
   '\n#if LOOK>0\n{float gg=smoothstep(.03,.12,a.g-a.r);float pt=n2,pt2=n1,pt3=n1;vec3 nat=vec3(dot(a,vec3(.3,.5,.2)));'+
-  'a=mix(a,nat*vec3(.95,1.0,.66),gg*.5);a=mix(a,vec3(.20,.16,.11)*(.85+.3*pt2),gg*smoothstep(.58,.78,pt)*.45);a*=mix(1.,.78+.36*pt3,gg*.6);a*=.82;'+
+  'a=mix(a,nat*vec3(1.0,.93,.6),gg*.72);a=mix(a,vec3(.20,.16,.11)*(.85+.3*pt2),gg*smoothstep(.58,.78,pt)*.45);a*=mix(1.,.78+.36*pt3,gg*.6);a*=.72;'+
   '\n#ifdef DET\nvec2 bq=vW.xz*.6;float c0=texture2D(uNz,bq).g;n=normalize(n+vec3((c0-texture2D(uNz,bq+vec2(.05,0.)).g)*1.,0.,(c0-texture2D(uNz,bq+vec2(0.,.05)).g)*1.)*exp(-dist*.03));\n#endif\n}\n#endif\n'+
   /* (batch 37) the ground: rock on the steep parts with warm strata, a pale beach just above the sea, dry grass in patches, darker earth in ridged gullies, pebbly relief close up on bare ground */
   '\n#if LOOK>0\n{float sl=1.-normalize(vN).y;float gg2=smoothstep(.0,.06,a.g-a.r);vec3 rock=mix(vec3(.30,.26,.21),vec3(.44,.39,.33),n2);float strata=.5+.5*sin(vW.y*.9+n2*6.+n1*2.);rock*=.82+.3*strata;float rm=smoothstep(.18,.34,sl+.05*(n1-.5));a=mix(a,rock*(.85+.3*n3),rm*.85);'+
@@ -108,7 +108,7 @@ const SH={
  rdF:PRE+'varying vec3 vW;varying vec4 vA;uniform sampler2D uNz,uPh;uniform float uWet;\n#ifndef NL\n#define NL 4\n#endif\nuniform vec4 uLt[NL];uniform vec3 uLc[NL];\n'+ENVSRC+SHSRC+CSHSRC+
  'float ln(float x,float c,float w,float aa){return 1.-smoothstep(w,w+aa,abs(x-c));}\n'+
  'void main(){float x=vA.x,v=vA.y,hw=vA.z,fl=vA.w;float lanes=floor(fl/16.);float ax=abs(x);float dist=length(vW-uCam);float aa=.05+dist*.0009;'+
-  'vec3 asph=vec3(.075,.075,.08);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;\n#if LOOK>0\nasph*=mix(vec3(1.),texture2D(uPh,vW.xz*.36).rgb*texture2D(uPh,vW.xz*.083+.37).rgb*4.,.9);asph*=1.5;\n#endif\n#ifdef DET\n#if LOOK>0\nasph*=.86+.28*texture2D(uNz,vW.xz*.0062).b;\n#endif\n'+
+  'vec3 asph=vec3(.108,.106,.092);float nz=texture2D(uNz,vW.xz*.31).r*.6+texture2D(uNz,vW.xz*.045).g*.4;asph*=.78+.5*nz;\n#if LOOK>0\nasph*=mix(vec3(1.),texture2D(uPh,vW.xz*1.15).rgb*texture2D(uPh,vW.xz*.27+.37).rgb*4.,.9);asph*=1.9;\n#endif\n#ifdef DET\n#if LOOK>0\nasph*=.86+.28*texture2D(uNz,vW.xz*.0062).b;\n#endif\n'+
   /* aggregate grain, darker repair patches, hairline cracks, seams across the road */
   'float g1=texture2D(uNz,vW.xz*1.9).b,g2=texture2D(uNz,vW.xz*5.3).g;asph*=1.+((g1-.5)*.6+(g2-.5)*.5)*exp(-dist*.03);asph*=1.-smoothstep(.62,.7,texture2D(uNz,vW.xz*.021+.3).r)*.26;\n'+
   'float cr=abs(texture2D(uNz,vW.xz*.13).g-.5);asph*=1.-(1.-smoothstep(.0,.011,cr))*smoothstep(.46,.6,texture2D(uNz,vW.xz*.011).r)*exp(-dist*.05)*.55;\n'+
@@ -133,7 +133,7 @@ const SH={
   'if(cty&&so>0.){float face=1.-smoothstep(.17,.2,so);float stone=smoothstep(.19,.2,so)*(1.-smoothstep(.5,.52,so));float jn=min(min(abs(fract(v/1.6)-.5)*1.6,abs(so-.52)),abs(so-2.06));'+
   'float jl=(1.-smoothstep(0.,.03+aa*.6,jn))*step(.5,so)*exp(-dist*.025);sdc*=(1.-.5*face)*(1.+.22*stone)*(1.-.3*jl);}'+
   'asph=mix(asph,sdc*(.8+.4*nz),shd);wh*=1.-shd;ye*=1.-shd;'+
-  '\n#ifdef DET\nfloat lcn=(ax-x0)/lw;float fl2=abs(fract(lcn)-.5)*lw;float trk=exp(-pow((fl2-.82)/.34,2.))*step(0.,lcn)*step(lcn,lanes)*(1.-smoothstep(hw-.6,hw,ax))*(tw||dv?1.:0.);asph*=1.-trk*.2;asph*=1.+(1.-trk)*.04;\n#if LOOK>0\n{vec2 pc=vec2(v/7.,lcn);vec2 pid=floor(pc);float hh=fract(sin(dot(pid,vec2(12.9898,78.233)))*43758.5453);float onr=step(0.,lcn)*step(lcn,lanes)*(tw||dv?1.:0.);float pa=step(.885,hh)*onr;vec2 pf=fract(pc);float de=min(min(pf.x*7.,(1.-pf.x)*7.),min(pf.y*lw,(1.-pf.y)*lw));asph*=1.-pa*(.2+.25*(1.-smoothstep(0.,.07,de)));float oil=exp(-pow(fl2/.11,2.))*smoothstep(.42,.75,texture2D(uNz,vec2(v*.05,floor(lcn)*.37+.11)).r)*onr;asph*=1.-.22*oil;float cr2=abs(texture2D(uNz,vW.xz*.085+.4).r-.5);float tar=(1.-smoothstep(.0,.014,cr2))*smoothstep(.5,.66,texture2D(uNz,vW.xz*.007+.7).g)*onr*exp(-dist*.02);asph*=1.-.5*tar;}\n#endif\n#endif\n'+
+  '\n#ifdef DET\nfloat lcn=(ax-x0)/lw;float fl2=abs(fract(lcn)-.5)*lw;float trk=exp(-pow((fl2-.82)/.34,2.))*step(0.,lcn)*step(lcn,lanes)*(1.-smoothstep(hw-.6,hw,ax))*(tw||dv?1.:0.);asph*=1.-trk*.2;asph*=1.+(1.-trk)*.04;\n#if LOOK>0\n{vec2 pc=vec2(v/7.,lcn);vec2 pid=floor(pc);float hh=fract(sin(dot(pid,vec2(12.9898,78.233)))*43758.5453);float onr=step(0.,lcn)*step(lcn,lanes)*(tw||dv?1.:0.);float pa=step(.82,hh)*onr;vec2 pf=fract(pc);float de=min(min(pf.x*7.,(1.-pf.x)*7.),min(pf.y*lw,(1.-pf.y)*lw));asph*=1.-pa*(.3+.3*(1.-smoothstep(0.,.07,de)));float oil=exp(-pow(fl2/.11,2.))*smoothstep(.42,.75,texture2D(uNz,vec2(v*.05,floor(lcn)*.37+.11)).r)*onr;asph*=1.-.22*oil;float cr2=abs(texture2D(uNz,vW.xz*.085+.4).r-.5);float tar=(1.-smoothstep(.0,.014,cr2))*smoothstep(.4,.58,texture2D(uNz,vW.xz*.007+.7).g)*onr*exp(-dist*.02);asph*=1.-.72*tar;}\n#endif\n#endif\n'+
   '\n#if LOOK>0\n\n#ifdef DET\nfloat wear=.55+.45*smoothstep(.3,.62,texture2D(uNz,vW.xz*.7).g);\n#else\nfloat wear=.8;\n#endif\nvec3 alb=asph+vec3(.74)*wh*wear+vec3(.62,.47,.12)*ye*wear;\n#else\nvec3 alb=asph+vec3(.85)*wh+vec3(.8,.58,.08)*ye;\n#endif\n'+
   /* wet: darker, puddles that act like mirrors, ripples in the surface, a reflection of the sky and of every light near the car */
   'float pz=texture2D(uNz,vW.xz*.017).g*.55+texture2D(uNz,vW.xz*.071).b*.45;float pud=smoothstep(.5,.68,pz)*uWet*(1.-shd);'+
@@ -158,9 +158,9 @@ const SH={
   'float h=dot(q.xz,d),h2=h*c+q.y*s;q.y=-h*s+q.y*c;q.xz+=d*(h2-h);p=b+q;float nh=dot(nn.xz,d),nh2=nh*c+nn.y*s;nn.y=-nh*s+nn.y*c;nn.xz+=d*(nh2-nh);}}}'+
   'float sw=aC.a*step(.3,aN.w)*step(aN.w,.7);p.x+=(sin(uT*1.9+aP.x*.31+aP.z*.17)*.11+sin(uT*3.7+aP.z*.9)*.03)*sw;p.z+=cos(uT*1.6+aP.z*.27+aP.x*.1)*.09*sw;p.y+=sin(uT*2.3+aP.x*.5)*.025*sw;vW=p;vN=nn;vC=aC.rgb*aC.rgb;vU=aU;vE=aN.w;gl_Position=uVP*vec4(p,1.);}',
  prF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;uniform sampler2D uWin,uFol,uFc;uniform float uNight;\n'+ENVSRC+
- 'void main(){vec3 n=normalize(vN);float isw=step(.8,vE),em=step(vE,-.5),fol=step(.3,vE)*step(vE,.7);vec4 w=texture2D(uWin,vU);\n#if LOOK>0\nif(isw>.5&&vE<.97){float ft=vE>.92?0.:(vE>.865?1.:2.);vec2 fuv=(fract(vU*vec2(.085,.125))*.94+.03+vec2(mod(ft,2.),floor(ft/2.)))*.5;float pl=texture2D(uFc,fuv).r;w=vec4(vec3(mix(.30,.92,pl)),ft>1.5?.88:1.-smoothstep(.40,.60,pl));}\n#endif\nvec3 alb=vC*mix(vec3(1.),w.rgb,isw);\n'+
+ 'void main(){vec3 n=normalize(vN);float isw=step(.8,vE),em=step(vE,-.5),fol=step(.3,vE)*step(vE,.7);vec4 w=texture2D(uWin,vU);\n#if LOOK>0\nif(isw>.5&&vE<.97){float ft=vE>.92?0.:(vE>.865?1.:2.);vec2 fuv=(fract(vU*vec2(.085,.125))*.94+.03+vec2(mod(ft,2.),floor(ft/2.)))*.5;float pl=texture2D(uFc,fuv).r;w=vec4(vec3(mix(.30,.92,pl)),ft>1.5?.88:1.-smoothstep(.40,.60,pl));}\n#endif\nvec3 alb=vC*mix(vec3(1.),w.rgb,isw);\n#if LOOK>0\nif(isw>.5)alb=mix(vec3(dot(alb,vec3(.3,.5,.2))),alb,.68)*.8;\n#endif\n'+
   /* foliage: the leaf atlas, cut out; lit like a ball (wrapped), glowing a little when the sun is behind it */
-  'if(fol>.5){vec4 f=texture2D(uFol,vU);if(f.a<.5)discard;alb=vC*f.rgb*1.9;\n#if LOOK>0\nalb=mix(vec3(dot(alb,vec3(.3,.5,.2))),alb,.72)*vec3(.95,1.,.78)*.8;\n#endif\n}\n'+
+  'if(fol>.5){vec4 f=texture2D(uFol,vU);if(f.a<.5)discard;alb=vC*f.rgb*1.9;\n#if LOOK>0\nalb=mix(vec3(dot(alb,vec3(.3,.5,.2))),alb,.5)*vec3(.95,1.,.8)*.58;\n#endif\n}\n'+
   'float nl=max(dot(n,uSun),0.);nl=mix(nl,clamp(dot(n,uSun)*.8+.3,0.,1.),fol);vec3 irr=mix(uAmbB,uAmbT,n.y*.5+.5)+uSunC*nl;vec3 col=alb*irr;col+=alb*uSunC*pow(max(dot(normalize(vW-uCam),uSun),0.),3.)*.3*fol;'+
   /* a window is lit if its hash says so (about uNight of them); warm or cool light */
   'vec2 wc=floor(vU)+floor(vW.xz*.5);float hs=fract(sin(dot(wc,vec2(12.9898,78.233))+floor(vW.y*.29)*7.31)*43758.5453);float lit=isw*w.a*step(hs,uNight);'+
