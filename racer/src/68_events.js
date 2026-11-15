@@ -71,7 +71,14 @@ function navSetPt(p){navSet(p.x,p.z)}
 function evRejoin(r){const R=r.ev.R,p=R.pts,S=Math.max(5,(r.ps||0)-15);let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,yaw=Math.atan2(dx/l,-dz/l);
   for(const c of TR.cars)if(c.alive&&c.kind==0&&Math.hypot(c.x-p[j*3],c.z-p[j*3+2])<40)trKill(c,0);
   if(typeof CC!='undefined'){CC.on=0;CC.scale=1;CC.fade=0;CC.fadeIn=1}carPlace(p[j*3],p[j*3+2],yaw,p[j*3+1]+.5);C.camYaw=yaw;const v=14;C.vx=Math.sin(yaw)*v;C.vz=-Math.cos(yaw)*v;camStep(0,true);
-  IN.thr=IN.brk=IN.hand=IN.nitro=0;dmgReset();GAME.state=0;GAME.lock=0;GAME.t=0;C.shield=2.5;C.flash=1;r.fi=j;safeToast('BACK IN THE RACE',1.6,1)}
+  IN.thr=IN.brk=IN.hand=IN.nitro=0;dmgReset();GAME.state=0;GAME.lock=0;GAME.t=0;C.shield=2.5;C.flash=1;r.fi=j;r.ps=R.S[j];evPullRacers(r);safeToast('BACK IN THE RACE',1.6,1)}
+/* (batch 53) after you crash in an event with racers, the ones that got away are brought back to within 60 m ahead of you; crash again before you have caught up and the gap doubles (120 m, 240 m ... at most 480 m) */
+function evPullRacers(r){if(!r||!r.racers||!r.racers.length||!r.ev.R)return;const R=r.ev.R,p=R.pts;
+  {let bi=0,bd=1e18;for(let k=0;k<R.n;k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
+  r.crashN=(r.crashN||0)+1;const D=Math.min(480,60*Math.pow(2,r.crashN-1));let k=0;
+  const ahead=r.racers.filter(c=>c.alive&&c.race&&c.state==3&&c.race.done<0&&c.race.s>r.ps+D).sort((a,b)=>a.race.s-b.race.s);
+  for(const c of ahead){const S=Math.min(R.len-40,r.ps+D+k*22),lat=(k&1)?-3.2:3.2;k++;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;
+    c.x=c.px=x;c.z=c.pz=z;c.y=c.py=groundAt(x,z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=Math.max(15,C.speed);c.vx=ux*c.v;c.vz=uz*c.v;c.om=0;c.rev=0;c.stk=0;c.kx=c.kz=c.ks=0;c.spinT=0;c.race.fi=j;c.race.s=R.S[j];c.race.off=c.race.offT=lat;c.race.still=0}}
 function evQuit(){const r=EV.run;if(!r)return;COP.on=r.copsWas;navClear();EV.run=null;racerClear();safeToast('EVENT ABANDONED',2)}
 function evTick(dt){EV.t+=dt;const r=EV.run;
   if(!r){if(EV.pending&&!GAME.state){EV.card=EV.pending;EV.pending=null}evMarkers();return}
@@ -82,6 +89,7 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
   if(r.t<0){r.t+=dt;C.vx=C.vz=0;C.x=C.px=ev.s.x;C.z=C.pz=ev.s.z;C.yaw=C.pyaw=ev.s.yaw;C.wyaw=0;const k=Math.ceil(-r.t);if(k<r.lastBeep&&k>0){r.lastBeep=k;evBeep(440,.12)}
     if(r.t>=0){evBeep(880,.25);for(const c of r.racers)if(c.race)c.race.go=true;if(ev.type=='escape'){const t=COP.D.thr,L=ev.stars;COP.w=t[L]+(L<5?(t[L+1]-t[L])*.3:20);COP.heat=L;COP.heatT=0;COP.sightT=0;copCall();(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:'event',level:L})}}return}
   r.t+=dt;
+  if(r.crashN&&r.racers&&r.racers.some(c=>c.alive&&c.race&&c.state==3&&Math.abs(c.race.s-(r.ps||0))<25))r.crashN=0;   /* caught up with a racer: the next crash starts from 60 m again */
   /* (batch 53) the GPS never drops out in an event: if the route to the next checkpoint (or the end) could not be found, or got lost, it is looked for again every half second */
   if(ev.cps&&ev.type!='escape'){r.navT=(r.navT||0)-dt;if((!NAV.wp||!NAV.route)&&r.navT<=0){r.navT=.5;const q=ev.type=='rage'?ev.cps[ev.cps.length-1]:ev.cps[Math.min(r.cp,ev.cps.length-1)];if(q)navSetPt(q)}}
   if(r.racers&&r.racers.length&&ev.R){/* your progress along the race route (for the order) */const R=ev.R,p=R.pts;let bi=r.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(R.n,bi+50);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}

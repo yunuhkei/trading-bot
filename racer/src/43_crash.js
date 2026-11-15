@@ -47,7 +47,7 @@ function crashReset(){CC.on=0;CC.scale=1;CC.fade=0;CC.fadeIn=1;const H=CC.hist;l
   /* clear the traffic round the spot (not the racers in a race, not a chasing cop) */
   for(const c of TR.cars){if(!c.alive)continue;if(c.kind==2&&c.race)continue;if(c.kind==1&&c.cm>0&&c.state==3)continue;if(Math.hypot(c.x-C.x,c.z-C.z)<40)trKill(c,0)}
   dmgSoften();   /* (batch 23: back on the road lightly knocked about, never a wreck) */
-  C.shield=3;   /* (batch 27: no toast; the blinking says it) */camStep(0,true)}
+  C.shield=3;   /* (batch 27: no toast; the blinking says it) */camStep(0,true);if(EV.run&&typeof evPullRacers=='function')evPullRacers(EV.run)}
 /* the cinematic camera (from camStep) */
 function crashCam(){const a=R.alpha,x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a);CAM.x=CC.cam[0];CAM.y=CC.cam[1];CAM.z=CC.cam[2];CAM.tx=x;CAM.ty=y+.6;CAM.tz=z;
   const d=Math.hypot(x-CAM.x,z-CAM.z);CAM.fov=clamp(1.2-d*.006-CC.t*.05,.55,1.1)}
@@ -58,7 +58,7 @@ function crashFx(sprite){if(!(C.shield>0))return;const k=Math.min(1,C.shield),t=
 /* the black bars, the label and the fades (from hudDraw) */
 function crashHud(c,W_,H_,u){if(!CC.on&&!(CC.fadeIn>0))return;c.save();
   if(CC.on){const b=H_*.11*sstep(0,.35,CC.t);c.fillStyle='#000';c.fillRect(0,0,W_,b);c.fillRect(0,H_-b,W_,b);
-    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);fxText(c,'CRASH!',W_/2,H_-b*.38,u*.6,'#ff6a4a','center','rgba(255,70,30,.6)')}
+    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);fxText(c,(C.t-(C.hitByT??-9)<2.5&&EV.run)?'TAKEN DOWN!':'CRASH!',W_/2,H_-b*.38,u*.6,'#ff6a4a','center','rgba(255,70,30,.6)')}
     if(CC.t>=1.5&&CC.endT==null){c.globalAlpha=sstep(1.5,1.9,CC.t)*.75;c.fillStyle='#fff';c.font='600 '+Math.round(u*.2)+'px '+UIF;c.textAlign='right';c.fillText('TAP TO SKIP',W_-u*.4,H_-b*.42)}}
   const f=CC.on?CC.fade:CC.fadeIn;if(f>0){c.globalAlpha=f;c.fillStyle='#000';c.fillRect(0,0,W_,H_)}c.restore()}
 /* (batch 25) a tap skips the movie, but not in its first 1.5 s: the fade starts at once */
