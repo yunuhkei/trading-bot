@@ -48,11 +48,11 @@ function ccBuild(key,opt){
   /* the fenders rise over the wheels where a tyre would stand above the bodywork (Close Call's hqWI) */
   const bump=x=>{let b=0;for(const q of WL){const t=Math.abs(x-q.x)/(q.ra+2.1);if(t<1)b=Math.max(b,q.bump*Math.pow((1+Math.cos(Math.PI*t))/2,1.25))}return b};
   /* rows along the car: an even spacing, more round the wheel arches and at the rounded ends */
-  const X=[],step=d.bus?6:lo?3.2:2.2;for(let x=xe0;x<xe1;x+=step)X.push(x);X.push(xe1);
-  for(let k=0;k<=(lo?4:8);k++){const t=Math.sin(k/(lo?4:8)*1.5708);X.push(xe1-rl+rl*t,xe0+rl-rl*t)}
-  for(const q of WL){const n=lo?6:10;for(let k=0;k<=n;k++)X.push(q.x+q.ra*Math.cos(k/n*Math.PI));X.push(q.x-q.ra-.05,q.x+q.ra+.05)}
+  const X=[],step=d.bus?6:lo?3.2:1.15;for(let x=xe0;x<xe1;x+=step)X.push(x);X.push(xe1);   /* (batch 50) the player's bodies: rows every 11 cm (were 22), 6 samples a span (were 3), rounder ends and arches: about 12k vertices, the limit is 65k */
+  const ne=lo?4:14;for(let k=0;k<=ne;k++){const t=Math.sin(k/ne*1.5708);X.push(xe1-rl+rl*t,xe0+rl-rl*t)}
+  for(const q of WL){const n=lo?6:18;for(let k=0;k<=n;k++)X.push(q.x+q.ra*Math.cos(k/n*Math.PI));X.push(q.x-q.ra-.05,q.x+q.ra+.05)}
   X.sort((a,b)=>a-b);const XS=[];for(let x of X){x=Math.max(xe0,Math.min(xe1,x));if(!XS.length||x-XS[XS.length-1]>.04)XS.push(x)}
-  const rows=[],kk=lo?2:3;
+  const rows=[],kk=lo?2:6;
   for(const x of XS){let sp=1;if(x>xe1-rl){const t=(x-(xe1-rl))/rl;sp=Math.pow(Math.max(0,1-t*t*t),1/3)}else if(x<xe0+rl){const t=(xe0+rl-x)/rl;sp=Math.pow(Math.max(0,1-t*t*t),1/3)}
     const w=Math.max(.05,fw(x)*sp),hc0=fh(x),hc=hc0-(hc0-y0)*.42*Math.pow(1-sp,1.6),bp=bump(x)*Math.min(1,sp*1.6);let yb=y0;   /* (the fender keeps its height into the rounded nose and tail, so a wheel near the end never pokes through) */
     for(const q of WL){const dx=x-q.x;if(Math.abs(dx)<=q.ra+1e-6)yb=Math.max(yb,Math.min(q.R+Math.sqrt(Math.max(0,q.ra*q.ra-dx*dx)),hc+bp-.55))}yb=Math.min(yb,hc+bp*.92-.8);   /* the arch never cuts above the middle of the bonnet (it used to, over a low nose, and the dark underbody showed through the bonnet) */
@@ -92,12 +92,19 @@ function ccBuild(key,opt){
   const surf=(sg,lat)=>{const xe=sg>0?xe1:xe0,we=Math.max(.1,fw(sg>0?xe1-rl:xe0+rl)),u=Math.min(1,Math.abs(lat)/we),t=Math.pow(Math.max(0,1-u*u*u),1/3);return sg>0?xe-rl+rl*t:xe+rl-rl*t};
   const front=xe1-rl*.5,rear=xe0+rl*.5,wf=fw(front),wr=fw(rear),hf=fh(xe1-rl),hr=fh(xe0+rl),ly=y0+(hf-y0)*.66,ty=y0+(hr-y0)*.7;
   const lamp=(sg,lat,y,hx,hy,m)=>{const x=surf(sg,lat)+(sg>0?-.06:.06);cgBox(body,lat*K,y*K,Z(x),hx*K,hy*K,.05,m,0)};
+  /* (batch 50) on the player's cars the lamps are the generator's: a trim ring, chrome, a reflector and a lens (round), or a framed lens with a chrome highlight (slim, wide, bar); the traffic keeps its cheap boxes */
+  const lampH=(sg,lat,y,hx,hy,m,kind)=>{if(lo){lamp(sg,lat,y,hx,hy,m);return}
+    const x=surf(sg,lat),sd=Math.sign(lat),u=Math.min(1,Math.abs(lat)/Math.max(.1,fw(sg>0?xe1-rl:xe0+rl))),nx0=sd*.34*u*u,nz0=sg>0?-1:1,l=Math.hypot(nx0,nz0),p={x:lat*K,y:y*K,z:Z(x),nx:nx0/l,ny:0,nz:nz0/l};
+    if(kind=='d')cgLamp(body,p,hx*K,hy*K,0,m,sg>0?0:2);
+    else{cgRect(body,p,hx*K*1.08,hy*K*1.14,CGM.trim,.004,0);cgRect(body,p,hx*K,hy*K,CGM.chrome,.0055,0);cgRect(body,p,hx*K*.92,hy*K*.8,m,.0075,0);cgRect(body,p,hx*K*.5,hy*K*.2,CGM.chrome,.0095,0)}};
   for(const s of[-1,1]){const hd=d.hd||'r',tl=d.tl||'r';
-    if(hd=='s')lamp(1,s*wf*.62,ly+.4,wf*.22,.22,CGM.head);else if(hd=='w')lamp(1,s*wf*.64,ly,wf*.2,.55,CGM.head);else{lamp(1,s*wf*.72,ly,.55,.55,CGM.head);lamp(1,s*wf*.5,ly,.45,.45,CGM.head)}
-    lamp(1,s*wf*.86,ly-.75,.4,.2,CGM.amber);
-    if(tl!='b'){if(tl=='s')lamp(-1,s*wr*.66,ty,wr*.2,.22,CGM.tail);else if(tl=='w')lamp(-1,s*wr*.64,ty,wr*.18,.6,CGM.tail);else{lamp(-1,s*wr*.74,ty,.55,.55,CGM.tail);lamp(-1,s*wr*.52,ty,.5,.5,CGM.tail)}}}
-  if((d.tl||'r')=='b')lamp(-1,0,ty,wr*.82,.24,CGM.tail);
-  lamp(1,0,y0+(hf-y0)*.28,wf*.36,Math.max(.35,(hf-y0)*.12),CGM.grille);lamp(1,0,y0+1.5,1.6,.4,CGM.plate);lamp(-1,0,y0+1.7,1.6,.4,CGM.plate);
+    if(hd=='s')lampH(1,s*wf*.62,ly+.4,wf*.22,.22,CGM.head,'r');else if(hd=='w')lampH(1,s*wf*.64,ly,wf*.2,.55,CGM.head,'r');else{lampH(1,s*wf*.72,ly,.55,.55,CGM.head,'d');lampH(1,s*wf*.5,ly,.45,.45,CGM.head,'d')}
+    lampH(1,s*wf*.86,ly-.75,.4,.2,CGM.amber,'r');
+    if(tl!='b'){if(tl=='s')lampH(-1,s*wr*.66,ty,wr*.2,.22,CGM.tail,'r');else if(tl=='w')lampH(-1,s*wr*.64,ty,wr*.18,.6,CGM.tail,'r');else{lampH(-1,s*wr*.74,ty,.55,.55,CGM.tail,'d');lampH(-1,s*wr*.52,ty,.5,.5,CGM.tail,'d')}}}
+  if((d.tl||'r')=='b')lampH(-1,0,ty,wr*.82,.24,CGM.tail,'r');
+  lamp(1,0,y0+(hf-y0)*.28,wf*.36,Math.max(.35,(hf-y0)*.12),CGM.grille);
+  if(lo){lamp(1,0,y0+1.5,1.6,.4,CGM.plate);lamp(-1,0,y0+1.7,1.6,.4,CGM.plate)}
+  else{const pt=cgPlateText({_name:d.n,L:(xe1-xe0)*K,W:2*Math.max(...st.map(q=>q[1]))*K,H:roofH*K});cgPlate(body,0,(y0+1.5)*K,Z(surf(1,0))-.012,-1,pt);cgPlate(body,0,(y0+1.7)*K,Z(surf(-1,0))+.012,1,pt)}
   if(d.bus){/* a bus: a dark band of side windows is in the cabin; add a destination board and doors on the right side */lamp(1,0,roofH-1.6,wf*.6,.7,CGM.amber);
     for(const xd of[xe1-6,xc-2])cgBox(body,(fw(xd)+.02)*K,(y0+12.5)*K,Z(xd),.01,.95,.55,CGM.gloss,0)}
   /* wheels: the game's own (tyre, rim, spokes, disc, caliper), one per axle; the track puts the tyre's outer face at the body side */
