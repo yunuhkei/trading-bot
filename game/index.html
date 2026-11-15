@@ -1,0 +1,301 @@
+<title>Hollow Saints</title>
+<meta name="theme-color" content="#07090d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700;900&family=Barlow+Condensed:wght@500;600;700&family=Special+Elite&display=swap">
+<style>
+  /* Layout: full-bleed WebGL city; HUD pinned to the corners; story told on typewritten case-file cards. */
+  :root {
+    color-scheme: dark;
+    --ink: #07090d;
+    --night: #10151e;
+    --bone: #e6dfcf;
+    --ash: #8b909a;
+    --blood: #b3121e;
+    --sodium: #e8b34a;
+    --halo: #efe6cc;
+    --glass: rgba(7, 9, 13, 0.62);
+    --f-display: "Big Shoulders Stencil Display", Impact, "Arial Narrow", sans-serif;
+    --f-type: "Special Elite", "Courier New", Courier, monospace;
+    --f-hud: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--ink); color: var(--bone); }
+  body {
+    font-family: var(--f-hud); touch-action: none; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
+  }
+  button { font: inherit; color: inherit; }
+  button:focus-visible { outline: 2px solid var(--sodium); outline-offset: 3px; }
+  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #touch { position: fixed; inset: 0; z-index: 1; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+  #minimap {
+    position: absolute; top: calc(12px + var(--sat)); left: calc(12px + var(--sal));
+    width: 128px; height: 128px; border-radius: 50%;
+    box-shadow: 0 0 0 1.5px rgba(230, 223, 207, 0.55), 0 6px 24px rgba(0, 0, 0, 0.6);
+  }
+  #status {
+    position: absolute; top: calc(14px + var(--sat)); right: calc(60px + var(--sar));
+    display: grid; justify-items: end; gap: 6px; width: 170px;
+  }
+  .hpbar { width: 100%; height: 7px; background: rgba(0, 0, 0, 0.55); box-shadow: 0 0 0 1px rgba(230, 223, 207, 0.25); }
+  #hpFill { height: 100%; width: 100%; background: linear-gradient(90deg, #6d0b12, var(--blood)); transition: width 0.15s; }
+  #hpFill.low { animation: beat 0.8s infinite; }
+  @keyframes beat { 50% { opacity: 0.45; } }
+  #ammo { font: 600 18px/1 var(--f-hud); letter-spacing: 0.08em; font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px #000; }
+  #stars { display: flex; gap: 5px; }
+  #stars i {
+    width: 15px; height: 15px; border-radius: 50%; box-sizing: border-box;
+    border: 2px solid rgba(239, 230, 204, 0.28);
+  }
+  #stars i.on { border-color: var(--halo); box-shadow: 0 0 8px rgba(239, 230, 204, 0.55), inset 0 0 0 2px var(--blood); }
+  #stars.evading i.on { animation: blink 0.6s steps(2) infinite; }
+  #stars.flash { animation: pop 0.5s; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  @keyframes pop { 30% { transform: scale(1.25); } }
+  #btnPause {
+    position: absolute; top: calc(10px + var(--sat)); right: calc(10px + var(--sar));
+    width: 40px; height: 40px; border-radius: 50%; border: 0; pointer-events: auto;
+    background: var(--glass); box-shadow: 0 0 0 1px rgba(230, 223, 207, 0.3); cursor: pointer;
+    display: grid; place-items: center;
+  }
+  #btnPause::before { content: ""; width: 12px; height: 14px; border-left: 4px solid var(--bone); border-right: 4px solid var(--bone); box-sizing: border-box; }
+  #wp { position: absolute; top: calc(12px + var(--sat)); left: 50%; transform: translateX(-50%); display: grid; justify-items: center; gap: 2px; }
+  #wpArrow { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 16px solid var(--sodium); filter: drop-shadow(0 1px 2px #000); }
+  #wpDist { font: 600 14px/1 var(--f-hud); letter-spacing: 0.1em; color: var(--sodium); text-shadow: 0 1px 3px #000; font-variant-numeric: tabular-nums; }
+  #objective {
+    position: absolute; top: calc(52px + var(--sat)); left: 50%; transform: translateX(-50%);
+    max-width: min(62vw, 520px); text-align: center; padding: 6px 14px;
+    font: 500 16px/1.25 var(--f-hud); letter-spacing: 0.04em; text-transform: uppercase;
+    background: linear-gradient(90deg, transparent, rgba(7, 9, 13, 0.72) 15%, rgba(7, 9, 13, 0.72) 85%, transparent);
+    text-shadow: 0 1px 2px #000; text-wrap: balance;
+  }
+  #objective b { color: var(--sodium); font-weight: 700; }
+  #objective.pulse { animation: objIn 0.6s ease-out; }
+  @keyframes objIn { from { opacity: 0; transform: translate(-50%, -6px); } }
+  #subtitle {
+    position: absolute; left: 50%; bottom: calc(150px + var(--sab)); transform: translateX(-50%);
+    max-width: min(80vw, 640px); text-align: center; text-wrap: balance;
+    font: 17px/1.35 var(--f-type); color: var(--bone); text-shadow: 0 1px 3px #000, 0 0 12px #000;
+  }
+  #toast {
+    position: absolute; left: 50%; top: 38%; transform: translateX(-50%);
+    font: 900 26px/1 var(--f-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--blood);
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+  }
+  #reticle {
+    position: absolute; left: 0; top: 0; width: 0; height: 0;
+  }
+  #reticle::before {
+    content: ""; position: absolute; left: -15px; top: -15px; width: 30px; height: 30px; box-sizing: border-box;
+    border: 2px solid rgba(239, 230, 204, 0.85); border-radius: 50%;
+    clip-path: polygon(0 0, 35% 0, 35% 100%, 65% 100%, 65% 0, 100% 0, 100% 100%, 0 100%);
+  }
+  #reticle.hostile::before { border-color: #ff3344; box-shadow: 0 0 10px rgba(255, 51, 68, 0.6); }
+  #vignette {
+    position: absolute; inset: 0; opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(120, 0, 8, 0) 45%, rgba(120, 0, 8, 0.85) 100%);
+  }
+
+  /* touch controls */
+  .tbtn {
+    position: absolute; display: none; place-items: center; border: 0; border-radius: 50%; pointer-events: auto;
+    background: rgba(7, 9, 13, 0.5); box-shadow: 0 0 0 1.5px rgba(230, 223, 207, 0.4);
+    font: 700 13px/1 var(--f-hud); letter-spacing: 0.12em; color: var(--bone); touch-action: none;
+  }
+  body.touch .tbtn { display: grid; }
+  @media (pointer: coarse) { .tbtn { display: grid; } }
+  .tbtn:active { background: rgba(179, 18, 30, 0.55); }
+  .tbtn.dim { opacity: 0.35; }
+  #btnFire { width: 88px; height: 88px; right: calc(22px + var(--sar)); bottom: calc(26px + var(--sab)); font-size: 16px; box-shadow: 0 0 0 2px rgba(179, 18, 30, 0.85); }
+  #btnBrake { width: 88px; height: 88px; right: calc(22px + var(--sar)); bottom: calc(26px + var(--sab)); font-size: 15px; }
+  #btnAct { width: 62px; height: 62px; right: calc(124px + var(--sar)); bottom: calc(34px + var(--sab)); }
+  #btnReload { width: 50px; height: 50px; right: calc(40px + var(--sar)); bottom: calc(128px + var(--sab)); font-size: 11px; }
+  #joyBase {
+    position: absolute; left: 0; top: 0; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
+    box-shadow: 0 0 0 1.5px rgba(230, 223, 207, 0.35); background: rgba(7, 9, 13, 0.25);
+  }
+  #joyKnob { position: absolute; left: 36px; top: 36px; width: 48px; height: 48px; border-radius: 50%; background: rgba(230, 223, 207, 0.4); }
+  #joyHint {
+    position: absolute; left: calc(26px + var(--sal)); bottom: calc(30px + var(--sab)); display: none;
+    width: 110px; height: 110px; border-radius: 50%; border: 1.5px dashed rgba(230, 223, 207, 0.22);
+    font: 600 11px/1 var(--f-hud); letter-spacing: 0.14em; color: rgba(230, 223, 207, 0.4); place-items: center;
+  }
+  body.touch #joyHint { display: grid; }
+  @media (pointer: coarse) { #joyHint { display: grid; } }
+
+  /* ---------- overlays ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; overflow-y: auto;
+    padding: calc(20px + var(--sat)) max(16px, var(--sar)) calc(20px + var(--sab)) max(16px, var(--sal));
+    box-sizing: border-box;
+  }
+  #cards { background: rgba(5, 6, 9, 0.9); cursor: pointer; }
+  .card { width: min(36em, 100%); display: grid; gap: 18px; }
+  #cardH {
+    margin: 0; font: 700 clamp(26px, 5vw, 40px)/1 var(--f-display); letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--blood); text-wrap: balance;
+  }
+  #cardT { margin: 0; font: clamp(15px, 2.4vw, 19px)/1.6 var(--f-type); white-space: pre-line; min-height: 7em; color: var(--bone); }
+  #cardNext { font: 600 13px/1 var(--f-hud); letter-spacing: 0.2em; text-transform: uppercase; color: var(--ash); opacity: 0.2; transition: opacity 0.3s; }
+  #cardNext.ready { opacity: 1; animation: nudge 1.4s ease-in-out infinite; }
+  @keyframes nudge { 50% { transform: translateX(6px); } }
+  #cards.title .card { text-align: center; justify-items: center; }
+  #cards.title #cardH { font-size: clamp(48px, 11vw, 104px); font-weight: 900; color: var(--halo); letter-spacing: 0.04em; }
+  #cards.title #cardT { font: 600 clamp(15px, 2.6vw, 22px)/1.3 var(--f-hud); letter-spacing: 0.28em; text-transform: uppercase; color: var(--blood); min-height: 0; }
+
+  #title {
+    z-index: 6;
+    background:
+      radial-gradient(ellipse at 50% 120%, rgba(179, 18, 30, 0.28), transparent 60%),
+      linear-gradient(180deg, rgba(7, 9, 13, 0.25), rgba(7, 9, 13, 0.82) 70%);
+  }
+  .title-inner { display: grid; justify-items: center; gap: 14px; text-align: center; width: min(40em, 100%); }
+  .halo-mark { width: 74px; height: 22px; border-radius: 50%; border: 3px solid var(--halo); box-shadow: 0 0 18px rgba(239, 230, 204, 0.5); margin-bottom: -6px; }
+  .title-inner h1 {
+    margin: 0; font: 900 clamp(40px, min(12vw, 19vh), 132px)/0.9 var(--f-display); letter-spacing: 0.03em; text-transform: uppercase;
+    color: var(--halo); text-shadow: 0 4px 30px rgba(0, 0, 0, 0.8); text-wrap: balance;
+  }
+  .chapter { font: 600 clamp(14px, 2.4vw, 19px)/1.2 var(--f-hud); letter-spacing: 0.3em; text-transform: uppercase; color: var(--blood); }
+  .tagline { margin: 0; max-width: 32em; font: clamp(14px, 2vw, 16px)/1.5 var(--f-type); color: var(--bone); opacity: 0.85; }
+  .primary {
+    margin-top: 8px; padding: 14px 44px; border: 0; cursor: pointer;
+    font: 700 20px/1 var(--f-hud); letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink);
+    background: var(--halo); clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  }
+  .primary:disabled { opacity: 0.4; cursor: wait; }
+  .primary:not(:disabled):hover { background: #fff; }
+  .fineprint { display: grid; gap: 6px; font: 500 14px/1.4 var(--f-hud); letter-spacing: 0.04em; color: var(--ash); max-width: 36em; }
+  .fineprint b { color: var(--bone); font-weight: 600; }
+  .warn { font: 600 12px/1 var(--f-hud); letter-spacing: 0.22em; text-transform: uppercase; color: var(--ash); border: 1px solid rgba(139, 144, 154, 0.4); padding: 6px 10px; }
+  #loading { font: 600 13px/1 var(--f-hud); letter-spacing: 0.2em; text-transform: uppercase; color: var(--ash); }
+
+  #death { z-index: 6; background: radial-gradient(ellipse at center, rgba(60, 0, 4, 0.55), rgba(5, 6, 9, 0.9)); }
+  .death-inner { display: grid; justify-items: center; gap: 12px; text-align: center; }
+  .death-inner h2 { margin: 0; font: 900 clamp(56px, 14vw, 128px)/0.9 var(--f-display); letter-spacing: 0.05em; color: var(--blood); text-transform: uppercase; }
+  .death-inner p { margin: 0 0 8px; font: 16px/1.4 var(--f-type); color: var(--bone); }
+
+  #pause { z-index: 6; background: rgba(5, 6, 9, 0.88); }
+  .menu { display: grid; gap: 10px; width: min(22em, 100%); }
+  .menu h2 { margin: 0 0 6px; font: 900 44px/1 var(--f-display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--halo); }
+  .menu button.item {
+    padding: 13px 16px; border: 0; cursor: pointer; text-align: left;
+    font: 600 17px/1 var(--f-hud); letter-spacing: 0.14em; text-transform: uppercase;
+    background: rgba(230, 223, 207, 0.08); box-shadow: inset 3px 0 0 transparent;
+  }
+  .menu button.item:hover, .menu button.item:focus-visible { background: rgba(230, 223, 207, 0.15); box-shadow: inset 3px 0 0 var(--blood); }
+  .confirm { display: grid; gap: 8px; padding: 12px; background: rgba(179, 18, 30, 0.15); font: 15px/1.4 var(--f-type); }
+  .confirm div { display: flex; gap: 8px; }
+  .confirm button { flex: 1; }
+  .keys { margin-top: 8px; font: 500 14px/1.6 var(--f-hud); color: var(--ash); letter-spacing: 0.03em; }
+  .keys b { color: var(--bone); font-weight: 600; }
+
+  #err {
+    position: fixed; left: 50%; bottom: calc(10px + var(--sab)); transform: translateX(-50%); z-index: 9;
+    max-width: 90vw; padding: 8px 12px; background: #300; color: #fdd; font: 13px/1.3 var(--f-hud);
+  }
+  @media (max-height: 520px) {
+    .title-inner { gap: 8px; }
+    .title-inner h1 { white-space: nowrap; }
+    .tagline, .fineprint .kb { display: none; }
+    .primary { margin-top: 2px; padding: 12px 40px; }
+  }
+  @media (max-height: 430px) {
+    #minimap { width: 104px; height: 104px; }
+    #objective { top: calc(46px + var(--sat)); font-size: 14px; }
+    #subtitle { bottom: calc(118px + var(--sab)); font-size: 15px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<canvas id="c"></canvas>
+<div id="touch"></div>
+
+<div id="hud" hidden>
+  <canvas id="minimap" aria-label="Map"></canvas>
+  <div id="wp" hidden><div id="wpArrow"></div><div id="wpDist"></div></div>
+  <div id="objective" hidden></div>
+  <div id="status">
+    <div class="hpbar"><div id="hpFill"></div></div>
+    <div id="ammo">12 / 12</div>
+    <div id="stars" aria-label="Wanted level"></div>
+  </div>
+  <button id="btnPause" aria-label="Pause"></button>
+  <div id="reticle" hidden></div>
+  <div id="subtitle" hidden></div>
+  <div id="toast" hidden></div>
+  <div id="vignette"></div>
+  <div id="joyHint">MOVE</div>
+  <div id="joyBase" hidden><div id="joyKnob"></div></div>
+  <button class="tbtn" id="btnReload">RELOAD</button>
+  <button class="tbtn dim" id="btnAct">CAR</button>
+  <button class="tbtn" id="btnFire">FIRE</button>
+  <button class="tbtn" id="btnBrake" hidden>BRAKE</button>
+</div>
+
+<div class="overlay" id="cards" hidden>
+  <div class="card">
+    <h2 id="cardH"></h2>
+    <p id="cardT"></p>
+    <div id="cardNext">Tap to continue ›</div>
+  </div>
+</div>
+
+<div class="overlay" id="title">
+  <div class="title-inner">
+    <div class="halo-mark" aria-hidden="true"></div>
+    <h1>Hollow Saints</h1>
+    <div class="chapter">Chapter One · Hymn for the Drowned</div>
+    <p class="tagline">Framed cop. Dead informant. A brotherhood of badges and bishops that wants you in the harbor before sunrise.</p>
+    <button class="primary" id="startBtn" disabled>Begin</button>
+    <div id="loading">Building Port Calvary…</div>
+    <div class="fineprint">
+      <span><b>Phone:</b> turn it sideways. Left thumb moves, right thumb looks around. Push the stick all the way to sprint. FIRE auto-aims at whoever is in front of you.</span>
+      <span class="kb"><b>Keyboard:</b> WASD move · mouse look · click fire · F car · R reload · Shift sprint · Space brake · P pause</span>
+    </div>
+    <div class="warn">Contains graphic violence</div>
+  </div>
+</div>
+
+<div class="overlay" id="death" hidden>
+  <div class="death-inner">
+    <h2>Flatlined</h2>
+    <p>The Saints don't miss twice. You get one more.</p>
+    <button class="primary" id="retryBtn">Try again</button>
+  </div>
+</div>
+
+<div class="overlay" id="pause" hidden>
+  <div class="menu">
+    <h2>Paused</h2>
+    <button class="item" id="resumeBtn">Resume</button>
+    <button class="item" id="soundBtn">Sound: On</button>
+    <button class="item" id="qBtn">Graphics: High</button>
+    <button class="item" id="restartBtn">Restart chapter</button>
+    <div class="confirm" id="confirmRestart" hidden>
+      Start Chapter One over from the crash?
+      <div><button class="item" id="restartYes">Restart</button><button class="item" id="restartNo">Cancel</button></div>
+    </div>
+    <div class="keys"><b>WASD</b> move · <b>mouse</b> look · <b>click</b> fire · <b>F</b> car · <b>R</b> reload · <b>Shift</b> sprint · <b>Space</b> brake</div>
+  </div>
+</div>
+
+<div id="err" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/world.js"></script>
+<script src="js/actors.js"></script>
+<script src="js/story.js"></script>
+<script src="js/main.js"></script>

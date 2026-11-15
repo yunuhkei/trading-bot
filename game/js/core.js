@@ -1,0 +1,216 @@
+'use strict';
+// Core: shared namespace, math helpers, input (touch + keyboard/mouse), procedural audio.
+(function () {
+  const G = (window.G = {});
+
+  G.mulberry32 = function (a) {
+    return function () {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+  G.R = (a, b) => a + Math.random() * (b - a);
+  G.clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  G.lerp = (a, b, t) => a + (b - a) * t;
+  G.wrapAngle = (a) => {
+    a = (a + Math.PI) % (Math.PI * 2);
+    if (a < 0) a += Math.PI * 2;
+    return a - Math.PI;
+  };
+  G.angleLerp = (a, b, t) => a + G.wrapAngle(b - a) * t;
+  G.pick = (arr) => arr[(Math.random() * arr.length) | 0];
+  G.store = {
+    get(k, d) { try { const v = localStorage.getItem('hs_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('hs_' + k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } },
+  };
+
+  // ---------------------------------------------------------------- input
+  const input = (G.input = {
+    mx: 0, my: 0, lookDX: 0, lookDY: 0,
+    fire: false, action: false, reload: false, brake: false, sprint: false,
+    usingTouch: false,
+  });
+  const keys = {};
+  const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
+  const look = { id: null, x: 0, y: 0 };
+  const JR = 56;
+  let fireTouch = false, brakeTouch = false, mouseFire = false, ui = null, area = null;
+
+  G.initInput = function (el, uiHooks) {
+    area = el; ui = uiHooks;
+    el.addEventListener('pointerdown', (e) => {
+      if (G.blockInput) return;
+      if (e.pointerType === 'mouse') {
+        if (document.pointerLockElement !== el && el.requestPointerLock) {
+          try { const p = el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (_) { /* refused */ }
+        }
+        if (e.button === 0) mouseFire = true;
+        return;
+      }
+      e.preventDefault();
+      if (!input.usingTouch) { input.usingTouch = true; document.body.classList.add('touch'); }
+      if (e.clientX < window.innerWidth * 0.42 && joy.id === null) {
+        joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; joy.x = joy.y = 0;
+        ui && ui.joyShow(joy.ox, joy.oy);
+      } else if (look.id === null) {
+        look.id = e.pointerId; look.x = e.clientX; look.y = e.clientY;
+      }
+      try { el.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+    }, { passive: false });
+
+    el.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'mouse') {
+        if (document.pointerLockElement === el || e.buttons) {
+          input.lookDX += e.movementX || 0; input.lookDY += e.movementY || 0;
+        }
+        return;
+      }
+      if (e.pointerId === joy.id) {
+        let dx = e.clientX - joy.ox, dy = e.clientY - joy.oy;
+        const l = Math.hypot(dx, dy);
+        if (l > JR) { dx *= JR / l; dy *= JR / l; }
+        joy.x = dx / JR; joy.y = -dy / JR;
+        ui && ui.joyKnob(dx, dy);
+      } else if (e.pointerId === look.id) {
+        input.lookDX += e.clientX - look.x; input.lookDY += e.clientY - look.y;
+        look.x = e.clientX; look.y = e.clientY;
+      }
+    });
+    const end = (e) => {
+      if (e.pointerType === 'mouse') { if (e.button === 0) mouseFire = false; return; }
+      if (e.pointerId === joy.id) { joy.id = null; joy.x = joy.y = 0; ui && ui.joyHide(); }
+      if (e.pointerId === look.id) look.id = null;
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    window.addEventListener('mouseup', (e) => { if (e.button === 0) mouseFire = false; });
+    window.addEventListener('blur', () => G.resetInput());
+    window.addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+      if (!e.repeat) {
+        if (e.code === 'KeyF' || e.code === 'KeyE') input.action = true;
+        if (e.code === 'KeyR') input.reload = true;
+        if (e.code === 'KeyP' || e.code === 'Escape') G.onPauseKey && G.onPauseKey();
+      }
+      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+    });
+    window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+  };
+
+  G.bindHold = function (el, onChange) {
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (!input.usingTouch && e.pointerType !== 'mouse') { input.usingTouch = true; document.body.classList.add('touch'); }
+      onChange(true);
+      try { el.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+    });
+    const up = () => onChange(false);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+  };
+  G.setFireTouch = (v) => { fireTouch = v; };
+  G.setBrakeTouch = (v) => { brakeTouch = v; };
+
+  G.readInput = function () {
+    if (joy.id !== null) {
+      input.mx = joy.x; input.my = joy.y;
+      input.sprint = Math.hypot(joy.x, joy.y) > 0.93;
+    } else {
+      const kx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+      const ky = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+      const l = Math.hypot(kx, ky) || 1;
+      input.mx = kx / l; input.my = ky / l;
+      input.sprint = !!(keys.ShiftLeft || keys.ShiftRight);
+    }
+    input.fire = mouseFire || fireTouch;
+    input.brake = brakeTouch || !!keys.Space;
+  };
+  G.clearEdges = function () { input.action = false; input.reload = false; input.lookDX = 0; input.lookDY = 0; };
+  G.resetInput = function () {
+    for (const k in keys) keys[k] = false;
+    mouseFire = fireTouch = brakeTouch = false;
+    joy.id = null; joy.x = joy.y = 0; look.id = null;
+    ui && ui.joyHide();
+    G.clearEdges();
+  };
+
+  // ---------------------------------------------------------------- audio
+  const A = (G.audio = { ctx: null, muted: G.store.get('muted', false) });
+  A.init = function () {
+    if (A.ctx) { if (A.ctx.resume) A.ctx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    let ctx;
+    try { ctx = A.ctx = new AC(); } catch (e) { return; }
+    A.master = ctx.createGain();
+    A.master.gain.value = A.muted ? 0 : 0.85;
+    A.master.connect(ctx.destination);
+    const len = ctx.sampleRate * 2;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    A.noise = buf;
+    // rain bed
+    const rain = ctx.createBufferSource(); rain.buffer = buf; rain.loop = true;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 600;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200;
+    const rg = ctx.createGain(); rg.gain.value = 0.06;
+    rain.connect(hp).connect(lp).connect(rg).connect(A.master); rain.start();
+    // low city hum
+    const hum = ctx.createOscillator(); hum.frequency.value = 46;
+    const hg = ctx.createGain(); hg.gain.value = 0.02;
+    hum.connect(hg).connect(A.master); hum.start();
+    // engine
+    A.eng = ctx.createOscillator(); A.eng.type = 'sawtooth'; A.eng.frequency.value = 40;
+    A.engF = ctx.createBiquadFilter(); A.engF.type = 'lowpass'; A.engF.frequency.value = 260;
+    A.engG = ctx.createGain(); A.engG.gain.value = 0;
+    A.eng.connect(A.engF).connect(A.engG).connect(A.master); A.eng.start();
+    // siren
+    A.sir = ctx.createOscillator(); A.sir.type = 'triangle'; A.sir.frequency.value = 700;
+    A.sirG = ctx.createGain(); A.sirG.gain.value = 0;
+    A.sir.connect(A.sirG).connect(A.master); A.sir.start();
+  };
+  A.setMuted = function (m) {
+    A.muted = m; G.store.set('muted', m);
+    if (A.master) A.master.gain.setTargetAtTime(m ? 0 : 0.85, A.ctx.currentTime, 0.05);
+  };
+  function burst(vol, f0, f1, dur, type) {
+    if (!A.ctx || A.muted || vol < 0.01) return;
+    const ctx = A.ctx, t = ctx.currentTime;
+    const s = ctx.createBufferSource(); s.buffer = A.noise;
+    const f = ctx.createBiquadFilter(); f.type = type || 'lowpass';
+    f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.6);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(f).connect(g).connect(A.master);
+    s.start(t, Math.random() * 1.2, dur + 0.05);
+  }
+  function thump(vol, f0, f1, dur) {
+    if (!A.ctx || A.muted || vol < 0.01) return;
+    const ctx = A.ctx, t = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(A.master); o.start(t); o.stop(t + dur + 0.05);
+  }
+  A.shot = (vol = 1) => { burst(0.8 * vol, 6000, 280, 0.32); thump(0.6 * vol, 150, 38, 0.2); };
+  A.thud = (vol = 1) => { burst(0.5 * vol, 900, 120, 0.25); thump(0.5 * vol, 90, 30, 0.18); };
+  A.click = () => burst(0.25, 3000, 1500, 0.05, 'highpass');
+  A.boom = () => { burst(1, 2000, 60, 1.8); thump(1, 80, 20, 1.2); };
+  A.thunder = (delay) => {
+    setTimeout(() => { burst(0.55, 500, 40, 3.2); thump(0.4, 55, 22, 2.2); }, delay * 1000);
+  };
+  A.update = function (engineOn, speed, sirenVol, time) {
+    if (!A.ctx) return;
+    const t = A.ctx.currentTime, s = Math.abs(speed);
+    A.eng.frequency.setTargetAtTime(32 + s * 3.4 + (engineOn ? 6 : 0), t, 0.08);
+    A.engF.frequency.setTargetAtTime(220 + s * 22, t, 0.1);
+    A.engG.gain.setTargetAtTime(engineOn ? 0.05 + s * 0.0015 : 0, t, 0.15);
+    A.sir.frequency.setTargetAtTime(720 + 260 * Math.sin(time * Math.PI * 1.6), t, 0.03);
+    A.sirG.gain.setTargetAtTime(sirenVol * 0.03, t, 0.2);
+  };
+})();
