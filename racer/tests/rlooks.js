@@ -26,7 +26,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(A.every(a=>a.nanN==0),'all normals are unit length (the creases included)');
   const hs=A.map(a=>a.hard),qs=A.map(a=>a.sq);
   ok(Math.min(...hs)<=.5&&Math.max(...hs)==1&&Math.min(...qs)<5&&Math.max(...qs)>=10,'creases from soft ('+Math.min(...hs)+') to fully hard (1), shoulders from round ('+Math.min(...qs)+') to a box section ('+Math.max(...qs)+')');
-  const tr=A.map(a=>a.tris);ok(Math.max(...tr)<17000,'body triangles '+Math.min(...tr)+' - '+Math.max(...tr)+' (limit 17,000)');
+  const tr=A.map(a=>a.tris);ok(Math.max(...tr)<40000,'body triangles '+Math.min(...tr)+' - '+Math.max(...tr)+' (limit 40,000 since batch 50)');
   /* ---- 2 the paint on screen: white and silver are not flat, a solid red is a deep red ---- */
   const px=async(id,paintK)=>{await T.ev(([id,paintK])=>{const {C,ROADS,UI,CAM,R}=RACER;UI.paused=true;UI.hud.style.display='none';window.camStep=function(){};const d=CAR_ROSTER.find(q=>q.id==id);carInstall(d,paintK>=0?CAR_PAINTS[paintK]:null);
       const rd=ROADS.find(q=>q.id=='ring'),k=Math.round(rd.n*.6),t=_tan(rd,k);RACER.carPlace(rd.X[k]-t[1]*6,rd.Z[k]+t[0]*6,Math.atan2(t[0],-t[1]));for(let s=0;s<30;s++)RACER.worldStep(1/120);

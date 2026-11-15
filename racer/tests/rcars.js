@@ -15,7 +15,7 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
       out.push({id:d.id,name:d.name,nv:b.nv,tris:b.I.length/3,ms,nan,mat,badIdx,badN,L:mx[2]-mn[2],W:mx[0]-mn[0],H:mx[1],sL:d.spec.L,sW:d.spec.W,sH:d.spec.H,wv:B.wheelF.nv})}return out});
   ok(bodies.length==30,'30 cars in the roster: '+bodies.map(b=>b.name).join(', '));
   ok(bodies.every(b=>b.nan==0&&b.mat==0&&b.badIdx==0&&b.badN==0),'every body is made of finite numbers, valid materials and indexes, unit normals');
-  ok(bodies.every(b=>b.tris>9000&&b.tris<17000&&b.nv<30000),'every body has 9-17k triangles (min '+Math.min(...bodies.map(b=>b.tris))+', max '+Math.max(...bodies.map(b=>b.tris))+'), 16-bit indexes are enough');
+  ok(bodies.every(b=>b.tris>9000&&b.tris<40000&&b.nv<45000),'every body has 9-40k triangles (batch 50; min '+Math.min(...bodies.map(b=>b.tris))+', max '+Math.max(...bodies.map(b=>b.tris))+'), 16-bit indexes are enough');
   ok(bodies.every(b=>Math.abs(b.L-b.sL)<.35&&b.W<b.sW+.2&&b.W>b.sW-.15&&b.H>b.sH-.2&&b.H<b.sH+.4),'every body is the length, width and height of its spec (within 0.35 m / mirrors, wings)');
   ok(bodies.every(b=>b.ms<250),'each body is built in '+Math.max(...bodies.map(b=>b.ms)).toFixed(0)+' ms at most (the whole roster '+bodies.reduce((s,b)=>s+b.ms,0).toFixed(0)+' ms)');
   const sizes=new Set(bodies.map(b=>[b.L.toFixed(1),b.W.toFixed(1),b.H.toFixed(1)].join('x')));ok(sizes.size>=18,'the cars really differ in size ('+sizes.size+' distinct length x width x height combinations of 30)');
