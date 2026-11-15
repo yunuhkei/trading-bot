@@ -2241,11 +2241,11 @@ const ENVP={
  /* inside a garage (batch 19): warm even light from the ceiling, no sky, a little haze */
  garage:{label:'GARAGE',sun:[.25,.9,.35],sunC:[1.25,1.2,1.1],ambT:[.6,.6,.64],ambB:[.24,.23,.22],hor:[.06,.06,.07],zen:[.03,.03,.035],fog:1/160,fogY:0,fogSun:0,gr:[1.12,.4,.4,.95],clA:[.2,.2,.2],clB:[.1,.1,.1],sk:[2,3,0,0],sd:[0,0,.5,0],wet:.35,night:0,shadow:.55,stu:1},
  /* a gloomy, overcast day: the sun is a pale patch behind cloud, the light comes from the whole sky, the horizon is thick grey haze, the road is wet */
- overcast:{label:'OVERCAST',sun:[-.42,.66,-.62],sunC:[.82,.84,.88],ambT:[.50,.55,.64],ambB:[.19,.19,.20],hor:[.46,.50,.55],zen:[.20,.24,.31],fog:1/1150,fogY:.0010,fogSun:.12,gr:[.72,1,.30,1],clA:[.60,.63,.68],clB:[.27,.29,.34],sk:[.34,.72,.12,.62],sd:[1,0,.5,.55],wet:.85,night:.27,shadow:.5},
+ overcast:{label:'OVERCAST',sun:[-.42,.66,-.62],sunC:[.82,.84,.88],ambT:[.50,.55,.64],ambB:[.19,.19,.20],hor:[.46,.50,.55],zen:[.20,.24,.31],fog:1/1700,fogY:.0010,fogSun:.12,gr:[.72,1,.30,1],clA:[.60,.63,.68],clB:[.27,.29,.34],sk:[.34,.72,.12,.62],sd:[1,0,.5,.55],wet:.85,night:.27,shadow:.5},
  /* golden hour: the sun low and orange, long shadows, a glowing haze, a wet road that mirrors it */
  /* (batch 42) night: a faint blue moon for the only directional light, a violet horizon glow, stars, lit windows, and everything that glows (street lamps, head lights, tail lights, neon) at full strength on a wet road */
- night:{label:'NIGHT',sun:[.35,.5,-.8],sunC:[.20,.26,.44],ambT:[.05,.065,.13],ambB:[.022,.024,.04],hor:[.09,.10,.20],zen:[.004,.007,.02],fog:1/1500,fogY:.001,fogSun:0,gr:[1.15,.9,.45,1.4],clA:[.05,.06,.10],clB:[.022,.026,.05],sk:[.5,.82,0,.1],sd:[0,16,.4,0],wet:.8,night:.92,shadow:.18,stu:2},
- sunset:{label:'SUNSET',sun:[-.80,.16,-.58],sunC:[3.4,1.75,.72],ambT:[.34,.30,.44],ambB:[.15,.10,.08],hor:[1.0,.60,.34],zen:[.16,.19,.42],fog:1/1700,fogY:.0009,fogSun:1.0,gr:[1.1,1.4,.34,1],clA:[1.25,.72,.42],clB:[.34,.27,.40],sk:[.46,.76,0,.18],sd:[1.3,1.6,.45,.5],wet:.5,night:.45,shadow:.9}};
+ night:{label:'NIGHT',sun:[.35,.5,-.8],sunC:[.20,.26,.44],ambT:[.05,.065,.13],ambB:[.022,.024,.04],hor:[.09,.10,.20],zen:[.004,.007,.02],fog:1/2100,fogY:.001,fogSun:0,gr:[1.15,.9,.45,1.4],clA:[.05,.06,.10],clB:[.022,.026,.05],sk:[.5,.82,0,.1],sd:[0,16,.4,0],wet:.8,night:.92,shadow:.18,stu:2},
+ sunset:{label:'SUNSET',sun:[-.80,.16,-.58],sunC:[3.4,1.75,.72],ambT:[.34,.30,.44],ambB:[.15,.10,.08],hor:[1.0,.60,.34],zen:[.16,.19,.42],fog:1/2400,fogY:.0009,fogSun:1.0,gr:[1.1,1.4,.34,1],clA:[1.25,.72,.42],clB:[.34,.27,.40],sk:[.46,.76,0,.18],sd:[1.3,1.6,.45,.5],wet:.5,night:.45,shadow:.9}};
 const ENV={sun:new Float32Array(3),sunC:new Float32Array(3),ambT:new Float32Array(3),ambB:new Float32Array(3),hor:new Float32Array(3),zen:new Float32Array(3),clA:new Float32Array(3),clB:new Float32Array(3),gr:new Float32Array(4),sk:new Float32Array(4),sd:new Float32Array(4),fog:0,fogY:0,fogSun:0,wet:0,night:0,shadow:.5,stu:0,name:''};
 const ENV_NAMES=['day','overcast','sunset','night'];
 function envApply(name){const p=ENVP[name]||ENVP.day;ENV.name=ENVP[name]?name:'day';
@@ -2455,7 +2455,7 @@ function gfxSetTier(t,force){
   const pd={};if(T.blur)pd.BLUR=T.bloom?9:4;if(T.bloom)pd.BLOOM=1;if(T.hi)pd.LENS=1;G.P.postv=gfxProg2('post',POSTV,POSTF,['aP'],pd);
   if(T.bloom&&!G.P.bright){G.P.bright=gfxProg2('bright',POSTV,BRF,['aP']);G.P.blur=gfxProg2('blur',POSTV,BLF,['aP'])}
   if(t==2)buildDetailProps();   /* the High-only detail is built the first time it is needed */
-  const lo=t==0;R.drawProp=t==2?[640,1250,480,300,150,520]:[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw),0,0,0];   /* [furniture, buildings, trees, detail]: High has no triangle cap (batch 45), the detail category only draws there, Low and Medium stay light so the governor has somewhere to fall back to */R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
+  const lo=t==0;R.drawProp=t==2?[950,2400,900,380,190,700]:[Math.round((lo?440:680)*T.draw),Math.round((lo?1050:1700)*T.draw),Math.round((lo?330:560)*T.draw),0,0,0];   /* (batch 53) further on every tier (trees popped in at 480 m on High) */   /* [furniture, buildings, trees, detail]: High has no triangle cap (batch 45), the detail category only draws there, Low and Medium stay light so the governor has somewhere to fall back to */R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
   if(!GFX.fixed){Q.min=T.scMin;Q.max=T.scMax;Q.scale=Math.max(Q.min,Math.min(Q.max,Q.scale))}
   if(typeof trSetMul=='function')trSetMul(T.traf);
   GFX.since=0;Q.apply();GFX.note={t:performance.now(),txt:'GRAPHICS '+T.name.toUpperCase()+(GFX.mode=='auto'?' (AUTO)':'')}}   /* (batch 46) Auto now starts on High and steps down when the phone is slow; the tier shows on screen for a few seconds after each change */
@@ -4842,11 +4842,19 @@ function navFx(quad,sprite,time){
     for(let k=0;k<4;k++){const a=k/4*TAU-time*.5,r=3.6+.5*Math.sin(time*4),ux=Math.cos(a),uz=Math.sin(a),rx=-uz,rz=ux;quad(x+ux*(r-1.5),y,z+uz*(r-1.5),x+ux*r+rx*.9,y,z+uz*r+rz*.9,x+ux*(r-.5),y,z+uz*(r-.5),x+ux*r-rx*.9,y,z+uz*r-rz*.9,1,1,1,.9*al)}}
     /* (batch 53) WHERE TO GO: the whole race route is painted on the road for 700 m ahead (a wide green band) with big chevrons running along it, bright and closer together before a turn */
     {const r=EV.run;if(r&&r.t>=0&&r.ev.R&&r.ev.type!='escape'){const Rt=r.ev.R,p=Rt.pts,n=Rt.n,i0=Math.max(0,(r.fi|0)-1),maxS=Rt.S[i0]+450;let nq=0;
-      for(let i=i0;i<n-1&&Rt.S[i]<maxS&&nq<70;i++,nq++){const x0=p[i*3],y0=p[i*3+1]+.12,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.12,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*1.5,nz=dx/l*1.5,fd=Math.min(1,(maxS-Rt.S[i])/200);
-        quad(x0-nx,y0,z0-nz,x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz,.25,1,.45,.5*fd)}
+      for(let i=i0;i<n-1&&Rt.S[i]<maxS&&nq<70;i++,nq++){const x0=p[i*3],y0=p[i*3+1]+.12,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.12,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*2.2,nz=dx/l*2.2,fd=Math.min(1,(maxS-Rt.S[i])/200);
+        quad(x0-nx,y0,z0-nz,x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz,.2,1,.4,.62*fd)}
       /* chevrons: one every 14 m, sliding forwards */
-      const s0=Rt.S[i0],ph=(EV.t*26)%14;let k=i0;for(let sc=s0+4+ph;sc<s0+300;sc+=14){while(k<n-2&&Rt.S[k+1]<sc)k++;if(k>=n-2)break;const t=(sc-Rt.S[k])/Math.max(.01,Rt.S[k+1]-Rt.S[k]),x=lerp(p[k*3],p[k*3+3],t),y=lerp(p[k*3+1],p[k*3+4],t)+.16,z=lerp(p[k*3+2],p[k*3+5],t),dx=p[k*3+3]-p[k*3],dz=p[k*3+5]-p[k*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,rx=-uz,rz=ux,w=2.3,al=.9*Math.min(1,(s0+300-sc)/100);
-        for(const sd of[-1,1])quad(x+ux*3.2,y,z+uz*3.2,x+ux*1.2,y,z+uz*1.2,x-ux*2.4+rx*w*sd,y,z-uz*2.4+rz*w*sd,x-ux*.4+rx*w*sd,y,z-uz*.4+rz*w*sd,1,.95,.35,al)}}}
+      const s0=Rt.S[i0],ph=(EV.t*30)%12;let k=i0;for(let sc=s0+4+ph;sc<s0+340;sc+=12){while(k<n-2&&Rt.S[k+1]<sc)k++;if(k>=n-2)break;const t=(sc-Rt.S[k])/Math.max(.01,Rt.S[k+1]-Rt.S[k]),x=lerp(p[k*3],p[k*3+3],t),y=lerp(p[k*3+1],p[k*3+4],t)+.16,z=lerp(p[k*3+2],p[k*3+5],t),dx=p[k*3+3]-p[k*3],dz=p[k*3+5]-p[k*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,rx=-uz,rz=ux,w=3,al=1*Math.min(1,(s0+340-sc)/100);
+        for(const sd of[-1,1])quad(x+ux*3.2,y,z+uz*3.2,x+ux*1.2,y,z+uz*1.2,x-ux*2.4+rx*w*sd,y,z-uz*2.4+rz*w*sd,x-ux*.4+rx*w*sd,y,z-uz*.4+rz*w*sd,1,.95,.35,al)}}
+      /* (batch 53) TURN BOARDS: before every bend of the route, a row of big glowing chevron signs stands on the outside of the turn, pointing the way, like a race track */
+      {const r=EV.run;if(r&&r.t>=0&&r.ev.R&&r.ev.type!='escape'){const Rt=r.ev.R,p=Rt.pts,n=Rt.n,i0=Math.max(0,(r.fi|0)-1),s0=Rt.S[i0];let k2=i0;const hdA=(q)=>{let a=k2;while(a<n-2&&Rt.S[a]<q)a++;return a};let lastB=-99;
+        for(let sc=s0+30;sc<s0+380;sc+=8){const a=hdA(sc-12),b=hdA(sc),c2=hdA(sc+12);if(a==b||b==c2)continue;const h1=Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2])),h2=Math.atan2(p[c2*3]-p[b*3],-(p[c2*3+2]-p[b*3+2])),th=angd(h2,h1);
+          if(Math.abs(th)<.28||sc-lastB<60)continue;lastB=sc;const sg=Math.sign(th),fx=Math.sin(h1),fz=-Math.cos(h1),rx=-fz,rz=fx,gx=p[b*3]-rx*sg*9,gz=p[b*3+2]-rz*sg*9,gy=p[b*3+1];
+          for(let m=-2;m<=2;m++){const bx=gx+fx*m*3.2,bz=gz+fz*m*3.2,yb=gy+1.2,yt=gy+3.6,hw=.9,pk=sg*.9,al=.95;
+            /* two slanted bars: < or > seen from the road */
+            quad(bx-fx*hw,yt,bz-fz*hw,bx+fx*hw,yt,bz+fz*hw,bx+fx*hw+rx*pk,(yt+yb)/2,bz+fz*hw+rz*pk,bx-fx*hw+rx*pk,(yt+yb)/2,bz-fz*hw+rz*pk,1,.85,.15,al);
+            quad(bx-fx*hw+rx*pk,(yt+yb)/2,bz-fz*hw+rz*pk,bx+fx*hw+rx*pk,(yt+yb)/2,bz+fz*hw+rz*pk,bx+fx*hw,yb,bz+fz*hw,bx-fx*hw,yb,bz-fz*hw,1,.85,.15,al)}}}}}
   if(!NAV.wp||!NAV.route||(EV.run&&EV.run.ev.R&&EV.run.ev.type!='escape'))return 0;   /* in a race the race route above is the guide */const R=NAV.route,p=R.pts,n=R.n,start=Math.max(0,NAV.prog-1);let drawn=0;const maxS=R.S[start]+420;
   for(let i=start;i<n-1&&R.S[i]<maxS&&drawn<130;i++){
     const x0=p[i*3],y0=p[i*3+1]+.1,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.1,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*.8,nz=dx/l*.8;
@@ -4862,7 +4870,7 @@ function navHud(c,W_,H_,u){
   if(!NAV.wp)return;const w=NAV.wp,dx=w.x-C.x,dz=w.z-C.z,rel=angd(Math.atan2(dx,-dz),C.camYaw),km=fmtLen(NAV.remain),m=NAV.man;
   c.save();
   /* the turn card, top centre: a big arrow, the distance to the turn, and the distance left */
-  if(!UI.paused&&!MENU.open&&!EV.card&&!EV.run){const cw=u*3.1,ch=u*.9,cx=W_*.5-cw/2,cy=u*.3;c.fillStyle='rgba(8,18,30,.78)';rr(c,cx,cy,cw,ch,u*.16);c.fill();c.strokeStyle='rgba(60,210,255,.75)';c.lineWidth=1.5;c.stroke();
+  if(!UI.paused&&!MENU.open&&!EV.card&&!EV.run){const cw=u*3.1,ch=u*.9,cx=W_*.5-cw/2,cy=u*.3;   /* (batch 53) in an event the turn card sits at the bottom centre, under the timer's space */c.fillStyle='rgba(8,18,30,.78)';rr(c,cx,cy,cw,ch,u*.16);c.fill();c.strokeStyle='rgba(60,210,255,.75)';c.lineWidth=1.5;c.stroke();
     const ax=cx+u*.5,ay=cy+ch/2;c.save();c.translate(ax,ay);c.strokeStyle='#7fe3ff';c.fillStyle='#7fe3ff';c.lineWidth=u*.1;c.lineCap='round';c.lineJoin='round';
     if(m&&m.kind!=='end'){const a=m.kind=='uturn'?Math.PI:m.ang;c.beginPath();c.moveTo(0,u*.28);c.lineTo(0,-u*.02);c.stroke();c.save();c.translate(0,-u*.02);c.rotate(a);c.beginPath();c.moveTo(0,-u*.3);c.lineTo(u*.2,-u*.04);c.lineTo(-u*.2,-u*.04);c.closePath();c.fill();c.beginPath();c.moveTo(0,-u*.06);c.lineTo(0,u*.02);c.stroke();c.restore()}
     else{c.beginPath();c.moveTo(-u*.14,u*.26);c.lineTo(-u*.14,-u*.26);c.lineTo(u*.22,-u*.14);c.lineTo(-u*.14,-u*.02);c.stroke()}
@@ -5345,6 +5353,8 @@ function racerStep(c,dt){
     /* traffic in the way: overtake on the free side */
     const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),look=Math.max(40,v*1.6),lat2=(o,dx,dz)=>{const ovx=Math.sin(o.yaw)*o.v,ovz=-Math.cos(o.yaw)*o.v,lt=dx*-cy+dz*sy,lv=ovx*-cy+ovz*sy;return[lt,lt+lv*.9]},   /* where it is across our path now and in 0.9 s (a car changing lanes) */
       inLane=(o,off)=>{const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<2||f>look)return -1;const L=lat2(o,dx,dz),q=off-R.off;return Math.min(Math.abs(L[0]-q),Math.abs(L[1]-q),(L[0]-q)*(L[1]-q)<0?0:9)<2.6?f:-1};   /* L is measured from this car; off is from the route centre, where this car is R.off */
+    /* (batch 53) a civilian car in a racer's way that you cannot see (more than 140 m from you) simply turns off the road: racers no longer queue behind traffic out of your sight */
+    for(const o of TR.cars){if(!o.alive||o===c||o.kind!=0||o.state!=0)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<0||f>70)continue;if(Math.abs(dx*-cy+dz*sy-0)>9)continue;if(Math.hypot(o.x-C.x,o.z-C.z)>140)trKill(o,0)}
     let block=null,bdist=1e9;for(const o of TR.cars){if(!o.alive||o===c)continue;const f=inLane(o,R.off);if(f>0&&f<bdist){bdist=f;block=o}}
     /* a car ahead that is turning or changing lanes (not going our way): be ready to stop behind it */
     for(const o of TR.cars){if(!o.alive||o===c||o.kind==2)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<3||f>look)continue;const lt=dx*-cy+dz*sy;if(Math.abs(lt)>7)continue;if(Math.abs(angd(o.yaw,c.yaw))>.12)vt=Math.min(vt,Math.max(o.v*Math.cos(angd(o.yaw,c.yaw)),0)+Math.max(0,f-12)*.5)}
@@ -5373,14 +5383,14 @@ function racerCarNear(want,used){let b=null;for(const p of RACER_POOL){if(used&&
 function racerSkillFor(pc,sk,nitro){const r=pc.def.real,vm=1+(r.top/308-1)*.75,gr=Math.pow(r.lat/1.05,.9),ac=Math.pow(3.7/r.t100,.8),br=Math.pow(34/r.brk,.9);
   return{grip:15*gr*sk,vmax:r.top/3.6*sk,acc:12*ac*sk,brk:19*br,type:pc.type,col:pc.col,car:pc.id,nitro:nitro?1:0}}
 const racerMyTop=()=>{const d=CAR_ROSTER[CARSEL.cur];return d?(typeof upgReal=='function'?upgReal(d).top:d.real.top):300};
-let _rUsed=null;const racerSkill=(k,n,hard)=>{if(k==0)_rUsed=new Set();const pc=racerCarNear(racerMyTop()*(hard?1.07:1.03)*(1-.032*k),_rUsed);return racerSkillFor(pc,(hard?.99:.965)-.022*k,1)};
+let _rUsed=null;const racerSkill=(k,n,hard)=>{if(k==0)_rUsed=new Set();const pc=racerCarNear(racerMyTop()*(hard?1.07:1.03)*(1-.032*k),_rUsed);return racerSkillFor(pc,(hard?1:.99)-.018*k,1)};   /* (batch 53) they drive their cars almost flat out */
 /* the field for an event: n racers on the grid behind the start line, two abreast */
 function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m along the route); the racers: beside you on the left, then two by two behind */const G=[[24,-3.4],[15,3.4],[15,-3.4],[6,3.4],[6,-3.4],[0,0]];const out=[];for(let k=0;k<n;k++){const c=racerSpawn(Rt,G[k][0],G[k][1],k,racerSkill(k,n,aggr),1);   /* (batch 53) every racer tries to take you down, in every mode */if(c)out.push(c)}return out}
 /* (batch 27) TAKEDOWN: the pack sets off 70-300 m ahead of you, two abreast, a little slower than race racers (top 50-60 m/s), not ramming */
 /* (batch 53) TAKEDOWN waves: three racers, each a different playable car a little slower than yours, already rolling S0 metres along the route (ahead of you); when you have wrecked or passed them the next three appear further on */
 let _pkUsed=new Set();
 function racerPack(Rt,n,S0,wave){const out=[];if(!wave)_pkUsed=new Set();if(_pkUsed.size>RACER_POOL.length-n)_pkUsed=new Set();
-  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.86-.03*k,0),1);if(c)out.push(c)}return out}
+  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.93-.03*k,1),1);if(c)out.push(c)}return out}
 /* (batch 53) a racer that has crashed in a plain race is back on the road after 2.2 s (further on, on a clear spot), not out for the rest of the race; takedowns and death races keep their wrecks */
 function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death')||R.done>=0||!R.go)return false;c.recT=(c.recT||0)+dt;
   if(c.recT>(ev.type=='death'?3.5:2.2)&&racerRespot(c)){c.recT=0;R.catchT=12;c.state=3;c.kind=2;c.dmg=Math.min(c.dmg||0,.45);c.rev=0;c.stk=0;c.hn=0;return true}return false}

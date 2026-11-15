@@ -72,7 +72,7 @@ function gfxSetTier(t,force){
   const pd={};if(T.blur)pd.BLUR=T.bloom?9:4;if(T.bloom)pd.BLOOM=1;if(T.hi)pd.LENS=1;G.P.postv=gfxProg2('post',POSTV,POSTF,['aP'],pd);
   if(T.bloom&&!G.P.bright){G.P.bright=gfxProg2('bright',POSTV,BRF,['aP']);G.P.blur=gfxProg2('blur',POSTV,BLF,['aP'])}
   if(t==2)buildDetailProps();   /* the High-only detail is built the first time it is needed */
-  const lo=t==0;R.drawProp=t==2?[640,1250,480,300,150,520]:[Math.round((lo?380:560)*T.draw),Math.round((lo?800:1250)*T.draw),Math.round((lo?260:420)*T.draw),0,0,0];   /* [furniture, buildings, trees, detail]: High has no triangle cap (batch 45), the detail category only draws there, Low and Medium stay light so the governor has somewhere to fall back to */R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
+  const lo=t==0;R.drawProp=t==2?[950,2400,900,380,190,700]:[Math.round((lo?440:680)*T.draw),Math.round((lo?1050:1700)*T.draw),Math.round((lo?330:560)*T.draw),0,0,0];   /* (batch 53) further on every tier (trees popped in at 480 m on High) */   /* [furniture, buildings, trees, detail]: High has no triangle cap (batch 45), the detail category only draws there, Low and Medium stay light so the governor has somewhere to fall back to */R.drawRoad=Math.round(1900*T.draw);R.roadLod=lo?90:130;
   if(!GFX.fixed){Q.min=T.scMin;Q.max=T.scMax;Q.scale=Math.max(Q.min,Math.min(Q.max,Q.scale))}
   if(typeof trSetMul=='function')trSetMul(T.traf);
   GFX.since=0;Q.apply();GFX.note={t:performance.now(),txt:'GRAPHICS '+T.name.toUpperCase()+(GFX.mode=='auto'?' (AUTO)':'')}}   /* (batch 46) Auto now starts on High and steps down when the phone is slow; the tier shows on screen for a few seconds after each change */

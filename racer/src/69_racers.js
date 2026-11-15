@@ -40,6 +40,8 @@ function racerStep(c,dt){
     /* traffic in the way: overtake on the free side */
     const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),look=Math.max(40,v*1.6),lat2=(o,dx,dz)=>{const ovx=Math.sin(o.yaw)*o.v,ovz=-Math.cos(o.yaw)*o.v,lt=dx*-cy+dz*sy,lv=ovx*-cy+ovz*sy;return[lt,lt+lv*.9]},   /* where it is across our path now and in 0.9 s (a car changing lanes) */
       inLane=(o,off)=>{const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<2||f>look)return -1;const L=lat2(o,dx,dz),q=off-R.off;return Math.min(Math.abs(L[0]-q),Math.abs(L[1]-q),(L[0]-q)*(L[1]-q)<0?0:9)<2.6?f:-1};   /* L is measured from this car; off is from the route centre, where this car is R.off */
+    /* (batch 53) a civilian car in a racer's way that you cannot see (more than 140 m from you) simply turns off the road: racers no longer queue behind traffic out of your sight */
+    for(const o of TR.cars){if(!o.alive||o===c||o.kind!=0||o.state!=0)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<0||f>70)continue;if(Math.abs(dx*-cy+dz*sy-0)>9)continue;if(Math.hypot(o.x-C.x,o.z-C.z)>140)trKill(o,0)}
     let block=null,bdist=1e9;for(const o of TR.cars){if(!o.alive||o===c)continue;const f=inLane(o,R.off);if(f>0&&f<bdist){bdist=f;block=o}}
     /* a car ahead that is turning or changing lanes (not going our way): be ready to stop behind it */
     for(const o of TR.cars){if(!o.alive||o===c||o.kind==2)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<3||f>look)continue;const lt=dx*-cy+dz*sy;if(Math.abs(lt)>7)continue;if(Math.abs(angd(o.yaw,c.yaw))>.12)vt=Math.min(vt,Math.max(o.v*Math.cos(angd(o.yaw,c.yaw)),0)+Math.max(0,f-12)*.5)}
@@ -68,14 +70,14 @@ function racerCarNear(want,used){let b=null;for(const p of RACER_POOL){if(used&&
 function racerSkillFor(pc,sk,nitro){const r=pc.def.real,vm=1+(r.top/308-1)*.75,gr=Math.pow(r.lat/1.05,.9),ac=Math.pow(3.7/r.t100,.8),br=Math.pow(34/r.brk,.9);
   return{grip:15*gr*sk,vmax:r.top/3.6*sk,acc:12*ac*sk,brk:19*br,type:pc.type,col:pc.col,car:pc.id,nitro:nitro?1:0}}
 const racerMyTop=()=>{const d=CAR_ROSTER[CARSEL.cur];return d?(typeof upgReal=='function'?upgReal(d).top:d.real.top):300};
-let _rUsed=null;const racerSkill=(k,n,hard)=>{if(k==0)_rUsed=new Set();const pc=racerCarNear(racerMyTop()*(hard?1.07:1.03)*(1-.032*k),_rUsed);return racerSkillFor(pc,(hard?.99:.965)-.022*k,1)};
+let _rUsed=null;const racerSkill=(k,n,hard)=>{if(k==0)_rUsed=new Set();const pc=racerCarNear(racerMyTop()*(hard?1.07:1.03)*(1-.032*k),_rUsed);return racerSkillFor(pc,(hard?1:.99)-.018*k,1)};   /* (batch 53) they drive their cars almost flat out */
 /* the field for an event: n racers on the grid behind the start line, two abreast */
 function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m along the route); the racers: beside you on the left, then two by two behind */const G=[[24,-3.4],[15,3.4],[15,-3.4],[6,3.4],[6,-3.4],[0,0]];const out=[];for(let k=0;k<n;k++){const c=racerSpawn(Rt,G[k][0],G[k][1],k,racerSkill(k,n,aggr),1);   /* (batch 53) every racer tries to take you down, in every mode */if(c)out.push(c)}return out}
 /* (batch 27) TAKEDOWN: the pack sets off 70-300 m ahead of you, two abreast, a little slower than race racers (top 50-60 m/s), not ramming */
 /* (batch 53) TAKEDOWN waves: three racers, each a different playable car a little slower than yours, already rolling S0 metres along the route (ahead of you); when you have wrecked or passed them the next three appear further on */
 let _pkUsed=new Set();
 function racerPack(Rt,n,S0,wave){const out=[];if(!wave)_pkUsed=new Set();if(_pkUsed.size>RACER_POOL.length-n)_pkUsed=new Set();
-  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.86-.03*k,0),1);if(c)out.push(c)}return out}
+  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.93-.03*k,1),1);if(c)out.push(c)}return out}
 /* (batch 53) a racer that has crashed in a plain race is back on the road after 2.2 s (further on, on a clear spot), not out for the rest of the race; takedowns and death races keep their wrecks */
 function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death')||R.done>=0||!R.go)return false;c.recT=(c.recT||0)+dt;
   if(c.recT>(ev.type=='death'?3.5:2.2)&&racerRespot(c)){c.recT=0;R.catchT=12;c.state=3;c.kind=2;c.dmg=Math.min(c.dmg||0,.45);c.rev=0;c.stk=0;c.hn=0;return true}return false}

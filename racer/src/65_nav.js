@@ -79,11 +79,19 @@ function navFx(quad,sprite,time){
     for(let k=0;k<4;k++){const a=k/4*TAU-time*.5,r=3.6+.5*Math.sin(time*4),ux=Math.cos(a),uz=Math.sin(a),rx=-uz,rz=ux;quad(x+ux*(r-1.5),y,z+uz*(r-1.5),x+ux*r+rx*.9,y,z+uz*r+rz*.9,x+ux*(r-.5),y,z+uz*(r-.5),x+ux*r-rx*.9,y,z+uz*r-rz*.9,1,1,1,.9*al)}}
     /* (batch 53) WHERE TO GO: the whole race route is painted on the road for 700 m ahead (a wide green band) with big chevrons running along it, bright and closer together before a turn */
     {const r=EV.run;if(r&&r.t>=0&&r.ev.R&&r.ev.type!='escape'){const Rt=r.ev.R,p=Rt.pts,n=Rt.n,i0=Math.max(0,(r.fi|0)-1),maxS=Rt.S[i0]+450;let nq=0;
-      for(let i=i0;i<n-1&&Rt.S[i]<maxS&&nq<70;i++,nq++){const x0=p[i*3],y0=p[i*3+1]+.12,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.12,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*1.5,nz=dx/l*1.5,fd=Math.min(1,(maxS-Rt.S[i])/200);
-        quad(x0-nx,y0,z0-nz,x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz,.25,1,.45,.5*fd)}
+      for(let i=i0;i<n-1&&Rt.S[i]<maxS&&nq<70;i++,nq++){const x0=p[i*3],y0=p[i*3+1]+.12,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.12,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*2.2,nz=dx/l*2.2,fd=Math.min(1,(maxS-Rt.S[i])/200);
+        quad(x0-nx,y0,z0-nz,x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz,.2,1,.4,.62*fd)}
       /* chevrons: one every 14 m, sliding forwards */
-      const s0=Rt.S[i0],ph=(EV.t*26)%14;let k=i0;for(let sc=s0+4+ph;sc<s0+300;sc+=14){while(k<n-2&&Rt.S[k+1]<sc)k++;if(k>=n-2)break;const t=(sc-Rt.S[k])/Math.max(.01,Rt.S[k+1]-Rt.S[k]),x=lerp(p[k*3],p[k*3+3],t),y=lerp(p[k*3+1],p[k*3+4],t)+.16,z=lerp(p[k*3+2],p[k*3+5],t),dx=p[k*3+3]-p[k*3],dz=p[k*3+5]-p[k*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,rx=-uz,rz=ux,w=2.3,al=.9*Math.min(1,(s0+300-sc)/100);
-        for(const sd of[-1,1])quad(x+ux*3.2,y,z+uz*3.2,x+ux*1.2,y,z+uz*1.2,x-ux*2.4+rx*w*sd,y,z-uz*2.4+rz*w*sd,x-ux*.4+rx*w*sd,y,z-uz*.4+rz*w*sd,1,.95,.35,al)}}}
+      const s0=Rt.S[i0],ph=(EV.t*30)%12;let k=i0;for(let sc=s0+4+ph;sc<s0+340;sc+=12){while(k<n-2&&Rt.S[k+1]<sc)k++;if(k>=n-2)break;const t=(sc-Rt.S[k])/Math.max(.01,Rt.S[k+1]-Rt.S[k]),x=lerp(p[k*3],p[k*3+3],t),y=lerp(p[k*3+1],p[k*3+4],t)+.16,z=lerp(p[k*3+2],p[k*3+5],t),dx=p[k*3+3]-p[k*3],dz=p[k*3+5]-p[k*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,rx=-uz,rz=ux,w=3,al=1*Math.min(1,(s0+340-sc)/100);
+        for(const sd of[-1,1])quad(x+ux*3.2,y,z+uz*3.2,x+ux*1.2,y,z+uz*1.2,x-ux*2.4+rx*w*sd,y,z-uz*2.4+rz*w*sd,x-ux*.4+rx*w*sd,y,z-uz*.4+rz*w*sd,1,.95,.35,al)}}
+      /* (batch 53) TURN BOARDS: before every bend of the route, a row of big glowing chevron signs stands on the outside of the turn, pointing the way, like a race track */
+      {const r=EV.run;if(r&&r.t>=0&&r.ev.R&&r.ev.type!='escape'){const Rt=r.ev.R,p=Rt.pts,n=Rt.n,i0=Math.max(0,(r.fi|0)-1),s0=Rt.S[i0];let k2=i0;const hdA=(q)=>{let a=k2;while(a<n-2&&Rt.S[a]<q)a++;return a};let lastB=-99;
+        for(let sc=s0+30;sc<s0+380;sc+=8){const a=hdA(sc-12),b=hdA(sc),c2=hdA(sc+12);if(a==b||b==c2)continue;const h1=Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2])),h2=Math.atan2(p[c2*3]-p[b*3],-(p[c2*3+2]-p[b*3+2])),th=angd(h2,h1);
+          if(Math.abs(th)<.28||sc-lastB<60)continue;lastB=sc;const sg=Math.sign(th),fx=Math.sin(h1),fz=-Math.cos(h1),rx=-fz,rz=fx,gx=p[b*3]-rx*sg*9,gz=p[b*3+2]-rz*sg*9,gy=p[b*3+1];
+          for(let m=-2;m<=2;m++){const bx=gx+fx*m*3.2,bz=gz+fz*m*3.2,yb=gy+1.2,yt=gy+3.6,hw=.9,pk=sg*.9,al=.95;
+            /* two slanted bars: < or > seen from the road */
+            quad(bx-fx*hw,yt,bz-fz*hw,bx+fx*hw,yt,bz+fz*hw,bx+fx*hw+rx*pk,(yt+yb)/2,bz+fz*hw+rz*pk,bx-fx*hw+rx*pk,(yt+yb)/2,bz-fz*hw+rz*pk,1,.85,.15,al);
+            quad(bx-fx*hw+rx*pk,(yt+yb)/2,bz-fz*hw+rz*pk,bx+fx*hw+rx*pk,(yt+yb)/2,bz+fz*hw+rz*pk,bx+fx*hw,yb,bz+fz*hw,bx-fx*hw,yb,bz-fz*hw,1,.85,.15,al)}}}}}
   if(!NAV.wp||!NAV.route||(EV.run&&EV.run.ev.R&&EV.run.ev.type!='escape'))return 0;   /* in a race the race route above is the guide */const R=NAV.route,p=R.pts,n=R.n,start=Math.max(0,NAV.prog-1);let drawn=0;const maxS=R.S[start]+420;
   for(let i=start;i<n-1&&R.S[i]<maxS&&drawn<130;i++){
     const x0=p[i*3],y0=p[i*3+1]+.1,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.1,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*.8,nz=dx/l*.8;
@@ -99,7 +107,7 @@ function navHud(c,W_,H_,u){
   if(!NAV.wp)return;const w=NAV.wp,dx=w.x-C.x,dz=w.z-C.z,rel=angd(Math.atan2(dx,-dz),C.camYaw),km=fmtLen(NAV.remain),m=NAV.man;
   c.save();
   /* the turn card, top centre: a big arrow, the distance to the turn, and the distance left */
-  if(!UI.paused&&!MENU.open&&!EV.card&&!EV.run){const cw=u*3.1,ch=u*.9,cx=W_*.5-cw/2,cy=u*.3;c.fillStyle='rgba(8,18,30,.78)';rr(c,cx,cy,cw,ch,u*.16);c.fill();c.strokeStyle='rgba(60,210,255,.75)';c.lineWidth=1.5;c.stroke();
+  if(!UI.paused&&!MENU.open&&!EV.card&&!EV.run){const cw=u*3.1,ch=u*.9,cx=W_*.5-cw/2,cy=u*.3;   /* (batch 53) in an event the turn card sits at the bottom centre, under the timer's space */c.fillStyle='rgba(8,18,30,.78)';rr(c,cx,cy,cw,ch,u*.16);c.fill();c.strokeStyle='rgba(60,210,255,.75)';c.lineWidth=1.5;c.stroke();
     const ax=cx+u*.5,ay=cy+ch/2;c.save();c.translate(ax,ay);c.strokeStyle='#7fe3ff';c.fillStyle='#7fe3ff';c.lineWidth=u*.1;c.lineCap='round';c.lineJoin='round';
     if(m&&m.kind!=='end'){const a=m.kind=='uturn'?Math.PI:m.ang;c.beginPath();c.moveTo(0,u*.28);c.lineTo(0,-u*.02);c.stroke();c.save();c.translate(0,-u*.02);c.rotate(a);c.beginPath();c.moveTo(0,-u*.3);c.lineTo(u*.2,-u*.04);c.lineTo(-u*.2,-u*.04);c.closePath();c.fill();c.beginPath();c.moveTo(0,-u*.06);c.lineTo(0,u*.02);c.stroke();c.restore()}
     else{c.beginPath();c.moveTo(-u*.14,u*.26);c.lineTo(-u*.14,-u*.26);c.lineTo(u*.22,-u*.14);c.lineTo(-u*.14,-u*.02);c.stroke()}
