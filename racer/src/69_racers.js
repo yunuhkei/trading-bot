@@ -61,11 +61,11 @@ function racerStep(c,dt){
     /* a death racer goes for you when you are close */
     if(R.aggr&&EV.run&&!TUM.on){R.ramCd-=dt;const dpx=C.x-c.x,dpz=C.z-c.z,dp=Math.hypot(dpx,dpz);if(EV.run.ev&&EV.run.ev.type=='death'&&(dpx*sy+dpz*cy)<-6&&dp<110)vt=Math.min(vt,Math.max(C.speed*1.04,26));   /* (batch 53) a death racer stays in reach of you instead of running away from you: it is a fight */
       /* (batch 53) THE FIGHT: within 75 m it comes for you: from behind it aims at your rear corner (a PIT), alongside it swings into your door, then it backs off a second and comes again */
-      if(dp<75&&R.ramCd<=0&&(dpx*sy+dpz*cy)>(EV.run.ev&&EV.run.ev.type=='death'?-28:-6)){const lt=dpx*-cy+dpz*sy,side=Math.sign(lt||1),fwd=dpx*sy+dpz*cy,cvx=C.vx,cvz=C.vz,cs=Math.hypot(cvx,cvz)||1,lead=Math.min(.6,dp/Math.max(8,v));
+      if(dp<75&&R.ramCd<=0&&C.speed>15&&!(c.spinT>0)&&(dpx*sy+dpz*cy)>(EV.run.ev&&EV.run.ev.type=='death'?-28:-6)){   /* (only a moving target: a racer does not park itself against you when you have stopped) */const lt=dpx*-cy+dpz*sy,side=Math.sign(lt||1),fwd=dpx*sy+dpz*cy,cvx=C.vx,cvz=C.vz,cs=Math.hypot(cvx,cvz)||1,lead=Math.min(.6,dp/Math.max(8,v));
         let ax=C.x+cvx*lead,az=C.z+cvz*lead;if(fwd>2){ax-=cvx/cs*2.2;az-=cvz/cs*2.2}ax-=(-cvz/cs)*side*.4;az-=(cvx/cs)*side*.4;tx=ax;tz=az;vt=Math.max(vt,C.speed+18);if(dp<4.8)R.ramCd=1.1}}
     if(c.rev>0){c.rev-=dt;c.yaw+=c.revS*1.1*dt;c.v=0;c.x-=sy*4*dt;c.z-=cy*4*dt;c.vx=-sy*4;c.vz=-cy*4;if(trStatic(c.x,c.z,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz}const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);return}
     if(c.stk>.8&&c.v<2){c.rev=1;c.revS=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw)>0?-1:1;c.stk=.3}
-    if(c.spinT>0){c.spinT-=dt;c.v*=Math.exp(-dt*.9);c.ks=c.ks||0;if(c.spinT<=0){c.yaw=c.yaw;c.ks*=.3}}   /* spinning out: no steering, it slides on and loses speed */
+    if(c.spinT>0){c.spinT-=dt;c.v*=Math.exp(-dt*.35);c.ks=c.ks||0;if(c.spinT<=0){c.yaw=c.yaw;c.ks*=.3}}   /* spinning out: no steering, it slides on and loses speed */
     const err=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw),maxYr=Math.min(2.4,sk.grip*1.3/Math.max(v,4)),yr=c.spinT>0?0:Math.max(-maxYr,Math.min(maxYr,err*3));c.om=yr;c.yaw+=yr*dt;
     const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?1.14:1))),1.6))*(R.nzT>0?1.5:1),a=Math.max(-(sk.brk||11),Math.min(accNow,(vt-v)*1.6));if(!(c.spinT>0))c.v=Math.max(0,Math.min(sk.vmax*(R.nzT>0?1.2:1.08),v+a*dt));c.brake=a<-2.5?1:0;
     if(c.v<1.5)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
