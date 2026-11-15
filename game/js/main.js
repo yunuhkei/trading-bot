@@ -686,6 +686,8 @@
     G.bindHold(el.act, (v) => { if (v) input.action = true; });
     G.bindHold($('btnExit'), (v) => { if (v) input.action = true; });
     G.bindHold(el.reload, (v) => { if (v) input.reload = true; });
+    const runBtn = $('btnRun');
+    G.bindHold(runBtn, (v) => { if (v) runBtn.classList.toggle('on', G.toggleRun()); });
     $('btnPause').addEventListener('click', () => setPaused(true));
     $('resumeBtn').addEventListener('click', () => setPaused(false));
     const sb = $('soundBtn');

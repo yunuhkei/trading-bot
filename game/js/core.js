@@ -38,7 +38,10 @@
   const look = { id: null, x: 0, y: 0 };
   const JR = 56;
   const touch = { fire: false, gas: false, brake: false, hand: false, left: false, right: false };
-  let mouseFire = false, ui = null, area = null;
+  let mouseFire = false, ui = null, area = null, runOn = false;
+  // RUN is a toggle so the right thumb stays free for aiming
+  G.toggleRun = () => { runOn = !runOn; return runOn; };
+  G.isRunning = () => runOn;
 
   G.initInput = function (el, uiHooks) {
     area = el; ui = uiHooks;
@@ -118,13 +121,13 @@
   G.readInput = function () {
     if (joy.id !== null) {
       input.mx = joy.x; input.my = joy.y;
-      input.sprint = Math.hypot(joy.x, joy.y) > 0.93;
+      input.sprint = runOn || Math.hypot(joy.x, joy.y) > 0.93;
     } else {
       const kx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
       const ky = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
       const l = Math.hypot(kx, ky) || 1;
       input.mx = kx / l; input.my = ky / l;
-      input.sprint = !!(keys.ShiftLeft || keys.ShiftRight);
+      input.sprint = runOn || !!(keys.ShiftLeft || keys.ShiftRight);
     }
     input.fire = mouseFire || touch.fire || !!keys.KeyJ;
     input.gas = touch.gas || !!(keys.KeyW || keys.ArrowUp);

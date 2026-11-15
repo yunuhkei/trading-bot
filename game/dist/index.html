@@ -118,6 +118,8 @@
   .tbtn.dim { opacity: 0.35; }
   body.driving .foot, body:not(.driving) .drive { display: none !important; }
   body.driving #joyHint { display: none !important; }
+  #btnRun { width: 60px; height: 60px; right: calc(128px + var(--sar)); bottom: calc(112px + var(--sab)); font-size: 12px; }
+  #btnRun.on { background: rgba(232, 179, 74, 0.55); box-shadow: 0 0 0 2px var(--sodium); color: var(--ink); }
   #btnFire { width: 88px; height: 88px; right: calc(22px + var(--sar)); bottom: calc(26px + var(--sab)); font-size: 16px; box-shadow: 0 0 0 2px rgba(179, 18, 30, 0.85); }
   /* driving: steer with the left thumb, pedals and gun under the right */
   #btnLeft, #btnRight { width: 86px; height: 86px; bottom: calc(26px + var(--sab)); }
@@ -255,6 +257,7 @@
   <canvas id="bloodScreen" width="640" height="360"></canvas>
   <button class="tbtn foot" id="btnReload">RELOAD</button>
   <button class="tbtn foot dim" id="btnAct">CAR</button>
+  <button class="tbtn foot" id="btnRun" aria-pressed="false">RUN</button>
   <button class="tbtn foot" id="btnFire">FIRE</button>
   <button class="tbtn drive arrow" id="btnLeft" aria-label="Steer left"></button>
   <button class="tbtn drive arrow" id="btnRight" aria-label="Steer right"></button>
@@ -282,7 +285,7 @@
     <button class="primary" id="startBtn" disabled>Begin</button>
     <div id="loading">Building Port Calvary…</div>
     <div class="fineprint">
-      <span><b>Phone:</b> turn it sideways. Left thumb moves, right thumb looks around. Push the stick all the way to sprint. FIRE auto-aims at whoever is in front of you. In a car: arrows steer, GAS, BRAKE (hold to reverse), HAND BRAKE to drift, SHOOT out the window.</span>
+      <span><b>Phone:</b> turn it sideways. Left thumb moves, right thumb looks around. Tap RUN to run (tap again to walk), or push the stick all the way. FIRE auto-aims at whoever is in front of you. In a car: arrows steer, GAS, BRAKE (hold to reverse), HAND BRAKE to drift, SHOOT out the window.</span>
       <span class="kb"><b>Keyboard:</b> WASD move or drive · mouse look · click fire · F car · R reload · Shift sprint · Space handbrake · P pause</span>
     </div>
     <div class="warn">Contains graphic violence</div>
@@ -363,7 +366,10 @@ window.__startGame = function () {
   const look = { id: null, x: 0, y: 0 };
   const JR = 56;
   const touch = { fire: false, gas: false, brake: false, hand: false, left: false, right: false };
-  let mouseFire = false, ui = null, area = null;
+  let mouseFire = false, ui = null, area = null, runOn = false;
+  // RUN is a toggle so the right thumb stays free for aiming
+  G.toggleRun = () => { runOn = !runOn; return runOn; };
+  G.isRunning = () => runOn;
 
   G.initInput = function (el, uiHooks) {
     area = el; ui = uiHooks;
@@ -443,13 +449,13 @@ window.__startGame = function () {
   G.readInput = function () {
     if (joy.id !== null) {
       input.mx = joy.x; input.my = joy.y;
-      input.sprint = Math.hypot(joy.x, joy.y) > 0.93;
+      input.sprint = runOn || Math.hypot(joy.x, joy.y) > 0.93;
     } else {
       const kx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
       const ky = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
       const l = Math.hypot(kx, ky) || 1;
       input.mx = kx / l; input.my = ky / l;
-      input.sprint = !!(keys.ShiftLeft || keys.ShiftRight);
+      input.sprint = runOn || !!(keys.ShiftLeft || keys.ShiftRight);
     }
     input.fire = mouseFire || touch.fire || !!keys.KeyJ;
     input.gas = touch.gas || !!(keys.KeyW || keys.ArrowUp);
@@ -3982,6 +3988,8 @@ window.__startGame = function () {
     G.bindHold(el.act, (v) => { if (v) input.action = true; });
     G.bindHold($('btnExit'), (v) => { if (v) input.action = true; });
     G.bindHold(el.reload, (v) => { if (v) input.reload = true; });
+    const runBtn = $('btnRun');
+    G.bindHold(runBtn, (v) => { if (v) runBtn.classList.toggle('on', G.toggleRun()); });
     $('btnPause').addEventListener('click', () => setPaused(true));
     $('resumeBtn').addEventListener('click', () => setPaused(false));
     const sb = $('soundBtn');

@@ -118,6 +118,8 @@
   .tbtn.dim { opacity: 0.35; }
   body.driving .foot, body:not(.driving) .drive { display: none !important; }
   body.driving #joyHint { display: none !important; }
+  #btnRun { width: 60px; height: 60px; right: calc(128px + var(--sar)); bottom: calc(112px + var(--sab)); font-size: 12px; }
+  #btnRun.on { background: rgba(232, 179, 74, 0.55); box-shadow: 0 0 0 2px var(--sodium); color: var(--ink); }
   #btnFire { width: 88px; height: 88px; right: calc(22px + var(--sar)); bottom: calc(26px + var(--sab)); font-size: 16px; box-shadow: 0 0 0 2px rgba(179, 18, 30, 0.85); }
   /* driving: steer with the left thumb, pedals and gun under the right */
   #btnLeft, #btnRight { width: 86px; height: 86px; bottom: calc(26px + var(--sab)); }
@@ -255,6 +257,7 @@
   <canvas id="bloodScreen" width="640" height="360"></canvas>
   <button class="tbtn foot" id="btnReload">RELOAD</button>
   <button class="tbtn foot dim" id="btnAct">CAR</button>
+  <button class="tbtn foot" id="btnRun" aria-pressed="false">RUN</button>
   <button class="tbtn foot" id="btnFire">FIRE</button>
   <button class="tbtn drive arrow" id="btnLeft" aria-label="Steer left"></button>
   <button class="tbtn drive arrow" id="btnRight" aria-label="Steer right"></button>
@@ -282,7 +285,7 @@
     <button class="primary" id="startBtn" disabled>Begin</button>
     <div id="loading">Building Port Calvary…</div>
     <div class="fineprint">
-      <span><b>Phone:</b> turn it sideways. Left thumb moves, right thumb looks around. Push the stick all the way to sprint. FIRE auto-aims at whoever is in front of you. In a car: arrows steer, GAS, BRAKE (hold to reverse), HAND BRAKE to drift, SHOOT out the window.</span>
+      <span><b>Phone:</b> turn it sideways. Left thumb moves, right thumb looks around. Tap RUN to run (tap again to walk), or push the stick all the way. FIRE auto-aims at whoever is in front of you. In a car: arrows steer, GAS, BRAKE (hold to reverse), HAND BRAKE to drift, SHOOT out the window.</span>
       <span class="kb"><b>Keyboard:</b> WASD move or drive · mouse look · click fire · F car · R reload · Shift sprint · Space handbrake · P pause</span>
     </div>
     <div class="warn">Contains graphic violence</div>
