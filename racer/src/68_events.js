@@ -155,11 +155,14 @@ function evTap(x,y){for(const b of EV.btns)if(x>=b.x-6&&x<=b.x+b.w+6&&y>=b.y-6&&
 /* ---- in the world: the start markers (a glowing ring and a tall beam), the checkpoint gates ---- */
 function evFx(quad,flat,sprite,stage){const r=EV.run;
   if(stage==5){if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>700)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape;flat(ev.s.x,ev.s.y+.06,ev.s.z,6,6,c3[0],c3[1],c3[2],.8)}
-    else if(r.ev.cps&&r.t>=0){const p=r.ev.cps[r.cp];if(p)flat(p.x,p.y+.06,p.z,9,9,.3,1,.6,.7)}}
+    else if(r.ev.cps&&r.t>=0){const p=r.ev.cps[r.cp];if(p)flat(p.x,p.y+.06,p.z,9,9,.3,1,.6,.7)}
+}
   else if(stage==4){const pulse=.75+.25*Math.sin(EV.t*4);
     if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>900)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape;for(let k=0;k<10;k++)sprite(ev.s.x,ev.s.y+1.5+k*3.4,ev.s.z,1.8+d*.008,c3[0],c3[1],c3[2],(.9-k*.06)*pulse)}
     else if(r.ev.cps){for(let q=r.cp;q<Math.min(r.cp+2,r.ev.cps.length);q++){const p=r.ev.cps[q],last=q==r.ev.cps.length-1,w=Math.max(9,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+2.5),d=Math.hypot(p.x-C.x,p.z-C.z),al=q==r.cp?pulse:.35;
-      for(const sd of[-1,1])for(let k=0;k<5;k++)sprite(p.x+p.nx*w*sd,p.y+1+k*1.4,p.z+p.nz*w*sd,.7+d*.004,last?1:.3,last?.85:1,last?.3:.6,al)}}}}
+      for(const sd of[-1,1])for(let k=0;k<7;k++)sprite(p.x+p.nx*w*sd,p.y+1+k*1.4,p.z+p.nz*w*sd,1.1+d*.006,last?1:.3,last?.85:1,last?.3:.6,al)
+      /* (batch 53) the gate is an arch: a bar of light across the road on top of the two pillars */
+      for(let k=-6;k<=6;k++)sprite(p.x+p.nx*w*k/6,p.y+9.6,p.z+p.nz*w*k/6,1.0+d*.006,last?1:.3,last?.85:1,last?.3:.6,al)}}}}
 /* the ghost of your best run (the same car only), drawn see-through */
 const _gm=new Float32Array(16);
 function evGhostDraw(){const r=EV.run;if(!r||r.ev.type!='trial'||r.t<0||!CARM.body)return;const g=(EV.rec[r.ev.id]||{}).ghost;if(!g||g.car!==CARM.def.id||!g.s.length)return;
