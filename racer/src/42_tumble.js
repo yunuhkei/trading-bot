@@ -22,7 +22,7 @@ function tumOrtho(R){/* Gram-Schmidt on the columns */let l=Math.hypot(R[0],R[1]
 /* (batch 27) the car only ever rolls in a crash big enough for the crash movie: at 25 m/s (56 mph) or more, and the movie starts with it; anything smaller does not roll it
    (with the movie switched off, CC.enabled=false in the physics tests, every tumble plays as before) */
 function tumbleStart(wbx,wby,wbz,vy,why){
-  if(TUM.on||GAME.state||!CARM.body||C.shield>0)return false;const big=Math.hypot(C.vx,C.vz)>=25;if(CC.enabled&&!big)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
+  if(TUM.on||GAME.state||!CARM.body||C.shield>0)return false;const big=Math.hypot(C.vx,C.vz)>=58;   /* (batch 53) the car only rolls in a crash from about 130-140 mph up (it was 56 mph): these cars go 300 mph */if(CC.enabled&&!big)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
   const w=tumMul(R,wbx,wby,wbz);TUM.w[0]=w[0];TUM.w[1]=w[1]+C.wyaw;TUM.w[2]=w[2];const cm=tumMul(R,0,TUM_COM,0);TUM.p[0]=C.x+cm[0];TUM.p[1]=C.y+cm[1];TUM.p[2]=C.z+cm[2];
   C.vy=Math.max(C.vy||0,vy);TUM.on=1;TUM.rest=0;TUM.slow=0;TUM.rightT=0;TUM.t=0;TUM.n++;TUM.why=why;TUM.touch.fill(0);TUM.maxTilt=0;C.grounded=0;C.drift=0;C.dActive=0;C.slideT=0;IN.nitro=0;C.wyaw=0;
   C.shake=Math.min(1,C.shake+.6);if(CC.enabled){CC.tn=TUM.n;CC.tv=Math.hypot(C.vx,C.vz);crashStart(why)}return true}

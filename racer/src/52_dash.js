@@ -89,8 +89,7 @@ function dashDraw(c,W_,H_,u){const dt=dashDt();
   if(IN.lane){const G2=UI.gg,lw=u*.78,lh=u*.32,lx=G2.x+G2.w-lw,ly=G2.y1-lh-u*.12;dLcdBox(c,lx,ly,lw,lh,u*.05);c.save();c.globalAlpha=C.laneOn?1:.35;dLcdText(c,'LANE',lx+lw/2,ly+lh*.74,lh*.62,'center');c.restore()}   /* (batch 22: bright while lane assist is steering) */
   for(const b of UI.btn){if(b.arrow){if(IN.arrows)dashArrow(c,b,u)}else if(b.pedal)dashPedal(c,b,u);else if(b.circle&&b.id=='drift')dashRound(c,b,u);else if(b.guard)dashGuard(c,b,u,dt);else if(b.haz)dashHazard(c,b,u)}}
 /* the toast (from safeHud): an amber trip-computer line */
-function dashToast(c,W_,H_,u,msg,al){c.save();c.globalAlpha=al;c.font=dLcd(u*.36);const tw=c.measureText(msg).width,bw=tw+u*.7,bh=u*.62,bx=W_/2-bw/2,by=H_*.52-bh*.7;
-  c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=10;dLcdBox(c,bx,by,bw,bh,u*.08);c.shadowBlur=0;dLcdText(c,msg,W_/2,by+bh*.7,u*.36,'center');c.restore()}
+function dashToast(c,W_,H_,u,msg,al){c.save();c.globalAlpha=al;fxText(c,msg,W_/2,H_*.52,u*.42,'#ffc23a','center','rgba(255,150,30,.55)');c.restore()}   /* (batch 53) in the game's big text style (it was a monospace LCD box) */
 
 /* ================= the pause console ================= */
 const PAUSE={btns:[],k:{gfx:0,sky:0},ka:{gfx:0,sky:0}};

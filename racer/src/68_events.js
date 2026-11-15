@@ -152,8 +152,8 @@ function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF
   if(!MENU.open){const t=evMoney(ECON.money);c.font=dLcd(u*.26);const tw=c.measureText(t).width+u*.4,bx=UI.mm.cx-tw/2,by=UI.mm.cy+UI.mm.r+u*.42;dLcdBox(c,bx,by,tw,u*.42,u*.06);dLcdText(c,t,UI.mm.cx,by+u*.31,u*.26,'center')}   /* (batch 19: money on a small amber display under the map) */
   EV.btns.length=0;const r=EV.run;
   if(r){const ev=r.ev;c.textAlign='center';c.shadowColor='rgba(0,0,0,.75)';c.shadowBlur=6;
-    if(r.t<0){c.font=fs(1.6,900);c.fillStyle='#fff';c.fillText(String(Math.ceil(-r.t)),W_/2,H_*.42)}
-    else if(r.t<.8){c.font=fs(1.3,900);c.fillStyle='#7dffb0';c.fillText('GO!',W_/2,H_*.42)}
+    if(r.t<0){fxText(c,String(Math.ceil(-r.t)),W_/2,H_*.42,u*1.6,'#ffffff','center','rgba(255,255,255,.4)')}
+    else if(r.t<.8){fxText(c,'GO!',W_/2,H_*.42,u*1.4,'#7dffb0','center','rgba(80,255,160,.6)')}
     c.font=fs(.55,800);c.fillStyle='#fff';
     if(ev.type=='race'||ev.type=='death'){c.fillText(evFmt(Math.max(0,r.t)),W_/2,u*1.35);const pos=1+r.racers.filter(q=>q.race&&(q.race.done>=0||q.race.s>r.ps)).length,n=r.racers.filter(q=>q.race).length+1;
       c.font=fs(.42,900);c.fillStyle=pos==1?'#ffd23a':'#fff';c.fillText('POS '+pos+' / '+n,W_/2,u*1.82);c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(ev.type=='death'?'  ·  wrecked '+r.wrecks:''),W_/2,u*2.1)}
