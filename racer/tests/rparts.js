@@ -28,7 +28,7 @@ const L=require('./rlib.js');
     RACER.carPlace(4000,-3000,0,100);dmgReset();hit(18,0,1);out.hit1={z:DMG.z[0],hood:PP[1].a,hoodOff:PP[1].off,fb:PP[5].a,fbOff:PP[5].off,cr:PDM.cr[0],head:PDM.head.slice()};
     hit(22,0,1);out.hit2={z:DMG.z[0],hood:PP[1].a,hoodOff:PP[1].off,fbOff:PP[5].off,cr:PDM.cr[0],head:PDM.head.slice(),deb:DEB.length};
     for(let k=0;k<4;k++)hit(24,0,1);out.hit6={z:DMG.z[0],hoodOff:PP[1].off,fbOff:PP[5].off,deb:DEB.length,head:PDM.head.slice()};CC.on=0;return out});
-  ok(F.hit1.z>.2&&F.hit1.hood>.05,'3 an 18 m/s front hit (front damage '+F.hit1.z.toFixed(2)+'): bonnet lifted to '+(F.hit1.hood*57.3).toFixed(0)+' deg');
+  ok(F.hit1.z>.2&&(F.hit1.hood>.05||F.hit1.hoodOff),'3 an 18 m/s front hit in the crash cam (front damage '+F.hit1.z.toFixed(2)+'; batch 53: it hurts 2.2x more): bonnet '+(F.hit1.hoodOff?'torn off':'lifted to '+(F.hit1.hood*57.3).toFixed(0)+' deg'));
   ok(F.hit2.hood>.3||F.hit2.hoodOff,'3 after a second hit (damage '+F.hit2.z.toFixed(2)+') the bonnet is '+(F.hit2.hoodOff?'torn off':(F.hit2.hood*57.3).toFixed(0)+' deg up')+', windscreen cracks '+F.hit2.cr.toFixed(2));
   ok(F.hit6.hoodOff&&F.hit6.fbOff&&F.hit6.deb>=2,'3 in the crash cam, after six hard front hits the bonnet and the front bumper have come off ('+F.hit6.deb+' pieces on the road), headlights '+(F.hit6.head[0]&&F.hit6.head[1]?'both dead':'not both dead'));
   ok(F.hit2.head[0]||F.hit2.head[1]||F.hit6.head[0],'3 front lights go dark as the front takes damage');

@@ -12,7 +12,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
       let ink=0,nanN=0;for(let v=0;v<b.nv;v++){if(b.M[v]==CGM.ink)ink++;const l=Math.hypot(b.N[v*3],b.N[v*3+1],b.N[v*3+2]);if(!(l>.95&&l<1.05))nanN++}
       out.push({id:d.id,name:d.name,head:S.head,tail:S.tail_,fin:d.fin|0,p2:!!d.paint2,plate:S._plate,ink,nanN,tris:b.I.length/3,nose:prof(0),tailP:prof(1),hard:S.hard,sq:S.sq,seam:S._seam&&Array.from(S._seam).every(isFinite)&&S._seam[1]>S._seam[0]&&S._seam[3]>S._seam[2]&&S._seam[5]>S._seam[4],paint:d.paint})}
     return out});
-  ok(A.length==30,'30 generated cars');
+  ok(A.length==33,'33 generated cars (30 + the three Baron cars)');
   const pairs=new Set(A.map(a=>a.head+'/'+a.tail));
   ok(pairs.size==30,'no two cars share their pair of head lamps and tail lamps ('+pairs.size+' different pairs; '+new Set(A.map(a=>a.head)).size+' kinds of head lamp, '+new Set(A.map(a=>a.tail)).size+' kinds of tail lamp)');
   const dist=(p,q)=>{let s=0;for(let k=0;k<p.length;k++)s=Math.max(s,Math.abs(p[k]-q[k]));return s};
@@ -21,7 +21,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   const fins=[0,1,2,3].map(f=>A.filter(a=>a.fin==f).length);
   ok(fins.every(n=>n>=2)&&A.filter(a=>a.fin==2).every(a=>a.p2),'paint finishes: '+fins[0]+' solid, '+fins[1]+' metallic, '+fins[2]+' pearl (each with a second colour), '+fins[3]+' matte');
   const plates=new Set(A.map(a=>a.plate));
-  ok(plates.size==30&&A.every(a=>/^[A-Z]{3} [0-9]{3}$/.test(a.plate)&&a.ink>=2*4*20),'every car has its own plate, three letters and three digits in block letters ('+A.slice(0,6).map(a=>a.plate).join(', ')+' ...)');
+  ok(plates.size==33&&A.every(a=>/^[A-Z]{3} [0-9]{3}$/.test(a.plate)&&a.ink>=2*4*20),'every car has its own plate, three letters and three digits in block letters ('+A.slice(0,6).map(a=>a.plate).join(', ')+' ...)');
   ok(A.every(a=>a.seam),'every car hands the shader its door, bonnet and engine lid lines');
   ok(A.every(a=>a.nanN==0),'all normals are unit length (the creases included)');
   const hs=A.map(a=>a.hard),qs=A.map(a=>a.sq);

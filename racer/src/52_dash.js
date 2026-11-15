@@ -23,7 +23,7 @@ function dashLayout(add,w,h,u,m){
   /* (batch 53) steering arrows, an option: two big keys either side of the middle at the bottom */
   {const aw=u*1.15,ah=u*1.05,ay=h-m-ah,ax=w/2-aw-u*.14;add('arL','',ax,ay,aw,ah,v=>{},'#e9e6dc',{arrow:-1});add('arR','',w/2+u*.14,ay,aw,ah,v=>{},'#e9e6dc',{arrow:1})}
   /* (batch 53) the speedometer is only numbers now, above the arrow keys at the bottom centre (the dial is gone); the health and nitro gauges move into its corner */
-  const R=u*1.2,rw=u*2.3,rh=u*.86;UI.sp={cx:w/2,cy:h-m-u*1.05-rh/2-u*.12,R,w:rw,h:rh};
+  const R=u*1.2,rw=u*1.9,rh=u*.62;UI.sp={cx:w/2,cy:h-m-u*1.05-rh/2-u*.07,R,w:rw,h:rh};
   const ggw=u*1.18,ggh=u*.74;UI.gg={x:m,y1:h-m-ggh*2-u*.14,y2:h-m-ggh,w:ggw,h:ggh}}
 /* ---------- small drawing helpers ---------- */
 function dKey(c,x,y,w,h,r,down,top,bot){c.save();const d=down?h*.04:0;c.fillStyle='rgba(0,0,0,.55)';rr(c,x,y+h*.06,w,h,r);c.fill();

@@ -13,7 +13,7 @@ const RACER_TYPES=[10,12,16,18,19],RACER_COLS=[0,3,6,9,12,15,1,4,7,10];
 function racerSpawn(Rt,S,lat,k,skill,aggr){let j=0;while(j<Rt.n-2&&Rt.S[j+1]<S)j++;const p=Rt.pts,x=p[j*3],z=p[j*3+2],dx=p[j*3+3]-x,dz=p[j*3+5]-z,l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l;
   const sn=navSnap(x,z,40);if(!sn)return null;const la=navLane(sn,x,z,ux,uz);if(!la)return null;const c=trPlace(la.e,la.u,skill.type!=null?skill.type:RACER_TYPES[k%RACER_TYPES.length],skill.type!=null?skill.col:RACER_COLS[k%RACER_COLS.length],0,7000+k);if(!c)return null;
   c.x=c.px=x-uz*lat;c.z=c.pz=z+ux*lat;c.y=c.py=groundAt(c.x,c.z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=0;c.vx=c.vz=c.om=0;c.state=3;c.kind=2;c.cm=0;c.siren=0;c.L=null;c.stk=0;c.rev=0;c.hn=0;
-  c.race={Rt,fi:j,s:S,go:false,done:-1,skill,aggr:aggr||0,off:0,offT:0,ramCd:2,name:['Viper','Blaze','Ghost','Nova','Rook','Jinx','Vandal','Comet'][k%8]};return c}
+  c.race={Rt,fi:j,s:S,go:false,done:-1,skill,aggr:aggr||0,off:0,offT:0,ramCd:aggr?0:2,name:['Viper','Blaze','Ghost','Nova','Rook','Jinx','Vandal','Comet'][k%8]};return c}
 const _ra=(Rt,bi,s)=>{let k=bi;while(k<Rt.n-1&&Rt.S[k]<s)k++;return k};
 function racerStep(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;const R=c.race;if(!R){c.state=1;return}const Rt=R.Rt,p=Rt.pts;
@@ -47,7 +47,8 @@ function racerStep(c,dt){
     R.off+=(R.offT-R.off)*Math.min(1,dt*2.6);
     let tx=p[ahead*3],tz=p[ahead*3+2];{const a2=Math.min(Rt.n-1,ahead+1),dx=p[a2*3]-tx,dz=p[a2*3+2]-tz,l=Math.hypot(dx,dz)||1;tx+=-dz/l*R.off;tz+=dx/l*R.off}
     /* a death racer goes for you when you are close */
-    if(R.aggr&&EV.run&&!TUM.on){R.ramCd-=dt;const dpx=C.x-c.x,dpz=C.z-c.z,dp=Math.hypot(dpx,dpz);if(dp<26&&R.ramCd<=0&&(dpx*sy+dpz*cy)>-6){tx=C.x+C.vx*.4;tz=C.z+C.vz*.4;vt=Math.max(vt,C.speed+10);if(dp<4.5)R.ramCd=3.5}}
+    if(R.aggr&&EV.run&&!TUM.on){R.ramCd-=dt;const dpx=C.x-c.x,dpz=C.z-c.z,dp=Math.hypot(dpx,dpz);if((dpx*sy+dpz*cy)<-6&&dp<110)vt=Math.min(vt,Math.max(C.speed*1.04,26));   /* (batch 53) a death racer stays in reach of you instead of running away from you: it is a fight */
+      if(dp<34&&R.ramCd<=0&&(dpx*sy+dpz*cy)>-14){tx=C.x+C.vx*.4;tz=C.z+C.vz*.4;vt=Math.max(vt,C.speed+10);if(dp<4.5)R.ramCd=3.5}}
     if(c.rev>0){c.rev-=dt;c.yaw+=c.revS*1.1*dt;c.v=0;c.x-=sy*4*dt;c.z-=cy*4*dt;c.vx=-sy*4;c.vz=-cy*4;if(trStatic(c.x,c.z,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz}const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);return}
     if(c.stk>.8&&c.v<2){c.rev=1;c.revS=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw)>0?-1:1;c.stk=.3}
     const err=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw),maxYr=Math.min(2.4,sk.grip*1.3/Math.max(v,4)),yr=Math.max(-maxYr,Math.min(maxYr,err*3));c.om=yr;c.yaw+=yr*dt;

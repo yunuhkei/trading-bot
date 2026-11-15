@@ -13,7 +13,7 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
       for(let k=0;k<b.P.length;k+=3)for(let a=0;a<3;a++){const v=b.P[k+a];if(!isFinite(v))nan++;mn[a]=Math.min(mn[a],v);mx[a]=Math.max(mx[a],v)}
       for(const m of b.M)if(!(m>=0&&m<CGMAT.length))mat++;let badIdx=0;for(const k of b.I)if(k<0||k>=b.nv)badIdx++;let badN=0;for(let k=0;k<b.N.length;k+=3){const l=Math.hypot(b.N[k],b.N[k+1],b.N[k+2]);if(!(l>.9&&l<1.1))badN++}
       out.push({id:d.id,name:d.name,nv:b.nv,tris:b.I.length/3,ms,nan,mat,badIdx,badN,L:mx[2]-mn[2],W:mx[0]-mn[0],H:mx[1],sL:d.spec.L,sW:d.spec.W,sH:d.spec.H,wv:B.wheelF.nv})}return out});
-  ok(bodies.length==30,'30 cars in the roster: '+bodies.map(b=>b.name).join(', '));
+  ok(bodies.length==33,'33 cars in the roster: '+bodies.map(b=>b.name).join(', '));
   ok(bodies.every(b=>b.nan==0&&b.mat==0&&b.badIdx==0&&b.badN==0),'every body is made of finite numbers, valid materials and indexes, unit normals');
   ok(bodies.every(b=>b.tris>9000&&b.tris<40000&&b.nv<45000),'every body has 9-40k triangles (batch 50; min '+Math.min(...bodies.map(b=>b.tris))+', max '+Math.max(...bodies.map(b=>b.tris))+'), 16-bit indexes are enough');
   ok(bodies.every(b=>Math.abs(b.L-b.sL)<.35&&b.W<b.sW+.2&&b.W>b.sW-.15&&b.H>b.sH-.2&&b.H<b.sH+.4),'every body is the length, width and height of its spec (within 0.35 m / mirrors, wings)');
@@ -57,7 +57,7 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
   /* ---- 3 the car menu, owning and unlocking ---- */
   const mn=await ev(()=>{const {MENU,CAROWN,CARSEL,HND,CARM,CAR_ROSTER}=RACER;const defAll=CAROWN.all,defOwned=CAR_ROSTER.filter((d,i)=>carOwned(i)).length,nAll=CAR_ROSTER.length;localStorage.removeItem('racer.cars');CAROWN.all=false;Object.keys(CAROWN.owned).forEach(k=>delete CAROWN.owned[k]);CAROWN.owned.k1=true;RACER.carSelect(carIndex('k1'));
     const r={};r.owned=CAR_ROSTER.filter((d,i)=>carOwned(i)).length;const v0=HND.vmax,id0=CARM.def.id;
-    menuOpen();r.open=MENU.open;menuPreview(12);r.expId=CAR_ROSTER[12].id;r.prevId=CARM.def.id;r.vmaxPrev=HND.vmax;r.curPrev=CARSEL.cur;                    /* looking is not choosing */
+    menuOpen();r.open=MENU.open;const lk=CAR_ROSTER.findIndex(d=>d.id=='u2');menuPreview(lk);r.expId=CAR_ROSTER[lk].id;r.prevId=CARM.def.id;r.vmaxPrev=HND.vmax;r.curPrev=CARSEL.cur;                    /* looking is not choosing */
     menuChoose();r.lockedStill=CARSEL.cur;r.still=MENU.open;                                                                  /* a locked car cannot be chosen */
     menuClose();r.backId=CARM.def.id;r.open2=MENU.open;
     carUnlock('m1');menuOpen();menuPreview(CAR_ROSTER.findIndex(d=>d.id=='m1'));menuChoose();r.chosen=CARSEL.cur;r.chosenId=CARM.def.id;r.vmaxNew=HND.vmax;r.closed=!MENU.open;
