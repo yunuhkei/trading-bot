@@ -38,7 +38,11 @@
   const look = { id: null, x: 0, y: 0 };
   const JR = 56;
   const touch = { fire: false, gas: false, brake: false, hand: false, left: false, right: false };
-  let mouseFire = false, ui = null, area = null, runOn = false;
+  let mouseFire = false, ui = null, area = null, runOn = false, aimOn = false, mouseAim = false, crouchOn = false;
+  G.toggleAim = () => { aimOn = !aimOn; return aimOn; };
+  G.setAim = (v) => { aimOn = v; };
+  G.toggleCrouch = () => { crouchOn = !crouchOn; return crouchOn; };
+  G.setCrouch = (v) => { crouchOn = v; };
   // RUN is a toggle so the right thumb stays free for aiming
   G.toggleRun = () => { runOn = !runOn; return runOn; };
   G.isRunning = () => runOn;
@@ -52,6 +56,7 @@
           try { const p = el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (_) { /* refused */ }
         }
         if (e.button === 0) mouseFire = true;
+        if (e.button === 2) mouseAim = true;
         return;
       }
       e.preventDefault();
@@ -86,19 +91,21 @@
       }
     });
     const end = (e) => {
-      if (e.pointerType === 'mouse') { if (e.button === 0) mouseFire = false; return; }
+      if (e.pointerType === 'mouse') { if (e.button === 0) mouseFire = false; if (e.button === 2) mouseAim = false; return; }
       if (e.pointerId === joy.id) { joy.id = null; joy.x = joy.y = 0; ui && ui.joyHide(); }
       if (e.pointerId === look.id) look.id = null;
     };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
-    window.addEventListener('mouseup', (e) => { if (e.button === 0) mouseFire = false; });
+    window.addEventListener('mouseup', (e) => { if (e.button === 0) mouseFire = false; if (e.button === 2) mouseAim = false; });
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('blur', () => G.resetInput());
     window.addEventListener('keydown', (e) => {
       keys[e.code] = true;
       if (!e.repeat) {
         if (e.code === 'KeyF' || e.code === 'KeyE') input.action = true;
         if (e.code === 'KeyR') input.reload = true;
+        if (e.code === 'KeyC' || e.code === 'ControlLeft') { crouchOn = !crouchOn; G.onCrouchKey && G.onCrouchKey(crouchOn); }
         if (e.code === 'KeyP' || e.code === 'Escape') G.onPauseKey && G.onPauseKey();
       }
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -132,6 +139,8 @@
       input.sprint = runOn || !!(keys.ShiftLeft || keys.ShiftRight);
     }
     input.fire = mouseFire || touch.fire || !!keys.KeyJ;
+    input.aim = aimOn || mouseAim;
+    input.crouch = crouchOn;
     input.gas = touch.gas || !!(keys.KeyW || keys.ArrowUp);
     input.brakeIn = touch.brake || !!(keys.KeyS || keys.ArrowDown);
     input.handbrake = touch.hand || !!keys.Space;
@@ -211,6 +220,29 @@
   A.thud = (vol = 1) => { burst(0.5 * vol, 900, 120, 0.25); thump(0.5 * vol, 90, 30, 0.18); };
   A.click = () => burst(0.25, 3000, 1500, 0.05, 'highpass');
   A.boom = () => { burst(1, 2000, 60, 1.8); thump(1, 80, 20, 1.2); };
+  A.tink = (vol) => { // a shell casing hitting concrete
+    if (!A.ctx || A.muted || vol < 0.05) return;
+    const ctx = A.ctx, t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(G.R(3800, 5200), t);
+    g.gain.setValueAtTime(0.05 * vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    o.connect(g).connect(A.master); o.start(t); o.stop(t + 0.1);
+  };
+  A.tick = (kill) => { // hit marker
+    if (!A.ctx || A.muted) return;
+    const ctx = A.ctx, t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square'; o.frequency.setValueAtTime(kill ? 1300 : 2100, t);
+    g.gain.setValueAtTime(kill ? 0.08 : 0.05, t); g.gain.exponentialRampToValueAtTime(0.0001, t + (kill ? 0.12 : 0.05));
+    o.connect(g).connect(A.master); o.start(t); o.stop(t + 0.13);
+  };
+  A.ric = (vol) => burst(0.25 * vol, 5000, 1800, 0.12, 'bandpass');
+  A.whiz = (vol) => { // a bullet passing close
+    if (!A.ctx || A.muted || vol < 0.05) return;
+    const ctx = A.ctx, t = ctx.currentTime, s = ctx.createBufferSource(); s.buffer = A.noise;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 6;
+    f.frequency.setValueAtTime(2600, t); f.frequency.exponentialRampToValueAtTime(900, t + 0.18);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35 * vol, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    s.connect(f).connect(g).connect(A.master); s.start(t, Math.random(), 0.25);
+  };
   A.honk = (vol) => {
     if (!A.ctx || A.muted || vol < 0.03) return;
     const ctx = A.ctx, t = ctx.currentTime;

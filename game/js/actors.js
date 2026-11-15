@@ -32,6 +32,7 @@
           shirt: G.pick(PED_TOPS), long, pants: G.pick(PED_PANTS), shoes: G.pick(SHOES), skin: G.pick(SKINS),
           hood: Math.random() < 0.18 ? G.pick(PED_TOPS) : null, cap: Math.random() < 0.12 ? G.pick(['#1a1a1a', '#7a1a1a', '#1a2a4a']) : null,
           hair: Math.random() < 0.08 ? null : G.pick(HAIR),
+          eyes: G.pick(['#2a1c12', '#3a2a1a', '#2a3a4a', '#3a4a2a', '#1a1410']), beard: Math.random() < 0.15,
         };
       }
     }
@@ -63,6 +64,7 @@
     if (!G.body.hasFree() && G.player) freeSlot();
     if (!G.body.create(c, outfit(kind))) return null;
     if (opts.anchor) c.anchor = opts.anchor;
+    c.weaponK = opts.weapon !== undefined ? opts.weapon : kind === 'saint' ? (Math.random() < 0.35 ? 'shotgun' : 'smg') : kind === 'cop' ? 'pistol' : null;
     if (kind === 'local') c.kind = 'ped';
     if (c.kind === 'ped' && !c.anchor) {
       const r = opts.ring || W.nearestRing(x, z);
@@ -202,7 +204,105 @@
     return best;
   }
 
+  // ---------------------------------------------------------------- cover AI (Kill House)
+  // pick a spot behind cover that hides us from the player but lets us pop out and shoot
+  const PREF = { shotgun: 7, smg: 13, pistol: 15, rifle: 24 };
+  function pickCover(c, push) {
+    const pl = G.player, pts = G.range.cover;
+    const pref = Math.max(5, (PREF[c.weaponK] || 14) - (push || 0));
+    let best = null, bs = 1e9;
+    for (const p of pts) {
+      if (p.taken && p.taken !== c && p.taken.alive) continue;
+      const de = Math.hypot(p.x - c.x, p.z - c.z);
+      if (de > 32) continue;
+      const dp = Math.hypot(p.x - pl.x, p.z - pl.z);
+      if (dp < 4) continue;
+      // facing the player? (the cover has to be between us)
+      if ((pl.x - p.x) * -p.nx + (pl.z - p.z) * -p.nz < 0.5) continue;
+      const hideY = p.low ? 0.95 : 1.6;
+      if (W.hasLOS3(p.x, hideY, p.z, pl.x, 1.35, pl.z)) continue;
+      const s = de * 0.9 + Math.abs(dp - pref) * 1.1 + Math.random() * 4;
+      if (s < bs) { bs = s; best = p; }
+    }
+    if (c.cover && c.cover.taken === c) c.cover.taken = null;
+    c.cover = best;
+    if (best) best.taken = c;
+    return best;
+  }
+  function updateCoverAI(c, dt) {
+    const pl = G.player;
+    const tx = pl.x, tz = pl.z;
+    const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz) || 1;
+    c.stateT = (c.stateT || 0) - dt;
+    if (!c.state) { c.state = 'seek'; c.peeks = 0; }
+    if (c.hurtT > 0) c.hurtT -= dt;
+    const eyeY = c.crouch ? 1.0 : 1.55, plY = pl.crouch ? 0.85 : 1.3;
+    c.losT -= dt;
+    if (c.losT <= 0) { c.los = pl.alive && W.hasLOS3(c.x, eyeY, c.z, tx, plY, tz); c.losT = 0.2; }
+    let mx = 0, mz = 0, speed = 0, aiming = false, shoot = false, face = Math.atan2(dx, dz);
+    // shotgunners close in once they're near
+    if (c.weaponK === 'shotgun' && d < 14 && c.state !== 'rush' && Math.random() < dt * 0.5) c.state = 'rush';
+    if (c.state === 'seek') {
+      if (!c.cover) { pickCover(c, c.peeks > 2 ? 5 : 0); c.stuckT = 0; c.bestD = 1e9; }
+      if (!c.cover) { c.state = 'rush'; }
+      else {
+        const gx = c.cover.x - c.x, gz = c.cover.z - c.z, gd = Math.hypot(gx, gz);
+        // no progress for a while (blocked by a crate)? pick somewhere else
+        if (gd < c.bestD - 0.3) { c.bestD = gd; c.stuckT = 0; } else if ((c.stuckT += dt) > 1.5) { c.cover = null; }
+        if (gd < 0.6) { c.state = 'cover'; c.stateT = G.R(0.6, 1.6); }
+        else { speed = 4.6; mx = gx / gd; mz = gz / gd; face = Math.atan2(gx, gz); c.crouch = false; if (c.los && gd > 6 && Math.random() < dt * 0.6) shoot = true; aiming = shoot; }
+      }
+    } else if (c.state === 'cover') {
+      const p = c.cover;
+      c.crouch = p.low;
+      // stay tucked in: hold the spot
+      const gx = p.x - c.x, gz = p.z - c.z, gd = Math.hypot(gx, gz);
+      if (gd > 0.3) { speed = 2; mx = gx / gd; mz = gz / gd; }
+      // flanked? (the player can see us here) -> move
+      if (c.los && c.stateT < 0.6) { c.state = 'seek'; c.cover = null; c.stateT = 0; }
+      else if (c.stateT <= 0) { c.state = 'peek'; c.stateT = G.R(1.4, 2.8); c.peeks++; c.peekSide = Math.random() < 0.5 ? 1 : -1; }
+    } else if (c.state === 'peek') {
+      const p = c.cover;
+      aiming = true;
+      if (p.low) { c.crouch = false; }
+      else {
+        // lean out past the edge of tall cover
+        const sx = -p.nz * c.peekSide, sz = p.nx * c.peekSide;
+        const ox = p.x + sx * 1.2, oz = p.z + sz * 1.2;
+        const gx = ox - c.x, gz = oz - c.z, gd = Math.hypot(gx, gz);
+        if (gd > 0.25) { speed = 2.6; mx = gx / gd; mz = gz / gd; }
+        c.crouch = false;
+      }
+      if (c.los) shoot = true;
+      if (c.stateT <= 0 || c.hurtT > 0) {
+        c.state = c.peeks >= G.R(2, 4) ? 'seek' : 'cover'; c.stateT = G.R(0.8, 1.8);
+        if (c.state === 'seek') { c.cover = null; c.peeks = 0; c.stateT = 0; }
+      }
+    } else if (c.state === 'rush') {
+      c.crouch = false; aiming = c.los && d < 18;
+      if (d > 3.5) { speed = 4.9; mx = dx / d; mz = dz / d; }
+      if (c.los) shoot = true;
+      if (c.weaponK !== 'shotgun' && Math.random() < dt * 0.3) { c.state = 'seek'; c.cover = null; }
+    }
+    if (aiming || shoot) face = Math.atan2(dx, dz);
+    c.rot = G.angleLerp(c.rot, face, Math.min(1, dt * (aiming ? 10 : 7)));
+    if (shoot && pl.alive) {
+      c.fireCD -= dt;
+      if (c.fireCD <= 0) enemyFire(c, d);
+    } else if (c.fireCD < 0.3) c.fireCD = G.R(0.3, 0.7);
+    let vx = mx * speed, vz = mz * speed;
+    for (const o of G.chars) {
+      if (o === c || !o.alive || !o.hostile) continue;
+      const ox = c.x - o.x, oz = c.z - o.z, d2 = ox * ox + oz * oz;
+      if (d2 < 1.1 && d2 > 1e-4) { const k = (1.05 - Math.sqrt(d2)) * 3; vx += ox * k; vz += oz * k; }
+    }
+    if (c.limpT > 0) { c.limpT -= dt; vx *= 0.45; vz *= 0.45; speed *= 0.45; }
+    moveChar(c, vx, vz, dt);
+    G.body.pose(c, dt, speed, aiming);
+  }
+
   function updateHostile(c, dt) {
+    if (G.MODE === 'range' && c.hostile && G.range.cover.length) { updateCoverAI(c, dt); return; }
     const pl = G.player;
     const tx = pl.x, tz = pl.z;
     const dx = tx - c.x, dz = tz - c.z, d = Math.hypot(dx, dz);
@@ -234,7 +334,7 @@
       if (d < 5) { vx -= nx * 1.8; vz -= nz * 1.8; }
       speed = Math.hypot(vx, vz);
       c.fireCD -= dt;
-      if (c.fireCD <= 0) { c.fireCD = G.R(0.75, 1.5) * (c.kind === 'cop' ? 1.1 : 1); hostileShoot(c, d); }
+      if (c.fireCD <= 0) enemyFire(c, d);
     } else if (pl.alive) {
       c.navT -= dt;
       let gx = tx, gz = tz;
@@ -253,26 +353,36 @@
       const ox = c.x - o.x, oz = c.z - o.z, d2 = ox * ox + oz * oz;
       if (d2 < 1.4 && d2 > 1e-4) { const k = (1.2 - Math.sqrt(d2)) * 3; vx += ox * k; vz += oz * k; }
     }
+    if (c.limpT > 0) { c.limpT -= dt; vx *= 0.45; vz *= 0.45; speed *= 0.45; }
     moveChar(c, vx, vz, dt);
     G.body.pose(c, dt, speed, aiming);
   }
 
-  function hostileShoot(c, d) {
-    const pl = G.player;
-    const fx = Math.sin(c.rot), fz = Math.cos(c.rot);
-    const ox = c.x + fx * 0.6 - fz * 0.25, oz = c.z + fz * 0.6 + fx * 0.25;
-    let p = G.clamp(0.52 - d * 0.014, 0.14, 0.52);
+  // how each gun behaves in enemy hands: damage per hit, shots per burst, time between shots/bursts
+  const EW = {
+    pistol: { dmg: [7, 11], burst: 1, rate: 0.3, gap: [0.8, 1.4], acc: 0.52, vol: 0.75 },
+    smg: { dmg: [5, 8], burst: 4, rate: 0.1, gap: [1.0, 1.8], acc: 0.4, vol: 0.55 },
+    shotgun: { dmg: [18, 28], burst: 1, rate: 0.9, gap: [1.2, 1.8], acc: 0.75, vol: 0.9, close: true },
+    rifle: { dmg: [22, 30], burst: 1, rate: 1, gap: [1.8, 2.6], acc: 0.7, vol: 0.9 },
+  };
+  function enemyFire(c, d) {
+    const w = EW[c.weaponK] || EW.pistol, pl = G.player;
+    if (!c.burstLeft) c.burstLeft = w.burst;
+    c.burstLeft--;
+    c.fireCD = c.burstLeft > 0 ? w.rate : G.R(w.gap[0], w.gap[1]);
+    let p = w.close ? G.clamp(1.05 - d / 14, 0.1, 0.85) : G.clamp(w.acc + 0.08 - d * 0.013, 0.12, w.acc + 0.05);
     if (pl.car) p *= Math.abs(pl.car.speed) > 10 ? 0.45 : 0.8;
-    else if (pl.moving > 6) p *= 0.65;
-    const hit = Math.random() < p;
-    let ex = pl.x, ez = pl.z, ey = 1.3;
-    if (!hit) { ex += G.R(-1.6, 1.6); ez += G.R(-1.6, 1.6); ey = G.R(0.4, 2.4); }
-    G.fx.tracer(ox, 1.45, oz, ex, ey, ez);
-    G.fx.flash(ox, 1.5, oz, 0.7);
+    else if (pl.moving > 6) p *= 0.6;
+    if (pl.crouch && !pl.car) p *= 0.75;
+    c.recoil = 1;
     const pd = Math.hypot(G.camera.position.x - c.x, G.camera.position.z - c.z);
-    G.audio.shot(G.clamp(1 - pd / 70, 0.05, 0.75));
-    if (hit) G.damagePlayer(G.R(7, 11), c.x, c.z);
-    else G.fx.spark(ex, ey, ez, 4);
+    G.audio.shot(G.clamp(1 - pd / 70, 0.05, 0.75) * w.vol);
+    const hit = G.gun.enemyShot(c, d, p);
+    if (hit) {
+      let dmg = G.R(w.dmg[0], w.dmg[1]);
+      if (w.close && d > 10) dmg *= 0.5;
+      G.damagePlayer(dmg, c.x, c.z);
+    }
   }
 
   A.updateChars = function (dt) {

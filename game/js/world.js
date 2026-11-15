@@ -1223,6 +1223,40 @@
     }
     return wantNormal ? (best < maxT ? { t: best, nx, nz } : null) : best;
   }
+  // full 3D: cover has height (a bullet can pass over a crate), and the ground stops it too
+  const ray3List = [];
+  W.raycast3 = function (ox, oy, oz, dx, dy, dz, maxT) {
+    let best = maxT, nx = 0, ny = 0, nz = 0;
+    if (dy < -1e-4) {
+      const gy = W.groundY(ox + dx * Math.min(maxT, 20), oz + dz * Math.min(maxT, 20));
+      const tg = (gy - oy) / dy;
+      if (tg > 0 && tg < best) { best = tg; nx = 0; ny = 1; nz = 0; }
+    }
+    const ex = ox + dx * best, ez = oz + dz * best;
+    const list = boxesIn(Math.min(ox, ex), Math.min(oz, ez), Math.max(ox, ex), Math.max(oz, ez), ray3List);
+    for (let k = 0; k < list.length; k++) {
+      const b = list[k];
+      let t0 = 0, t1 = best, axis = 0;
+      const slab = (o, d, mn, mx, ax) => {
+        if (Math.abs(d) < 1e-9) return o >= mn && o <= mx;
+        let ta = (mn - o) / d, tb = (mx - o) / d;
+        if (ta > tb) { const s = ta; ta = tb; tb = s; }
+        if (ta > t0) { t0 = ta; axis = ax; }
+        if (tb < t1) t1 = tb;
+        return t0 <= t1;
+      };
+      if (!slab(ox, dx, b.minX, b.maxX, 1) || !slab(oy, dy, b.minY || 0, b.h, 2) || !slab(oz, dz, b.minZ, b.maxZ, 3)) continue;
+      if (axis && t0 < best) {
+        best = t0;
+        nx = axis === 1 ? -Math.sign(dx) : 0; ny = axis === 2 ? -Math.sign(dy) : 0; nz = axis === 3 ? -Math.sign(dz) : 0;
+      }
+    }
+    return { t: best, hit: best < maxT, nx, ny, nz };
+  };
+  W.hasLOS3 = function (ax, ay, az, bx, by, bz) {
+    const dx = bx - ax, dy = by - ay, dz = bz - az, d = Math.hypot(dx, dy, dz) || 1e-4;
+    return W.raycast3(ax, ay, az, dx / d, dy / d, dz / d, d).t >= d - 0.05;
+  };
   W.raycast = (ox, oz, dx, dz, maxT) => rayCore(ox, oz, dx, dz, maxT, false);
   W.rayNormal = (ox, oz, dx, dz, maxT) => rayCore(ox, oz, dx, dz, maxT, true);
   W.hasLOS = function (ax, az, bx, bz) {

@@ -7,10 +7,10 @@
   // dmg is per pellet. acc(d) is the chance a pellet lands on the aimed target at distance d.
   const WEAPONS = (G.WEAPONS = {
     fists: { name: 'Fists', melee: true, rate: 0.42, dmg: [20, 28], range: 1.9, aim: 3 },
-    pistol: { name: 'Pistol', rate: 0.27, mag: 12, reload: 1.3, pellets: 1, dmg: [36, 48], spread: 0.015, power: 4, range: 70, aim: 36, vol: 1, acc: (d) => G.clamp(1.03 - d * 0.012, 0.6, 0.97), drive: true },
-    shotgun: { name: 'Shotgun', rate: 0.85, mag: 6, reload: 2.1, pellets: 7, dmg: [13, 19], spread: 0.11, power: 9, range: 30, aim: 22, vol: 1.4, acc: (d) => G.clamp(1.15 - d / 16, 0.05, 0.92) },
-    smg: { name: 'SMG', rate: 0.085, mag: 30, reload: 1.6, pellets: 1, dmg: [15, 21], spread: 0.045, power: 2.6, range: 55, aim: 34, vol: 0.65, auto: true, acc: (d) => G.clamp(0.95 - d * 0.014, 0.4, 0.88), drive: true },
-    rifle: { name: 'Rifle', rate: 0.95, mag: 5, reload: 2.3, pellets: 1, dmg: [95, 125], spread: 0.003, power: 7.5, range: 140, aim: 85, vol: 1.6, acc: (d) => G.clamp(1.0 - d * 0.003, 0.82, 0.99) },
+    pistol: { name: 'Pistol', spread: 0.02, aimSpread: 0.004, bloom: 0.012, bloomMax: 0.05, kick: 0.028, rate: 0.27, mag: 12, reload: 1.3, pellets: 1, dmg: [36, 48], spread: 0.015, power: 4, range: 70, aim: 36, vol: 1, acc: (d) => G.clamp(1.03 - d * 0.012, 0.6, 0.97), drive: true },
+    shotgun: { name: 'Shotgun', spread: 0.09, aimSpread: 0.065, bloom: 0, bloomMax: 0, kick: 0.07, rate: 0.85, mag: 6, reload: 2.1, pellets: 7, dmg: [13, 19], spread: 0.11, power: 9, range: 30, aim: 22, vol: 1.4, acc: (d) => G.clamp(1.15 - d / 16, 0.05, 0.92) },
+    smg: { name: 'SMG', spread: 0.04, aimSpread: 0.016, bloom: 0.006, bloomMax: 0.07, kick: 0.012, rate: 0.085, mag: 30, reload: 1.6, pellets: 1, dmg: [15, 21], spread: 0.045, power: 2.6, range: 55, aim: 34, vol: 0.65, auto: true, acc: (d) => G.clamp(0.95 - d * 0.014, 0.4, 0.88), drive: true },
+    rifle: { name: 'Rifle', spread: 0.02, aimSpread: 0.0012, bloom: 0.03, bloomMax: 0.05, kick: 0.075, zoom: true, rate: 0.95, mag: 5, reload: 2.3, pellets: 1, dmg: [95, 125], spread: 0.003, power: 7.5, range: 140, aim: 85, vol: 1.6, acc: (d) => G.clamp(1.0 - d * 0.003, 0.82, 0.99) },
   });
   const ORDER = ['fists', 'pistol', 'shotgun', 'smg', 'rifle'];
 

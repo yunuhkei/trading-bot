@@ -19,6 +19,10 @@
     $('err').textContent = 'This browser could not start WebGL, which the game needs.';
     return;
   }
+  // the Kill House gunplay test by default; #island plays the story on the island
+  G.MODE = location.hash === '#island' ? 'island' : 'range';
+  const RANGE = G.MODE === 'range';
+  if (RANGE) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap; }
   const scene = (G.scene = new T.Scene());
   const FOG = 0x182030;
   scene.background = new T.Color(FOG);
@@ -58,7 +62,7 @@
 
   function makePlayer() {
     player = G.player = A.spawn('player', G.story.START.x, G.story.START.z, { rot: -2.4 });
-    Object.assign(player, { hp: 100, armor: 0, reloadT: 0, fireCD: 0, car: null, lastHurt: -99, aimHold: 0, moving: 0, punchT: 0 });
+    Object.assign(player, { hp: 100, armor: 0, reloadT: 0, fireCD: 0, car: null, lastHurt: -99, aimHold: 0, moving: 0, punchT: 0, bloom: 0, aimMode: false, crouch: false });
   }
 
   G.resetPlayer = function (x, z, rot) {
@@ -191,68 +195,47 @@
     return false;
   }
 
-  // one trigger pull from (ox, oz): each pellet lands on the aim target (by the gun's accuracy)
-  // or flies along the aim line with spread
-  function shootFrom(ox, oy, oz, k) {
+  // one trigger pull. Aim mode: wherever the crosshair points. Hip fire: at the auto-aim target.
+  const HEADJ = G.body.J.HEAD, NECKJ = G.body.J.NECK, PELVJ = G.body.J.PELVIS;
+  function shootFrom(muzzle, k, fromCar) {
     const w = G.WEAPONS[k];
-    player.fireCD = w.rate; player.aimHold = 0.9;
-    let baseA;
-    if (aimTarget) baseA = Math.atan2(aimTarget.x - ox, aimTarget.z - oz);
-    else baseA = camYaw;
-    const d0 = aimTarget ? Math.hypot(aimTarget.x - ox, aimTarget.z - oz) : 0;
-    const hits = new Map();
-    for (let n = 0; n < w.pellets; n++) {
-      let a = baseA + G.R(-w.spread, w.spread), forced = null;
-      if (aimTarget && Math.random() < w.acc(d0) * (player.car ? 0.85 : 1)) forced = aimTarget;
-      else if (aimTarget && w.pellets === 1) a += (Math.random() < 0.5 ? -1 : 1) * G.R(0.05, 0.1);
-      const dx = Math.sin(a), dz = Math.cos(a);
-      const wallT = W.raycast(ox, oz, dx, dz, w.range);
-      const hit = forced ? { c: forced, t: d0 } : A.rayChars(ox, oz, dx, dz, wallT, null);
-      let ex, ey, ez;
-      if (hit) {
-        const head = w.pellets === 1 && Math.random() < (hit.t < 8 ? 0.2 : 0.12) + (k === 'rifle' ? 0.15 : 0);
-        ex = hit.c.x; ez = hit.c.z; ey = head ? 1.66 : G.R(1.0, 1.45);
-        const h = hits.get(hit.c) || { dmg: 0, dx: 0, dz: 0, head: false, n: 0 };
-        h.dmg += head ? 150 : G.R(w.dmg[0], w.dmg[1]); h.dx += dx; h.dz += dz; h.head = h.head || head; h.n++;
-        hits.set(hit.c, h);
-      } else {
-        const dead = G.body.rayDead(ox, oz, dx, dz, Math.min(wallT, 25));
-        if (dead) {
-          const jp = G.body.jointPos(dead.c, dead.k);
-          ex = jp.x; ey = jp.y; ez = jp.z;
-          G.body.push(dead.c, dead.k, dx * w.power * 0.8, 1.2, dz * w.power * 0.8, 0.12);
-          G.blood.spray(jp.x, jp.y, jp.z, dx, dz, 0.7, dead.k === G.body.J.HEAD);
-          G.body.addBlood(dead.c, 0.15);
-        } else {
-          ex = ox + dx * wallT; ez = oz + dz * wallT; ey = oy - 0.1 + G.R(-0.2, 0.2);
-          if (wallT < w.range) G.fx.spark(ex, ey, ez, 4);
-        }
-      }
-      G.fx.tracer(ox, oy, oz, ex, ey, ez);
+    player.fireCD = w.rate; player.aimHold = 0.9; player.recoil = 1;
+    let ax, ay, az, spread;
+    if (player.aimMode && !fromCar) {
+      const p = G.gun.aimPoint(camera, player);
+      ax = p.x; ay = p.y; az = p.z;
+      spread = w.aimSpread + player.bloom * 0.6 + (player.moving > 0.5 ? w.aimSpread * 1.5 : 0);
+    } else if (aimTarget && aimTarget.body) {
+      const j = aimTarget.body.j, d = Math.hypot(aimTarget.x - muzzle.x, aimTarget.z - muzzle.z);
+      const head = Math.random() < (d < 8 ? 0.16 : 0.08);
+      if (head) { ax = j[HEADJ * 3]; ay = j[HEADJ * 3 + 1]; az = j[HEADJ * 3 + 2]; }
+      else { ax = (j[NECKJ * 3] + j[PELVJ * 3]) / 2; ay = (j[NECKJ * 3 + 1] + j[PELVJ * 3 + 1]) / 2; az = (j[NECKJ * 3 + 2] + j[PELVJ * 3 + 2]) / 2; }
+      // hip fire: auto-aim lands by the gun's accuracy, otherwise it's a near miss
+      if (Math.random() > w.acc(d) * (fromCar ? 0.85 : 1)) { const a = Math.random() * 6.28; ax += Math.cos(a) * G.R(0.35, 0.7); az += Math.sin(a) * G.R(0.35, 0.7); ay += G.R(-0.3, 0.4); }
+      spread = w.pellets > 1 ? w.spread : w.aimSpread;
+    } else {
+      ax = muzzle.x + Math.sin(camYaw) * 40; ay = muzzle.y - 0.2; az = muzzle.z + Math.cos(camYaw) * 40;
+      spread = w.spread + player.bloom;
     }
-    for (const [c, h] of hits) {
-      const l = Math.hypot(h.dx, h.dz) || 1;
-      const power = w.power * (w.pellets > 1 ? Math.min(1, 0.35 + h.n / w.pellets) : 1) * (h.head ? 1.3 : 1);
-      G.damageChar(c, h.dmg, ox, oz, true, { kind: 'bullet', dx: h.dx / l, dz: h.dz / l, power, joint: h.head ? G.body.J.HEAD : G.body.J.NECK, head: h.head });
-      if (h.head && !c.alive) G.hud.toast('Headshot');
-    }
-    G.lastShot = { k, ox, oz, baseA, aim: aimTarget ? aimTarget.kind : null, hits: hits.size, camYaw };
-    G.fx.flash(ox, oy + 0.1, oz, k === 'smg' ? 0.6 : 1);
+    const res = G.gun.fire({ k, w, shooter: player, muzzle, ax, ay, az, spread, pump: true });
+    if (res.anyHit) G.gun.hitmark(res.killed, res.head);
+    if (res.head && res.killed) G.hud.toast('Headshot');
+    // recoil: the view kicks up, spread blooms
+    const kick = w.kick * (player.aimMode ? 1 : 0.5) * (player.crouch ? 0.7 : 1);
+    recoilPitch += kick; camYaw += (Math.random() - 0.5) * kick * 0.6;
+    player.bloom = Math.min(w.bloomMax, player.bloom + w.bloom);
     G.audio.shot(w.vol);
-    if (k === 'shotgun' || k === 'rifle') { G.audio.thud(0.5); G.shake(0.12); }
+    if (k === 'shotgun' || k === 'rifle') { G.audio.thud(0.5); G.shake(0.14); }
     A.alarm(player.x, player.z, k === 'rifle' ? 70 : 45);
     if (!G.suppressShotHeat && G.wanted.level < 1 && witnesses(25)) G.addHeat(1);
   }
-  function playerShoot(k) {
-    const fx = Math.sin(player.rot), fz = Math.cos(player.rot);
-    shootFrom(player.x + fx * 0.6 - fz * 0.28, 1.45 + W.groundY(player.x, player.z), player.z + fz * 0.6 + fx * 0.28, k);
-  }
+  function playerShoot(k) { shootFrom(G.gun.muzzle(player, k), k, false); }
   // shooting out of the driver's window, toward the target
   function driveBy(k) {
     const car = player.car;
     let tx = aimTarget ? aimTarget.x : car.x + Math.sin(camYaw) * 10, tz = aimTarget ? aimTarget.z : car.z + Math.cos(camYaw) * 10;
     const dx = tx - car.x, dz = tz - car.z, l = Math.hypot(dx, dz) || 1;
-    shootFrom(car.x + (dx / l) * 1.3, car.y + 1.35, car.z + (dz / l) * 1.3, k);
+    shootFrom({ x: car.x + (dx / l) * 1.3, y: car.y + 1.35, z: car.z + (dz / l) * 1.3, dx: dx / l, dy: 0, dz: dz / l }, k, true);
   }
 
   // ---------------------------------------------------------------- damage
@@ -263,7 +246,7 @@
     const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
     hit = hit || { kind: 'bullet', dx, dz, power: 4 };
     if (hit.kind === 'bullet') {
-      G.blood.spray(c.x, hit.head ? 1.66 : 1.25, c.z, dx, dz, hit.head ? 1.3 : 1, hit.head);
+      G.blood.spray(c.x, hit.y || (hit.head ? 1.66 : 1.25), c.z, hit.dx || dx, hit.dz || dz, hit.head ? 1.3 : 1, hit.head);
       G.body.addBlood(c, hit.head ? 0.5 : 0.3);
       c.flinch = 1;
     } else {
@@ -273,6 +256,7 @@
     }
     if (c.kind === 'ped') { c.fleeT = 14; c.tx = fx; c.tz = fz; }
     if (c.kind === 'cop' && byPlayer) G.addHeat(G.wanted.level < 2 ? 2 - G.wanted.level : 0.3);
+    c.hurtT = 0.6;
     if (c.hp <= 0) G.killChar(c, hit, byPlayer);
     else if (c.hostile) c.fireCD = Math.max(c.fireCD, 0.35);
   };
@@ -281,9 +265,10 @@
     G.loot.drop(c);
     if (!byPlayer) return;
     G.stats.kills++;
-    if (c.kind === 'ped') { G.stats.civs++; G.addHeat(G.wanted.level < 1 ? 1 : 0.5); }
-    else if (c.kind === 'cop') { G.stats.cops++; G.addHeat(1); }
+    if (c.kind === 'ped') { G.stats.civs++; if (!RANGE) G.addHeat(G.wanted.level < 1 ? 1 : 0.5); }
+    else if (c.kind === 'cop') { G.stats.cops++; if (!RANGE) G.addHeat(1); }
     else if (c.kind === 'saint') { G.stats.saints++; G.story.onKill(c); }
+    if (RANGE) G.range.onKill(c);
   };
   G.damagePlayer = function (amt, fx, fz, direct, kind) {
     if (!player.alive) return;
@@ -302,6 +287,7 @@
       player.flinch = 0.7;
     }
     G.hud.hurt(Math.min(1, amt / 25));
+    G.hud.hitFrom(fx, fz);
     G.shake(0.25);
     if (player.hp <= 0) {
       player.hp = 0; player.alive = false; deathT = 0;
@@ -313,6 +299,7 @@
 
   // ---------------------------------------------------------------- wanted
   G.addHeat = function (n) {
+    if (RANGE) return;
     const w = G.wanted;
     const before = Math.ceil(w.level - 0.01);
     w.level = Math.min(5, Math.max(w.level + n, n > 0 ? 1 : 0));
@@ -422,20 +409,29 @@
     const vl = Math.hypot(vx, vz);
     let speed = 0;
     if (vl > 0.05) { vx /= vl; vz /= vl; speed = input.sprint ? 7.8 : 5.3 * (input.usingTouch ? Math.max(0.3, mag) : 1); }
-    computeAim();
+    player.aimMode = !!input.aim && activeWeapon() !== 'fists';
+    if (input.sprint && player.crouch && speed > 0) { G.setCrouch(false); syncToggles(); }
+    player.crouch = !!input.crouch;
+    if (player.aimMode) aimTarget = null; else computeAim();
     player.aimHold -= dt;
     if (input.fire) player.aimHold = 0.7;
-    const aiming = player.aimHold > 0;
-    if (aiming) speed = Math.min(speed, 3.8);
+    const aiming = player.aimHold > 0 || player.aimMode;
+    if (aiming) speed = Math.min(speed, player.aimMode ? 2.8 : 3.8);
+    if (player.crouch) speed = Math.min(speed, 2.2);
+    player.bloom = Math.max(0, player.bloom - dt * 0.14);
     player.moving = speed;
     player.x += vx * speed * dt; player.z += vz * speed * dt;
     W.collide(player, 0.36);
     A.pushFromCars(player, 0.36);
     let face = null;
-    if (aiming) face = aimTarget ? Math.atan2(aimTarget.x - player.x, aimTarget.z - player.z) : camYaw;
+    if (player.aimMode) face = camYaw;
+    else if (aiming) face = aimTarget ? Math.atan2(aimTarget.x - player.x, aimTarget.z - player.z) : camYaw;
     else if (speed > 0) face = Math.atan2(vx, vz);
-    if (face !== null) player.rot = G.angleLerp(player.rot, face, Math.min(1, dt * (aiming ? 20 : 10)));
-    G.body.pose(player, dt, speed, aiming);
+    if (face !== null) player.rot = G.angleLerp(player.rot, face, Math.min(1, dt * (player.aimMode ? 30 : aiming ? 20 : 10)));
+    if (player.aimMode) aimAssist(dt);
+    player.weaponK = activeWeapon() === 'fists' ? null : activeWeapon();
+    player.reloading = player.reloadT > 0;
+    G.body.pose(player, dt, speed, aiming || !!player.reloading);
 
     tickReload(dt);
     if (input.reload) startReload();
@@ -467,6 +463,24 @@
 
   // ---------------------------------------------------------------- camera
   const camPos = new T.Vector3();
+  let aimBlend = 0, recoilPitch = 0;
+  // in aim mode, the crosshair drifts gently onto a nearby enemy (stronger on a touch screen)
+  const apv = new T.Vector3();
+  function aimAssist(dt) {
+    const strength = input.usingTouch ? 1 : 0.35;
+    let best = null, bd = 70;
+    for (const c of G.chars) {
+      if (!c.alive || !c.hostile || !c.body) continue;
+      const j = c.body.j, k = G.body.J.NECK;
+      apv.set(j[k * 3], j[k * 3 + 1] - 0.1, j[k * 3 + 2]).project(camera);
+      if (apv.z > 1) continue;
+      const sx = apv.x * window.innerWidth / 2, sy = apv.y * window.innerHeight / 2, d = Math.hypot(sx, sy);
+      if (d < bd) { bd = d; best = [sx, sy]; }
+    }
+    if (!best) return;
+    camYaw -= (best[0] / window.innerWidth) * dt * 3.2 * strength;
+    camPitch -= (best[1] / window.innerHeight) * dt * 2.4 * strength;
+  }
   const fill = new T.PointLight(0xd6dcf2, 34, 22, 1.3);
   scene.add(fill);
   function updateCamera(dt) {
@@ -479,14 +493,25 @@
         camPitch = G.lerp(camPitch, 0.26, Math.min(1, dt * 2));
       }
     } else {
-      px = player.x; pz = player.z; py = 1.62 + W.groundY(px, pz); dist = 4.3;
+      px = player.x; pz = player.z; py = 1.62 + W.groundY(px, pz) - (player.crouch ? 0.42 : 0); dist = 4.3;
       if (!player.alive) { dist = 6.5; camPitch = G.lerp(camPitch, 0.9, Math.min(1, dt * 1.5)); camYaw += dt * 0.25; }
     }
     const fx = Math.sin(camYaw), fz = Math.cos(camYaw), rx = -Math.cos(camYaw), rz = Math.sin(camYaw);
-    const sh = car || !player.alive ? 0 : 0.55;
+    // aim mode: tight over the right shoulder, looking exactly where the crosshair is
+    const aimT = player.aimMode && !car && player.alive ? 1 : 0;
+    aimBlend += (aimT - aimBlend) * Math.min(1, dt * 12);
+    recoilPitch *= Math.pow(0.0005, dt);
+    const sh = car || !player.alive ? 0 : 0.55 + aimBlend * 0.2;
     const ax = px + rx * sh, az = pz + rz * sh;
-    const cp = Math.cos(camPitch), sp = Math.sin(camPitch);
-    const cx = ax - fx * dist * cp, cy = py + dist * sp + (car ? 0.6 : 0.15), cz = az - fz * dist * cp;
+    const look = camPitch - recoilPitch;
+    const cp = Math.cos(look), sp = Math.sin(look);
+    const d2 = G.lerp(dist, 2.15, aimBlend);
+    const cx = ax - fx * d2 * cp, cy = py + d2 * sp + (car ? 0.6 : G.lerp(0.15, 0.22, aimBlend)), cz = az - fz * d2 * cp;
+    // looking down a scope: your own body would block the view
+    const scoped = !car && player.alive && aimBlend > 0.6 && !!(G.WEAPONS[activeWeapon()] || {}).zoom;
+    if (scoped !== !!player.scoped) { player.scoped = scoped; G.body.setVisible(player, !scoped); }
+    const wantFov = (camera.aspect < 1 ? 75 : 62) - aimBlend * ((G.WEAPONS[activeWeapon()] || {}).zoom ? 34 : 16);
+    if (Math.abs(camera.fov - wantFov) > 0.05) { camera.fov = wantFov; camera.updateProjectionMatrix(); }
     let tFree = 1;
     for (let k = 1; k <= 12; k++) {
       const t = k / 12;
@@ -499,13 +524,25 @@
       shakeAmt *= Math.pow(0.02, dt);
     }
     camera.position.copy(camPos);
-    camera.lookAt(ax + fx * 3, py + (car ? 0.1 : 0.05), az + fz * 3);
+    if (aimBlend > 0.01) {
+      // look along the aim line (pitch included) so the crosshair is honest
+      const lp = look - 0.22;
+      const tx = ax + fx * 3, ty = py + (car ? 0.1 : 0.05), tz = az + fz * 3;
+      const ex = camPos.x + fx * Math.cos(lp) * 10, ey = camPos.y - Math.sin(lp) * 10, ez = camPos.z + fz * Math.cos(lp) * 10;
+      camera.lookAt(G.lerp(tx, ex, aimBlend), G.lerp(ty, ey, aimBlend), G.lerp(tz, ez, aimBlend));
+    } else camera.lookAt(ax + fx * 3, py + (car ? 0.1 : 0.05), az + fz * 3);
     // soft key light just behind the camera so people read as people, not silhouettes
     fill.position.set(px - fx * 2.5 - rx * 1.5, py + 2.6, pz - fz * 2.5 - rz * 1.5);
   }
 
   // title-screen camera: a slow drift past the burning wreck
   function titleCamera(t) {
+    if (RANGE) {
+      const a = t * 0.06;
+      camera.position.set(Math.sin(a) * 38, 14, Math.cos(a) * 30);
+      camera.lookAt(0, 1, 0);
+      return;
+    }
     const a = t * 0.05;
     camera.position.set(150 + Math.sin(a) * 16, 4.5 + Math.sin(t * 0.13), -180 + Math.cos(a) * 16);
     camera.lookAt(150, 2.2, -180);
@@ -722,6 +759,33 @@
     if ((mmFrame++ & 1) === 0) drawMinimap();
   };
 
+  // crosshair: shows in aim mode; the gap is the gun's current spread
+  function updateCrosshair(dt) {
+    const xh = $('xhair');
+    const show = player.aimMode && player.alive;
+    if (xh.hidden === show) xh.hidden = !show;
+    if (show) {
+      const w = G.WEAPONS[activeWeapon()];
+      const sp = (w.aimSpread || 0) + player.bloom * 0.6 + (player.moving > 0.5 ? (w.aimSpread || 0) * 1.5 : 0);
+      const gap = Math.round(5 + sp * 900);
+      if (gap !== xh._gap) { xh.style.setProperty('--gap', gap + 'px'); xh._gap = gap; }
+      xh.classList.toggle('scope', !!w.zoom);
+    }
+    if (dmgT > 0) { dmgT -= dt; $('dmgdir').style.opacity = Math.max(0, dmgT / 1.2).toFixed(2); }
+  }
+  let dmgT = 0;
+  hud.hitFrom = function (fx, fz) {
+    if (fx === undefined) return;
+    const a = Math.atan2(fx - player.x, fz - player.z), rel = G.wrapAngle(a - camYaw);
+    $('dmgdir').style.transform = `translate(-50%, -50%) rotate(${-rel}rad)`;
+    dmgT = 1.2;
+  };
+  function syncToggles() {
+    $('btnAim').classList.toggle('on', !!G.input.aim);
+    $('btnCrouch').classList.toggle('on', !!G.input.crouch);
+  }
+  G.onCrouchKey = () => setTimeout(syncToggles, 0);
+
   const joyUI = {
     joyShow(x, y) { el.joyBase.hidden = false; el.joyBase.style.transform = `translate(${x}px, ${y}px)`; el.joyKnob.style.transform = 'translate(0px, 0px)'; },
     joyKnob(dx, dy) { el.joyKnob.style.transform = `translate(${dx}px, ${dy}px)`; },
@@ -774,13 +838,16 @@
     $('restartBtn').addEventListener('click', () => { $('confirmRestart').hidden = false; });
     $('restartNo').addEventListener('click', () => { $('confirmRestart').hidden = true; });
     $('restartYes').addEventListener('click', () => location.reload());
-    $('retryBtn').addEventListener('click', () => { G.story.respawn(); });
+    $('retryBtn').addEventListener('click', () => { if (RANGE) G.range.respawn(); else G.story.respawn(); });
+    $('modeBtn').addEventListener('click', () => { location.hash = RANGE ? 'island' : 'range'; location.reload(); });
     $('startBtn').addEventListener('click', () => startGame(null));
     $('continueBtn').addEventListener('click', () => startGame(G.loadSave()));
     $('newBtn').addEventListener('click', () => { $('confirmNew').hidden = false; });
     $('newNo').addEventListener('click', () => { $('confirmNew').hidden = true; });
     $('newYes').addEventListener('click', () => { G.clearSave(); startGame(null); });
     G.bindHold($('btnWeapon'), (v) => { if (v) G.inv.cycle(1); });
+    G.bindHold($('btnAim'), (v) => { if (v) { $('btnAim').classList.toggle('on', G.toggleAim()); } });
+    G.bindHold($('btnCrouch'), (v) => { if (v) { $('btnCrouch').classList.toggle('on', G.toggleCrouch()); } });
     window.addEventListener('keydown', (e) => {
       if (!G.running || G.paused || G.cardMode || G.shopOpen) return;
       if (e.code === 'KeyQ') G.inv.cycle(1);
@@ -820,7 +887,7 @@
     $('hud').hidden = false;
     G.running = true;
     for (let k = G.chars.length - 1; k >= 0; k--) if (G.chars[k].kind === 'ped' && Math.hypot(G.chars[k].x - player.x, G.chars[k].z - player.z) < 30) A.remove(G.chars[k]);
-    G.story.start(save);
+    if (RANGE) G.range.start(); else G.story.start(save);
     perfStart = G.time;
   }
 
@@ -829,10 +896,10 @@
   function update(dt) {
     G.time += dt;
     G.readInput();
-    const sens = input.usingTouch ? 0.0062 : 0.0026;
+    const sens = (input.usingTouch ? 0.0062 : 0.0026) * (player.aimMode ? (G.WEAPONS[activeWeapon()].zoom ? 0.35 : 0.55) : 1);
     if (input.lookDX || input.lookDY) lookIdle = 0; else lookIdle += dt;
     camYaw -= input.lookDX * sens;
-    camPitch = G.clamp(camPitch + input.lookDY * sens, -0.3, 1.1);
+    camPitch = G.clamp(camPitch + input.lookDY * sens, player.aimMode ? -0.45 : -0.3, 1.1);
 
     if (player.alive) {
       if (player.car) updateDriving(dt); else updateOnFoot(dt);
@@ -841,17 +908,19 @@
       deathT += dt;
       if (deathT > 1.6 && $('death').hidden) $('death').hidden = false;
     }
-    G.traffic.update(dt);
+    if (!RANGE) G.traffic.update(dt);
     A.updateCars(dt, input);
     A.updateChars(dt);
     G.body.update(dt);
-    populate(dt);
-    updateWanted(dt);
-    G.story.update(dt);
+    if (RANGE) G.range.update(dt);
+    else { populate(dt); updateWanted(dt); G.story.update(dt); }
     updateCamera(dt);
     W.update(dt, camera.position);
     G.fx.update(dt);
     G.loot.update(dt);
+    G.gun.update(dt);
+    G.gun.hudUpdate(dt);
+    updateCrosshair(dt);
     let siren = 0;
     if (G.wanted.level > 0) {
       for (const car of G.cars) if (car.sirenOn) siren = Math.max(siren, 1 - Math.hypot(car.x - player.x, car.z - player.z) / 90);
@@ -881,7 +950,7 @@
       W.update(dt, camera.position);
       A.updateChars(dt);
       G.body.update(dt);
-      populate(dt);
+      if (!RANGE) populate(dt);
     } else if (!G.paused && !G.cardMode && !G.shopOpen) {
       update(dt);
     } else {
@@ -892,18 +961,24 @@
 
   // ---------------------------------------------------------------- boot
   function boot() {
-    W.build(scene);
+    if (RANGE) G.range.build(scene); else W.build(scene);
     scene.add(beam);
     G.fx.init(scene);
     G.body.init(scene);
+    G.gun.init(scene);
     makePlayer();
     drawBaseMap();
     bindUI();
     applyQuality();
-    for (let k = 0; k < 16; k++) { const p = W.randomSidewalkPoint(150, -180, 10, 80); if (p) A.spawn('ped', p.x, p.z, { ring: p }); }
+    if (!RANGE) for (let k = 0; k < 16; k++) { const p = W.randomSidewalkPoint(150, -180, 10, 80); if (p) A.spawn('ped', p.x, p.z, { ring: p }); }
+    if (RANGE) {
+      document.querySelector('.chapter').textContent = 'Kill House · Gunplay test';
+      document.querySelector('.tagline').textContent = 'Waves of Saints and cops in a floodlit yard full of cover. Aim, crouch, and stay alive.';
+      $('modeBtn').textContent = 'Play the story (island)';
+    }
     $('loading').hidden = true;
     $('startBtn').disabled = false;
-    const sv = G.loadSave();
+    const sv = RANGE ? null : G.loadSave();
     if (sv) { $('startBtn').hidden = true; $('saveRow').hidden = false; $('saveInfo').textContent = 'Saved ' + new Date(sv.at).toLocaleString(); }
     requestAnimationFrame((t) => { lastT = t; frame(t); });
   }

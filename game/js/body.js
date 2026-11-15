@@ -1,11 +1,13 @@
 'use strict';
-// Bodies: instanced low-poly people, procedural animation, Verlet ragdolls, and blood.
-// Every person is 15 joints. Alive, the joints come from a walk/aim pose; dead, they are
-// physics particles held together by bone constraints. Body parts are boxes drawn between joints.
+// Bodies: people, procedural animation, Verlet ragdolls, and blood.
+// Every person is 15 joints. Alive, the joints come from an animated pose (walk cycle, leg and arm
+// IK, aim stances, crouch, recoil); dead, they are physics particles held together by bone
+// constraints. The body is drawn from rounded parts placed between the joints, all instanced,
+// so a crowd costs about a dozen draw calls.
 (function () {
   const T = THREE, W = G.world;
   const B = (G.body = {});
-  const PARTS = 23, MAXB = 90, STEP = 1 / 60;
+  const MAXB = 90, STEP = 1 / 60;
   const PELVIS = 0, NECK = 1, HEAD = 2, SHL = 3, SHR = 4, ELL = 5, ELR = 6, HAL = 7, HAR = 8,
     HPL = 9, HPR = 10, KNL = 11, KNR = 12, FTL = 13, FTR = 14;
   B.J = { PELVIS, NECK, HEAD, SHL, SHR, ELL, ELR, HAL, HAR, HPL, HPR, KNL, KNR, FTL, FTR };
@@ -17,24 +19,58 @@
   const MINS = [[HEAD, SHL, 0.25], [HEAD, SHR, 0.25], [HEAD, PELVIS, 0.62], [SHL, HAL, 0.24], [SHR, HAR, 0.24],
     [HPL, FTL, 0.5], [HPR, FTR, 0.5], [KNL, KNR, 0.1], [FTL, FTR, 0.1], [HEAD, HPL, 0.6], [HEAD, HPR, 0.6], [ELL, PELVIS, 0.12], [ELR, PELVIS, 0.12]];
 
-  let mesh, haloMesh, M, HM;
+  // ---------------------------------------------------------------- part meshes
+  // how many instances of each shape one person uses
+  const PER = { limb: 9, ball: 21, torso: 1, pelvis: 1, head: 1, skirt: 1, hair: 1, box: 16, barrel: 3, halo: 1 };
+  const meshes = {};
   const free = [], list = [];
   B.list = list;
   const col = new T.Color(), BLOODC = new T.Color('#4a0508');
 
+  function lathe(profile, flatten, segs) {
+    const g = new T.LatheGeometry(profile.map(([r, y]) => new T.Vector2(r, y)), segs || 16);
+    g.scale(1, 1, flatten);
+    g.computeVertexNormals();
+    return g;
+  }
+  function headGeo() {
+    const g = new T.SphereGeometry(0.5, 18, 14);
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      let x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      if (y < 0) { const k = 1 + y * 0.32; x *= k; z *= 1 + y * 0.12; } // jaw narrows
+      if (z < 0) z *= 1.06; // back of the skull
+      y *= 1.14;
+      p.setXYZ(i, x, y, z);
+    }
+    g.computeVertexNormals();
+    return g;
+  }
   B.init = function (scene) {
-    mesh = new T.InstancedMesh(new T.BoxGeometry(1, 1, 1), new T.MeshLambertMaterial({ color: 0xffffff }), PARTS * MAXB);
-    mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
-    mesh.setColorAt(0, col.set(0xffffff));
-    M = mesh.instanceMatrix.array; M.fill(0);
-    mesh.frustumCulled = false; mesh.count = 0;
-    scene.add(mesh);
-    haloMesh = new T.InstancedMesh(new T.TorusGeometry(0.2, 0.024, 6, 20), new T.MeshBasicMaterial({ color: 0xffffff }), MAXB);
-    haloMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
-    haloMesh.setColorAt(0, col.set(0xffffff));
-    HM = haloMesh.instanceMatrix.array; HM.fill(0);
-    haloMesh.frustumCulled = false; haloMesh.count = 0;
-    scene.add(haloMesh);
+    const geos = {
+      limb: new T.CylinderGeometry(0.42, 0.5, 1, 12, 1, false),
+      ball: new T.SphereGeometry(0.5, 12, 9),
+      torso: lathe([[0, -0.5], [0.4, -0.5], [0.41, -0.32], [0.39, -0.12], [0.45, 0.12], [0.5, 0.3], [0.47, 0.42], [0.36, 0.49], [0.12, 0.5], [0, 0.5]], 0.6),
+      pelvis: lathe([[0, -0.5], [0.34, -0.5], [0.46, -0.2], [0.47, 0.15], [0.42, 0.5], [0, 0.5]], 0.68),
+      head: headGeo(),
+      skirt: new T.CylinderGeometry(0.47, 0.6, 1, 14, 1, true).scale(1, 1, 0.7),
+      hair: new T.SphereGeometry(0.5, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.58),
+      box: new T.BoxGeometry(1, 1, 1),
+      barrel: new T.CylinderGeometry(0.5, 0.5, 1, 10),
+      halo: new T.TorusGeometry(0.2, 0.024, 6, 24),
+    };
+    for (const k in PER) {
+      const mat = k === 'halo' ? new T.MeshBasicMaterial({ color: 0xffffff })
+        : new T.MeshStandardMaterial({ color: 0xffffff, roughness: k === 'barrel' || k === 'box' ? 0.55 : 0.78, metalness: k === 'barrel' ? 0.5 : 0, side: k === 'skirt' || k === 'hair' ? T.DoubleSide : T.FrontSide });
+      const m = new T.InstancedMesh(geos[k], mat, PER[k] * MAXB);
+      m.instanceMatrix.setUsage(T.DynamicDrawUsage);
+      m.setColorAt(0, col.set(0xffffff));
+      m.instanceMatrix.array.fill(0);
+      m.frustumCulled = false; m.count = 0;
+      m.castShadow = k !== 'halo';
+      scene.add(m);
+      meshes[k] = m;
+    }
     for (let k = MAXB - 1; k >= 0; k--) free.push(k);
     initBlood(scene);
   };
@@ -45,20 +81,21 @@
     const slot = free.pop();
     if (slot === undefined) return false;
     c.body = {
-      slot, o, h: o.h || G.R(0.93, 1.07), w: o.w || G.R(0.92, 1.14),
+      slot, o, h: o.h || G.R(0.94, 1.06), w: o.w || G.R(0.92, 1.12),
       j: new Float32Array(45), jp: new Float32Array(45), rag: null, posed: false,
-      vis: new Uint8Array(PARTS), bloody: 0, visible: true, written: false, trailD: 0, lx: c.x, lz: c.z,
+      bloody: 0, visible: true, written: false, trailD: 0, lx: c.x, lz: c.z, crouch: 0,
     };
     list.push(c);
     B.recolor(c);
     return true;
   };
+  function hideAll(slot) {
+    for (const k in PER) { const n = PER[k]; meshes[k].instanceMatrix.array.fill(0, slot * n * 16, (slot + 1) * n * 16); meshes[k].instanceMatrix.needsUpdate = true; }
+  }
   B.release = function (c) {
     const b = c.body;
     if (!b) return;
-    M.fill(0, b.slot * PARTS * 16, (b.slot + 1) * PARTS * 16);
-    HM.fill(0, b.slot * 16, b.slot * 16 + 16);
-    mesh.instanceMatrix.needsUpdate = true; haloMesh.instanceMatrix.needsUpdate = true;
+    hideAll(b.slot);
     free.push(b.slot);
     const k = list.indexOf(c);
     if (k >= 0) list.splice(k, 1);
@@ -73,30 +110,53 @@
   };
   B.setVisible = function (c, v) { if (c.body) { c.body.visible = v; c.body.written = false; } };
 
-  const BLOODMIX = { 0: 0.75, 1: 0.45, 2: 0.3, 3: 0.55, 6: 0.55, 15: 0.5, 22: 0.6 };
-  B.recolor = function (c) {
-    const b = c.body, o = b.o, base = b.slot * PARTS;
-    const shade = (hex, k) => { col.set(hex); col.multiplyScalar(k); return '#' + col.getHexString(); };
-    const C = [
-      o.shirt, o.long ? o.shirt : o.pants, o.skin, o.shirt, o.shirt, o.skin, o.shirt, o.shirt, o.skin,
-      o.pants, o.pants, o.shoes, o.pants, o.pants, o.shoes,
-      o.long ? o.shirt : null,
-      o.hood || o.cap || o.hair || null, o.cap || null,
-      o.mask ? '#d9d3c4' : shade(o.skin, 0.88),
-      o.mask ? '#030303' : '#160f0c', o.mask ? '#030303' : '#160f0c',
-      o.gun ? '#0c0c0d' : null,
-      o.badge ? '#c9a24a' : o.long ? shade(o.shirt, 0.7) : null,
+  // colours for every part, per person. [mesh, local index, colour key, how much blood soaks it]
+  const shade = (hex, k) => { col.set(hex); col.multiplyScalar(k); return '#' + col.getHexString(); };
+  function partColors(o) {
+    const skin = o.skin, top = o.shirt, legs = o.pants, shoe = o.shoes || '#141414';
+    const hairC = o.hood || o.cap || o.hair || null;
+    const brow = o.hair ? shade(o.hair, 0.8) : shade(skin, 0.45);
+    return [
+      ['limb', 0, top, 0.5], ['limb', 1, top, 0.3], ['limb', 2, top, 0.5], ['limb', 3, top, 0.3], // upper arms, forearms
+      ['limb', 4, legs, 0.2], ['limb', 5, legs, 0.1], ['limb', 6, legs, 0.2], ['limb', 7, legs, 0.1], // thighs, shins
+      ['limb', 8, skin, 0.4], // neck
+      ['ball', 0, top, 0.5], ['ball', 1, top, 0.5], ['ball', 2, top, 0.3], ['ball', 3, top, 0.3], // shoulders, elbows
+      ['ball', 4, legs, 0.1], ['ball', 5, legs, 0.1], // knees
+      ['ball', 6, o.gloves || skin, 0.3], ['ball', 7, o.gloves || skin, 0.3], ['ball', 8, o.gloves || skin, 0.2], ['ball', 9, o.gloves || skin, 0.2], // hands, thumbs
+      ['ball', 10, shoe, 0], ['ball', 11, shoe, 0], // shoes
+      ['ball', 12, o.mask ? null : '#e8e4dc', 0], ['ball', 13, o.mask ? null : '#e8e4dc', 0], // eye whites
+      ['ball', 14, o.mask ? '#020202' : (o.eyes || '#2a1c12'), 0], ['ball', 15, o.mask ? '#020202' : (o.eyes || '#2a1c12'), 0], // irises
+      ['ball', 16, o.mask || o.hood ? null : shade(skin, 0.93), 0.2], ['ball', 17, o.mask || o.hood ? null : shade(skin, 0.93), 0.2], // ears
+      ['ball', 18, o.mask ? null : shade(skin, 0.96), 0.3], // nose
+      ['ball', 19, o.beard ? o.hair : null, 0.3], ['ball', 20, null, 0],
+      ['torso', 0, top, 0.75], ['pelvis', 0, o.long ? top : legs, 0.45], ['head', 0, skin, 0.35],
+      ['skirt', 0, o.long ? top : null, 0.5], ['hair', 0, hairC, 0.2],
+      ['box', 0, o.mask ? null : brow, 0], ['box', 1, o.mask ? null : brow, 0], // brows
+      ['box', 2, o.mask ? null : shade(skin, 0.55), 0.3], // mouth
+      ['box', 3, o.long ? null : '#1a1410', 0], // belt
+      ['box', 4, o.badge ? '#c9a24a' : o.long ? shade(top, 0.75) : null, 0.4], // badge or collar
+      ['box', 5, '#0a0a0a', 0], ['box', 6, '#0a0a0a', 0], // soles
+      ['box', 7, o.cap || null, 0], // cap brim
+      ['box', 8, o.mask ? '#d8d2c4' : null, 0.3], // mask plate
+      ['box', 9, '#121214', 0], ['box', 10, '#121214', 0], ['box', 11, '#1a1a1c', 0], ['box', 12, '#3a2a1c', 0], // gun parts
+      ['box', 13, o.tie || null, 0.4], ['box', 14, null, 0], ['box', 15, null, 0],
+      ['barrel', 0, '#1c1c1e', 0], ['barrel', 1, '#2a2a2c', 0], ['barrel', 2, '#101012', 0],
+      ['halo', 0, o.halo ? '#f1e6c4' : o.tinHalo ? '#8c8c88' : null, 0],
     ];
-    for (let k = 0; k < PARTS; k++) {
-      b.vis[k] = C[k] ? 1 : 0;
-      if (!C[k]) continue;
-      col.set(C[k]);
-      const m = BLOODMIX[k];
-      if (m && b.bloody > 0) col.lerp(BLOODC, Math.min(1, b.bloody) * m);
-      mesh.setColorAt(base + k, col);
+  }
+  B.recolor = function (c) {
+    const b = c.body, slot = b.slot;
+    b.vis = {};
+    for (const [mk, k, hex, soak] of partColors(b.o)) {
+      const key = mk + k;
+      b.vis[key] = !!hex;
+      if (!hex) continue;
+      col.set(hex);
+      if (soak && b.bloody > 0) col.lerp(BLOODC, Math.min(1, b.bloody) * soak);
+      meshes[mk].setColorAt(slot * PER[mk] + k, col);
+      meshes[mk].instanceColor.needsUpdate = true;
     }
-    mesh.instanceColor.needsUpdate = true;
-    if (o.halo || o.tinHalo) { haloMesh.setColorAt(b.slot, col.set(o.halo ? '#f1e6c4' : '#8c8c88')); haloMesh.instanceColor.needsUpdate = true; }
+    b.written = false;
   };
   B.addBlood = function (c, amt) {
     if (!c.body) return;
@@ -105,56 +165,95 @@
   };
 
   // ---------------------------------------------------------------- living pose
+  // two-bone IK: from root a toward target c, bone lengths l1/l2, bending toward `pole`
+  function ik(ax, ay, az, cx, cy, cz, l1, l2, px, py, pz, out) {
+    let dx = cx - ax, dy = cy - ay, dz = cz - az;
+    let d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-4;
+    const max = (l1 + l2) * 0.999;
+    if (d > max) { const k = max / d; dx *= k; dy *= k; dz *= k; d = max; }
+    const ux = dx / d, uy = dy / d, uz = dz / d;
+    const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+    const pd = px * ux + py * uy + pz * uz;
+    let qx = px - ux * pd, qy = py - uy * pd, qz = pz - uz * pd;
+    const ql = Math.sqrt(qx * qx + qy * qy + qz * qz) || 1;
+    qx /= ql; qy /= ql; qz /= ql;
+    out[0] = ax + ux * a + qx * h; out[1] = ay + uy * a + qy * h; out[2] = az + uz * a + qz * h;
+    out[3] = ax + dx; out[4] = ay + dy; out[5] = az + dz;
+  }
+  const L = new Float32Array(45), tmpK = new Float32Array(6);
+  const LONG = { shotgun: 1, smg: 1, rifle: 1 };
   B.pose = function (c, dt, speed, aiming) {
     const b = c.body;
     if (!b || b.rag) return;
     b.lastDt = dt;
     if (b.posed) b.jp.set(b.j);
-    c.phase += dt * speed * 2.6;
-    const amp = Math.min(1, speed / 4.5);
-    const ph = c.phase;
-    const bob = Math.abs(Math.cos(ph)) * 0.045 * amp + Math.sin(G.time * 2.1 + c.born) * 0.004;
-    if (c.flinch > 0) c.flinch = Math.max(0, c.flinch - dt * 2.5);
-    const lean = Math.min(0.2, speed * 0.022) - (c.flinch || 0) * 0.5;
-    const r = c.rot, s = Math.sin(r), co = Math.cos(r);
-    const bx = c.x, by = W.groundY(c.x, c.z), bz = c.z, h = b.h, w = b.w, j = b.j;
-    const put = (k, lx, ly, lz) => {
-      lx *= w; ly *= h; lz *= h;
-      const o = k * 3;
-      j[o] = bx + co * lx + s * lz; j[o + 1] = by + ly; j[o + 2] = bz - s * lx + co * lz;
-    };
-    put(PELVIS, 0, 0.95 + bob, 0);
-    put(NECK, 0, 1.45 + bob, lean * 0.5);
-    put(HEAD, 0, 1.66 + bob, lean * 0.72 + 0.01);
-    put(SHL, 0.2, 1.42 + bob, lean * 0.47);
-    put(SHR, -0.2, 1.42 + bob, lean * 0.47);
+    c.phase += dt * speed * 2.5;
+    const amp = Math.min(1, speed / 4.5), run = Math.min(1, Math.max(0, (speed - 3) / 4));
+    b.crouch = G.lerp(b.crouch, c.crouch ? 1 : 0, Math.min(1, dt * 10));
+    const cr = b.crouch, ph = c.phase;
+    if (c.flinch > 0) c.flinch = Math.max(0, c.flinch - dt * 3);
+    if (c.recoil > 0) c.recoil = Math.max(0, c.recoil - dt * 9);
+    const bob = Math.abs(Math.cos(ph)) * 0.05 * amp + Math.sin(G.time * 2.1 + c.born) * 0.004;
+    const lean = Math.min(0.22, speed * 0.024) + cr * 0.14 - (c.flinch || 0) * 0.35;
+    const hipY = 0.93 - cr * 0.36 + bob - amp * 0.02;
+    // pelvis, spine, head, shoulders (local: x = left, y = up, z = forward)
+    const set = (k, x, y, z) => { L[k * 3] = x; L[k * 3 + 1] = y; L[k * 3 + 2] = z; };
+    set(PELVIS, 0, hipY + 0.03, -cr * 0.08);
+    const sz = lean * 0.5 - cr * 0.02;
+    set(NECK, 0, hipY + 0.52 - cr * 0.02, sz);
+    set(HEAD, 0, hipY + 0.73 - cr * 0.02, sz + 0.03 + lean * 0.2);
+    set(SHL, 0.2, hipY + 0.49, sz - 0.01);
+    set(SHR, -0.2, hipY + 0.49, sz - 0.01);
+    // legs: feet follow a stride path, knees by IK (bending forward)
     for (let side = 0; side < 2; side++) {
       const sg = side === 0 ? 1 : -1, p = side === 0 ? ph : ph + Math.PI;
-      const a = Math.sin(p) * 0.6 * amp, bend = Math.max(0, Math.sin(p - 1.3)) * 1.1 * amp + 0.04;
-      const hy = 0.92 + bob, ky = hy - 0.43 * Math.cos(a), kz = 0.43 * Math.sin(a);
-      let fy = ky - 0.43 * Math.cos(a - bend);
-      const fz = kz + 0.43 * Math.sin(a - bend);
-      if (fy < 0.07) fy = 0.07;
-      put(side === 0 ? HPL : HPR, sg * 0.1, hy, 0);
-      put(side === 0 ? KNL : KNR, sg * 0.11, ky, kz);
-      put(side === 0 ? FTL : FTR, sg * 0.11, fy, fz);
+      const stride = 0.28 + run * 0.16;
+      let fz = Math.sin(p) * stride * amp + cr * 0.06 * sg;
+      let fy = 0.075 + Math.max(0, Math.cos(p)) * (0.1 + run * 0.12) * amp;
+      const fx = sg * (0.11 + cr * 0.04);
+      if (cr > 0.5 && sg < 0) { fz -= 0.25 * cr; fy += 0.0; } // one knee back when crouched
+      const hx = sg * 0.1;
+      set(side === 0 ? HPL : HPR, hx, hipY, -cr * 0.06);
+      ik(hx, hipY, -cr * 0.06, fx, fy, fz, 0.44, 0.44, 0, 0.1, 1, tmpK);
+      set(side === 0 ? KNL : KNR, tmpK[0], tmpK[1], tmpK[2]);
+      set(side === 0 ? FTL : FTR, tmpK[3], Math.max(0.07, tmpK[4]), tmpK[5]);
     }
-    const lz = lean * 0.47;
-    if (aiming) {
-      put(ELR, -0.13, 1.37 + bob, 0.27 + lz); put(HAR, -0.04, 1.4 + bob, 0.53 + lz);
-      put(ELL, 0.12, 1.3 + bob, 0.22 + lz); put(HAL, 0.0, 1.37 + bob, 0.5 + lz);
+    // arms: hands go to a stance target, elbows by IK
+    const shy = hipY + 0.49, rc = (c.recoil || 0);
+    let hl, hr, poleL = [0.6, -1, -0.3], poleR = [-0.6, -1, -0.3];
+    const weap = c.weaponK;
+    if (c.punchT > 0) {
+      hr = [-0.08, shy + 0.05, sz + 0.6]; hl = [0.14, shy - 0.08, sz + 0.25];
+    } else if (weap && LONG[weap]) {
+      if (aiming) { hr = [-0.1, shy - 0.12 + rc * 0.03, sz + 0.24 - rc * 0.06]; hl = [0.02, shy - 0.1 + rc * 0.04, sz + 0.56 - rc * 0.05]; }
+      else { hr = [-0.14, shy - 0.36, sz + 0.2]; hl = [0.03, shy - 0.26, sz + 0.46]; }
+      poleR = [-1, -0.6, -0.4]; poleL = [0.8, -1, 0];
+      if (c.reloading) { hl = [0.0, shy - 0.32, sz + 0.28]; hr = [-0.12, shy - 0.3, sz + 0.26]; }
+    } else if (aiming && weap) {
+      hr = [-0.04, shy - 0.02 + rc * 0.05, sz + 0.52 - rc * 0.07]; hl = [0.0, shy - 0.05 + rc * 0.04, sz + 0.49 - rc * 0.06];
+      if (c.reloading) { hr = [-0.06, shy - 0.25, sz + 0.32]; hl = [0.02, shy - 0.22, sz + 0.3]; }
     } else {
       const panic = c.fleeT > 0 ? 1 : 0;
+      const out = [];
       for (let side = 0; side < 2; side++) {
         const sg = side === 0 ? 1 : -1, p = side === 0 ? ph + Math.PI : ph;
-        const sa = Math.sin(p) * (0.55 + panic * 0.4) * amp, eb = 0.12 + 0.95 * amp + panic * 0.5;
-        const sy = 1.42 + bob, ey = sy - 0.29 * Math.cos(sa), ez = lz + 0.29 * Math.sin(sa);
-        const hy = ey - 0.27 * Math.cos(sa + eb), hz = ez + 0.27 * Math.sin(sa + eb);
-        put(side === 0 ? ELL : ELR, sg * 0.23, ey, ez);
-        put(side === 0 ? HAL : HAR, sg * 0.24, hy, hz);
+        const sw = Math.sin(p) * (0.32 + panic * 0.25) * amp;
+        const bend = 0.12 + 0.6 * amp + panic * 0.4;
+        out.push([sg * (0.24 - amp * 0.02), shy - 0.52 + bend * 0.12 + Math.abs(sw) * 0.08, sz + sw * 0.55 + bend * 0.08]);
       }
+      hl = out[0]; hr = out[1];
     }
-    if (c.punchT > 0) { put(ELR, -0.16, 1.44 + bob, 0.3 + lz); put(HAR, -0.08, 1.48 + bob, 0.62 + lz); }
+    ik(0.2, shy, sz, hl[0], hl[1], hl[2], 0.29, 0.27, poleL[0], poleL[1], poleL[2], tmpK);
+    set(ELL, tmpK[0], tmpK[1], tmpK[2]); set(HAL, tmpK[3], tmpK[4], tmpK[5]);
+    ik(-0.2, shy, sz, hr[0], hr[1], hr[2], 0.29, 0.27, poleR[0], poleR[1], poleR[2], tmpK);
+    set(ELR, tmpK[0], tmpK[1], tmpK[2]); set(HAR, tmpK[3], tmpK[4], tmpK[5]);
+    // to world space (body size, facing, ground height)
+    const r = c.rot, s = Math.sin(r), co = Math.cos(r), h = b.h, w = b.w, j = b.j;
+    const bx = c.x, by = W.groundY(c.x, c.z), bz = c.z;
+    for (let k = 0; k < 15; k++) {
+      const lx = L[k * 3] * w, ly = L[k * 3 + 1] * h, lz = L[k * 3 + 2] * h;
+      j[k * 3] = bx + co * lx + s * lz; j[k * 3 + 1] = by + ly; j[k * 3 + 2] = bz - s * lx + co * lz;
+    }
     if (!b.posed) { b.jp.set(j); b.posed = true; }
   };
 
@@ -305,97 +404,156 @@
   const up = new T.Vector3(), ax = new T.Vector3(), fw = new T.Vector3();
   const hx = new T.Vector3(), hy = new T.Vector3(), hz = new T.Vector3();
   const lX = new T.Vector3(), lY = new T.Vector3(), lZ = new T.Vector3();
-  const A = new T.Vector3(), Bv = new T.Vector3(), C = new T.Vector3();
+  const gX = new T.Vector3(), gY = new T.Vector3(), gZ = new T.Vector3();
+  const A = new T.Vector3(), Bv = new T.Vector3(), C = new T.Vector3(), V = new T.Vector3();
   const jv = (j, k, v) => v.set(j[k * 3], j[k * 3 + 1], j[k * 3 + 2]);
-  function setM(arr, i, px, py, pz, X, Y, Z, sx, sy, sz) {
-    const o = i * 16;
+  let slotNow = 0, visNow = null;
+  function put(mk, k, px, py, pz, X, Y, Z, sx, sy, sz) {
+    const arr = meshes[mk].instanceMatrix.array, o = (slotNow * PER[mk] + k) * 16;
+    if (!visNow[mk + k]) { arr.fill(0, o, o + 16); return; }
     arr[o] = X.x * sx; arr[o + 1] = X.y * sx; arr[o + 2] = X.z * sx; arr[o + 3] = 0;
     arr[o + 4] = Y.x * sy; arr[o + 5] = Y.y * sy; arr[o + 6] = Y.z * sy; arr[o + 7] = 0;
     arr[o + 8] = Z.x * sz; arr[o + 9] = Z.y * sz; arr[o + 10] = Z.z * sz; arr[o + 11] = 0;
     arr[o + 12] = px; arr[o + 13] = py; arr[o + 14] = pz; arr[o + 15] = 1;
   }
-  function basisAlong(a, b) { // lY along a→b, lX from the body's side axis
+  const hide = (mk, k) => { const o = (slotNow * PER[mk] + k) * 16; meshes[mk].instanceMatrix.array.fill(0, o, o + 16); };
+  function basisAlong(a, b, ref) { // lY along a→b, lX from a reference side axis
     lY.subVectors(b, a);
     const len = lY.length() || 1e-4;
     lY.multiplyScalar(1 / len);
-    lX.copy(ax).addScaledVector(lY, -ax.dot(lY));
+    lX.copy(ref).addScaledVector(lY, -ref.dot(lY));
     let l = lX.length();
     if (l < 1e-3) { lX.copy(fw).addScaledVector(lY, -fw.dot(lY)); l = lX.length() || 1; }
     lX.multiplyScalar(1 / l);
     lZ.crossVectors(lX, lY);
     return len;
   }
-  function headPart(base, k, ox, oy, oz, sx, sy, sz, b) {
-    if (!b.vis[k]) { M.fill(0, (base + k) * 16, (base + k + 1) * 16); return; }
-    setM(M, base + k, H.x + hx.x * ox + hy.x * oy + hz.x * oz, H.y + hx.y * ox + hy.y * oy + hz.y * oz, H.z + hx.z * ox + hy.z * oy + hz.z * oz, hx, hy, hz, sx, sy, sz);
+  // a part in a frame: origin O plus offsets along the frame's axes
+  function inFrame(mk, k, O, X, Y, Z, ox, oy, oz, sx, sy, sz) {
+    put(mk, k, O.x + X.x * ox + Y.x * oy + Z.x * oz, O.y + X.y * ox + Y.y * oy + Z.y * oz, O.z + X.z * ox + Y.z * oy + Z.z * oz, X, Y, Z, sx, sy, sz);
   }
-  function torsoPart(base, k, ox, oy, oz, sx, sy, sz, b) {
-    if (!b.vis[k]) { M.fill(0, (base + k) * 16, (base + k + 1) * 16); return; }
-    setM(M, base + k, P.x + ax.x * ox + up.x * oy + fw.x * oz, P.y + ax.y * ox + up.y * oy + fw.y * oz, P.z + ax.z * ox + up.z * oy + fw.z * oz, ax, up, fw, sx, sy, sz);
+  function limb(k, ja, jb, j, r0, ext, ballK, ballR) {
+    jv(j, ja, A); jv(j, jb, Bv);
+    const len = basisAlong(A, Bv, ax);
+    C.addVectors(A, Bv).multiplyScalar(0.5);
+    put('limb', k, C.x, C.y, C.z, lX, lY, lZ, r0, len + ext, r0 * 0.92);
+    if (ballK >= 0) put('ball', ballK, A.x, A.y, A.z, lX, lY, lZ, ballR, ballR, ballR);
+  }
+
+  // guns, built in the right hand's frame. gY = barrel direction, gZ = "down" from the gun's view
+  function drawGun(weap) {
+    const gunParts = ['box9', 'box10', 'box11', 'box12', 'barrel0', 'barrel1', 'barrel2'];
+    if (!weap) { for (const p of gunParts) hide(p.replace(/\d+$/, ''), +p.match(/\d+$/)[0]); return; }
+    // grip origin = right hand; for long guns aim the barrel at the left hand
+    const O = A; // right hand position (already loaded)
+    const g = (mk, k, f, u, s, sx, sy, sz) => inFrame(mk, k, O, gX, gY, gZ, s, f, -u, sx, sy, sz);
+    const hideP = (mk, k) => hide(mk, k);
+    if (weap === 'pistol') {
+      g('box', 9, 0.07, 0.07, 0, 0.034, 0.19, 0.045); g('box', 10, 0.0, 0.0, 0, 0.03, 0.055, 0.11);
+      hideP('box', 11); hideP('box', 12); hideP('barrel', 0); hideP('barrel', 1); hideP('barrel', 2);
+    } else if (weap === 'smg') {
+      g('box', 9, 0.09, 0.06, 0, 0.05, 0.3, 0.08); g('box', 10, 0.0, 0.0, 0, 0.032, 0.06, 0.11); g('box', 11, 0.12, -0.05, 0, 0.03, 0.045, 0.16);
+      g('box', 12, -0.12, 0.04, 0, 0.035, 0.16, 0.05);
+      g('barrel', 0, 0.3, 0.07, 0, 0.032, 0.16, 0.032); hideP('barrel', 1); hideP('barrel', 2);
+    } else if (weap === 'shotgun') {
+      g('box', 9, 0.06, 0.05, 0, 0.05, 0.22, 0.08); g('box', 10, 0.0, -0.01, 0, 0.032, 0.06, 0.1); hideP('box', 11);
+      g('box', 12, -0.22, 0.0, 0, 0.045, 0.3, 0.1);
+      g('barrel', 0, 0.44, 0.075, 0, 0.044, 0.58, 0.044); g('barrel', 1, 0.36, 0.03, 0, 0.06, 0.18, 0.06); hideP('barrel', 2);
+    } else if (weap === 'rifle') {
+      g('box', 9, 0.07, 0.05, 0, 0.05, 0.3, 0.08); g('box', 10, 0.0, -0.01, 0, 0.032, 0.06, 0.1); g('box', 11, 0.08, -0.05, 0, 0.03, 0.05, 0.08);
+      g('box', 12, -0.26, 0.0, 0, 0.045, 0.32, 0.11);
+      g('barrel', 0, 0.56, 0.065, 0, 0.03, 0.62, 0.03); g('barrel', 1, 0.1, 0.135, 0, 0.05, 0.28, 0.05); g('barrel', 2, 0.42, 0.065, 0, 0.022, 0.06, 0.022);
+    }
   }
 
   function writeBody(c) {
-    const b = c.body, j = b.j, base = b.slot * PARTS, o = b.o, w = b.w, h = b.h;
-    if (!b.visible) {
-      M.fill(0, base * 16, (base + PARTS) * 16);
-      HM.fill(0, b.slot * 16, b.slot * 16 + 16);
-      return;
-    }
+    const b = c.body, j = b.j, o = b.o, w = b.w, h = b.h;
+    slotNow = b.slot; visNow = b.vis;
+    if (!b.visible) { hideAll(b.slot); return; }
     jv(j, PELVIS, P); jv(j, NECK, N); jv(j, HEAD, H); jv(j, SHL, SL); jv(j, SHR, SR);
     up.subVectors(N, P);
     const tl = up.length() || 1e-4;
     up.multiplyScalar(1 / tl);
-    ax.subVectors(SL, SR);
-    ax.addScaledVector(up, -ax.dot(up));
+    ax.subVectors(SL, SR); ax.addScaledVector(up, -ax.dot(up));
     if (ax.lengthSq() < 1e-6) ax.set(1, 0, 0);
     ax.normalize();
     fw.crossVectors(ax, up);
-    // torso, pelvis, coat skirt, collar/badge
-    torsoPart(base, 0, 0, tl * 0.5 + 0.03, 0, 0.4 * w, tl + 0.12, 0.23 * w, b);
-    torsoPart(base, 1, 0, -0.05, 0, 0.36 * w, 0.2, 0.24 * w, b);
-    torsoPart(base, 15, 0, -0.27 * h, -0.005, 0.44 * w, 0.52 * h, 0.28 * w, b);
-    if (o.badge) torsoPart(base, 22, 0.1 * w, tl * 0.75, 0.122 * w, 0.06, 0.06, 0.015, b);
-    else torsoPart(base, 22, 0, tl + 0.02, -0.01, 0.44 * w, 0.08, 0.27 * w, b);
-    // head
+    // torso, hips, coat tail, belt, collar or badge
+    inFrame('torso', 0, P, ax, up, fw, 0, tl * 0.56, 0, 0.45 * w, tl + 0.16, 0.44 * w);
+    inFrame('pelvis', 0, P, ax, up, fw, 0, -0.03, -0.005, 0.37 * w, 0.24, 0.37 * w);
+    inFrame('skirt', 0, P, ax, up, fw, 0, -0.29 * h, -0.01, 0.47 * w, 0.58 * h, 0.47 * w);
+    inFrame('box', 3, P, ax, up, fw, 0, 0.07, 0.0, 0.37 * w, 0.05, 0.26 * w);
+    if (o.badge) inFrame('box', 4, P, ax, up, fw, 0.085 * w, tl * 0.82, 0.13 * w, 0.055, 0.06, 0.012);
+    else inFrame('box', 4, P, ax, up, fw, 0, tl + 0.04, -0.015, 0.34 * w, 0.1, 0.25 * w);
+    inFrame('box', 13, P, ax, up, fw, 0, tl * 0.62, 0.128 * w, 0.045, tl * 0.55, 0.012);
+    // neck and head
     hy.subVectors(H, N).normalize();
     hx.copy(ax).addScaledVector(hy, -ax.dot(hy)).normalize();
     hz.crossVectors(hx, hy);
-    headPart(base, 2, 0, 0, 0, 0.23, 0.27, 0.25, b);
-    if (o.hood) headPart(base, 16, 0, 0.02, -0.035, 0.29, 0.33, 0.24, b);
-    else if (o.cap) headPart(base, 16, 0, 0.135, 0, 0.26, 0.07, 0.27, b);
-    else headPart(base, 16, 0, 0.125, -0.012, 0.25, 0.06, 0.27, b);
-    headPart(base, 17, 0, 0.105, 0.17, 0.25, 0.025, 0.11, b);
-    if (o.mask) headPart(base, 18, 0, 0, 0.128, 0.22, 0.25, 0.02, b);
-    else headPart(base, 18, 0, -0.015, 0.13, 0.04, 0.06, 0.04, b);
-    const ez = o.mask ? 0.14 : 0.127;
-    headPart(base, 19, 0.055, 0.035, ez, 0.045, 0.028, 0.012, b);
-    headPart(base, 20, -0.055, 0.035, ez, 0.045, 0.028, 0.012, b);
+    V.copy(H).addScaledVector(hy, -0.1);
+    jv(j, NECK, A);
+    { const len = basisAlong(A, V, ax); C.addVectors(A, V).multiplyScalar(0.5); put('limb', 8, C.x, C.y, C.z, lX, lY, lZ, 0.105, len + 0.04, 0.11); }
+    inFrame('head', 0, H, hx, hy, hz, 0, 0.0, 0.0, 0.205, 0.235, 0.228);
+    // face
+    inFrame('ball', 12, H, hx, hy, hz, 0.044, 0.022, 0.098, 0.036, 0.024, 0.02);
+    inFrame('ball', 13, H, hx, hy, hz, -0.044, 0.022, 0.098, 0.036, 0.024, 0.02);
+    const iz = o.mask ? 0.124 : 0.106;
+    inFrame('ball', 14, H, hx, hy, hz, 0.044, 0.021, iz, 0.017, 0.017, 0.012);
+    inFrame('ball', 15, H, hx, hy, hz, -0.044, 0.021, iz, 0.017, 0.017, 0.012);
+    inFrame('box', 0, H, hx, hy, hz, 0.046, 0.054, 0.104, 0.05, 0.012, 0.014);
+    inFrame('box', 1, H, hx, hy, hz, -0.046, 0.054, 0.104, 0.05, 0.012, 0.014);
+    inFrame('ball', 18, H, hx, hy, hz, 0, -0.008, 0.112, 0.034, 0.058, 0.042);
+    inFrame('box', 2, H, hx, hy, hz, 0, -0.064, 0.098, 0.048, 0.009, 0.012);
+    inFrame('ball', 16, H, hx, hy, hz, 0.104, 0.0, -0.004, 0.024, 0.056, 0.04);
+    inFrame('ball', 17, H, hx, hy, hz, -0.104, 0.0, -0.004, 0.024, 0.056, 0.04);
+    inFrame('ball', 19, H, hx, hy, hz, 0, -0.082, 0.07, 0.135, 0.05, 0.085);
+    hide('ball', 20);
+    if (o.mask) inFrame('box', 8, H, hx, hy, hz, 0, -0.005, 0.11, 0.17, 0.22, 0.02);
+    else hide('box', 8);
+    if (o.hood) inFrame('hair', 0, H, hx, hy, hz, 0, -0.03, -0.025, 0.27, 0.36, 0.29);
+    else if (o.cap) { inFrame('hair', 0, H, hx, hy, hz, 0, 0.055, -0.005, 0.226, 0.22, 0.24); inFrame('box', 7, H, hx, hy, hz, 0, 0.078, 0.13, 0.19, 0.016, 0.1); }
+    else inFrame('hair', 0, H, hx, hy, hz, 0, 0.02, -0.012, 0.222, 0.27, 0.246);
+    if (!o.cap) hide('box', 7);
     // arms
-    const limb = (k, ja, jb, sw, sd, ext) => {
-      jv(j, ja, A); jv(j, jb, Bv);
-      const len = basisAlong(A, Bv);
-      C.addVectors(A, Bv).multiplyScalar(0.5);
-      setM(M, base + k, C.x, C.y, C.z, lX, lY, lZ, sw, len + ext, sd);
-    };
-    const hand = (k, at) => {
-      jv(j, at, A);
-      setM(M, base + k, A.x + lY.x * 0.055, A.y + lY.y * 0.055, A.z + lY.z * 0.055, lX, lY, lZ, 0.085, 0.11, 0.1);
-    };
-    limb(3, SHL, ELL, 0.12 * w, 0.13 * w, 0.05); limb(4, ELL, HAL, 0.1 * w, 0.11 * w, 0.03); hand(5, HAL);
-    limb(6, SHR, ELR, 0.12 * w, 0.13 * w, 0.05); limb(7, ELR, HAR, 0.1 * w, 0.11 * w, 0.03); hand(8, HAR);
-    if (b.vis[21]) setM(M, base + 21, A.x + lY.x * 0.1 + lZ.x * 0.02, A.y + lY.y * 0.1 + lZ.y * 0.02, A.z + lY.z * 0.1 + lZ.z * 0.02, lX, lY, lZ, 0.05, 0.24, 0.12);
-    else M.fill(0, (base + 21) * 16, (base + 22) * 16);
+    limb(0, SHL, ELL, j, 0.118 * w, 0.03, 0, 0.13 * w);
+    limb(1, ELL, HAL, j, 0.098 * w, 0.02, 2, 0.1 * w);
+    jv(j, HAL, A);
+    inFrame('ball', 6, A, lX, lY, lZ, 0, 0.055, 0.005, 0.07, 0.11, 0.045);
+    inFrame('ball', 8, A, lX, lY, lZ, -0.03, 0.03, 0.025, 0.028, 0.055, 0.028);
+    limb(2, SHR, ELR, j, 0.118 * w, 0.03, 1, 0.13 * w);
+    limb(3, ELR, HAR, j, 0.098 * w, 0.02, 3, 0.1 * w);
+    jv(j, HAR, A);
+    inFrame('ball', 7, A, lX, lY, lZ, 0, 0.055, 0.005, 0.07, 0.11, 0.045);
+    inFrame('ball', 9, A, lX, lY, lZ, 0.03, 0.03, 0.025, 0.028, 0.055, 0.028);
+    // the gun: barrel toward the left hand for long guns (when the hands are apart), else along the forearm
+    const weap = c.weaponK;
+    if (weap) {
+      jv(j, HAR, A); jv(j, HAL, Bv);
+      const longGun = weap !== 'pistol';
+      if (longGun && A.distanceTo(Bv) > 0.12) gY.subVectors(Bv, A).normalize();
+      else { jv(j, ELR, C); gY.subVectors(A, C).normalize(); if (!c.alive || weap === 'pistol') { /* along forearm */ } }
+      gX.copy(ax).addScaledVector(gY, -ax.dot(gY));
+      if (gX.lengthSq() < 1e-6) gX.copy(fw);
+      gX.normalize();
+      gZ.crossVectors(gX, gY);
+      visNow.box9 = visNow.box10 = visNow.box11 = visNow.box12 = visNow.barrel0 = visNow.barrel1 = visNow.barrel2 = true;
+      drawGun(weap);
+    } else drawGun(null);
     // legs
-    const foot = (k, kn, ft) => {
+    limb(4, HPL, KNL, j, 0.165 * w, 0.06, -1, 0);
+    limb(5, KNL, FTL, j, 0.125 * w, 0.02, 4, 0.13 * w);
+    limb(6, HPR, KNR, j, 0.165 * w, 0.06, -1, 0);
+    limb(7, KNR, FTR, j, 0.125 * w, 0.02, 5, 0.13 * w);
+    for (const [kn, ft, shoe, sole] of [[KNL, FTL, 10, 5], [KNR, FTR, 11, 6]]) {
       jv(j, kn, A); jv(j, ft, Bv);
-      basisAlong(Bv, A); // lY points up the shin
-      setM(M, base + k, Bv.x + lZ.x * 0.07 - lY.x * 0.03, Bv.y + lZ.y * 0.07 - lY.y * 0.03, Bv.z + lZ.z * 0.07 - lY.z * 0.03, lX, lY, lZ, 0.11 * w, 0.08, 0.27);
-    };
-    limb(9, HPL, KNL, 0.15 * w, 0.17 * w, 0.06); limb(10, KNL, FTL, 0.12 * w, 0.13 * w, 0.02); foot(11, KNL, FTL);
-    limb(12, HPR, KNR, 0.15 * w, 0.17 * w, 0.06); limb(13, KNR, FTR, 0.12 * w, 0.13 * w, 0.02); foot(14, KNR, FTR);
+      basisAlong(Bv, A, ax); // lY up the shin
+      inFrame('ball', shoe, Bv, lX, lY, lZ, 0, -0.025, 0.06, 0.12 * w, 0.1, 0.29);
+      inFrame('box', sole, Bv, lX, lY, lZ, 0, -0.07, 0.06, 0.115 * w, 0.025, 0.28);
+    }
     // halo
-    if (o.halo) setM(HM, b.slot, H.x + hy.x * 0.33, H.y + hy.y * 0.33, H.z + hy.z * 0.33, hz, hx, hy, 1, 1, 1);
-    else if (o.tinHalo) setM(HM, b.slot, N.x - up.x * 0.04 + fw.x * 0.03, N.y - up.y * 0.04 + fw.y * 0.03, N.z - up.z * 0.04 + fw.z * 0.03, fw, ax, up, 0.85, 0.85, 0.85);
+    if (o.halo) inFrame('halo', 0, H, hz, hx, hy, 0, 0, 0.33, 1, 1, 1);
+    else if (o.tinHalo) inFrame('halo', 0, N, fw, ax, up, 0.03, 0, -0.04, 0.85, 0.85, 0.85);
+    else hide('halo', 0);
   }
 
   B.update = function (dt) {
@@ -430,10 +588,10 @@
       writeBody(c);
       if (!b.visible) b.written = true;
     }
-    mesh.count = maxSlot * PARTS;
-    haloMesh.count = maxSlot;
-    mesh.instanceMatrix.needsUpdate = true;
-    haloMesh.instanceMatrix.needsUpdate = true;
+    for (const k in PER) {
+      meshes[k].count = maxSlot * PER[k];
+      meshes[k].instanceMatrix.needsUpdate = true;
+    }
     BL.update(dt);
   };
 

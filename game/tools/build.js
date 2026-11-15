@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
-const order = ['core', 'world', 'body', 'actors', 'traffic', 'arsenal', 'story', 'main'];
+const order = ['core', 'world', 'body', 'actors', 'traffic', 'arsenal', 'gunplay', 'range', 'story', 'main'];
 let html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const code = order.map((n) => `// ---- js/${n}.js\n` + fs.readFileSync(path.join(root, 'js', n + '.js'), 'utf8')).join('\n');
 const loader = `<script>
