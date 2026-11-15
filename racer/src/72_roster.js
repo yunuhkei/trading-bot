@@ -113,11 +113,12 @@ const MARQUE={
  l2:{wing:'none',rearS:3.4},j1:{cowl:1.7,roofF:2.5,roofR:3.15,rearS:4.0,hood:.9},j2:{cowl:1.46,roofF:2.2,roofR:2.55,rearS:3.5},
  h1:{wing:'none',roofF:2.4,roofR:2.7},h3:{cowl:1.55,roofF:2.3,roofR:2.55,rearS:3.6},
  /* the Bugatti-like car: the widest, tallest and heaviest of the hypercars, two-tone, a horseshoe grille, one blade tail lamp */
- h2:{L:4.54,W:2.04,H:1.21,wb:2.71,fo:.88,nose:.7,hood:.98,cowl:1.78,roofF:2.38,roofR:3.0,rearS:3.78,deck:1.0,tail:.92,hwMax:1.02,hwMaxS:2.9,hwTail:.96,rf:.365,rr:.385,wf:.285,wr:.34,rimF:.27,rimR:.285,head:'led',tail_:'slit',wing:'lip',exh:1,exhS:'center',stripe:0,grille:'horseshoe',chromeTrim:1,lowerDark:.46,noSkirt:1,spoke:6,tum:.04,crown:.06}};
+ h2:{L:4.54,W:2.04,H:1.21,wb:2.71,fo:.88,nose:.7,hood:.98,cowl:1.78,roofF:2.38,roofR:3.0,rearS:3.78,deck:1.0,tail:.92,hwMax:1.02,hwMaxS:2.9,hwTail:.96,rf:.365,rr:.385,wf:.285,wr:.34,rimF:.27,rimR:.285,head:'box',tail_:'slit',wing:'none',exh:1,exhS:'center',stripe:0,grille:'horseshoe',chromeTrim:1,cline:1,rearDark:2.95,noSkirt:1,spoke:6,tum:.05,crown:.1,spine:.045,nose:.62,hood:.9,deck:1.02,tail:.86,tailP:2.2,capR:.75,noseP:2.6,capF:.5,sq:4.6,hard:.5,crease:.6,shark:0,gills:0}};
 for(const d of CAR_ROSTER){const m=MARQUE[d.id];if(m)Object.assign(d.spec,m)}
-{const h2=CAR_ROSTER.find(d=>d.id=='h2');if(h2){h2.cls='Quad-turbo W16 hypercar, all-wheel drive';h2.like='Bugatti Chiron Super Sport';h2.paint=P(24,48,120);h2.real={hp:1578,kg:1995,drive:'AWD',top:490,t100:2.4,lat:1.15,brk:31}}}
+{const h2=CAR_ROSTER.find(d=>d.id=='h2');if(h2){h2._late=MARQUE.h2;h2.cls='Quad-turbo W16 hypercar, all-wheel drive';h2.like='Bugatti Chiron Super Sport';h2.paint=P(24,48,120);h2.real={hp:1578,kg:1995,drive:'AWD',top:490,t100:2.4,lat:1.15,brk:31}}}
 for(const d of CAR_ROSTER){const e=CAR_EXTRA[d.id]||{};Object.assign(d.spec,e);if(e.int)d.interior=e.int;delete d.spec.int;d.spec._name=d.name;
   const y=CAR_STYLE[d.id];if(y){Object.assign(d.spec,{head:y.h,tail_:y.t,noseP:y.n[0],capF:y.n[1],noseDrop:y.n[2],tailP:y.r[0],capR:y.r[1],tailDrop:y.r[2],sq:y.q,hard:y.k,crease:y.c,spine:y.sp||0});d.fin=y.f|0;if(y.p2)d.paint2=y.p2}}
+for(const d of CAR_ROSTER)if(d._late)Object.assign(d.spec,d._late);   /* (batch 53) the Bugatti-like car keeps its own lamps, nose and tail over the style table */
 /* ---------------- handling from the real figures ---------------- */
 /* Everything is measured against the first car, so it keeps exactly the old numbers. Top speed, acceleration, grip, braking and agility come from the figures; the drive layout changes how the tail behaves:
    all-wheel drive grips more and slides less, front-engine rear-drive cars light up the rear tyres under power (the more power for the weight, the more), mid-engine cars turn in sharply and let go suddenly. */
@@ -125,7 +126,7 @@ const HND0=Object.assign({},HND,{vmax:80,vmaxG:62,powerOS:0,mass:1530,rollK:1});
 const CAR_REF={hp:443,kg:1530,top:308,t100:3.7,lat:1.05,brk:34,wb:2.45};
 function carHandling(def){
   const r=def.real,B=HND0,S=def.spec,wb=S.wb||2.45;Object.assign(HND,B);
-  const comp=x=>1+(x-1)*.75,vm=comp(r.top/CAR_REF.top),ac=Math.pow(CAR_REF.t100/r.t100,.8),gr=Math.pow(r.lat/CAR_REF.lat,.9),br=Math.pow(CAR_REF.brk/r.brk,.9),ag=Math.pow(CAR_REF.kg/r.kg,.35)*Math.pow(CAR_REF.wb/wb,.5);
+  const comp=x=>1+(x-1)*.75,vm=r.top/(CAR_REF.top*.9*(.997-.000286*r.top)),   /* (batch 53) TRUE TOP SPEED: every car reaches the top speed of the car it is modelled on (it was compressed: the 490 km/h car did 330); the drag leaves about 90 % of vmax, hence the .9 */ac=Math.pow(CAR_REF.t100/r.t100,.8),gr=Math.pow(r.lat/CAR_REF.lat,.9),br=Math.pow(CAR_REF.brk/r.brk,.9),ag=Math.pow(CAR_REF.kg/r.kg,.35)*Math.pow(CAR_REF.wb/wb,.5);
   HND.vmax=B.vmax*vm;HND.vmaxG=B.vmaxG*Math.sqrt(vm);HND.accel=B.accel*ac;HND.accelLow=B.accelLow*Math.pow(ac,.8);
   HND.aBase=B.aBase*gr;HND.aAero=B.aAero*_cl(1+(r.lat-CAR_REF.lat)*2.2,.7,2);HND.grip=B.grip*Math.sqrt(gr);HND.brake=B.brake*br;
   HND.omLow=B.omLow*Math.pow(ag,.7);HND.respond=B.respond*Math.pow(ag,.5);HND.respondDrift=B.respondDrift*Math.pow(ag,.5);HND.mass=r.kg;

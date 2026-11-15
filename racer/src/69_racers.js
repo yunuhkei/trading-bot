@@ -48,11 +48,11 @@ function racerStep(c,dt){
       const closing=v-block.v,need=closing*closing/(2*7)+12;if(!moved||bdist<need)vt=Math.min(vt,block.v+Math.max(0,bdist-10)*.45)}   /* until it is actually beside it, it keeps a speed it can still stop from */
     else if(!block){if(R.launch>0)R.launch-=dt;else R.offT*=Math.exp(-dt*.4);   /* for the first 4 s it holds its grid lane (they used to dive for the middle together and crash) */
       /* (batch 53) defending: a car right behind you in a race gets its nose across your line (a move every 1.2 s, never more than 4 m off the route) */
-      if(EV.run&&!R.aggr&&EV.run.ev&&EV.run.ev.type=='race'){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;if(R.defT<=0&&fd<-4&&fd>-35&&Math.abs(lt)<6&&v>20){R.defT=1.2;R.offT=Math.max(-4,Math.min(4,R.off+Math.sign(lt||1)*2.2))}}}
+      if(EV.run&&EV.run.ev&&EV.run.ev.type=='race'){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;if(R.defT<=0&&fd<-4&&fd>-35&&Math.abs(lt)<6&&v>20){R.defT=1.2;R.offT=Math.max(-4,Math.min(4,R.off+Math.sign(lt||1)*2.2))}}}
     R.off+=(R.offT-R.off)*Math.min(1,dt*2.6);
     let tx=p[ahead*3],tz=p[ahead*3+2];{const a2=Math.min(Rt.n-1,ahead+1),dx=p[a2*3]-tx,dz=p[a2*3+2]-tz,l=Math.hypot(dx,dz)||1;tx+=-dz/l*R.off;tz+=dx/l*R.off}
     /* a death racer goes for you when you are close */
-    if(R.aggr&&EV.run&&!TUM.on){R.ramCd-=dt;const dpx=C.x-c.x,dpz=C.z-c.z,dp=Math.hypot(dpx,dpz);if((dpx*sy+dpz*cy)<-6&&dp<110)vt=Math.min(vt,Math.max(C.speed*1.04,26));   /* (batch 53) a death racer stays in reach of you instead of running away from you: it is a fight */
+    if(R.aggr&&EV.run&&!TUM.on){R.ramCd-=dt;const dpx=C.x-c.x,dpz=C.z-c.z,dp=Math.hypot(dpx,dpz);if(EV.run.ev&&EV.run.ev.type=='death'&&(dpx*sy+dpz*cy)<-6&&dp<110)vt=Math.min(vt,Math.max(C.speed*1.04,26));   /* (batch 53) a death racer stays in reach of you instead of running away from you: it is a fight */
       if(dp<34&&R.ramCd<=0&&(dpx*sy+dpz*cy)>-14){tx=C.x+C.vx*.4;tz=C.z+C.vz*.4;vt=Math.max(vt,C.speed+10);if(dp<4.5)R.ramCd=3.5}}
     if(c.rev>0){c.rev-=dt;c.yaw+=c.revS*1.1*dt;c.v=0;c.x-=sy*4*dt;c.z-=cy*4*dt;c.vx=-sy*4;c.vz=-cy*4;if(trStatic(c.x,c.z,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz}const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);return}
     if(c.stk>.8&&c.v<2){c.rev=1;c.revS=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw)>0?-1:1;c.stk=.3}
@@ -66,16 +66,16 @@ function racerStep(c,dt){
 /* (batch 53) a racer is one of the playable cars: the pool car about as fast as yours (the lead racer 3 % faster), driven with that car's own figures: its grip, top speed, acceleration and braking, a little under what you can do with it (95-99 %) */
 function racerCarNear(want,used){let b=null;for(const p of RACER_POOL){if(used&&used.has(p.id))continue;if(!b||Math.abs(p.top-want)<Math.abs(b.top-want))b=p}b=b||RACER_POOL[0];if(used)used.add(b.id);return b}
 function racerSkillFor(pc,sk,nitro){const r=pc.def.real,vm=1+(r.top/308-1)*.75,gr=Math.pow(r.lat/1.05,.9),ac=Math.pow(3.7/r.t100,.8),br=Math.pow(34/r.brk,.9);
-  return{grip:15*gr*sk,vmax:72*vm*sk,acc:12*ac*sk,brk:19*br,type:pc.type,col:pc.col,car:pc.id,nitro:nitro?1:0}}
+  return{grip:15*gr*sk,vmax:r.top/3.6*sk,acc:12*ac*sk,brk:19*br,type:pc.type,col:pc.col,car:pc.id,nitro:nitro?1:0}}
 const racerMyTop=()=>{const d=CAR_ROSTER[CARSEL.cur];return d?(typeof upgReal=='function'?upgReal(d).top:d.real.top):300};
 let _rUsed=null;const racerSkill=(k,n,hard)=>{if(k==0)_rUsed=new Set();const pc=racerCarNear(racerMyTop()*(hard?1.07:1.03)*(1-.032*k),_rUsed);return racerSkillFor(pc,(hard?.99:.965)-.022*k,1)};
 /* the field for an event: n racers on the grid behind the start line, two abreast */
-function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m along the route); the racers: beside you on the left, then two by two behind */const G=[[24,-3.4],[15,3.4],[15,-3.4],[6,3.4],[6,-3.4],[0,0]];const out=[];for(let k=0;k<n;k++){const c=racerSpawn(Rt,G[k][0],G[k][1],k,racerSkill(k,n,aggr),aggr);if(c)out.push(c)}return out}
+function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m along the route); the racers: beside you on the left, then two by two behind */const G=[[24,-3.4],[15,3.4],[15,-3.4],[6,3.4],[6,-3.4],[0,0]];const out=[];for(let k=0;k<n;k++){const c=racerSpawn(Rt,G[k][0],G[k][1],k,racerSkill(k,n,aggr),1);   /* (batch 53) every racer tries to take you down, in every mode */if(c)out.push(c)}return out}
 /* (batch 27) TAKEDOWN: the pack sets off 70-300 m ahead of you, two abreast, a little slower than race racers (top 50-60 m/s), not ramming */
 /* (batch 53) TAKEDOWN waves: three racers, each a different playable car a little slower than yours, already rolling S0 metres along the route (ahead of you); when you have wrecked or passed them the next three appear further on */
 let _pkUsed=new Set();
 function racerPack(Rt,n,S0,wave){const out=[];if(!wave)_pkUsed=new Set();if(_pkUsed.size>RACER_POOL.length-n)_pkUsed=new Set();
-  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.86-.03*k,0),0);if(c)out.push(c)}return out}
+  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.86-.03*k,0),1);if(c)out.push(c)}return out}
 /* (batch 53) a racer that has crashed in a plain race is back on the road after 2.2 s (further on, on a clear spot), not out for the rest of the race; takedowns and death races keep their wrecks */
 function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death')||R.done>=0||!R.go)return false;c.recT=(c.recT||0)+dt;
   if(c.recT>(ev.type=='death'?3.5:2.2)&&racerRespot(c)){c.recT=0;R.catchT=12;c.state=3;c.kind=2;c.dmg=Math.min(c.dmg||0,.45);c.rev=0;c.stk=0;c.hn=0;return true}return false}
@@ -105,7 +105,7 @@ function racerOffer(c){/* a town 1.2-3.5 km away that you can reach */let best=n
     btns:[{label:'RACE!',col:'#ff7a1a',act:()=>racerStreetStart(c,Rp,Rr,best.P.name,prize)},{label:'NO',col:'#8a94a6',act:()=>{EV.card=null;c.chal=-8}}]}}
 function racerStreetStart(c,Rp,Rr,name,prize){EV.card=null;if(!c.alive)return;const ev={id:'street',type:'race',street:1,name:'Street race to '+name,prize,R:Rp,cps:[],len:Rp.len,s:{x:C.x,z:C.z,y:C.y,yaw:C.yaw}};
   const n=Math.max(2,Math.round(Rp.len/300));for(let k=1;k<=n;k++){const S=Rp.len*k/n;let j=0;while(j<Rp.n-2&&Rp.S[j+1]<S)j++;const x=Rp.pts[j*3],y=Rp.pts[j*3+1],z=Rp.pts[j*3+2],dx=Rp.pts[j*3+3]-x,dz=Rp.pts[j*3+5]-z,l=Math.hypot(dx,dz)||1;ev.cps.push({x,y,z,nx:-dz/l,nz:dx/l})}
-  c.state=3;c.kind=2;c.L=null;c.sr=0;c.race={Rt:Rr,fi:0,s:0,go:true,done:-1,skill:racerSkillFor(RACER_POOL.find(p=>p.type==c.type)||racerCarNear(racerMyTop()),.975,1),aggr:0,off:0,offT:0,ramCd:9,name:'Street racer'};RACE.sr=null;
+  c.state=3;c.kind=2;c.L=null;c.sr=0;c.race={Rt:Rr,fi:0,s:0,go:true,done:-1,skill:racerSkillFor(RACER_POOL.find(p=>p.type==c.type)||racerCarNear(racerMyTop()),.975,1),aggr:1,off:0,offT:0,ramCd:3,name:'Street racer'};RACE.sr=null;
   EV.run={ev,t:0,cp:0,ghost:[],gt:0,copsWas:COP.on,racers:[c],bonus:0,wrecks:0,pop:0,ps:0,fi:0,lastBeep:0};COP.on=false;navSet(ev.cps[0].x,ev.cps[0].z);evBeep(880,.25);safeToast('GO!',1.2,1)}
 /* the yellow light over a street racer, and the racers on the minimap */
 function racerFx(sprite){const s=RACE.sr;if(s&&s.alive){const d=Math.hypot(s.x-C.x,s.z-C.z);if(d<500){const on=Math.sin(EV.t*8)>0;sprite(s.x,s.y+2.2,s.z,(on?.7:.35)+d*.004,1,.85,.1,on?.95:.5)}}}

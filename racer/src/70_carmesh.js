@@ -81,6 +81,7 @@ function cgBody(S,mb,opt){
     if(S.lowerDark&&Math.abs(P[k])>.3){const t=_cl((S.lowerDark-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.96)}
     /* dark lower valances at the nose and the tail */
     if(!S.noSkirt){const sN=z+L/2,t=Math.max(_cl((S.sill+Math.min(.30,(S.nose-S.sill)*.55)-y)/.02,0,1)*_cl((.75-sN)/.12,0,1),_cl((S.sill+.44-y)/.022,0,1)*_cl((sN-(L-.7))/.12,0,1));if(t>0)dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}
+    if(S.rearDark){const t=_cl((z+L/2-S.rearDark)/.1,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.94)}   /* (batch 53) two-tone: everything behind this station is dark (the Bugatti's carbon rear half) */
     if(S.cladding){const t=_cl((S.sill+S.cladding-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.93)}
     /* black side skirts: a ramp up the lower side */
     if(!S.noSkirt&&Math.abs(P[k])>.35){const t=_cl((S.sill+.2-y)/.035,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}}
@@ -305,6 +306,8 @@ function cgDetails2(S,mb,opt){
   else if(S.grille=='slit'){cgDisc(mb,S.near(0,S.sill+.2,S.zs(.1)),hw*.36,.032,CGM.grille,14,.005)}
   /* daytime running lights over the headlights */
   if(S.drl){for(const sg of[-1,1]){const hx=S.hw0*.66,pts=[];for(let k=0;k<5;k++)pts.push(S.near(sg*(hx-.12+.06*k),S.nose+.095,S.zs(.2)));cgStrip(mb,pts,.014,CGM.head,.008)}}
+  /* (batch 53) the Bugatti C: a bright line that starts on the roof behind the door, swings round the back of the cabin and runs forward along the sill */
+  if(S.cline){for(const sg of[-1,1]){const s0=S.roofR-.8,y0=(S.H*.9+S.sill+.16)/2,ry=(S.H*.9-S.sill-.16)/2,rx=.7,pts=[];for(let k=0;k<=18;k++){const t=-Math.PI/2*1.12+k/18*Math.PI*1.2,ss=s0+rx*Math.cos(t)-(t>1.2?(t-1.2)*2.2:0),y=y0-ry*Math.sin(t);pts.push(S.near(sg*(S.W/2+.4),y,S.zs(ss)))}cgStrip(mb,pts,.04,CGM.chrome,.012)}}
   /* fender gills, scoop, canards, shark fin, buttresses */
   if(S.gills){for(const sg of[-1,1])for(let k=0;k<S.gills;k++)cgStrip(mb,[cgSide(S,S.fo+.45+k*.06,S.sill+.5,sg),cgSide(S,S.fo+.7+k*.06,S.sill+.44,sg)],.02,CGM.under,.004)}
   if(S.scoop){const sT=S.cowl*.55,p=cgSurf(S,sT,0);cgBox(mb,0,p.y+.04,p.z,.14,.045,.2,CGM.paint,0);cgDisc(mb,{x:0,y:p.y+.05,z:p.z-.2,nx:0,ny:0,nz:-1},.1,.03,CGM.under,10,.003)}

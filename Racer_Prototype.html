@@ -271,7 +271,7 @@ const SH={
  'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float metal=vM.x,rg=vM.y,emis=vM.z,coat=vM.w;vec3 alb=vC;float pnt=step(.99,coat)*(1.-step(.5,uWh.x)),dC=length(uCam-vW);'+
   /* THE PAINT (batch 4). uPt = (metallic, pearl, matte, flake): a SOLID paint is a deep, saturated colour under a glossy clear coat (it used to be half metal for every car, which washed every colour out to a pastel
      and left white and silver flat); METALLIC has a bright face and a darker flank, sparkle and a tinted reflection; PEARL shifts to a second colour at a glancing angle; MATTE has no clear coat. */
-  'if(pnt>.5){alb*=uPaint;alb=min(mix(vec3(dot(alb,vec3(.3,.59,.11))),alb,1.18)*.9,vec3(.33));{float mx=max(alb.r,max(alb.g,alb.b)),sat=(mx-min(alb.r,min(alb.g,alb.b)))/max(mx,.001);alb=mix(alb,alb/max(mx,.001)*.2,sat*smoothstep(.18,.03,mx)*.8);}metal=uPt.x*.62;rg=mix(.24,.6,uPt.z);coat=1.-uPt.z;\n'+
+  'if(pnt>.5){vec3 pc=min(mix(vec3(dot(uPaint,vec3(.3,.59,.11))),uPaint,1.18)*.9,vec3(.33));{float mx=max(pc.r,max(pc.g,pc.b)),sat=(mx-min(pc.r,min(pc.g,pc.b)))/max(mx,.001);pc=mix(pc,pc/max(mx,.001)*.2,sat*smoothstep(.18,.03,mx)*.8);}alb*=pc;metal=uPt.x*.62;rg=mix(.24,.6,uPt.z);coat=1.-uPt.z;\n'+
   /* SHUT LINES drawn per pixel (doors, bonnet, engine lid): a line as wide as a pixel at any distance that fades out before it is thinner than one, so it never breaks into dots.
      uSm = door front z, door rear z, bottom y, top y; uSm2 = bonnet front z, rear z, half width at the front, at the rear; uSm3 = lid z, lid half width */
   ' float w=max(.0045,dC*uSm3.z*1.25),kk=min(1.,.011/w),sm=0.,ax=abs(vL.x);vec3 mn=normalize(vMn);\n'+
@@ -5353,11 +5353,11 @@ function racerStep(c,dt){
       const closing=v-block.v,need=closing*closing/(2*7)+12;if(!moved||bdist<need)vt=Math.min(vt,block.v+Math.max(0,bdist-10)*.45)}   /* until it is actually beside it, it keeps a speed it can still stop from */
     else if(!block){if(R.launch>0)R.launch-=dt;else R.offT*=Math.exp(-dt*.4);   /* for the first 4 s it holds its grid lane (they used to dive for the middle together and crash) */
       /* (batch 53) defending: a car right behind you in a race gets its nose across your line (a move every 1.2 s, never more than 4 m off the route) */
-      if(EV.run&&!R.aggr&&EV.run.ev&&EV.run.ev.type=='race'){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;if(R.defT<=0&&fd<-4&&fd>-35&&Math.abs(lt)<6&&v>20){R.defT=1.2;R.offT=Math.max(-4,Math.min(4,R.off+Math.sign(lt||1)*2.2))}}}
+      if(EV.run&&EV.run.ev&&EV.run.ev.type=='race'){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;if(R.defT<=0&&fd<-4&&fd>-35&&Math.abs(lt)<6&&v>20){R.defT=1.2;R.offT=Math.max(-4,Math.min(4,R.off+Math.sign(lt||1)*2.2))}}}
     R.off+=(R.offT-R.off)*Math.min(1,dt*2.6);
     let tx=p[ahead*3],tz=p[ahead*3+2];{const a2=Math.min(Rt.n-1,ahead+1),dx=p[a2*3]-tx,dz=p[a2*3+2]-tz,l=Math.hypot(dx,dz)||1;tx+=-dz/l*R.off;tz+=dx/l*R.off}
     /* a death racer goes for you when you are close */
-    if(R.aggr&&EV.run&&!TUM.on){R.ramCd-=dt;const dpx=C.x-c.x,dpz=C.z-c.z,dp=Math.hypot(dpx,dpz);if((dpx*sy+dpz*cy)<-6&&dp<110)vt=Math.min(vt,Math.max(C.speed*1.04,26));   /* (batch 53) a death racer stays in reach of you instead of running away from you: it is a fight */
+    if(R.aggr&&EV.run&&!TUM.on){R.ramCd-=dt;const dpx=C.x-c.x,dpz=C.z-c.z,dp=Math.hypot(dpx,dpz);if(EV.run.ev&&EV.run.ev.type=='death'&&(dpx*sy+dpz*cy)<-6&&dp<110)vt=Math.min(vt,Math.max(C.speed*1.04,26));   /* (batch 53) a death racer stays in reach of you instead of running away from you: it is a fight */
       if(dp<34&&R.ramCd<=0&&(dpx*sy+dpz*cy)>-14){tx=C.x+C.vx*.4;tz=C.z+C.vz*.4;vt=Math.max(vt,C.speed+10);if(dp<4.5)R.ramCd=3.5}}
     if(c.rev>0){c.rev-=dt;c.yaw+=c.revS*1.1*dt;c.v=0;c.x-=sy*4*dt;c.z-=cy*4*dt;c.vx=-sy*4;c.vz=-cy*4;if(trStatic(c.x,c.z,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz}const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);return}
     if(c.stk>.8&&c.v<2){c.rev=1;c.revS=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw)>0?-1:1;c.stk=.3}
@@ -5371,16 +5371,16 @@ function racerStep(c,dt){
 /* (batch 53) a racer is one of the playable cars: the pool car about as fast as yours (the lead racer 3 % faster), driven with that car's own figures: its grip, top speed, acceleration and braking, a little under what you can do with it (95-99 %) */
 function racerCarNear(want,used){let b=null;for(const p of RACER_POOL){if(used&&used.has(p.id))continue;if(!b||Math.abs(p.top-want)<Math.abs(b.top-want))b=p}b=b||RACER_POOL[0];if(used)used.add(b.id);return b}
 function racerSkillFor(pc,sk,nitro){const r=pc.def.real,vm=1+(r.top/308-1)*.75,gr=Math.pow(r.lat/1.05,.9),ac=Math.pow(3.7/r.t100,.8),br=Math.pow(34/r.brk,.9);
-  return{grip:15*gr*sk,vmax:72*vm*sk,acc:12*ac*sk,brk:19*br,type:pc.type,col:pc.col,car:pc.id,nitro:nitro?1:0}}
+  return{grip:15*gr*sk,vmax:r.top/3.6*sk,acc:12*ac*sk,brk:19*br,type:pc.type,col:pc.col,car:pc.id,nitro:nitro?1:0}}
 const racerMyTop=()=>{const d=CAR_ROSTER[CARSEL.cur];return d?(typeof upgReal=='function'?upgReal(d).top:d.real.top):300};
 let _rUsed=null;const racerSkill=(k,n,hard)=>{if(k==0)_rUsed=new Set();const pc=racerCarNear(racerMyTop()*(hard?1.07:1.03)*(1-.032*k),_rUsed);return racerSkillFor(pc,(hard?.99:.965)-.022*k,1)};
 /* the field for an event: n racers on the grid behind the start line, two abreast */
-function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m along the route); the racers: beside you on the left, then two by two behind */const G=[[24,-3.4],[15,3.4],[15,-3.4],[6,3.4],[6,-3.4],[0,0]];const out=[];for(let k=0;k<n;k++){const c=racerSpawn(Rt,G[k][0],G[k][1],k,racerSkill(k,n,aggr),aggr);if(c)out.push(c)}return out}
+function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m along the route); the racers: beside you on the left, then two by two behind */const G=[[24,-3.4],[15,3.4],[15,-3.4],[6,3.4],[6,-3.4],[0,0]];const out=[];for(let k=0;k<n;k++){const c=racerSpawn(Rt,G[k][0],G[k][1],k,racerSkill(k,n,aggr),1);   /* (batch 53) every racer tries to take you down, in every mode */if(c)out.push(c)}return out}
 /* (batch 27) TAKEDOWN: the pack sets off 70-300 m ahead of you, two abreast, a little slower than race racers (top 50-60 m/s), not ramming */
 /* (batch 53) TAKEDOWN waves: three racers, each a different playable car a little slower than yours, already rolling S0 metres along the route (ahead of you); when you have wrecked or passed them the next three appear further on */
 let _pkUsed=new Set();
 function racerPack(Rt,n,S0,wave){const out=[];if(!wave)_pkUsed=new Set();if(_pkUsed.size>RACER_POOL.length-n)_pkUsed=new Set();
-  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.86-.03*k,0),0);if(c)out.push(c)}return out}
+  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.86-.03*k,0),1);if(c)out.push(c)}return out}
 /* (batch 53) a racer that has crashed in a plain race is back on the road after 2.2 s (further on, on a clear spot), not out for the rest of the race; takedowns and death races keep their wrecks */
 function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death')||R.done>=0||!R.go)return false;c.recT=(c.recT||0)+dt;
   if(c.recT>(ev.type=='death'?3.5:2.2)&&racerRespot(c)){c.recT=0;R.catchT=12;c.state=3;c.kind=2;c.dmg=Math.min(c.dmg||0,.45);c.rev=0;c.stk=0;c.hn=0;return true}return false}
@@ -5410,7 +5410,7 @@ function racerOffer(c){/* a town 1.2-3.5 km away that you can reach */let best=n
     btns:[{label:'RACE!',col:'#ff7a1a',act:()=>racerStreetStart(c,Rp,Rr,best.P.name,prize)},{label:'NO',col:'#8a94a6',act:()=>{EV.card=null;c.chal=-8}}]}}
 function racerStreetStart(c,Rp,Rr,name,prize){EV.card=null;if(!c.alive)return;const ev={id:'street',type:'race',street:1,name:'Street race to '+name,prize,R:Rp,cps:[],len:Rp.len,s:{x:C.x,z:C.z,y:C.y,yaw:C.yaw}};
   const n=Math.max(2,Math.round(Rp.len/300));for(let k=1;k<=n;k++){const S=Rp.len*k/n;let j=0;while(j<Rp.n-2&&Rp.S[j+1]<S)j++;const x=Rp.pts[j*3],y=Rp.pts[j*3+1],z=Rp.pts[j*3+2],dx=Rp.pts[j*3+3]-x,dz=Rp.pts[j*3+5]-z,l=Math.hypot(dx,dz)||1;ev.cps.push({x,y,z,nx:-dz/l,nz:dx/l})}
-  c.state=3;c.kind=2;c.L=null;c.sr=0;c.race={Rt:Rr,fi:0,s:0,go:true,done:-1,skill:racerSkillFor(RACER_POOL.find(p=>p.type==c.type)||racerCarNear(racerMyTop()),.975,1),aggr:0,off:0,offT:0,ramCd:9,name:'Street racer'};RACE.sr=null;
+  c.state=3;c.kind=2;c.L=null;c.sr=0;c.race={Rt:Rr,fi:0,s:0,go:true,done:-1,skill:racerSkillFor(RACER_POOL.find(p=>p.type==c.type)||racerCarNear(racerMyTop()),.975,1),aggr:1,off:0,offT:0,ramCd:3,name:'Street racer'};RACE.sr=null;
   EV.run={ev,t:0,cp:0,ghost:[],gt:0,copsWas:COP.on,racers:[c],bonus:0,wrecks:0,pop:0,ps:0,fi:0,lastBeep:0};COP.on=false;navSet(ev.cps[0].x,ev.cps[0].z);evBeep(880,.25);safeToast('GO!',1.2,1)}
 /* the yellow light over a street racer, and the racers on the minimap */
 function racerFx(sprite){const s=RACE.sr;if(s&&s.alive){const d=Math.hypot(s.x-C.x,s.z-C.z);if(d<500){const on=Math.sin(EV.t*8)>0;sprite(s.x,s.y+2.2,s.z,(on?.7:.35)+d*.004,1,.85,.1,on?.95:.5)}}}
@@ -5551,6 +5551,7 @@ function cgBody(S,mb,opt){
     if(S.lowerDark&&Math.abs(P[k])>.3){const t=_cl((S.lowerDark-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.96)}
     /* dark lower valances at the nose and the tail */
     if(!S.noSkirt){const sN=z+L/2,t=Math.max(_cl((S.sill+Math.min(.30,(S.nose-S.sill)*.55)-y)/.02,0,1)*_cl((.75-sN)/.12,0,1),_cl((S.sill+.44-y)/.022,0,1)*_cl((sN-(L-.7))/.12,0,1));if(t>0)dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}
+    if(S.rearDark){const t=_cl((z+L/2-S.rearDark)/.1,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.94)}   /* (batch 53) two-tone: everything behind this station is dark (the Bugatti's carbon rear half) */
     if(S.cladding){const t=_cl((S.sill+S.cladding-y)/.05,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.93)}
     /* black side skirts: a ramp up the lower side */
     if(!S.noSkirt&&Math.abs(P[k])>.35){const t=_cl((S.sill+.2-y)/.035,0,1);dark[i*nj+j]=Math.max(dark[i*nj+j],t*t*(3-2*t)*.92)}}
@@ -5775,6 +5776,8 @@ function cgDetails2(S,mb,opt){
   else if(S.grille=='slit'){cgDisc(mb,S.near(0,S.sill+.2,S.zs(.1)),hw*.36,.032,CGM.grille,14,.005)}
   /* daytime running lights over the headlights */
   if(S.drl){for(const sg of[-1,1]){const hx=S.hw0*.66,pts=[];for(let k=0;k<5;k++)pts.push(S.near(sg*(hx-.12+.06*k),S.nose+.095,S.zs(.2)));cgStrip(mb,pts,.014,CGM.head,.008)}}
+  /* (batch 53) the Bugatti C: a bright line that starts on the roof behind the door, swings round the back of the cabin and runs forward along the sill */
+  if(S.cline){for(const sg of[-1,1]){const s0=S.roofR-.8,y0=(S.H*.9+S.sill+.16)/2,ry=(S.H*.9-S.sill-.16)/2,rx=.7,pts=[];for(let k=0;k<=18;k++){const t=-Math.PI/2*1.12+k/18*Math.PI*1.2,ss=s0+rx*Math.cos(t)-(t>1.2?(t-1.2)*2.2:0),y=y0-ry*Math.sin(t);pts.push(S.near(sg*(S.W/2+.4),y,S.zs(ss)))}cgStrip(mb,pts,.04,CGM.chrome,.012)}}
   /* fender gills, scoop, canards, shark fin, buttresses */
   if(S.gills){for(const sg of[-1,1])for(let k=0;k<S.gills;k++)cgStrip(mb,[cgSide(S,S.fo+.45+k*.06,S.sill+.5,sg),cgSide(S,S.fo+.7+k*.06,S.sill+.44,sg)],.02,CGM.under,.004)}
   if(S.scoop){const sT=S.cowl*.55,p=cgSurf(S,sT,0);cgBox(mb,0,p.y+.04,p.z,.14,.045,.2,CGM.paint,0);cgDisc(mb,{x:0,y:p.y+.05,z:p.z-.2,nx:0,ny:0,nz:-1},.1,.03,CGM.under,10,.003)}
@@ -6025,11 +6028,12 @@ const MARQUE={
  l2:{wing:'none',rearS:3.4},j1:{cowl:1.7,roofF:2.5,roofR:3.15,rearS:4.0,hood:.9},j2:{cowl:1.46,roofF:2.2,roofR:2.55,rearS:3.5},
  h1:{wing:'none',roofF:2.4,roofR:2.7},h3:{cowl:1.55,roofF:2.3,roofR:2.55,rearS:3.6},
  /* the Bugatti-like car: the widest, tallest and heaviest of the hypercars, two-tone, a horseshoe grille, one blade tail lamp */
- h2:{L:4.54,W:2.04,H:1.21,wb:2.71,fo:.88,nose:.7,hood:.98,cowl:1.78,roofF:2.38,roofR:3.0,rearS:3.78,deck:1.0,tail:.92,hwMax:1.02,hwMaxS:2.9,hwTail:.96,rf:.365,rr:.385,wf:.285,wr:.34,rimF:.27,rimR:.285,head:'led',tail_:'slit',wing:'lip',exh:1,exhS:'center',stripe:0,grille:'horseshoe',chromeTrim:1,lowerDark:.46,noSkirt:1,spoke:6,tum:.04,crown:.06}};
+ h2:{L:4.54,W:2.04,H:1.21,wb:2.71,fo:.88,nose:.7,hood:.98,cowl:1.78,roofF:2.38,roofR:3.0,rearS:3.78,deck:1.0,tail:.92,hwMax:1.02,hwMaxS:2.9,hwTail:.96,rf:.365,rr:.385,wf:.285,wr:.34,rimF:.27,rimR:.285,head:'box',tail_:'slit',wing:'none',exh:1,exhS:'center',stripe:0,grille:'horseshoe',chromeTrim:1,cline:1,rearDark:2.95,noSkirt:1,spoke:6,tum:.05,crown:.1,spine:.045,nose:.62,hood:.9,deck:1.02,tail:.86,tailP:2.2,capR:.75,noseP:2.6,capF:.5,sq:4.6,hard:.5,crease:.6,shark:0,gills:0}};
 for(const d of CAR_ROSTER){const m=MARQUE[d.id];if(m)Object.assign(d.spec,m)}
-{const h2=CAR_ROSTER.find(d=>d.id=='h2');if(h2){h2.cls='Quad-turbo W16 hypercar, all-wheel drive';h2.like='Bugatti Chiron Super Sport';h2.paint=P(24,48,120);h2.real={hp:1578,kg:1995,drive:'AWD',top:490,t100:2.4,lat:1.15,brk:31}}}
+{const h2=CAR_ROSTER.find(d=>d.id=='h2');if(h2){h2._late=MARQUE.h2;h2.cls='Quad-turbo W16 hypercar, all-wheel drive';h2.like='Bugatti Chiron Super Sport';h2.paint=P(24,48,120);h2.real={hp:1578,kg:1995,drive:'AWD',top:490,t100:2.4,lat:1.15,brk:31}}}
 for(const d of CAR_ROSTER){const e=CAR_EXTRA[d.id]||{};Object.assign(d.spec,e);if(e.int)d.interior=e.int;delete d.spec.int;d.spec._name=d.name;
   const y=CAR_STYLE[d.id];if(y){Object.assign(d.spec,{head:y.h,tail_:y.t,noseP:y.n[0],capF:y.n[1],noseDrop:y.n[2],tailP:y.r[0],capR:y.r[1],tailDrop:y.r[2],sq:y.q,hard:y.k,crease:y.c,spine:y.sp||0});d.fin=y.f|0;if(y.p2)d.paint2=y.p2}}
+for(const d of CAR_ROSTER)if(d._late)Object.assign(d.spec,d._late);   /* (batch 53) the Bugatti-like car keeps its own lamps, nose and tail over the style table */
 /* ---------------- handling from the real figures ---------------- */
 /* Everything is measured against the first car, so it keeps exactly the old numbers. Top speed, acceleration, grip, braking and agility come from the figures; the drive layout changes how the tail behaves:
    all-wheel drive grips more and slides less, front-engine rear-drive cars light up the rear tyres under power (the more power for the weight, the more), mid-engine cars turn in sharply and let go suddenly. */
@@ -6037,7 +6041,7 @@ const HND0=Object.assign({},HND,{vmax:80,vmaxG:62,powerOS:0,mass:1530,rollK:1});
 const CAR_REF={hp:443,kg:1530,top:308,t100:3.7,lat:1.05,brk:34,wb:2.45};
 function carHandling(def){
   const r=def.real,B=HND0,S=def.spec,wb=S.wb||2.45;Object.assign(HND,B);
-  const comp=x=>1+(x-1)*.75,vm=comp(r.top/CAR_REF.top),ac=Math.pow(CAR_REF.t100/r.t100,.8),gr=Math.pow(r.lat/CAR_REF.lat,.9),br=Math.pow(CAR_REF.brk/r.brk,.9),ag=Math.pow(CAR_REF.kg/r.kg,.35)*Math.pow(CAR_REF.wb/wb,.5);
+  const comp=x=>1+(x-1)*.75,vm=r.top/(CAR_REF.top*.9*(.997-.000286*r.top)),   /* (batch 53) TRUE TOP SPEED: every car reaches the top speed of the car it is modelled on (it was compressed: the 490 km/h car did 330); the drag leaves about 90 % of vmax, hence the .9 */ac=Math.pow(CAR_REF.t100/r.t100,.8),gr=Math.pow(r.lat/CAR_REF.lat,.9),br=Math.pow(CAR_REF.brk/r.brk,.9),ag=Math.pow(CAR_REF.kg/r.kg,.35)*Math.pow(CAR_REF.wb/wb,.5);
   HND.vmax=B.vmax*vm;HND.vmaxG=B.vmaxG*Math.sqrt(vm);HND.accel=B.accel*ac;HND.accelLow=B.accelLow*Math.pow(ac,.8);
   HND.aBase=B.aBase*gr;HND.aAero=B.aAero*_cl(1+(r.lat-CAR_REF.lat)*2.2,.7,2);HND.grip=B.grip*Math.sqrt(gr);HND.brake=B.brake*br;
   HND.omLow=B.omLow*Math.pow(ag,.7);HND.respond=B.respond*Math.pow(ag,.5);HND.respondDrift=B.respondDrift*Math.pow(ag,.5);HND.mass=r.kg;

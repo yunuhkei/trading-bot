@@ -179,7 +179,7 @@ const SH={
  'void main(){vec3 n=normalize(vN),V=normalize(uCam-vW);if(dot(n,V)<0.)n=-n;float metal=vM.x,rg=vM.y,emis=vM.z,coat=vM.w;vec3 alb=vC;float pnt=step(.99,coat)*(1.-step(.5,uWh.x)),dC=length(uCam-vW);'+
   /* THE PAINT (batch 4). uPt = (metallic, pearl, matte, flake): a SOLID paint is a deep, saturated colour under a glossy clear coat (it used to be half metal for every car, which washed every colour out to a pastel
      and left white and silver flat); METALLIC has a bright face and a darker flank, sparkle and a tinted reflection; PEARL shifts to a second colour at a glancing angle; MATTE has no clear coat. */
-  'if(pnt>.5){alb*=uPaint;alb=min(mix(vec3(dot(alb,vec3(.3,.59,.11))),alb,1.18)*.9,vec3(.33));{float mx=max(alb.r,max(alb.g,alb.b)),sat=(mx-min(alb.r,min(alb.g,alb.b)))/max(mx,.001);alb=mix(alb,alb/max(mx,.001)*.2,sat*smoothstep(.18,.03,mx)*.8);}metal=uPt.x*.62;rg=mix(.24,.6,uPt.z);coat=1.-uPt.z;\n'+
+  'if(pnt>.5){vec3 pc=min(mix(vec3(dot(uPaint,vec3(.3,.59,.11))),uPaint,1.18)*.9,vec3(.33));{float mx=max(pc.r,max(pc.g,pc.b)),sat=(mx-min(pc.r,min(pc.g,pc.b)))/max(mx,.001);pc=mix(pc,pc/max(mx,.001)*.2,sat*smoothstep(.18,.03,mx)*.8);}alb*=pc;metal=uPt.x*.62;rg=mix(.24,.6,uPt.z);coat=1.-uPt.z;\n'+
   /* SHUT LINES drawn per pixel (doors, bonnet, engine lid): a line as wide as a pixel at any distance that fades out before it is thinner than one, so it never breaks into dots.
      uSm = door front z, door rear z, bottom y, top y; uSm2 = bonnet front z, rear z, half width at the front, at the rear; uSm3 = lid z, lid half width */
   ' float w=max(.0045,dC*uSm3.z*1.25),kk=min(1.,.011/w),sm=0.,ax=abs(vL.x);vec3 mn=normalize(vMn);\n'+

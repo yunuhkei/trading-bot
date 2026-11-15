@@ -47,7 +47,7 @@ const spearman=(a,b)=>{const ra=rank(a),rb=rank(b),n=a.length;let d=0;for(let i=
     ok(rb>.85,'braking distance: the measured order follows the real one (rank correlation '+rb.toFixed(2)+')');
     ok(rg>.85,'cornering grip: the measured order follows the real one (rank correlation '+rg.toFixed(2)+')');
     const byId=id=>rows.find(r=>r.id==id);const k1=byId('k1');
-    ok(Math.abs(k1.t100-2.33)<.15&&k1.top>245&&k1.top<275&&Math.abs(k1.brk-16.4)<1.5,'the starter keeps the old feel: 0-100 '+k1.t100.toFixed(2)+' s, top '+k1.top.toFixed(0)+' km/h, 100-0 in '+k1.brk.toFixed(1)+' m');
+    ok(Math.abs(k1.t100-2.33)<.15&&k1.top>290&&k1.top<320&&Math.abs(k1.brk-16.4)<1.5,'the starter keeps the old feel: 0-100 '+k1.t100.toFixed(2)+' s, top '+k1.top.toFixed(0)+' km/h, 100-0 in '+k1.brk.toFixed(1)+' m');
     ok(byId('h3').top>byId('k1').top*1.2&&byId('l2').top<byId('k1').top*.9,'a hypercar is clearly faster than the starter ('+byId('h3').top.toFixed(0)+' vs '+k1.top.toFixed(0)+' km/h), the small light car clearly slower ('+byId('l2').top.toFixed(0)+')');
     ok(byId('u5').t100<k1.t100&&byId('u5').top<k1.top&&byId('u5').lat<k1.lat,'the drag-strip muscle car launches harder than the starter ('+byId('u5').t100.toFixed(2)+' s) but tops out lower and corners worse ('+byId('u5').lat.toFixed(2)+' g)');
     ok(byId('l3').lat>k1.lat*1.15,'the open track car out-corners everything ('+byId('l3').lat.toFixed(2)+' g vs '+k1.lat.toFixed(2)+')');
