@@ -13,7 +13,7 @@ const RACER_TYPES=[10,12,16,18,19],RACER_COLS=[0,3,6,9,12,15,1,4,7,10];
 function racerSpawn(Rt,S,lat,k,skill,aggr){let j=0;while(j<Rt.n-2&&Rt.S[j+1]<S)j++;const p=Rt.pts,x=p[j*3],z=p[j*3+2],dx=p[j*3+3]-x,dz=p[j*3+5]-z,l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l;
   const sn=navSnap(x,z,40);if(!sn)return null;const la=navLane(sn,x,z,ux,uz);if(!la)return null;const c=trPlace(la.e,la.u,skill.type!=null?skill.type:RACER_TYPES[k%RACER_TYPES.length],skill.type!=null?skill.col:RACER_COLS[k%RACER_COLS.length],0,7000+k);if(!c)return null;
   c.x=c.px=x-uz*lat;c.z=c.pz=z+ux*lat;c.y=c.py=groundAt(c.x,c.z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=0;c.vx=c.vz=c.om=0;c.state=3;c.kind=2;c.cm=0;c.siren=0;c.L=null;c.stk=0;c.rev=0;c.hn=0;
-  c.race={Rt,fi:j,s:S,go:false,done:-1,skill,aggr:aggr||0,off:0,offT:0,ramCd:aggr?0:2,name:['Viper','Blaze','Ghost','Nova','Rook','Jinx','Vandal','Comet'][k%8]};return c}
+  c.race={Rt,fi:j,s:S,go:false,done:-1,skill,aggr:aggr||0,off:lat,offT:lat,launch:4,ramCd:aggr?0:2,name:['Viper','Blaze','Ghost','Nova','Rook','Jinx','Vandal','Comet'][k%8]};return c}
 const _ra=(Rt,bi,s)=>{let k=bi;while(k<Rt.n-1&&Rt.S[k]<s)k++;return k};
 function racerStep(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;const R=c.race;if(!R){c.state=1;return}const Rt=R.Rt,p=Rt.pts;
@@ -31,12 +31,12 @@ function racerStep(c,dt){
     {const bk=(sk.brk||9)*.72,maxD=Math.max(90,v*3.2),hd=q=>{const a=_ra(Rt,bi,q),b=_ra(Rt,bi,q+14);return Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2]))};let h0=hd(R.s+4);
       for(let d=12;d<maxD;d+=9){const h1=hd(R.s+d+4),kc=Math.abs(angd(h1,h0))/9;h0=h1;if(kc>1e-3){const vc=Math.sqrt(sk.grip*1.05/kc);cornerV=Math.min(cornerV,Math.sqrt(vc*vc+2*bk*d))}}}
     /* nitro: the racers use it too, on a clear straight, for 2.5 s every 12-20 s */
-    R.nzCd=(R.nzCd||4)-dt;if(R.nzT>0)R.nzT-=dt;else if(sk.nitro&&R.nzCd<=0&&v>25){R.nzT=2.5;R.nzCd=12+((c.seed|0)%8)}
+    R.nzCd=(R.nzCd||4)-dt;if(R.nzT>0)R.nzT-=dt;else if(sk.nitro&&R.nzCd<=0&&v>25&&!(R.launch>0)){R.nzT=2.5;R.nzCd=12+((c.seed|0)%8)}
     let vt=sk.vmax*(R.nzT>0?1.14:1);for(const L of[Math.max(40,v*1.4),Math.max(80,v*2.6)]){const A=_ra(Rt,bi,R.s+10),B=_ra(Rt,bi,R.s+10+L/2),Cc=_ra(Rt,bi,R.s+10+L);const ax=p[A*3],az=p[A*3+2],bx=p[B*3],bz=p[B*3+2],cx=p[Cc*3],cz=p[Cc*3+2];
       const ar=Math.abs((bx-ax)*(cz-az)-(bz-az)*(cx-ax)),dd=Math.hypot(bx-ax,bz-az)*Math.hypot(cx-bx,cz-bz)*Math.hypot(cx-ax,cz-az),kc=dd>1e-3?2*ar/dd:0;if(kc>1e-4){const vb=Math.sqrt(sk.grip/kc),dist=Math.max(0,Rt.S[A]-R.s);vt=Math.min(vt,Math.sqrt(vb*vb+2*(sk.brk||9)*.72*dist))}}
     /* catch-up: a little faster when far behind you, a little slower when far ahead */
     vt=Math.min(vt,cornerV);
-    const gap=(EV.run&&EV.run.ps!=null)?EV.run.ps-R.s:0;vt*=gap>240?1.12:gap>110?1.06:gap<-320?.93:1;   /* (batch 53) it chases harder when it is behind you, and eases off only when it is a long way ahead */
+    const gap=(EV.run&&EV.run.ps!=null)?EV.run.ps-R.s:0;vt*=gap>300?1.3:gap>150?1.18:gap>60?1.08:gap<-320?.93:1;if(R.catchT>0){R.catchT-=dt;if(gap>20)vt*=1.12}   /* (batch 53) it really comes back at you after you knock it out or leave it behind */   /* (batch 53) it chases harder when it is behind you, and eases off only when it is a long way ahead */
     /* traffic in the way: overtake on the free side */
     const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),look=Math.max(40,v*1.6),lat2=(o,dx,dz)=>{const ovx=Math.sin(o.yaw)*o.v,ovz=-Math.cos(o.yaw)*o.v,lt=dx*-cy+dz*sy,lv=ovx*-cy+ovz*sy;return[lt,lt+lv*.9]},   /* where it is across our path now and in 0.9 s (a car changing lanes) */
       inLane=(o,off)=>{const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<2||f>look)return -1;const L=lat2(o,dx,dz),q=off-R.off;return Math.min(Math.abs(L[0]-q),Math.abs(L[1]-q),(L[0]-q)*(L[1]-q)<0?0:9)<2.6?f:-1};   /* L is measured from this car; off is from the route centre, where this car is R.off */
@@ -46,7 +46,7 @@ function racerStep(c,dt){
     if(block&&block.v<v-1){/* overtake on whichever side is clear; if neither is, slow down behind it in good time */
       let moved=false;for(const side of[R.off<=0?3.6:-3.6,R.off<=0?-3.6:3.6]){const off=Math.max(-6,Math.min(6,R.off+side));let clear=true;for(const o of TR.cars){if(!o.alive||o===c)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f>-8&&f<bdist+15){const L=lat2(o,dx,dz),q=off-R.off;if(Math.min(Math.abs(L[0]-q),Math.abs(L[1]-q))<2.9||(L[0]-q)*(L[1]-q)<0){clear=false;break}}}if(clear){R.offT=off;moved=true;break}}
       const closing=v-block.v,need=closing*closing/(2*7)+12;if(!moved||bdist<need)vt=Math.min(vt,block.v+Math.max(0,bdist-10)*.45)}   /* until it is actually beside it, it keeps a speed it can still stop from */
-    else if(!block){R.offT*=Math.exp(-dt*.4);
+    else if(!block){if(R.launch>0)R.launch-=dt;else R.offT*=Math.exp(-dt*.4);   /* for the first 4 s it holds its grid lane (they used to dive for the middle together and crash) */
       /* (batch 53) defending: a car right behind you in a race gets its nose across your line (a move every 1.2 s, never more than 4 m off the route) */
       if(EV.run&&!R.aggr&&EV.run.ev&&EV.run.ev.type=='race'){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;if(R.defT<=0&&fd<-4&&fd>-35&&Math.abs(lt)<6&&v>20){R.defT=1.2;R.offT=Math.max(-4,Math.min(4,R.off+Math.sign(lt||1)*2.2))}}}
     R.off+=(R.offT-R.off)*Math.min(1,dt*2.6);
@@ -74,8 +74,8 @@ function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m alo
 /* (batch 27) TAKEDOWN: the pack sets off 70-300 m ahead of you, two abreast, a little slower than race racers (top 50-60 m/s), not ramming */
 function racerPack(Rt,n){const out=[];for(let k=0;k<n;k++){const f=n>1?k/(n-1):0,pc=racerCarNear(racerMyTop()*(.9-.05*f)),c=racerSpawn(Rt,300-(k>>1)*90-(k&1)*25,(k&1)?-3.4:3.4,k,racerSkillFor(pc,.84-.05*f,0),0);if(c)out.push(c)}return out}
 /* (batch 53) a racer that has crashed in a plain race is back on the road after 2.2 s (further on, on a clear spot), not out for the rest of the race; takedowns and death races keep their wrecks */
-function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||ev.type!='race'||R.done>=0||!R.go)return false;c.recT=(c.recT||0)+dt;
-  if(c.recT>2.2&&racerRespot(c)){c.recT=0;c.state=3;c.kind=2;c.dmg=Math.min(c.dmg||0,.45);c.rev=0;c.stk=0;c.hn=0;return true}return false}
+function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death')||R.done>=0||!R.go)return false;c.recT=(c.recT||0)+dt;
+  if(c.recT>(ev.type=='death'?3.5:2.2)&&racerRespot(c)){c.recT=0;R.catchT=12;c.state=3;c.kind=2;c.dmg=Math.min(c.dmg||0,.45);c.rev=0;c.stk=0;c.hn=0;return true}return false}
 function racerRespot(c){const R=c.race,Rt=R.Rt,p=Rt.pts;R.still=0;
   for(let d=25;d<=145;d+=20)for(const lat of[R.off<0?-3.4:3.4,0,R.off<0?3.4:-3.4]){const S=Math.min(Rt.len-15,R.s+d);let j=0;while(j<Rt.n-2&&Rt.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;
     if(Math.hypot(x-C.x,z-C.z)<18)continue;if(TR.cars.some(o=>o.alive&&o!==c&&Math.hypot(o.x-x,o.z-z)<9))continue;if(trStatic(x,z,c.hw+.3,p[j*3+1]))continue;
@@ -108,3 +108,11 @@ function racerStreetStart(c,Rp,Rr,name,prize){EV.card=null;if(!c.alive)return;co
 function racerFx(sprite){const s=RACE.sr;if(s&&s.alive){const d=Math.hypot(s.x-C.x,s.z-C.z);if(d<500){const on=Math.sin(EV.t*8)>0;sprite(s.x,s.y+2.2,s.z,(on?.7:.35)+d*.004,1,.85,.1,on?.95:.5)}}}
 function racerMapIcons(ctx,px,pz,r){const s=RACE.sr;if(s&&s.alive){ctx.fillStyle=((EV.t*4|0)&1)?'#ffd23a':'#a08000';ctx.beginPath();ctx.arc(px(s.x),pz(s.z),r*.75,0,TAU);ctx.fill()}
   for(const c of TR.cars)if(c.alive&&c.kind==2&&c.race){ctx.fillStyle='#ffd23a';ctx.fillRect(px(c.x)-r*.5,pz(c.z)-r*.5,r,r)}}
+
+/* ===== (batch 53) KILL CAM: when you wreck a racer the game drops into slow motion for a moment and the camera cuts to the wreck; the takedown fills a third of the nitro tank at once ===== */
+const KC={t:0,c:null,cam:[0,0,0]};
+function killCamStart(c){if(CC.on||KC.t>0||TUM.on)return;const sp=Math.hypot(C.vx,C.vz)||1,dx=C.vx/sp,dz=C.vz/sp,sd=((c.x-C.x)*-dz+(c.z-C.z)*dx)>0?1:-1;KC.t=1.4;KC.c=c;
+  const x=c.x+dx*10+(-dz)*sd*5,z=c.z+dz*10+dx*sd*5;KC.cam[0]=x;KC.cam[2]=z;KC.cam[1]=Math.max(groundAt(x,z,c.y+3)+1.4,c.y+1.8)}
+function killCamFrame(sec){if(KC.t>0){KC.t-=sec;if(!KC.c||!KC.c.alive||CC.on)KC.t=0}}
+function killCam(){const c=KC.c,a=R.alpha;CAM.x=KC.cam[0];CAM.y=KC.cam[1];CAM.z=KC.cam[2];CAM.tx=lerp(c.px,c.x,a);CAM.ty=lerp(c.py,c.y,a)+.7;CAM.tz=lerp(c.pz,c.z,a);CAM.fov=.8}
+function killCamHud(c,W_,H_,u){if(!(KC.t>0))return;const k=Math.min(1,(1.4-KC.t)*5)*Math.min(1,KC.t*3);c.save();c.globalAlpha=k;c.fillStyle='#000';c.fillRect(0,0,W_,H_*.09);c.fillRect(0,H_*.91,W_,H_*.09);fxText(c,'TAKEDOWN!',W_*.5,H_*.24,u*.95,'#ffb000','center','rgba(255,120,20,.8)');c.restore()}

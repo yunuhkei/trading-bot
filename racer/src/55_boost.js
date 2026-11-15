@@ -22,9 +22,9 @@ function boostTick(dt){if(GAME.state||TUM.on||CC.on)return;
   /* holding a high speed */
   const vf=Math.min(53.65,HND.vmax*.88);if(C.speed>vf&&!IN.nitro&&C.grounded){BOOST.fast+=dt;if(BOOST.fast>2){BOOST.pend=Math.min(1.5,BOOST.pend+dt*.05);if(!BOOST.fastPop){BOOST.fastPop=1;boostAdd(0,'TOP SPEED','fast')}}}else{BOOST.fast=0;BOOST.fastPop=0}}
 /* a racer or a cop wrecked by you (from trPlayerCollide) */
-function boostTakedown(c){if(c.kind==1||c.kind==2)boostAdd(.25,c.kind==1?'COP TAKEDOWN':'TAKEDOWN','take')}
+function boostTakedown(c){if(c.kind==1||c.kind==2)boostAdd(.25,c.kind==1?'COP TAKEDOWN':'TAKEDOWN','take');if(c.kind==2&&c.race){C.nos=Math.min(1,C.nos+.35);killCamStart(c)}}   /* (batch 53) a racer: a third of a tank at once, and the kill cam */
 /* the labels, over the nitro gauge (from hudDraw) */
-function boostHud(c,W_,H_,u){const G=UI.gg;if(!G||!BOOST.pops.length)return;c.save();c.textAlign='center';let k=0;
+function boostHud(c,W_,H_,u){killCamHud(c,W_,H_,u);const G=UI.gg;if(!G||!BOOST.pops.length)return;c.save();c.textAlign='center';let k=0;
   for(let i=BOOST.pops.length-1;i>=0;i--){const p=BOOST.pops[i],a=C.t-p.t;if(a>1.4||a<0)continue;const al=Math.min(1,a*6)*(1-sstep(1,1.4,a));c.globalAlpha=al;c.font='italic 800 '+Math.round(u*.24)+'px '+UIF;
     c.fillStyle=DASH.amber;c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=u*.08;c.fillText('+ '+p.l,G.x+G.w/2,G.y1-u*.25-k*u*.3-a*u*.2);k++}
   c.restore()}
