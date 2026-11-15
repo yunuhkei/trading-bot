@@ -4696,3 +4696,17 @@ def test_brain_finds_an_edge_that_exists_only_on_news_named_coins():
     tm = brain.timing_map(rows, dict(brain.DEFAULTS))
     assert tm["approved"] == ["s1|news"]
     assert brain.window_label("news", brain.DEFAULTS).startswith("on coins named after")
+
+
+def test_ping_shows_super_bot_1_on_paper_after_it_busts():
+    from bot import launch_lab as ll
+
+    lab = ll.Lab(sol_usd=100.0)
+    g = lab.ghosts["timing"]
+    now = 1_794_700_000.0
+    today = ll.local_time(now).strftime("%Y-%m-%d")
+    hours = [[0, 0, 0.0] for _ in range(24)]
+    hours[3] = [10, 3, -120.0]
+    g.days = {"2026-11-12": [[0, 0, 0.0]] * 23 + [[5, 1, -500.0]], today: hours}
+    line = next(l for l in lab.simple(now).splitlines() if l.startswith("• Super bot 1 on paper"))
+    assert "today -120 on 10 trades; -620 over 2 days" in line

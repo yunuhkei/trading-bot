@@ -1090,6 +1090,14 @@ class Lab:
             start = p["start"] if p["start"] is not None else value
             lines.append(f"• Super bot today: {value - start:+,.0f}. Your plan so far: taken out ${p['banked']:,.0f}, "
                          f"account ${value:,.0f}, net {net:+,.0f}. {doing}")
+        g1 = self.ghosts.get("timing")                    # its ghost: the same trades, as if it never ran out
+        if g1 and g1.days:
+            today = local_time(now).strftime("%Y-%m-%d")
+            day = lambda d: (sum(h[0] for h in g1.days[d]), sum(h[2] for h in g1.days[d]))
+            n_t, p_t = day(today) if today in g1.days else (0, 0.0)
+            total = sum(day(d)[1] for d in g1.days)
+            lines.append(f"• Super bot 1 on paper (as if it never ran out of money): today {p_t:+,.0f} on {n_t} trades; "
+                         f"{total:+,.0f} over {len(g1.days)} days.")
         s2, g2 = self.accts["streak"], self.ghosts.get("streak")
         if g2 and self.value(s2) < s2.per_trade and not s2.positions:
             lines.append(f"• Super bot 2 (copies what's hot) is out of money; on paper it made "
