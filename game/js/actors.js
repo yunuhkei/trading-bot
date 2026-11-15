@@ -25,6 +25,7 @@
       case 'saint': return { shirt: '#1a1a1e', long: true, pants: '#101012', shoes: '#0a0a0a', skin: '#cfc9bb', hood: '#121215', mask: true, halo: true, gun: true };
       case 'guard': return { shirt: '#4a5240', pants: '#33372c', shoes: '#141414', skin: G.pick(SKINS), cap: '#2a2d24' };
       case 'mars': return { shirt: '#7a2a3e', pants: '#24222a', shoes: '#1a1012', skin: '#9a6446', hair: '#0e0b0a', tinHalo: true, h: 0.95, w: 0.95 };
+      case 'local': return Object.assign(outfit('ped'), { long: true, cap: Math.random() < 0.5 ? G.pick(['#7a1a1a', '#2a3a2a', '#d8d0c0']) : null, hood: Math.random() < 0.3 ? '#3a3a40' : null });
       default: {
         const long = Math.random() < 0.3;
         return {
@@ -61,7 +62,9 @@
     };
     if (!G.body.hasFree() && G.player) freeSlot();
     if (!G.body.create(c, outfit(kind))) return null;
-    if (kind === 'ped') {
+    if (opts.anchor) c.anchor = opts.anchor;
+    if (kind === 'local') c.kind = 'ped';
+    if (c.kind === 'ped' && !c.anchor) {
       const r = opts.ring || W.nearestRing(x, z);
       c.ri = r.i; c.rj = r.j; c.rs = r.s; c.rdir = Math.random() < 0.5 ? 1 : -1;
     }
@@ -153,7 +156,18 @@
       speed = 5.4;
       c.rot = G.angleLerp(c.rot, Math.atan2(vx, vz), Math.min(1, dt * 8));
       moveChar(c, Math.sin(c.rot) * speed, Math.cos(c.rot) * speed, dt);
-      if (c.fleeT <= 0) { const r = W.nearestRing(c.x, c.z); c.ri = r.i; c.rj = r.j; c.rs = r.s; }
+      if (c.fleeT <= 0 && !c.anchor) { const r = W.nearestRing(c.x, c.z); c.ri = r.i; c.rj = r.j; c.rs = r.s; }
+    } else if (c.anchor) {
+      if (c.idleT > 0) { c.idleT -= dt; speed = 0; }
+      else {
+        if (!c.goal || Math.hypot(c.goal.x - c.x, c.goal.z - c.z) < 1) {
+          c.goal = { x: c.anchor.x + G.R(-9, 9), z: c.anchor.z + G.R(-9, 9) };
+          c.idleT = G.R(1, 7);
+        }
+        speed = c.walk;
+        c.rot = G.angleLerp(c.rot, Math.atan2(c.goal.x - c.x, c.goal.z - c.z), Math.min(1, dt * 5));
+        moveChar(c, Math.sin(c.rot) * speed, Math.cos(c.rot) * speed, dt);
+      }
     } else {
       if (c.idleT > 0) { c.idleT -= dt; speed = 0; }
       else {
@@ -223,7 +237,7 @@
     } else if (pl.alive) {
       c.navT -= dt;
       let gx = tx, gz = tz;
-      if (!c.los) {
+      if (!c.los && W.inCity(c.x, c.z)) {
         if (c.navT <= 0 || (c.nav && Math.hypot(c.nav.x - c.x, c.nav.z - c.z) < 2.5)) { c.nav = pickNav(c, tx, tz); c.navT = 0.7; }
         if (c.nav) { gx = c.nav.x; gz = c.nav.z; }
       }
@@ -327,10 +341,11 @@
     }
     const beam = new T.Mesh(carGeo.beam, new T.MeshBasicMaterial({ map: W.radialTex, color: 0xfff0c8, transparent: true, opacity: 0.55, blending: T.AdditiveBlending, depthWrite: false }));
     beam.position.set(0, 0.06, hl + 5); beam.visible = false; g.add(beam);
-    g.position.set(x, 0, z); g.rotation.y = heading;
+    g.rotation.order = 'YXZ';
+    g.position.set(x, W.groundY(x, z), z); g.rotation.y = heading;
     G.scene.add(g);
     const car = {
-      mesh: g, x, z, heading, speed: 0, slip: 0, steer: 0, hp: opts.hp || 100, cop, van, driver: null, wheels, parts, beam,
+      mesh: g, x, z, y: W.groundY(x, z), pitch: 0, roll: 0, heading, speed: 0, slip: 0, steer: 0, hp: opts.hp || 100, cop, van, driver: null, wheels, parts, beam,
       hl, hw, wrecked: false, persistent: !!opts.persistent, lightsOn: false, burnT: 0, born: G.time || 0,
     };
     if (opts.lights) A.setLights(car, true);
@@ -394,6 +409,7 @@
       car.speed *= 1 - 1.6 * dt;
       car.steer *= 1 - 3 * dt;
     }
+    if (car.pitch) car.speed -= 9.8 * Math.sin(car.pitch) * dt * 0.85;
     if (dh) {
       // the body turns; the momentum doesn't (yet)
       car.heading += dh;
@@ -450,7 +466,7 @@
             }
           }
         }
-        o.mesh.position.set(o.x, 0, o.z);
+        o.mesh.position.set(o.x, o.y, o.z);
       }
       // people
       for (const c of G.chars) {
@@ -468,9 +484,15 @@
       }
       G.body.carSweep(car, vx, vz);
     }
-    car.mesh.position.set(car.x, 0, car.z);
-    car.mesh.rotation.y = car.heading;
-    car.mesh.rotation.z = -car.steer * Math.min(1, Math.abs(car.speed) / 25) * 0.05 + car.slip * 0.006;
+    // sit on the ground and tilt with it
+    const hf = W.groundY(car.x + fx * 1.7, car.z + fz * 1.7), hb = W.groundY(car.x - fx * 1.7, car.z - fz * 1.7);
+    const hl = W.groundY(car.x + sx * 0.9, car.z + sz * 0.9), hr = W.groundY(car.x - sx * 0.9, car.z - sz * 0.9);
+    const ty = Math.max((hf + hb + hl + hr) / 4, W.groundY(car.x, car.z));
+    car.y = car.y + (ty - car.y) * Math.min(1, dt * 18);
+    car.pitch = G.lerp(car.pitch, Math.atan2(hf - hb, 3.4), Math.min(1, dt * 10));
+    car.roll = G.lerp(car.roll, Math.atan2(hl - hr, 1.8), Math.min(1, dt * 10));
+    car.mesh.position.set(car.x, car.y, car.z);
+    car.mesh.rotation.set(-car.pitch, car.heading, car.roll - car.steer * Math.min(1, Math.abs(car.speed) / 25) * 0.05 + car.slip * 0.006);
     const spin = car.speed * dt / 0.36;
     for (const w of car.wheels) w.rotation.x += spin;
     if (car.lightsOn) for (const t of car.parts.tails) t.scale.set(car.braking ? 1.3 : 1, car.braking ? 1.6 : 1, 1);

@@ -23,7 +23,7 @@
   const FOG = 0x182030;
   scene.background = new T.Color(FOG);
   scene.fog = new T.FogExp2(FOG, 0.012);
-  const camera = (G.camera = new T.PerspectiveCamera(62, 1, 0.1, 280));
+  const camera = (G.camera = new T.PerspectiveCamera(62, 1, 0.1, 1700));
 
   G.time = 0; G.running = false; G.cardMode = false; G.paused = false;
   G.stats = { start: 0, kills: 0, civs: 0, cops: 0, saints: 0 };
@@ -42,9 +42,8 @@
   function applyQuality() {
     const low = G.qualityLevel === 'low';
     renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio || 1, 1.6));
-    scene.fog.density = low ? 0.016 : 0.012;
     G.maxPeds = low ? 13 : 22;
-    W.setRainDensity(low ? 0.45 : 1);
+    W.setQuality(low);
     resize();
     const b = $('qBtn'); if (b) b.textContent = 'Graphics: ' + (low ? 'Low' : 'High');
   }
@@ -327,6 +326,12 @@
         const old = G.chars.filter((c) => !c.alive && !c.prop).sort((a, b) => a.diedAt - b.diedAt)[0];
         if (old) A.remove(old);
       }
+      const dv = Math.hypot(px - W.VIL.x, pz - W.VIL.z);
+      if (dv < 230) {
+        let locals = 0;
+        for (const c of G.chars) if (c.anchor && c.alive) locals++;
+        if (locals < 9) { const sp = G.pick(W.villageSpots); A.spawn('local', sp.x, sp.z, { anchor: sp }); }
+      }
       if (peds < G.maxPeds) {
         const p = W.randomSidewalkPoint(px, pz, G.running ? 45 : 8, 95);
         if (p) A.spawn('ped', p.x, p.z, { ring: p });
@@ -406,7 +411,7 @@
     let px, pz, py, dist;
     const car = player.car;
     if (car) {
-      px = car.x; pz = car.z; py = 1.9; dist = 8.6;
+      px = car.x; pz = car.z; py = car.y + 1.9; dist = 8.6;
       if (lookIdle > 1.1 && Math.abs(car.speed) > 2) {
         camYaw = G.angleLerp(camYaw, car.heading, Math.min(1, dt * 2.4));
         camPitch = G.lerp(camPitch, 0.26, Math.min(1, dt * 2));
@@ -551,23 +556,8 @@
   const mm = $('minimap'), mctx = mm.getContext('2d');
   const MM = 160; mm.width = MM; mm.height = MM;
   const base = document.createElement('canvas');
-  const BK = 1.6, BS = 520 * BK; base.width = base.height = BS;
-  function drawBaseMap() {
-    const b = base.getContext('2d');
-    b.fillStyle = '#0a0d12'; b.fillRect(0, 0, BS, BS);
-    const m = (v) => (v + 260) * BK;
-    b.fillStyle = '#2b303a';
-    b.fillRect(m(-248), m(-248), 496 * BK, 496 * BK);
-    for (let i = 0; i < W.NB; i++) for (let j = 0; j < W.NB; j++) {
-      const cx = W.blockCenter(i), cz = W.blockCenter(j), type = W.SPECIAL[i + ',' + j];
-      b.fillStyle = type === 'park' ? '#16261a' : type === 'lot' ? '#1a1c20' : '#14171d';
-      b.fillRect(m(cx - 22), m(cz - 22), 44 * BK, 44 * BK);
-    }
-    b.fillStyle = '#232833';
-    for (const bx of W.boxes) b.fillRect(m(bx.minX), m(bx.minZ), (bx.maxX - bx.minX) * BK, (bx.maxZ - bx.minZ) * BK);
-    b.fillStyle = '#b3121e';
-    b.fillRect(m(88.5), m(73), 3 * BK, 6 * BK); b.fillRect(m(87), m(74.5), 6 * BK, 1.5 * BK);
-  }
+  const BK = 0.8;
+  function drawBaseMap() { W.drawMap(base, BK); }
   function mapXY(dx, dz, z) {
     const c = Math.cos(camYaw), s = Math.sin(camYaw);
     return [(-dx * c + dz * s) * z, -(dx * s + dz * c) * z];
@@ -581,7 +571,7 @@
     mctx.fillStyle = '#07090d'; mctx.fillRect(0, 0, MM, MM);
     const c = Math.cos(camYaw), s = Math.sin(camYaw), k = z / BK;
     const a = -c * k, cc = s * k, b = -s * k, d = -c * k;
-    const X = (player.x + 260) * BK, Y = (player.z + 260) * BK;
+    const X = (player.x - W.MAP.x0) * BK, Y = (player.z - W.MAP.z0) * BK;
     mctx.setTransform(a, b, cc, d, h - (a * X + cc * Y), h - (b * X + d * Y));
     mctx.drawImage(base, 0, 0);
     mctx.setTransform(1, 0, 0, 1, 0, 0);
