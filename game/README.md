@@ -32,3 +32,7 @@ Open http://localhost:8000. On a phone on the same Wi-Fi, use your computer's lo
 - `js/actors.js`: people, cars, AI, hit effects
 - `js/story.js`: Chapter One mission flow and story text
 - `js/main.js`: game loop, player, combat, wanted level, camera, HUD
+
+## Publishing
+
+`node tools/build.js` bundles everything into one self-contained page at `dist/index.html`. That single file is what gets published, because some embedded viewers block a page from loading its own separate script files.
