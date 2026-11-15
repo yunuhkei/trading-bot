@@ -166,7 +166,7 @@ function carStep(dt){
     if(dr>.02){const e=Math.sqrt(Math.max(0,f*f+s0*s0-s*s));f=Math.sign(f||1)*lerp(Math.abs(f),e,dr)}
     /* sliding costs a little speed; so does cornering at the limit */
     /* the handbrake is a brake: rear wheels locked, so a slide sheds speed (a straight pull still slows you; a full slide a lot more) */
-    if(dr>.02&&spd>.5){const D=HND.driftBrake*dr*(HND.handBrake0+(1-HND.handBrake0)*C.hk)*(.5+.5*Math.min(1,Math.abs(Math.sin(beta))*2)),kk2=Math.max(0,1-D*dt/spd);f*=kk2;s*=kk2}
+    if(dr>.02&&spd>.5&&!(C.spinT>0&&!hand)){const D=HND.driftBrake*dr*(HND.handBrake0+(1-HND.handBrake0)*C.hk)*(.5+.5*Math.min(1,Math.abs(Math.sin(beta))*2)),kk2=Math.max(0,1-D*dt/spd);f*=kk2;s*=kk2}
     const ratio=Math.min(1.2,Math.abs(C.wyaw)*af/Math.max(A,1));f-=Math.sign(f)*HND.scrub*A*ratio*ratio*(1-dr)*dt;
     let wt=lerp(omN,omD,dr);
     /* steering assist: with the thumb off the stick the car quietly follows the road (fades out as you steer) */
