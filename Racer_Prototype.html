@@ -4063,7 +4063,7 @@ function trBack(B,c,E){
   if(c.kind==2&&c.race&&!TR.hitP)E*=.2;   /* (batch 53) racers bump each other and the traffic without being wrecked: only YOU take a racer out */
   trDent(c,HIT.cx,HIT.cz,E);
   if(c.state==3&&(c.kind==1||c.kind==2)&&(c.dmg||0)>=.92){/* (batch 24) a chasing cop or a racer worn down by hits is destroyed, like a car taken out by one big hit */E=Math.max(E,c.kind==1||TR.hitP?140000:230000);if(c.kind==1){c.cm=2;c.siren=0;c.block=0}}
-  if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>(TR.hitP?110000:300000)&&c.kind==1){c.state=1;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;trFlipKick(c,E)}if(E>(TR.hitP?(TR.rRam?1e9:110000):220000)&&c.kind==2){   /* (batch 53) a racer takes a much bigger hit to wreck (it was 70 kJ: a tap), and never wrecks itself ramming you */c.state=1;c.wt=0;TR.stat.wrecks++;trFlipKick(c,E)}return}   /* a racer wrecked by a big hit is out of the race */
+  if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,B.vx*hx+B.vz*hz);c.vx=B.vx;c.vz=B.vz;c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>(TR.hitP?110000:300000)&&c.kind==1){c.state=1;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;trFlipKick(c,E)}if(c.kind==2&&(TR.hitP?(!TR.rRam&&(TR.pin||0)>38):E>1.6e6)){   /* (batch 53) you wreck a racer by driving into it at 85 mph or more (your own speed into it), not by a tap; its own ram into you never wrecks it */   /* (batch 53) a racer takes a much bigger hit to wreck (it was 70 kJ: a tap), and never wrecks itself ramming you */c.state=1;c.wt=0;TR.stat.wrecks++;trFlipKick(c,E)}return}   /* a racer wrecked by a big hit is out of the race */
   if(c.state==0&&E<2500){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.v=Math.max(0,B.vx*hx+B.vz*hz);c.x=B.x;c.z=B.z;return}
   if(c.state==0){c.state=1;c.wt=0;c.brake=0;c.L=null;TR.stat.wrecks++;c.rec=(c.kind==0&&E<32000&&(c.dmg||0)<.72)?1:0}      /* a knock spins it round and it drives on, limping; a big hit finishes it */
   c.x=B.x;c.z=B.z;c.vx=B.vx;c.vz=B.vz;c.om=B.om>5?5:B.om<-5?-5:B.om;c.v=Math.hypot(c.vx,c.vz);trFlipKick(c,E)}   /* batch 6: a big hit throws it up and rolls it */
@@ -4076,7 +4076,7 @@ function trPlayerCollide(){
       const dx=c.x-C.x,dz=c.z-C.z;if(dx*dx+dz*dz>36||Math.abs(c.y-C.y)>2.2)continue;
       trBody(BA,{x:C.x,z:C.z,yaw:C.yaw,state:1,vx:C.vx,vz:C.vz,om:C.wyaw,m:P.m,hl:P.hl,hw:P.hw});trBody(BB,c);
       if(!trObb(BA,BB))continue;
-      const e=trResolve(BA,BB,.1,.45);   /* (batch 53) cars crumple into each other instead of bouncing off (restitution .26 -> .1), and grind along each other more (friction .32 -> .45) */if(HIT.vn>0){
+      const pvx=C.vx,pvz=C.vz;const e=trResolve(BA,BB,.1,.45);   /* (batch 53) cars crumple into each other instead of bouncing off (restitution .26 -> .1), and grind along each other more (friction .32 -> .45) */if(HIT.vn>0){
         /* the player: velocity and a share of the spin (the driving model keeps its own yaw) */
         C.vx=BA.vx;C.vz=BA.vz;C.wyaw+=clamp((BA.om-C.wyaw),-1.6,1.6)*.55;C.x=BA.x;C.z=BA.z;
         const vn=HIT.vn;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.04);C.flash=Math.max(C.flash,Math.min(.25,vn*.01));
@@ -4084,9 +4084,9 @@ function trPlayerCollide(){
         const ram=(c.kind==1||c.kind==2)&&-(C.vx*HIT.nx+C.vz*HIT.nz)>2.5;
         if(!ram)impactAdd(3,vn,e,c.m,HIT.cx,HIT.cz,HIT.nx,HIT.nz);if(C.t-c.hitT>.5)TR.stat.hits++;const hnx=HIT.nx,hnz=HIT.nz;
         /* WHO WAS AT FAULT: only a crash YOU drive into is a crime. The normal points from the car to you: your speed into it against its speed into you (being rear-ended, or a patrol nudging you at a standstill, used to make you wanted) */
-        const pin=-(C.vx*HIT.nx+C.vz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
+        const pin=-(pvx*HIT.nx+pvz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
         const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
-        TR.hitP=1;TR.hitF=fault?1:0;TR.rRam=c.kind==2&&cin>pin+1;if(TR.rRam){/* (batch 53) a racer that rams YOU knocks you about the way you knock it: a real shove sideways and a spin */const k=Math.min(1,cin/20);C.wyaw+=(TR.rng()<.5?-1:1)*(1.2+2.2*k);C.vx-=HIT.nx*cin*.35;C.vz-=HIT.nz*cin*.35}trBack(BB,c,e);TR.hitP=0;TR.rRam=0;c.hitT=C.t;if(was!==1&&c.state==1){evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic&&!ram)tumbleFromCar(hnx,hnz,vn,e,c.m)}
+        TR.hitP=1;TR.hitF=fault?1:0;TR.rRam=c.kind==2&&cin>pin+8&&cin>pin*1.5;TR.pin=HIT.vn;if(TR.rRam){/* (batch 53) a racer that rams YOU knocks you about the way you knock it: a real shove sideways and a spin */const k=Math.min(1,cin/20);C.wyaw+=(TR.rng()<.5?-1:1)*(1.2+2.2*k);C.vx-=HIT.nx*cin*.35;C.vz-=HIT.nz*cin*.35}trBack(BB,c,e);TR.hitP=0;TR.rRam=0;c.hitT=C.t;if(was!==1&&c.state==1){evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic&&!ram)tumbleFromCar(hnx,hnz,vn,e,c.m)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){

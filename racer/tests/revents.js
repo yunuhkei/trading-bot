@@ -60,7 +60,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     /* a traffic car wrecked in front of you does not count */
     {const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),sn=navSnap(C.x,C.z,30),la=navLane(sn,C.x,C.z,fx,fz),c=trPlace(la.e,Math.min(la.e.n-2,la.u+3),0,1,0,901);if(c){evTakedown(c)}o.civ=r.wrecks}
     /* ram the nearest racer from behind at speed */
-    const tg=r.racers.filter(c=>c.alive&&c.state==3).sort((a,b)=>a.race.s-b.race.s)[0],hx=Math.sin(tg.yaw),hz=-Math.cos(tg.yaw);RACER.carPlace(tg.x-hx*14,tg.z-hz*14,tg.yaw,tg.y+.5);const v=tg.v+30;C.vx=hx*v;C.vz=hz*v;
+    const tg=r.racers.filter(c=>c.alive&&c.state==3).sort((a,b)=>a.race.s-b.race.s)[0],hx=Math.sin(tg.yaw),hz=-Math.cos(tg.yaw);RACER.carPlace(tg.x-hx*14,tg.z-hz*14,tg.yaw,tg.y+.5);const v=tg.v+42;C.vx=hx*v;C.vz=hz*v;   /* (batch 53) 94 mph faster than it: a tap no longer wrecks a racer */
     for(let s=0;s<120*2&&tg.state==3;s++){C.steer=clamp(angd(Math.atan2(tg.x-C.x,-(tg.z-C.z)),C.yaw)*2,-1,1);IN.thr=1;RACER.worldStep(1/120)}IN.thr=0;o.wrecks=r.wrecks;o.bonus=r.bonus;o.tgState=tg.state;
     /* a racer held still for 5.5 s is put back on the route further on */
     const st=r.racers.find(c=>c.alive&&c.state==3&&c!==tg);const s0=st.race.s;let moved=-1;for(let s=0;s<120*6;s++){if(moved<0){st.v=0;st.vx=st.vz=0;st.x=st.px;st.z=st.pz}const was=st.race.s;RACER.worldStep(1/120);if(moved<0&&st.race.s>was+15)moved=+(s/120).toFixed(1)}o.respot=moved;o.respotGain=Math.round(st.race.s-s0);
@@ -98,11 +98,11 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   /* 10 a death race: the racers ram you; a racer you hit hard is wrecked and scores 500 */
   const Dr=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='d_ring');EV.card=null;EV.pending=null;evStart(ev);const Rt=ev.R;window.__fi=0;let hits=0;const imp0=IMP.n;DMG.scale=0;
     for(let s=0;s<120*30&&EV.run;s++){if(EV.run.t>=0)follow(Rt,24);RACER.worldStep(1/120)}for(let k=imp0;k<IMP.n;k++){const q=IMP.q[IMP.q.length-(IMP.n-k)];if(q&&q.src==3)hits++}
-    const tgt=EV.run&&EV.run.racers.find(c=>c.race&&c.state==3);let wrecked=0;if(tgt){const fx=Math.sin(tgt.yaw),fz=-Math.cos(tgt.yaw);const ah=tgt.v*.25;RACER.carPlace(tgt.x+fx*ah+Math.cos(tgt.yaw)*9,tgt.z+fz*ah+Math.sin(tgt.yaw)*9,tgt.yaw-Math.PI/2,tgt.y+.5);C.vx=-Math.cos(tgt.yaw)*32;C.vz=-Math.sin(tgt.yaw)*32;for(let s=0;s<120;s++)RACER.worldStep(1/120);wrecked=EV.run?EV.run.wrecks:-1}
+    const tgt=EV.run&&EV.run.racers.find(c=>c.race&&c.state==3);let wrecked=0;if(tgt){CC.on=0;CC.scale=1;TUM.on=0;C.shield=0;GAME.state=0;tgt.v=0;tgt.vx=tgt.vz=0;tgt.race.go=false;   /* (batch 53: the racers now drive at 150 mph and fight; the target is held still so the hit is a clean T-bone) */const fx=Math.sin(tgt.yaw),fz=-Math.cos(tgt.yaw);const ah=tgt.v*.25;RACER.carPlace(tgt.x+fx*ah+Math.cos(tgt.yaw)*9,tgt.z+fz*ah+Math.sin(tgt.yaw)*9,tgt.yaw-Math.PI/2,tgt.y+.5);C.vx=-Math.cos(tgt.yaw)*52;C.vz=-Math.sin(tgt.yaw)*52;for(let s=0;s<120;s++)RACER.worldStep(1/120);wrecked=EV.run?EV.run.wrecks:-1}
     const n=EV.run?EV.run.racers.length:0;DMG.scale=1;evQuit();return{hits,wrecked,n,state:tgt?tgt.state:-1}});
   console.log('     '+JSON.stringify(Dr));
   ok(Dr.n==5&&Dr.hits>=1,'10 a death race: 5 racers, they hit you '+Dr.hits+' times in 30 s (the bot drives at 86 km/h)');
-  ok(Dr.wrecked>=1&&Dr.state==1,'10 T-boning a racer at 115 km/h wrecks it and counts (+500; '+Dr.wrecked+' wrecked in all: the death racers now fight, so one may already be out)');
+  ok(Dr.wrecked>=1&&Dr.state==1,'10 T-boning a racer at 116 mph (batch 53: it used to take only 71 mph) wrecks it and counts (+500; '+Dr.wrecked+' wrecked in all: the death racers now fight, so one may already be out)');
   /* 11 a street racer: it joins the traffic ahead, drive up beside it and it challenges you; RACE! starts a race to a town */
   const Sr=await T.ev(()=>{EV.card=null;EV.pending=null;if(EV.run)evQuit();const r=ROADS.find(q=>q.id=='ring'),i=Math.round(r.n*.42),a=Math.atan2(r.X[i+1]-r.X[i],-(r.Z[i+1]-r.Z[i]));RACER.carPlace(r.X[i]+Math.cos(a)*5,r.Z[i]+Math.sin(a)*5,a,r.Y[i]+.5);C.vx=Math.sin(a)*25;C.vz=-Math.cos(a)*25;C.speed=25;
     RACE.sr=null;racerStreetSpawn();const c=RACE.sr;if(!c)return{spawn:0};const o={spawn:1,d0:Math.round(Math.hypot(c.x-C.x,c.z-C.z))};RACER.carPlace(c.x-Math.sin(c.yaw)*9+Math.cos(c.yaw)*3,c.z+Math.cos(c.yaw)*9+Math.sin(c.yaw)*3,c.yaw,c.y+.5);
