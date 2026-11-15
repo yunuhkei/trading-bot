@@ -218,7 +218,7 @@ function carStep(dt){
   C.ax+=(((f-f0)/dt)-C.ax)*Math.min(1,dt*6);
   /* ---- visual attitude ---- */
   const ta=gr?22:1.6,kk=1-Math.exp(-dt*ta);
-  C.pitch+=((gr?tp+clamp(C.ax*.0034,-.09,.05):Math.atan2(C.vy,Math.max(8,af))*.8)-C.pitch)*kk;C.roll+=((gr?tr+clamp(C.wyaw*f*.0042,-.09,.09):0)-C.roll)*kk;
+  C.pitch+=((gr?tp+clamp(C.ax*.0034*(HND.rollK||1),-.09*(HND.rollK||1),.05*(HND.rollK||1)):Math.atan2(C.vy,Math.max(8,af))*.8)-C.pitch)*kk;C.roll+=((gr?tr+clamp(C.wyaw*f*.0042*(HND.rollK||1),-.09*(HND.rollK||1),.09*(HND.rollK||1)):0)-C.roll)*kk;
   /* body roll in corners and squat/dive */
   if(gr)C.bob*=Math.max(0,1-dt*8);
   C.spin+=f*dt/.34;C.steerVis+=((-steer*.5*(1-sp*.55))-C.steerVis)*Math.min(1,dt*14);

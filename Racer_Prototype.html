@@ -2799,7 +2799,7 @@ function carStep(dt){
   C.ax+=(((f-f0)/dt)-C.ax)*Math.min(1,dt*6);
   /* ---- visual attitude ---- */
   const ta=gr?22:1.6,kk=1-Math.exp(-dt*ta);
-  C.pitch+=((gr?tp+clamp(C.ax*.0034,-.09,.05):Math.atan2(C.vy,Math.max(8,af))*.8)-C.pitch)*kk;C.roll+=((gr?tr+clamp(C.wyaw*f*.0042,-.09,.09):0)-C.roll)*kk;
+  C.pitch+=((gr?tp+clamp(C.ax*.0034*(HND.rollK||1),-.09*(HND.rollK||1),.05*(HND.rollK||1)):Math.atan2(C.vy,Math.max(8,af))*.8)-C.pitch)*kk;C.roll+=((gr?tr+clamp(C.wyaw*f*.0042*(HND.rollK||1),-.09*(HND.rollK||1),.09*(HND.rollK||1)):0)-C.roll)*kk;
   /* body roll in corners and squat/dive */
   if(gr)C.bob*=Math.max(0,1-dt*8);
   C.spin+=f*dt/.34;C.steerVis+=((-steer*.5*(1-sp*.55))-C.steerVis)*Math.min(1,dt*14);
@@ -5904,7 +5904,7 @@ for(const d of CAR_ROSTER){const e=CAR_EXTRA[d.id]||{};Object.assign(d.spec,e);i
 /* ---------------- handling from the real figures ---------------- */
 /* Everything is measured against the first car, so it keeps exactly the old numbers. Top speed, acceleration, grip, braking and agility come from the figures; the drive layout changes how the tail behaves:
    all-wheel drive grips more and slides less, front-engine rear-drive cars light up the rear tyres under power (the more power for the weight, the more), mid-engine cars turn in sharply and let go suddenly. */
-const HND0=Object.assign({},HND,{vmax:80,vmaxG:62,powerOS:0,mass:1530});
+const HND0=Object.assign({},HND,{vmax:80,vmaxG:62,powerOS:0,mass:1530,rollK:1});
 const CAR_REF={hp:443,kg:1530,top:308,t100:3.7,lat:1.05,brk:34,wb:2.45};
 function carHandling(def){
   const r=def.real,B=HND0,S=def.spec,wb=S.wb||2.45;Object.assign(HND,B);
@@ -5916,6 +5916,9 @@ function carHandling(def){
   if(r.drive=='AWD'){HND.aBase*=1.03;HND.betaFast=B.betaFast*.85;HND.betaSlow=B.betaSlow*.9;HND.gripDrift=B.gripDrift*1.2;HND.driftFric=B.driftFric*1.08;HND.powerOS=0}
   else if(r.drive=='FR'||r.drive=='RWD'){HND.betaFast=B.betaFast*.95;HND.powerOS=_cl((hpkg-ref)*1.0,0,.22)}
   else if(r.drive=='MR'){HND.betaFast=B.betaFast*1.08;HND.gripDrift=B.gripDrift*.92;HND.omLow=HND.omLow*1.04;HND.powerOS=_cl((hpkg-ref)*.6,0,.15)}
+  else if(r.drive=='FF'||r.drive=='FWD'){HND.betaFast=B.betaFast*.78;HND.betaSlow=B.betaSlow*.9;HND.gripDrift=B.gripDrift*1.15;HND.driftFric=B.driftFric*1.05;HND.powerOS=0;HND.respondDrift=B.respondDrift*.9}   /* (batch 52) front-wheel drive: it understeers and straightens up, the tail does not step out on power */
+  /* (batch 52) the body leans and pitches by how tall and heavy the car is: a supercar sits flat, an SUV rolls and dives (it was one number for every car) */
+  HND.rollK=_cl(Math.pow((S.H||1.3)/1.3,1.3)*Math.pow(r.kg/1500,.3),.55,1.9);
   upgApply(def);   /* (batch 20: the car's upgrades) */
   return HND}
 /* make car number i the car: body and handling */
@@ -6049,6 +6052,33 @@ const CC_REAL={coupe:{hp:260,kg:1300,drive:'FR',top:240,t100:5.8,lat:.92,brk:37}
   super:{hp:640,kg:1450,drive:'MR',top:325,t100:2.9,lat:1.15,brk:32},sport:{hp:450,kg:1450,drive:'FR',top:300,t100:3.9,lat:1.05,brk:34},roadster:{hp:330,kg:1150,drive:'FR',top:260,t100:4.4,lat:1.0,brk:35},
   rally:{hp:380,kg:1350,drive:'AWD',top:250,t100:3.6,lat:1.0,brk:35},sedan:{hp:300,kg:1600,drive:'RWD',top:250,t100:5.5,lat:.9,brk:38},muscle:{hp:480,kg:1700,drive:'FR',top:280,t100:4.3,lat:.95,brk:37},
   hatch:{hp:230,kg:1250,drive:'AWD',top:240,t100:5.6,lat:.95,brk:36},suv:{hp:400,kg:2200,drive:'AWD',top:240,t100:5.3,lat:.85,brk:39}};
+/* (batch 52) each of the 24 cars has its own real-world counterpart and figures (it was one set of numbers per class, so all the hypercars, all the GTs, both SUVs drove the same). Made-up names; `like` says what it is modelled on.
+   hp, kg, drive (FF front, FR, RWD, MR mid, AWD), top km/h, 0-100 s, best lateral g, braking from 100 km/h in m */
+const CC_FIG={
+ coupe:{like:'compact sports coupe (Mini Cooper S)',hp:192,kg:1200,drive:'FF',top:235,t100:6.7,lat:.95,brk:38},
+ hyper:{like:'McLaren Senna',hp:789,kg:1198,drive:'MR',top:335,t100:2.8,lat:1.4,brk:29},
+ gt:{like:'Aston Martin DB11',hp:600,kg:1770,drive:'FR',top:322,t100:3.9,lat:1.0,brk:35},
+ super:{like:'Ferrari F430',hp:483,kg:1450,drive:'MR',top:315,t100:4.0,lat:1.05,brk:33},
+ sport:{like:'Nissan 370Z',hp:332,kg:1500,drive:'FR',top:250,t100:5.0,lat:1.0,brk:36},
+ roadster:{like:'BMW Z4 M40i',hp:340,kg:1500,drive:'FR',top:250,t100:4.4,lat:1.0,brk:35},
+ rally:{like:'Subaru WRX STI',hp:310,kg:1500,drive:'AWD',top:255,t100:5.0,lat:1.0,brk:36},
+ phantom:{like:'Porsche 918 Spyder',hp:887,kg:1640,drive:'AWD',top:345,t100:2.6,lat:1.25,brk:31},
+ n_cruiser:{like:'Mercedes E-Class',hp:362,kg:1850,drive:'RWD',top:250,t100:5.0,lat:.92,brk:39},
+ n_magnet:{like:'Ford Mustang GT',hp:460,kg:1700,drive:'FR',top:250,t100:4.3,lat:1.0,brk:36},
+ n_courier:{like:'VW Golf GTI',hp:245,kg:1380,drive:'FF',top:250,t100:6.2,lat:.97,brk:36},
+ n_bruiser:{like:'Range Rover Sport SVR',hp:575,kg:2400,drive:'AWD',top:280,t100:4.5,lat:.85,brk:41},
+ n_drifter:{like:'Toyota GR86',hp:228,kg:1280,drive:'FR',top:230,t100:6.1,lat:1.0,brk:36},
+ n_nitro:{like:'Toyota GR Supra',hp:382,kg:1550,drive:'FR',top:250,t100:4.1,lat:1.05,brk:34},
+ n_banker:{like:'Bentley Continental GT',hp:626,kg:2250,drive:'AWD',top:333,t100:3.7,lat:.95,brk:37},
+ n_mercury:{like:'Audi R8',hp:602,kg:1595,drive:'AWD',top:330,t100:3.2,lat:1.12,brk:32},
+ h_outlaw:{like:'Dodge Charger R/T',hp:485,kg:1850,drive:'FR',top:270,t100:4.4,lat:.92,brk:38},
+ h_jammer:{like:'Ford Focus RS',hp:350,kg:1550,drive:'AWD',top:267,t100:4.7,lat:1.0,brk:36},
+ h_warden:{like:'Chevrolet Tahoe',hp:355,kg:2600,drive:'AWD',top:200,t100:6.7,lat:.78,brk:43},
+ h_widow:{like:'McLaren 570S',hp:562,kg:1440,drive:'MR',top:328,t100:3.2,lat:1.12,brk:31},
+ h_scorch:{like:'Porsche Boxster GTS',hp:394,kg:1450,drive:'MR',top:293,t100:4.0,lat:1.1,brk:33},
+ h_reaper:{like:'Lamborghini Aventador SVJ',hp:759,kg:1525,drive:'AWD',top:350,t100:2.8,lat:1.2,brk:31},
+ h_wraith:{like:'Mercedes-AMG GT',hp:523,kg:1615,drive:'FR',top:310,t100:3.8,lat:1.05,brk:34},
+ h_hellfire:{like:'Hennessey Venom GT',hp:1244,kg:1244,drive:'MR',top:435,t100:2.6,lat:1.15,brk:31}};
 const CC_CLS={coupe:'Compact coupe',hyper:'Hypercar',gt:'Grand tourer',super:'Supercar',sport:'Sports coupe',roadster:'Roadster',rally:'Rally hatch',sedan:'Saloon',muscle:'Muscle car',hatch:'Hot hatch',suv:'Off-roader'};
 /* (batch 51) the 24 Close Call cars you can drive are rebuilt by the supercar generator: each class maps to the nearest generator body (CARARCH), scaled to that car's own length, width, height, wheelbase and wheels, so they have the generator's shoulders, arches, lamps and details instead of the soft Close Call loft (which the traffic still uses) */
 const CC_ARCH={coupe:'light',hyper:'hyper',gt:'gt',super:'mid',sport:'rr',roadster:'speed',rally:'coupe',sedan:'gt',muscle:'muscle',hatch:'coupe',suv:'coupe'};
@@ -6067,7 +6097,7 @@ function ccSpec(key){const d=CC_DES[key],S=ccBuild(key,{lo:1}).S,A=CARARCH[CC_AR
   return o}
 for(const key of Object.keys(CC_DES)){const d=CC_DES[key];if(d.ty=='bus'||key=='t_cop')continue;const sp=ccSpec(key),y=CAR_STYLE[CC_STY[d.ty]];
   if(y)Object.assign(sp,{noseP:y.n[0],capF:y.n[1],noseDrop:y.n[2],tailP:y.r[0],capR:y.r[1],tailDrop:y.r[2],sq:y.q,hard:y.k,crease:y.c,spine:y.sp||0});sp._name=d.n;
-  CAR_ROSTER.push({id:'cc_'+key,name:d.n,cls:CC_CLS[d.ty],cc2:key,paint:d.col.slice(),rim:[190,194,200],caliper:[205,28,28],fin:y?y.f|0:0,spec:sp,real:Object.assign({},CC_REAL[d.ty])})}
+  CAR_ROSTER.push({id:'cc_'+key,name:d.n,cls:CC_CLS[d.ty],cc2:key,paint:d.col.slice(),rim:[190,194,200],caliper:[205,28,28],fin:y?y.f|0:0,spec:sp,real:Object.assign({},CC_REAL[d.ty],CC_FIG[key]||{})})}
 /* the civilian traffic bodies ported from Close Call (TTYPES 10 and up): sizes from their bodies */
 for(const k of['coupe','n_cruiser','n_magnet','n_courier','n_bruiser','n_banker','rally','h_warden','gt','h_outlaw']){const S=ccBuild(k,{lo:1}).S,ty=CC_DES[k].ty;
   TTYPES.push({n:'cc_'+k,cc:k,hl:S.L/2-.05,hw:S.W/2-.04,m:ty=='suv'?2100:ty=='hatch'?1150:1450,far:ty=='suv'?2:ty=='hatch'||ty=='rally'?1:0,v0:ty=='muscle'||ty=='gt'?1.05:1,civ:1})}

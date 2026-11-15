@@ -97,7 +97,7 @@ for(const d of CAR_ROSTER){const e=CAR_EXTRA[d.id]||{};Object.assign(d.spec,e);i
 /* ---------------- handling from the real figures ---------------- */
 /* Everything is measured against the first car, so it keeps exactly the old numbers. Top speed, acceleration, grip, braking and agility come from the figures; the drive layout changes how the tail behaves:
    all-wheel drive grips more and slides less, front-engine rear-drive cars light up the rear tyres under power (the more power for the weight, the more), mid-engine cars turn in sharply and let go suddenly. */
-const HND0=Object.assign({},HND,{vmax:80,vmaxG:62,powerOS:0,mass:1530});
+const HND0=Object.assign({},HND,{vmax:80,vmaxG:62,powerOS:0,mass:1530,rollK:1});
 const CAR_REF={hp:443,kg:1530,top:308,t100:3.7,lat:1.05,brk:34,wb:2.45};
 function carHandling(def){
   const r=def.real,B=HND0,S=def.spec,wb=S.wb||2.45;Object.assign(HND,B);
@@ -109,6 +109,9 @@ function carHandling(def){
   if(r.drive=='AWD'){HND.aBase*=1.03;HND.betaFast=B.betaFast*.85;HND.betaSlow=B.betaSlow*.9;HND.gripDrift=B.gripDrift*1.2;HND.driftFric=B.driftFric*1.08;HND.powerOS=0}
   else if(r.drive=='FR'||r.drive=='RWD'){HND.betaFast=B.betaFast*.95;HND.powerOS=_cl((hpkg-ref)*1.0,0,.22)}
   else if(r.drive=='MR'){HND.betaFast=B.betaFast*1.08;HND.gripDrift=B.gripDrift*.92;HND.omLow=HND.omLow*1.04;HND.powerOS=_cl((hpkg-ref)*.6,0,.15)}
+  else if(r.drive=='FF'||r.drive=='FWD'){HND.betaFast=B.betaFast*.78;HND.betaSlow=B.betaSlow*.9;HND.gripDrift=B.gripDrift*1.15;HND.driftFric=B.driftFric*1.05;HND.powerOS=0;HND.respondDrift=B.respondDrift*.9}   /* (batch 52) front-wheel drive: it understeers and straightens up, the tail does not step out on power */
+  /* (batch 52) the body leans and pitches by how tall and heavy the car is: a supercar sits flat, an SUV rolls and dives (it was one number for every car) */
+  HND.rollK=_cl(Math.pow((S.H||1.3)/1.3,1.3)*Math.pow(r.kg/1500,.3),.55,1.9);
   upgApply(def);   /* (batch 20: the car's upgrades) */
   return HND}
 /* make car number i the car: body and handling */

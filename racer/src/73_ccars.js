@@ -125,6 +125,33 @@ const CC_REAL={coupe:{hp:260,kg:1300,drive:'FR',top:240,t100:5.8,lat:.92,brk:37}
   super:{hp:640,kg:1450,drive:'MR',top:325,t100:2.9,lat:1.15,brk:32},sport:{hp:450,kg:1450,drive:'FR',top:300,t100:3.9,lat:1.05,brk:34},roadster:{hp:330,kg:1150,drive:'FR',top:260,t100:4.4,lat:1.0,brk:35},
   rally:{hp:380,kg:1350,drive:'AWD',top:250,t100:3.6,lat:1.0,brk:35},sedan:{hp:300,kg:1600,drive:'RWD',top:250,t100:5.5,lat:.9,brk:38},muscle:{hp:480,kg:1700,drive:'FR',top:280,t100:4.3,lat:.95,brk:37},
   hatch:{hp:230,kg:1250,drive:'AWD',top:240,t100:5.6,lat:.95,brk:36},suv:{hp:400,kg:2200,drive:'AWD',top:240,t100:5.3,lat:.85,brk:39}};
+/* (batch 52) each of the 24 cars has its own real-world counterpart and figures (it was one set of numbers per class, so all the hypercars, all the GTs, both SUVs drove the same). Made-up names; `like` says what it is modelled on.
+   hp, kg, drive (FF front, FR, RWD, MR mid, AWD), top km/h, 0-100 s, best lateral g, braking from 100 km/h in m */
+const CC_FIG={
+ coupe:{like:'compact sports coupe (Mini Cooper S)',hp:192,kg:1200,drive:'FF',top:235,t100:6.7,lat:.95,brk:38},
+ hyper:{like:'McLaren Senna',hp:789,kg:1198,drive:'MR',top:335,t100:2.8,lat:1.4,brk:29},
+ gt:{like:'Aston Martin DB11',hp:600,kg:1770,drive:'FR',top:322,t100:3.9,lat:1.0,brk:35},
+ super:{like:'Ferrari F430',hp:483,kg:1450,drive:'MR',top:315,t100:4.0,lat:1.05,brk:33},
+ sport:{like:'Nissan 370Z',hp:332,kg:1500,drive:'FR',top:250,t100:5.0,lat:1.0,brk:36},
+ roadster:{like:'BMW Z4 M40i',hp:340,kg:1500,drive:'FR',top:250,t100:4.4,lat:1.0,brk:35},
+ rally:{like:'Subaru WRX STI',hp:310,kg:1500,drive:'AWD',top:255,t100:5.0,lat:1.0,brk:36},
+ phantom:{like:'Porsche 918 Spyder',hp:887,kg:1640,drive:'AWD',top:345,t100:2.6,lat:1.25,brk:31},
+ n_cruiser:{like:'Mercedes E-Class',hp:362,kg:1850,drive:'RWD',top:250,t100:5.0,lat:.92,brk:39},
+ n_magnet:{like:'Ford Mustang GT',hp:460,kg:1700,drive:'FR',top:250,t100:4.3,lat:1.0,brk:36},
+ n_courier:{like:'VW Golf GTI',hp:245,kg:1380,drive:'FF',top:250,t100:6.2,lat:.97,brk:36},
+ n_bruiser:{like:'Range Rover Sport SVR',hp:575,kg:2400,drive:'AWD',top:280,t100:4.5,lat:.85,brk:41},
+ n_drifter:{like:'Toyota GR86',hp:228,kg:1280,drive:'FR',top:230,t100:6.1,lat:1.0,brk:36},
+ n_nitro:{like:'Toyota GR Supra',hp:382,kg:1550,drive:'FR',top:250,t100:4.1,lat:1.05,brk:34},
+ n_banker:{like:'Bentley Continental GT',hp:626,kg:2250,drive:'AWD',top:333,t100:3.7,lat:.95,brk:37},
+ n_mercury:{like:'Audi R8',hp:602,kg:1595,drive:'AWD',top:330,t100:3.2,lat:1.12,brk:32},
+ h_outlaw:{like:'Dodge Charger R/T',hp:485,kg:1850,drive:'FR',top:270,t100:4.4,lat:.92,brk:38},
+ h_jammer:{like:'Ford Focus RS',hp:350,kg:1550,drive:'AWD',top:267,t100:4.7,lat:1.0,brk:36},
+ h_warden:{like:'Chevrolet Tahoe',hp:355,kg:2600,drive:'AWD',top:200,t100:6.7,lat:.78,brk:43},
+ h_widow:{like:'McLaren 570S',hp:562,kg:1440,drive:'MR',top:328,t100:3.2,lat:1.12,brk:31},
+ h_scorch:{like:'Porsche Boxster GTS',hp:394,kg:1450,drive:'MR',top:293,t100:4.0,lat:1.1,brk:33},
+ h_reaper:{like:'Lamborghini Aventador SVJ',hp:759,kg:1525,drive:'AWD',top:350,t100:2.8,lat:1.2,brk:31},
+ h_wraith:{like:'Mercedes-AMG GT',hp:523,kg:1615,drive:'FR',top:310,t100:3.8,lat:1.05,brk:34},
+ h_hellfire:{like:'Hennessey Venom GT',hp:1244,kg:1244,drive:'MR',top:435,t100:2.6,lat:1.15,brk:31}};
 const CC_CLS={coupe:'Compact coupe',hyper:'Hypercar',gt:'Grand tourer',super:'Supercar',sport:'Sports coupe',roadster:'Roadster',rally:'Rally hatch',sedan:'Saloon',muscle:'Muscle car',hatch:'Hot hatch',suv:'Off-roader'};
 /* (batch 51) the 24 Close Call cars you can drive are rebuilt by the supercar generator: each class maps to the nearest generator body (CARARCH), scaled to that car's own length, width, height, wheelbase and wheels, so they have the generator's shoulders, arches, lamps and details instead of the soft Close Call loft (which the traffic still uses) */
 const CC_ARCH={coupe:'light',hyper:'hyper',gt:'gt',super:'mid',sport:'rr',roadster:'speed',rally:'coupe',sedan:'gt',muscle:'muscle',hatch:'coupe',suv:'coupe'};
@@ -143,7 +170,7 @@ function ccSpec(key){const d=CC_DES[key],S=ccBuild(key,{lo:1}).S,A=CARARCH[CC_AR
   return o}
 for(const key of Object.keys(CC_DES)){const d=CC_DES[key];if(d.ty=='bus'||key=='t_cop')continue;const sp=ccSpec(key),y=CAR_STYLE[CC_STY[d.ty]];
   if(y)Object.assign(sp,{noseP:y.n[0],capF:y.n[1],noseDrop:y.n[2],tailP:y.r[0],capR:y.r[1],tailDrop:y.r[2],sq:y.q,hard:y.k,crease:y.c,spine:y.sp||0});sp._name=d.n;
-  CAR_ROSTER.push({id:'cc_'+key,name:d.n,cls:CC_CLS[d.ty],cc2:key,paint:d.col.slice(),rim:[190,194,200],caliper:[205,28,28],fin:y?y.f|0:0,spec:sp,real:Object.assign({},CC_REAL[d.ty])})}
+  CAR_ROSTER.push({id:'cc_'+key,name:d.n,cls:CC_CLS[d.ty],cc2:key,paint:d.col.slice(),rim:[190,194,200],caliper:[205,28,28],fin:y?y.f|0:0,spec:sp,real:Object.assign({},CC_REAL[d.ty],CC_FIG[key]||{})})}
 /* the civilian traffic bodies ported from Close Call (TTYPES 10 and up): sizes from their bodies */
 for(const k of['coupe','n_cruiser','n_magnet','n_courier','n_bruiser','n_banker','rally','h_warden','gt','h_outlaw']){const S=ccBuild(k,{lo:1}).S,ty=CC_DES[k].ty;
   TTYPES.push({n:'cc_'+k,cc:k,hl:S.L/2-.05,hw:S.W/2-.04,m:ty=='suv'?2100:ty=='hatch'?1150:1450,far:ty=='suv'?2:ty=='hatch'||ty=='rally'?1:0,v0:ty=='muscle'||ty=='gt'?1.05:1,civ:1})}
