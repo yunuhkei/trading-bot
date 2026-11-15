@@ -44,7 +44,7 @@ function tumbleStep(dt){
   p[0]+=C.vx*dt;p[1]+=C.vy*dt;p[2]+=C.vz*dt;
   /* rotate: R += [w]x R dt, then keep it a rotation */
   {const wx=w[0]*dt,wy=w[1]*dt,wz=w[2]*dt;for(let c=0;c<3;c++){const a=R[c*3],b=R[c*3+1],d=R[c*3+2];R[c*3]=a+(wy*d-wz*b);R[c*3+1]=b+(wz*a-wx*d);R[c*3+2]=d+(wx*b-wy*a)}tumOrtho(R)}
-  const wl=Math.hypot(w[0],w[1],w[2]);if(wl>14){w[0]*=14/wl;w[1]*=14/wl;w[2]*=14/wl}
+  const wl=Math.hypot(w[0],w[1],w[2]);if(wl>7.5){w[0]*=7.5/wl;w[1]*=7.5/wl;w[2]*=7.5/wl}   /* (batch 53) a car is heavy: it cannot spin faster than about one turn a second (it was 14 rad/s: a pinwheel) */
   /* the ground: each touch point below the surface gets an impulse along the up direction (bounce .2 on a hard hit) and friction along the ground */
   const P=tumPoints();let lift=0,nTouch=0,bottom=0;
   for(let it=0;it<2;it++)for(let k=0;k<P.length;k++){const b=P[k],r0=tumMul(R,b[0],b[1]-TUM_COM,b[2]),rx=r0[0],ry=r0[1],rz=r0[2],px=p[0]+rx,py=p[1]+ry,pz=p[2]+rz,g=groundAt(px,pz,py+.35);
@@ -55,7 +55,7 @@ function tumbleStep(dt){
     /* velocity of the point: v + w x r */
     const vpx=C.vx+(w[1]*rz-w[2]*ry),vpy=C.vy+(w[2]*rx-w[0]*rz),vpz=C.vz+(w[0]*ry-w[1]*rx),vn=vpx*nx+vpy*ny+vpz*nz;if(vn>=0)continue;
     /* normal impulse: j = -(1+e) vn / (1/m + n . ((I^-1 (r x n)) x r)) */
-    const cx=ry*nz-rz*ny,cy=rz*nx-rx*nz,cz=rx*ny-ry*nx;Iinv(cx,cy,cz,t1);const K=1/m+(nx*(t1[1]*rz-t1[2]*ry)+ny*(t1[2]*rx-t1[0]*rz)+nz*(t1[0]*ry-t1[1]*rx)),e=vn<-4?.2:0,j=-(1+e)*vn/K;
+    const cx=ry*nz-rz*ny,cy=rz*nx-rx*nz,cz=rx*ny-ry*nx;Iinv(cx,cy,cz,t1);const K=1/m+(nx*(t1[1]*rz-t1[2]*ry)+ny*(t1[2]*rx-t1[0]*rz)+nz*(t1[0]*ry-t1[1]*rx)),e=vn<-4?.05:0,j=-(1+e)*vn/K;
     C.vx+=j*nx/m;C.vy+=j*ny/m;C.vz+=j*nz/m;w[0]+=t1[0]*j;w[1]+=t1[1]*j;w[2]+=t1[2]*j;
     /* friction: an impulse against the sliding of the point along the ground, at most mu j */
     {const ux=vpx-vn*nx,uy=vpy-vn*ny,uz=vpz-vn*nz,tl=Math.hypot(ux,uy,uz);if(tl>1e-3){const mu=k<4?.75:.7,tx=ux/tl,ty=uy/tl,tz=uz/tl,ax=ry*tz-rz*ty,ay=rz*tx-rx*tz,az=rx*ty-ry*tx;Iinv(ax,ay,az,t1);
@@ -67,7 +67,9 @@ function tumbleStep(dt){
       if(typeof sparkAt==='function'&&vn>5)sparkAt(px,g+.05,pz,C.vx*.05,C.vz*.05,Math.min(14,vn*1.2),4);if(typeof audioBang==='function'&&vn>6)audioBang(Math.min(1,vn/14))}
     if(it==0)TUM.touch[k]=1}
   if(lift>0)p[1]+=lift*.9;
-  if(nTouch){const k=Math.exp(-dt*(bottom>=3?2.5:Math.hypot(C.vx,C.vz)<3?3:.9));w[0]*=k;w[1]*=Math.exp(-dt*1.2);w[2]*=k}else{w[0]*=Math.exp(-dt*.05);w[1]*=Math.exp(-dt*.05);w[2]*=Math.exp(-dt*.05)}
+  if(nTouch&&C.vy>3.2)C.vy=3.2;   /* (batch 53) the ground does not launch it: a dug-in corner used to pole-vault the car 5-7 m up */
+  {const wl2=Math.hypot(w[0],w[1],w[2]);if(wl2>7.5){w[0]*=7.5/wl2;w[1]*=7.5/wl2;w[2]*=7.5/wl2}}
+  if(nTouch){const k=Math.exp(-dt*(bottom>=3?2.5:Math.hypot(C.vx,C.vz)<3?3:1.7));w[0]*=k;w[1]*=Math.exp(-dt*1.2);w[2]*=k}else{w[0]*=Math.exp(-dt*.05);w[1]*=Math.exp(-dt*.05);w[2]*=Math.exp(-dt*.05)}
   /* walls and posts still stop it (the car's ground-plane circles) */
   const cm=tumMul(R,0,TUM_COM,0);C.x=p[0]-cm[0];C.y=p[1]-cm[1];C.z=p[2]-cm[2];const ox=C.x,oz=C.z;C.speed=Math.hypot(C.vx,C.vz);collide(Math.sin(C.yaw),-Math.cos(C.yaw));p[0]+=C.x-ox;p[2]+=C.z-oz;
   /* the heading the camera follows: the direction of travel while it is moving, the car's nose when it stops */
@@ -92,13 +94,13 @@ function tumbleEnd(){const R=TUM.R,fx=-R[6],fz=-R[8];C.yaw=C.pyaw=Math.abs(fx)+M
 /* ---- what starts a tumble (called from the collision code); all return true when it started ---- */
 /* a hit from or into another car: n = the contact normal (from the other car to you), vn = the closing speed, E = the energy */
 function tumbleFromCar(nx,nz,vn,E,mass){if(TUM.on||vn<13||E<110e3)return false;const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),lat=nx*rx+nz*rz,lon=nx*fx+nz*fz;
-  const k=Math.min(1,(vn-13)/22)*Math.min(1.5,(mass||1400)/1500+.3);if(Math.abs(lat)>.55){const rs=Math.sign(lat);return tumbleStart(0,(TR.rng()-.5)*2*k,-rs*(3+7*k),2.5+4*k,'side hit')}
-  if(k>.45)return tumbleStart(Math.sign(lon)*(1.5+3*k),(TR.rng()-.5)*3,(TR.rng()-.5)*2,1.5+3*k,'head-on');return false}
+  const k=Math.min(1,(vn-13)/22)*Math.min(1.5,(mass||1400)/1500+.3);if(Math.abs(lat)>.55){const rs=Math.sign(lat);return tumbleStart(0,(TR.rng()-.5)*2*k,-rs*(3+5*k),1.8+2.4*k,'side hit')}
+  if(k>.45)return tumbleStart(Math.sign(lon)*(1.5+3*k),(TR.rng()-.5)*3,(TR.rng()-.5)*2,1.2+1.8*k,'head-on');return false}
 /* a pole, a tree or a wall taken flat out (vn = the speed into it) */
 function tumbleFromStatic(nx,nz,vn,round){if(TUM.on||vn<(round?25:28))return false;const rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),lat=nx*rx+nz*rz,k=Math.min(1,(vn-25)/25);
-  return tumbleStart((1+2.5*k)*(TR.rng()<.5?-1:1)*.6,(TR.rng()-.5)*4*k,(Math.abs(lat)>.4?-Math.sign(lat):TR.rng()<.5?-1:1)*(2.5+6*k),2+3.5*k,round?'pole':'wall')}
+  return tumbleStart((1+2.5*k)*(TR.rng()<.5?-1:1)*.6,(TR.rng()-.5)*4*k,(Math.abs(lat)>.4?-Math.sign(lat):TR.rng()<.5?-1:1)*(2.5+4.5*k),1.5+2.2*k,round?'pole':'wall')}
 /* sliding sideways fast and catching a curb, a guard rail or the edge of the road: the car trips over its own wheels and rolls */
-function tumbleTrip(sideSpeed,why){if(TUM.on||Math.abs(sideSpeed)<15)return false;const k=Math.min(1,(Math.abs(sideSpeed)-15)/18);return tumbleStart(0,0,-Math.sign(sideSpeed)*(3.5+6.5*k),2.5+3.5*k,why)}
+function tumbleTrip(sideSpeed,why){if(TUM.on||Math.abs(sideSpeed)<15)return false;const k=Math.min(1,(Math.abs(sideSpeed)-15)/18);return tumbleStart(0,0,-Math.sign(sideSpeed)*(3.5+4.5*k),1.8+2.2*k,why)}
 /* ---- traffic cars: thrown, rolled and pitched by a big hit (from trBack), landing on wheels, side or roof (from trWreck) ---- */
 function trFlipKick(c,E){if(E<120e3||c.state!==1)return;const k=Math.min(1,(E-120e3)/260e3),lat=HIT.nx*Math.cos(c.yaw)+HIT.nz*Math.sin(c.yaw),lon=HIT.nx*Math.sin(c.yaw)-HIT.nz*Math.cos(c.yaw);
   c.vy=Math.max(c.vy||0,(1.8+5*k)*(.3+.7*Math.abs(lat)));   /* (batch 53) only a hit in the side throws a car up and over; a hit from behind or head on used to somersault it onto its roof */c.rr=(c.rr||0)+Math.sign(lat||1)*Math.abs(lat)*(2+8*k);c.prr=(c.prr||0)+Math.sign(lon||1)*Math.abs(lon)*(.25+.7*k);c.air=1;c.rec=0}

@@ -71,6 +71,12 @@ function navManeuver(){const R=NAV.route;if(!R)return null;const p=R.pts,n=R.n,S
   return{d:R.len-S0,ang:0,kind:'end'}}
 /* the path on the road, drawn by fxDraw: a glowing ribbon with light running along it, and a pillar of light at the waypoint */
 function navFx(quad,sprite,time){
+  /* (batch 53) the event markers' new ground design, in crisp lines: a solid outer ring, a ring of eight dashes turning inside it, and four arrow heads pointing in */
+  if(!EV.run)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>450)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape,x=ev.s.x,y=ev.s.y+.14,z=ev.s.z,al=Math.min(1,(450-d)/120);
+    const arc=(r0,r1,a0,a1,a)=>quad(x+Math.cos(a0)*r0,y,z+Math.sin(a0)*r0,x+Math.cos(a0)*r1,y,z+Math.sin(a0)*r1,x+Math.cos(a1)*r1,y,z+Math.sin(a1)*r1,x+Math.cos(a1)*r0,y,z+Math.sin(a1)*r0,c3[0],c3[1],c3[2],a*al);
+    for(let k=0;k<24;k++)arc(7.2,7.9,k/24*TAU,(k+1)/24*TAU,.95);
+    for(let k=0;k<8;k++){const a0=k/8*TAU+time*.9;arc(5.2,6.2,a0,a0+.42,.8)}
+    for(let k=0;k<4;k++){const a=k/4*TAU-time*.5,r=3.6+.5*Math.sin(time*4),ux=Math.cos(a),uz=Math.sin(a),rx=-uz,rz=ux;quad(x+ux*(r-1.5),y,z+uz*(r-1.5),x+ux*r+rx*.9,y,z+uz*r+rz*.9,x+ux*(r-.5),y,z+uz*(r-.5),x+ux*r-rx*.9,y,z+uz*r-rz*.9,1,1,1,.9*al)}}
     /* (batch 53) WHERE TO GO: the whole race route is painted on the road for 700 m ahead (a wide green band) with big chevrons running along it, bright and closer together before a turn */
     {const r=EV.run;if(r&&r.t>=0&&r.ev.R&&r.ev.type!='escape'){const Rt=r.ev.R,p=Rt.pts,n=Rt.n,i0=Math.max(0,(r.fi|0)-1),maxS=Rt.S[i0]+450;let nq=0;
       for(let i=i0;i<n-1&&Rt.S[i]<maxS&&nq<70;i++,nq++){const x0=p[i*3],y0=p[i*3+1]+.12,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.12,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*1.5,nz=dx/l*1.5,fd=Math.min(1,(maxS-Rt.S[i])/200);

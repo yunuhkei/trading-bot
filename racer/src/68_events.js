@@ -164,11 +164,13 @@ function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF
 function evTap(x,y){for(const b of EV.btns)if(x>=b.x-6&&x<=b.x+b.w+6&&y>=b.y-6&&y<=b.y+b.h+6){b.act();return true}return false}
 /* ---- in the world: the start markers (a glowing ring and a tall beam), the checkpoint gates ---- */
 function evFx(quad,flat,sprite,stage){const r=EV.run;
-  if(stage==5){if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>700)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape;/* (batch 53) a better ground light: a bright core, a wide soft pool and a ring that pulses outwards */const ph=(EV.t*.9)%1;flat(ev.s.x,ev.s.y+.07,ev.s.z,7,7,c3[0],c3[1],c3[2],1);flat(ev.s.x,ev.s.y+.06,ev.s.z,3.5,3.5,1,1,1,.7);flat(ev.s.x,ev.s.y+.05,ev.s.z,15,15,c3[0],c3[1],c3[2],.45);flat(ev.s.x,ev.s.y+.04,ev.s.z,8+14*ph,8+14*ph,c3[0],c3[1],c3[2],.5*(1-ph))}
+  if(stage==5){if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>700)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape;flat(ev.s.x,ev.s.y+.05,ev.s.z,13,13,c3[0],c3[1],c3[2],.22)}
     else if(r.ev.cps&&r.t>=0){const p=r.ev.cps[r.cp];if(p)flat(p.x,p.y+.06,p.z,9,9,.3,1,.6,.7)}
 }
   else if(stage==4){const pulse=.75+.25*Math.sin(EV.t*4);
-    if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>900)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape;for(let k=0;k<3;k++)sprite(ev.s.x,ev.s.y+.8+k*1.1,ev.s.z,4.5-k*.9+d*.006,c3[0],c3[1],c3[2],(.8-k*.2)*pulse)}
+    if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>900)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape;{/* (batch 53) a thin bright beam into the sky (220 m), a wider faint one round it, and a bright foot */
+        for(let k=0;k<44;k++){const y=ev.s.y+5+k*5,f=1-k/44;sprite(ev.s.x,y,ev.s.z,1.3+d*.004,Math.min(1,c3[0]+.3),Math.min(1,c3[1]+.3),Math.min(1,c3[2]+.3),(.22+.3*f)*pulse);if(k%4==0)sprite(ev.s.x,y,ev.s.z,4+d*.01,c3[0],c3[1],c3[2],.1*f)}
+        sprite(ev.s.x,ev.s.y+1.2,ev.s.z,3.2,c3[0],c3[1],c3[2],.4)}}
     else if(r.ev.cps){for(let q=r.cp;q<Math.min(r.cp+2,r.ev.cps.length);q++){const p=r.ev.cps[q],last=q==r.ev.cps.length-1,w=Math.max(9,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+2.5),d=Math.hypot(p.x-C.x,p.z-C.z),al=q==r.cp?pulse:.35;
       for(const sd of[-1,1])for(let k=0;k<7;k++)sprite(p.x+p.nx*w*sd,p.y+1+k*1.4,p.z+p.nz*w*sd,1.1+d*.006,last?1:.3,last?.85:1,last?.3:.6,al)
       /* (batch 53) the gate is an arch: a bar of light across the road on top of the two pillars */
