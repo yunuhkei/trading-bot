@@ -23,7 +23,7 @@ function racerStep(c,dt){
   let bi=R.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(Rt.n,bi+40);k++){const d=(p[k*3]-c.x)**2+(p[k*3+2]-c.z)**2;if(d<bd){bd=d;bi=k}}R.fi=bi;R.s=Rt.S[bi];
   if(R.done<0&&R.s>=Rt.len-10&&R.go)R.done=EV.t;
   /* (batch 27) stuck for 5 s (a jam, a pile-up, a wall): it is put back on the route a little further on, on a clear spot */
-  if(R.go&&R.done<0){R.still=c.v<2.5?(R.still||0)+dt:0;if(R.still>2.4&&racerRespot(c))return}
+  if(R.go&&R.done<0){R.still=c.v<2.5?(R.still||0)+dt:0;if(R.still>2.4&&racerRespot(c))return;if(R.still>7){R.still=0;if(EV.run&&EV.run.ev.type=='rage'){c.race=null;trKill(c,0);return}}   /* (batch 53) no clear spot to put it back on for 7 s: in a takedown it is removed, so the next wave can come */}
   if(!R.go||R.done>=0){const k=Math.exp(-dt*(R.done>=0?.8:20));c.v*=k;}
   else{
     const v=c.v,sk=R.skill,ahead=_ra(Rt,bi,R.s+Math.max(8,v*.7));
@@ -88,7 +88,7 @@ let _pkUsed=new Set();
 function racerPack(Rt,n,S0,wave){const out=[];if(!wave)_pkUsed=new Set();if(_pkUsed.size>RACER_POOL.length-n)_pkUsed=new Set();
   for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.93-.03*k,1),1);if(c)out.push(c)}return out}
 /* (batch 53) a racer that has crashed in a plain race is back on the road after 2.2 s (further on, on a clear spot), not out for the rest of the race; takedowns and death races keep their wrecks */
-function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death')||R.done>=0||!R.go)return false;c.recT=(c.recT||0)+dt;
+function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death'&&ev.type!='rage')||R.done>=0||!R.go)return false;if(ev.type=='rage'&&c.byP)return false;   /* (batch 53) in a takedown a racer that crashed on its own comes back too; one YOU took down stays down */c.recT=(c.recT||0)+dt;
   if(c.recT>(ev.type=='death'?3.5:2.2)&&racerRespot(c)){c.recT=0;R.catchT=12;c.state=3;c.kind=2;c.dmg=Math.min(c.dmg||0,.45);c.rev=0;c.stk=0;c.hn=0;return true}return false}
 function racerRespot(c){const R=c.race,Rt=R.Rt,p=Rt.pts;R.still=0;
   for(let d=25;d<=145;d+=20)for(const lat of[R.off<0?-3.4:3.4,0,R.off<0?3.4:-3.4]){const S=Math.min(Rt.len-15,R.s+d);let j=0;while(j<Rt.n-2&&Rt.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;

@@ -4090,7 +4090,7 @@ function trPlayerCollide(){
         const pin=-(pvx*HIT.nx+pvz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
         const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
         TR.hitP=1;TR.hitF=fault?1:0;TR.rRam=c.kind==2&&cin>pin+8&&cin>pin*1.5;TR.pin=HIT.vn;if(TR.rRam){/* (batch 53) a racer that rams YOU knocks you about the way you knock it: a real shove sideways and a spin */const k=Math.min(1,cin/18),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),fx2=Math.sin(C.yaw),fz2=-Math.cos(C.yaw),cl=HIT.cx-C.x,cz2=HIT.cz-C.z,along=cl*fx2+cz2*fz2,lat2=HIT.nx*rx+HIT.nz*rz,sp=Math.sign((along<0?1:-1)*(lat2||1));C.wyaw+=sp*(1.6+2.8*k);{const ddx=C.x-c.x,ddz=C.z-c.z,dl=Math.hypot(ddx,ddz)||1;C.vx+=ddx/dl*cin*.3;C.vz+=ddz/dl*cin*.3}   /* pushed AWAY from the racer (the contact normal's sign was backwards: a shove from behind slowed you down) */C.shake=Math.min(1,C.shake+.5);
-          /* a hard hit on your rear quarter spins you out (the tyres let go for a second) */if(along<-.3&&Math.abs(lat2)>.6&&cin>12)C.spinT=.45+.25*k}   /* only a real PIT (a side-on hit at your back corner), and only briefly: a straight shove from behind just pushes you on */trBack(BB,c,e);TR.hitP=0;TR.rRam=0;c.hitT=C.t;if(was!==1&&c.state==1){evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic&&!ram)tumbleFromCar(hnx,hnz,vn,e,c.m)}
+          /* a hard hit on your rear quarter spins you out (the tyres let go for a second) */if(along<-.3&&Math.abs(lat2)>.6&&cin>12)C.spinT=.45+.25*k}   /* only a real PIT (a side-on hit at your back corner), and only briefly: a straight shove from behind just pushes you on */trBack(BB,c,e);TR.hitP=0;TR.rRam=0;c.hitT=C.t;if(was!==1&&c.state==1){c.byP=1;evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic&&!ram)tumbleFromCar(hnx,hnz,vn,e,c.m)}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){
@@ -4143,7 +4143,7 @@ function trStopProps(){let n=0;for(const e of LG.edges){const B=trBusStops(e);if
 /* put a car on lane edge e at index u */
 function trPlace(e,u,type,col,v,seed){
   let c=null;for(const q of TR.cars)if(!q.alive){c=q;break}if(!c)return null;
-  const T=TTYPES[type];c.alive=1;c.state=0;c.kind=0;if(c.dn)c.dn.fill(0);c.dmg=0;c.pf=0;c.rec=0;c.type=type;c.col=col;c.m=T.m;c.hl=T.hl;c.hw=T.hw;c.I=T.m*(T.hl*T.hl+T.hw*T.hw)/3;c.e=e;c.u=u;c.L=null;c.lu=0;c.seed=seed|0;
+  const T=TTYPES[type];c.alive=1;c.state=0;c.byP=0;c.spinT=0;c.kx=c.kz=c.ks=0;c.kind=0;if(c.dn)c.dn.fill(0);c.dmg=0;c.pf=0;c.rec=0;c.type=type;c.col=col;c.m=T.m;c.hl=T.hl;c.hw=T.hw;c.I=T.m*(T.hl*T.hl+T.hw*T.hw)/3;c.e=e;c.u=u;c.L=null;c.lu=0;c.seed=seed|0;
   trPt(e,u);c.x=_pt.x;c.z=_pt.z;c.y=_pt.y;c.yaw=Math.atan2(_pt.tx,-_pt.tz);c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.v=v;c.vx=Math.sin(c.yaw)*v;c.vz=-Math.cos(c.yaw)*v;c.om=0;c.pitch=c.roll=0;
   c.acc=0;c.v0f=(.86+trHash(seed,7)*.22)*(T.v0||1);c.A=(1.9+trHash(seed,11)*.9)*(T.m>5000?.6:1);c.T=(1.0+trHash(seed,13)*.7)*(T.beh=='taxi'?.75:1);c.beh=T.beh||'';c.dwell=0;c.odo=0;c.halt=40+trHash(seed,19)*30;c.lastStop=-1e9;c.nh=0;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.pickL=null;c.role=0;c.ramCd=0;c.los=null;c.stk=0;
   TR.nAlive++;TR.stat.spawn++;return c}
@@ -5348,7 +5348,7 @@ function racerStep(c,dt){
   let bi=R.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(Rt.n,bi+40);k++){const d=(p[k*3]-c.x)**2+(p[k*3+2]-c.z)**2;if(d<bd){bd=d;bi=k}}R.fi=bi;R.s=Rt.S[bi];
   if(R.done<0&&R.s>=Rt.len-10&&R.go)R.done=EV.t;
   /* (batch 27) stuck for 5 s (a jam, a pile-up, a wall): it is put back on the route a little further on, on a clear spot */
-  if(R.go&&R.done<0){R.still=c.v<2.5?(R.still||0)+dt:0;if(R.still>2.4&&racerRespot(c))return}
+  if(R.go&&R.done<0){R.still=c.v<2.5?(R.still||0)+dt:0;if(R.still>2.4&&racerRespot(c))return;if(R.still>7){R.still=0;if(EV.run&&EV.run.ev.type=='rage'){c.race=null;trKill(c,0);return}}   /* (batch 53) no clear spot to put it back on for 7 s: in a takedown it is removed, so the next wave can come */}
   if(!R.go||R.done>=0){const k=Math.exp(-dt*(R.done>=0?.8:20));c.v*=k;}
   else{
     const v=c.v,sk=R.skill,ahead=_ra(Rt,bi,R.s+Math.max(8,v*.7));
@@ -5413,7 +5413,7 @@ let _pkUsed=new Set();
 function racerPack(Rt,n,S0,wave){const out=[];if(!wave)_pkUsed=new Set();if(_pkUsed.size>RACER_POOL.length-n)_pkUsed=new Set();
   for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.93-.03*k,1),1);if(c)out.push(c)}return out}
 /* (batch 53) a racer that has crashed in a plain race is back on the road after 2.2 s (further on, on a clear spot), not out for the rest of the race; takedowns and death races keep their wrecks */
-function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death')||R.done>=0||!R.go)return false;c.recT=(c.recT||0)+dt;
+function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death'&&ev.type!='rage')||R.done>=0||!R.go)return false;if(ev.type=='rage'&&c.byP)return false;   /* (batch 53) in a takedown a racer that crashed on its own comes back too; one YOU took down stays down */c.recT=(c.recT||0)+dt;
   if(c.recT>(ev.type=='death'?3.5:2.2)&&racerRespot(c)){c.recT=0;R.catchT=12;c.state=3;c.kind=2;c.dmg=Math.min(c.dmg||0,.45);c.rev=0;c.stk=0;c.hn=0;return true}return false}
 function racerRespot(c){const R=c.race,Rt=R.Rt,p=Rt.pts;R.still=0;
   for(let d=25;d<=145;d+=20)for(const lat of[R.off<0?-3.4:3.4,0,R.off<0?3.4:-3.4]){const S=Math.min(Rt.len-15,R.s+d);let j=0;while(j<Rt.n-2&&Rt.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;
