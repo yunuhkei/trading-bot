@@ -77,7 +77,7 @@ function trBoxVehicle(kind){
   /* (batch 51) the work trucks were plain blocks: bumpers, dark wheel-arch panels, mirrors on stalks, door and cargo seams */
   {const hw=S.W/2,zf=-S.L/2,zr=S.L/2,cz=zf+(kind=='garbage'?1.1:.95);
    box(0,.5,zf+.03,hw*.97,.13,.11,M.trim);box(0,.5,zr-.03,hw*.97,.13,.11,M.trim);box(0,.66,zf+.03,hw*.6,.05,.115,M.chrome);
-   for(const sd of[-1,1]){for(const[z,R]of[[S.fz,S.rf],[S.rz,S.rr]])box(sd*(hw-.005),R*1.05,z,.035,R*.6,R*1.3,M.under);
+   for(const sd of[-1,1]){for(const[z,R]of[[S.fz,S.rf],[S.rz,S.rr]])box(sd*(hw+.01),R*2.12,z,.02,R*.14,R*1.25,M.under);
      box(sd*(hw*.97+.15),S.H*.64,cz,.05,.17,.03,M.gloss);box(sd*(hw*.97+.07),S.H*.64,cz,.08,.014,.014,M.trim);
      box(sd*(hw+.005),S.H*.5,zf+(kind=='swat'?2.55:1.8),.012,S.H*.2,.01,M.under);   /* the cab door's rear seam */
      box(sd*(hw+.005),S.H*.34,0,.012,.01,S.L*.28,M.under)}}   /* a body-side line */
@@ -94,7 +94,7 @@ function trFarOf(i){const T=TTYPES[i];if(i<5)return trBuildType(TRSHAPE[i],T.hw)
   return trBuildType(TRSHAPE[3],T.hw)}
 function trGenType(i,far){
   const spec=Object.assign({noSkirt:1},TRGEN[i==4?0:i]||{});if(TTYPES[i].cop)spec.lowerDark=.66;
-  const R=far?(()=>{const sp=Object.assign({noSkirt:1},ccSpec(TTYPES[i].cc));if(TTYPES[i].cop)sp.lowerDark=.66;return cgBuild(sp,{lo:1})})():trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
+  const R=far?(()=>{const sp=Object.assign({noSkirt:1},ccSpec(TTYPES[i].cc));if(TTYPES[i].cop)sp.lowerDark=.66;const B=cgBuild(sp,{lo:1}),Sx=B.S;B.wheelF=cgWheel(Sx.rf,Sx.wf,Sx.rimF,Sx.spoke,Sx.wheelStyle,null,2,Sx.tread);B.wheelR=cgWheel(Sx.rr,Sx.wr,Sx.rimR,Sx.spoke,Sx.wheelStyle,null,2,Sx.tread);return B})():trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
   /* the police livery: white doors, roof and pillars, black bonnet, wings and boot (x, y, z in generator coordinates, front negative) */
   const swat=TTYPES[i].box=='swat',copLivery=(x,y,z,S)=>{if(swat)return 9;const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
   const add=(mb,dx,dy,dz,mirX,mapM,isW)=>{const n=mb.nv;for(let v=0;v<n;v++){const x=mb.P[v*3]*(mirX?-1:1)+dx,y=mb.P[v*3+1]+dy,z=-(mb.P[v*3+2]+dz);P.push(x,y,z);N.push(mb.N[v*3]*(mirX?-1:1),mb.N[v*3+1],-mb.N[v*3+2]);const m=TRMATMAP[mb.M[v]];
