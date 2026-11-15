@@ -3992,8 +3992,8 @@ function trStatic(cx,cz,r,y){_sx=_sz=0;const cs=QH.ccs,cn=QH.cnc,a=Math.floor((c
 function trWreck(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;c.wt+=dt;c.brake=0;
   c.x+=c.vx*dt;c.z+=c.vz*dt;c.yaw+=c.om*dt;
-  const sp=Math.hypot(c.vx,c.vz);if(sp>0){const fr=6.5*dt;if(sp>fr){const k=1-fr/sp;c.vx*=k;c.vz*=k}else{c.vx=c.vz=0}}
-  c.om*=Math.exp(-dt*(sp>4?.45:2.2));if(sp<.05&&Math.abs(c.om)<.03)c.om=0;
+  const sp=Math.hypot(c.vx,c.vz);if(sp>0){/* (batch 53) a wreck is a ton and a half of metal on its tyres and belly: it scrubs off speed hard, harder still going sideways (it used to slide as if on ice, 6.5 m/s2) */const hs=Math.abs((c.vx*Math.cos(c.yaw)+c.vz*Math.sin(c.yaw))/sp),fr=(9+5*hs)*dt;if(sp>fr){const k=1-fr/sp;c.vx*=k;c.vz*=k}else{c.vx=c.vz=0}}
+  c.om*=Math.exp(-dt*(sp>4?1.3:3));if(sp<.05&&Math.abs(c.om)<.03)c.om=0;
   c.v=sp;
   /* static things stop it */
   const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw);
@@ -4074,7 +4074,7 @@ function trPlayerCollide(){
       const dx=c.x-C.x,dz=c.z-C.z;if(dx*dx+dz*dz>36||Math.abs(c.y-C.y)>2.2)continue;
       trBody(BA,{x:C.x,z:C.z,yaw:C.yaw,state:1,vx:C.vx,vz:C.vz,om:C.wyaw,m:P.m,hl:P.hl,hw:P.hw});trBody(BB,c);
       if(!trObb(BA,BB))continue;
-      const e=trResolve(BA,BB,.26,.32);if(HIT.vn>0){
+      const e=trResolve(BA,BB,.1,.45);   /* (batch 53) cars crumple into each other instead of bouncing off (restitution .26 -> .1), and grind along each other more (friction .32 -> .45) */if(HIT.vn>0){
         /* the player: velocity and a share of the spin (the driving model keeps its own yaw) */
         C.vx=BA.vx;C.vz=BA.vz;C.wyaw+=clamp((BA.om-C.wyaw),-1.6,1.6)*.55;C.x=BA.x;C.z=BA.z;
         const vn=HIT.vn;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.04);C.flash=Math.max(C.flash,Math.min(.25,vn*.01));
@@ -4096,7 +4096,7 @@ function trCarCollide(){
         const dx=b.x-a.x,dz=b.z-a.z;if(dx*dx+dz*dz>40||Math.abs(a.y-b.y)>2.2)continue;
         trBody(BA,a);trBody(BB,b);if(!trObb(BA,BB))continue;
         if(a.state==0&&b.state==0&&(TR.t-a.crT>1.5||TR.t-b.crT>1.5)){a.crT=b.crT=TR.t;TR.stat.aiCrash++;if(TR.onCrash)TR.onCrash(a,b)}
-        const e=trResolve(BA,BB,.25,.3);
+        const e=trResolve(BA,BB,.1,.42);
         /* a bump at walking pace between two cars that are both driving (one creeping out of a side road into one waiting on the main road): they are eased apart, slow to the speed the bump leaves them and carry on.
            It used to count as a wreck whenever a van or a bus was involved (the rule went by energy, and a heavy vehicle has a lot of it at 2 m/s) */
         if(HIT.vn>0&&HIT.vn<4&&a.state==0&&b.state==0&&a.kind==0&&b.kind==0){for(const[c,B]of[[a,BA],[b,BB]]){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,Math.min(c.v,B.vx*hx+B.vz*hz))}}
@@ -5169,7 +5169,7 @@ function evStart(ev){EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=
   if(racing){/* the grid: you on the front row, on the right, 24 m along the route */const R=ev.R;let j=0;while(j<R.n-2&&R.S[j+1]<24)j++;const dx=R.pts[j*3+3]-R.pts[j*3],dz=R.pts[j*3+5]-R.pts[j*3+2],l=Math.hypot(dx,dz)||1;syaw=Math.atan2(dx/l,-dz/l);sx=R.pts[j*3]+(-dz/l)*3.4;sz=R.pts[j*3+2]+(dx/l)*3.4;sy=R.pts[j*3+1];
     for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<80)trKill(c,0)}
   carPlace(sx,sz,syaw,sy+.5);C.camYaw=syaw;camStep(0,true);dmgReset();C.nos=1;
-  EV.run={ev,t:-3,cp:0,ghost:[],gt:0,copsWas:COP.on,best:(EV.rec[ev.id]||{}).t,lastBeep:4,racers:racing?racerGrid(ev.R,ev.n,ev.type=='death'):ev.type=='rage'?racerPack(ev.R,ev.n):[],ps:0,fi:0};
+  EV.run={ev,t:ev.type=='rage'?-.6:-3,cp:0,ghost:[],gt:0,copsWas:COP.on,best:(EV.rec[ev.id]||{}).t,lastBeep:4,racers:racing?racerGrid(ev.R,ev.n,ev.type=='death'):ev.type=='rage'?racerPack(ev.R,3,190,0):[],ps:0,fi:0};
   if(ev.type!='escape'){COP.on=false;if(ev.cps)navSetPt(ev.type=='rage'?ev.cps[ev.cps.length-1]:ev.cps[0])}else{COP.on=true}EV.run.bonus=0;EV.run.wrecks=0;EV.run.pop=0;
   evBeep(440,.12)}
 function navSetPt(p){navSet(p.x,p.z)}
@@ -5188,7 +5188,10 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
     const p=ev.cps[r.cp],R=Math.max(14,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+5);if(Math.hypot(C.x-p.x,C.z-p.z)<R&&Math.abs(C.y-p.y)<6){r.cp++;
       if(r.cp>=ev.cps.length){evFinish(true);return}evBeep(660,.08);navSetPt(ev.cps[r.cp])}
     if(r.t>Math.max(ev.bronze*2.2,ev.bronze+120))evFinishFail('TOO SLOW')}
-  else if(ev.type=='rage'){/* over when the clock runs out or no racer is left on the road (all taken down or through the end) */if(r.t>=ev.secs+r.bonus||!r.racers.some(c=>c.alive&&c.race&&c.state==3&&c.race.done<0))evFinish(true)}
+  else if(ev.type=='rage'){/* (batch 53) waves of three: over when the clock runs out, you reach the end of the route, or you have the gold number of takedowns; when none of the wave is left ahead of you (wrecked or passed) the next three appear 190 m further on */
+    if(r.t>=ev.secs+r.bonus||r.ps>=ev.R.len-45||r.wrecks>=ev.goals[2]){evFinish(true);return}
+    if(!r.racers.some(c=>c.alive&&c.race&&c.state==3&&c.race.done<0&&c.race.s>r.ps-40)){r.waveT=(r.waveT||0)+dt;if(r.waveT>.8){r.waveT=0;for(const c of r.racers)if(c.alive&&c.race&&c.state==3){c.race=null;trKill(c,0)}
+      r.wave=(r.wave||0)+1;const nw=racerPack(ev.R,3,r.ps+190,r.wave);for(const c of nw){c.race.go=true;c.v=Math.max(20,C.speed*.8)}r.racers=r.racers.filter(c=>c.alive).concat(nw);if(!nw.length){evFinish(true);return}safeToast('NEXT 3 AHEAD',1.4,1)}}}
   else{if(COP.heat==0&&r.t>1){evFinish(true);return}if(r.t>=ev.secs)evFinishFail('OUT OF TIME')}}
 /* a car you wrecked (from trPlayerCollide): in road rage it counts and adds 4 s */
 function evTakedown(c){const r=EV.run;if(!r||r.t<0||c.kind!==2)return;if(r.ev.type=='death'){r.wrecks++;r.pop=1.2;evBeep(900,.15);safeToast('RACER WRECKED  +500',1.5,1);return}if(r.ev.type!='rage')return;r.wrecks++;r.bonus+=5;r.pop=1.2;evBeep(700+r.wrecks*20,.1)}   /* (batch 27) only racers count: a takedown adds 5 s */
@@ -5354,7 +5357,10 @@ let _rUsed=null;const racerSkill=(k,n,hard)=>{if(k==0)_rUsed=new Set();const pc=
 /* the field for an event: n racers on the grid behind the start line, two abreast */
 function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m along the route); the racers: beside you on the left, then two by two behind */const G=[[24,-3.4],[15,3.4],[15,-3.4],[6,3.4],[6,-3.4],[0,0]];const out=[];for(let k=0;k<n;k++){const c=racerSpawn(Rt,G[k][0],G[k][1],k,racerSkill(k,n,aggr),aggr);if(c)out.push(c)}return out}
 /* (batch 27) TAKEDOWN: the pack sets off 70-300 m ahead of you, two abreast, a little slower than race racers (top 50-60 m/s), not ramming */
-function racerPack(Rt,n){const out=[];for(let k=0;k<n;k++){const f=n>1?k/(n-1):0,pc=racerCarNear(racerMyTop()*(.9-.05*f)),c=racerSpawn(Rt,300-(k>>1)*90-(k&1)*25,(k&1)?-3.4:3.4,k,racerSkillFor(pc,.84-.05*f,0),0);if(c)out.push(c)}return out}
+/* (batch 53) TAKEDOWN waves: three racers, each a different playable car a little slower than yours, already rolling S0 metres along the route (ahead of you); when you have wrecked or passed them the next three appear further on */
+let _pkUsed=new Set();
+function racerPack(Rt,n,S0,wave){const out=[];if(!wave)_pkUsed=new Set();if(_pkUsed.size>RACER_POOL.length-n)_pkUsed=new Set();
+  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.86-.03*k,0),0);if(c)out.push(c)}return out}
 /* (batch 53) a racer that has crashed in a plain race is back on the road after 2.2 s (further on, on a clear spot), not out for the rest of the race; takedowns and death races keep their wrecks */
 function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death')||R.done>=0||!R.go)return false;c.recT=(c.recT||0)+dt;
   if(c.recT>(ev.type=='death'?3.5:2.2)&&racerRespot(c)){c.recT=0;R.catchT=12;c.state=3;c.kind=2;c.dmg=Math.min(c.dmg||0,.45);c.rev=0;c.stk=0;c.hn=0;return true}return false}

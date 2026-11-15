@@ -230,8 +230,8 @@ function trStatic(cx,cz,r,y){_sx=_sz=0;const cs=QH.ccs,cn=QH.cnc,a=Math.floor((c
 function trWreck(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;c.wt+=dt;c.brake=0;
   c.x+=c.vx*dt;c.z+=c.vz*dt;c.yaw+=c.om*dt;
-  const sp=Math.hypot(c.vx,c.vz);if(sp>0){const fr=6.5*dt;if(sp>fr){const k=1-fr/sp;c.vx*=k;c.vz*=k}else{c.vx=c.vz=0}}
-  c.om*=Math.exp(-dt*(sp>4?.45:2.2));if(sp<.05&&Math.abs(c.om)<.03)c.om=0;
+  const sp=Math.hypot(c.vx,c.vz);if(sp>0){/* (batch 53) a wreck is a ton and a half of metal on its tyres and belly: it scrubs off speed hard, harder still going sideways (it used to slide as if on ice, 6.5 m/s2) */const hs=Math.abs((c.vx*Math.cos(c.yaw)+c.vz*Math.sin(c.yaw))/sp),fr=(9+5*hs)*dt;if(sp>fr){const k=1-fr/sp;c.vx*=k;c.vz*=k}else{c.vx=c.vz=0}}
+  c.om*=Math.exp(-dt*(sp>4?1.3:3));if(sp<.05&&Math.abs(c.om)<.03)c.om=0;
   c.v=sp;
   /* static things stop it */
   const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw);
@@ -312,7 +312,7 @@ function trPlayerCollide(){
       const dx=c.x-C.x,dz=c.z-C.z;if(dx*dx+dz*dz>36||Math.abs(c.y-C.y)>2.2)continue;
       trBody(BA,{x:C.x,z:C.z,yaw:C.yaw,state:1,vx:C.vx,vz:C.vz,om:C.wyaw,m:P.m,hl:P.hl,hw:P.hw});trBody(BB,c);
       if(!trObb(BA,BB))continue;
-      const e=trResolve(BA,BB,.26,.32);if(HIT.vn>0){
+      const e=trResolve(BA,BB,.1,.45);   /* (batch 53) cars crumple into each other instead of bouncing off (restitution .26 -> .1), and grind along each other more (friction .32 -> .45) */if(HIT.vn>0){
         /* the player: velocity and a share of the spin (the driving model keeps its own yaw) */
         C.vx=BA.vx;C.vz=BA.vz;C.wyaw+=clamp((BA.om-C.wyaw),-1.6,1.6)*.55;C.x=BA.x;C.z=BA.z;
         const vn=HIT.vn;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.04);C.flash=Math.max(C.flash,Math.min(.25,vn*.01));
@@ -334,7 +334,7 @@ function trCarCollide(){
         const dx=b.x-a.x,dz=b.z-a.z;if(dx*dx+dz*dz>40||Math.abs(a.y-b.y)>2.2)continue;
         trBody(BA,a);trBody(BB,b);if(!trObb(BA,BB))continue;
         if(a.state==0&&b.state==0&&(TR.t-a.crT>1.5||TR.t-b.crT>1.5)){a.crT=b.crT=TR.t;TR.stat.aiCrash++;if(TR.onCrash)TR.onCrash(a,b)}
-        const e=trResolve(BA,BB,.25,.3);
+        const e=trResolve(BA,BB,.1,.42);
         /* a bump at walking pace between two cars that are both driving (one creeping out of a side road into one waiting on the main road): they are eased apart, slow to the speed the bump leaves them and carry on.
            It used to count as a wreck whenever a van or a bus was involved (the rule went by energy, and a heavy vehicle has a lot of it at 2 m/s) */
         if(HIT.vn>0&&HIT.vn<4&&a.state==0&&b.state==0&&a.kind==0&&b.kind==0){for(const[c,B]of[[a,BA],[b,BB]]){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;c.v=Math.max(0,Math.min(c.v,B.vx*hx+B.vz*hz))}}

@@ -64,7 +64,7 @@ function evStart(ev){EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=
   if(racing){/* the grid: you on the front row, on the right, 24 m along the route */const R=ev.R;let j=0;while(j<R.n-2&&R.S[j+1]<24)j++;const dx=R.pts[j*3+3]-R.pts[j*3],dz=R.pts[j*3+5]-R.pts[j*3+2],l=Math.hypot(dx,dz)||1;syaw=Math.atan2(dx/l,-dz/l);sx=R.pts[j*3]+(-dz/l)*3.4;sz=R.pts[j*3+2]+(dx/l)*3.4;sy=R.pts[j*3+1];
     for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<80)trKill(c,0)}
   carPlace(sx,sz,syaw,sy+.5);C.camYaw=syaw;camStep(0,true);dmgReset();C.nos=1;
-  EV.run={ev,t:-3,cp:0,ghost:[],gt:0,copsWas:COP.on,best:(EV.rec[ev.id]||{}).t,lastBeep:4,racers:racing?racerGrid(ev.R,ev.n,ev.type=='death'):ev.type=='rage'?racerPack(ev.R,ev.n):[],ps:0,fi:0};
+  EV.run={ev,t:ev.type=='rage'?-.6:-3,cp:0,ghost:[],gt:0,copsWas:COP.on,best:(EV.rec[ev.id]||{}).t,lastBeep:4,racers:racing?racerGrid(ev.R,ev.n,ev.type=='death'):ev.type=='rage'?racerPack(ev.R,3,190,0):[],ps:0,fi:0};
   if(ev.type!='escape'){COP.on=false;if(ev.cps)navSetPt(ev.type=='rage'?ev.cps[ev.cps.length-1]:ev.cps[0])}else{COP.on=true}EV.run.bonus=0;EV.run.wrecks=0;EV.run.pop=0;
   evBeep(440,.12)}
 function navSetPt(p){navSet(p.x,p.z)}
@@ -83,7 +83,10 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
     const p=ev.cps[r.cp],R=Math.max(14,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+5);if(Math.hypot(C.x-p.x,C.z-p.z)<R&&Math.abs(C.y-p.y)<6){r.cp++;
       if(r.cp>=ev.cps.length){evFinish(true);return}evBeep(660,.08);navSetPt(ev.cps[r.cp])}
     if(r.t>Math.max(ev.bronze*2.2,ev.bronze+120))evFinishFail('TOO SLOW')}
-  else if(ev.type=='rage'){/* over when the clock runs out or no racer is left on the road (all taken down or through the end) */if(r.t>=ev.secs+r.bonus||!r.racers.some(c=>c.alive&&c.race&&c.state==3&&c.race.done<0))evFinish(true)}
+  else if(ev.type=='rage'){/* (batch 53) waves of three: over when the clock runs out, you reach the end of the route, or you have the gold number of takedowns; when none of the wave is left ahead of you (wrecked or passed) the next three appear 190 m further on */
+    if(r.t>=ev.secs+r.bonus||r.ps>=ev.R.len-45||r.wrecks>=ev.goals[2]){evFinish(true);return}
+    if(!r.racers.some(c=>c.alive&&c.race&&c.state==3&&c.race.done<0&&c.race.s>r.ps-40)){r.waveT=(r.waveT||0)+dt;if(r.waveT>.8){r.waveT=0;for(const c of r.racers)if(c.alive&&c.race&&c.state==3){c.race=null;trKill(c,0)}
+      r.wave=(r.wave||0)+1;const nw=racerPack(ev.R,3,r.ps+190,r.wave);for(const c of nw){c.race.go=true;c.v=Math.max(20,C.speed*.8)}r.racers=r.racers.filter(c=>c.alive).concat(nw);if(!nw.length){evFinish(true);return}safeToast('NEXT 3 AHEAD',1.4,1)}}}
   else{if(COP.heat==0&&r.t>1){evFinish(true);return}if(r.t>=ev.secs)evFinishFail('OUT OF TIME')}}
 /* a car you wrecked (from trPlayerCollide): in road rage it counts and adds 4 s */
 function evTakedown(c){const r=EV.run;if(!r||r.t<0||c.kind!==2)return;if(r.ev.type=='death'){r.wrecks++;r.pop=1.2;evBeep(900,.15);safeToast('RACER WRECKED  +500',1.5,1);return}if(r.ev.type!='rage')return;r.wrecks++;r.bonus+=5;r.pop=1.2;evBeep(700+r.wrecks*20,.1)}   /* (batch 27) only racers count: a takedown adds 5 s */

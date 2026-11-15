@@ -65,10 +65,10 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     /* a racer held still for 5.5 s is put back on the route further on */
     const st=r.racers.find(c=>c.alive&&c.state==3&&c!==tg);const s0=st.race.s;let moved=-1;for(let s=0;s<120*6;s++){if(moved<0){st.v=0;st.vx=st.vz=0;st.x=st.px;st.z=st.pz}const was=st.race.s;RACER.worldStep(1/120);if(moved<0&&st.race.s>was+15)moved=+(s/120).toFixed(1)}o.respot=moved;o.respotGain=Math.round(st.race.s-s0);
     /* the rest get away: wreck them out of the event and it ends */
-    for(const c of r.racers)if(c.alive&&c.state==3&&c.race)c.race.done=EV.t;for(let s=0;s<30;s++)RACER.worldStep(1/120);
+    r.t=ev.secs+r.bonus+1;for(let s=0;s<30;s++)RACER.worldStep(1/120);   /* (batch 53: waves; it ends on the clock) */
     o.card=EV.card&&EV.card.title;o.lines=EV.card&&EV.card.lines.map(l=>l[0]);o.paid=ECON.money-m0;o.copsAfter=COP.on;EV.card=null;return o});
   console.log('     '+JSON.stringify(H));
-  ok(H.n==6&&H.ahead[0]>=50&&H.ahead[5]<=320&&H.go&&!H.cops,'7 takedown: 6 racers set off '+H.ahead[0]+'-'+H.ahead[5]+' m ahead of you, no police');
+  ok(H.n==3&&H.ahead[0]>=150&&H.ahead[2]<=320&&H.go&&!H.cops,'7 takedown (batch 53: waves of three): 3 racers are rolling '+H.ahead[0]+'-'+H.ahead[2]+' m ahead of you, no police');
   ok(H.tgt<H.tgt0*.75,'7 light traffic while racers race: '+H.tgt+' cars wanted round you, '+H.tgt0+' before');
   ok(H.civ==0&&H.wrecks==1&&H.bonus==5&&H.tgState==1,'7 a wrecked traffic car does not count; ramming a racer takes it down: '+H.wrecks+' (+'+H.bonus+' s)');
   ok(H.respot>=2.3&&H.respot<3.6&&H.respotGain>=20,'7 a racer stuck for '+H.respot+' s is put back on the route '+H.respotGain+' m further on');

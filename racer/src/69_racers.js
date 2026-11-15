@@ -72,7 +72,10 @@ let _rUsed=null;const racerSkill=(k,n,hard)=>{if(k==0)_rUsed=new Set();const pc=
 /* the field for an event: n racers on the grid behind the start line, two abreast */
 function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m along the route); the racers: beside you on the left, then two by two behind */const G=[[24,-3.4],[15,3.4],[15,-3.4],[6,3.4],[6,-3.4],[0,0]];const out=[];for(let k=0;k<n;k++){const c=racerSpawn(Rt,G[k][0],G[k][1],k,racerSkill(k,n,aggr),aggr);if(c)out.push(c)}return out}
 /* (batch 27) TAKEDOWN: the pack sets off 70-300 m ahead of you, two abreast, a little slower than race racers (top 50-60 m/s), not ramming */
-function racerPack(Rt,n){const out=[];for(let k=0;k<n;k++){const f=n>1?k/(n-1):0,pc=racerCarNear(racerMyTop()*(.9-.05*f)),c=racerSpawn(Rt,300-(k>>1)*90-(k&1)*25,(k&1)?-3.4:3.4,k,racerSkillFor(pc,.84-.05*f,0),0);if(c)out.push(c)}return out}
+/* (batch 53) TAKEDOWN waves: three racers, each a different playable car a little slower than yours, already rolling S0 metres along the route (ahead of you); when you have wrecked or passed them the next three appear further on */
+let _pkUsed=new Set();
+function racerPack(Rt,n,S0,wave){const out=[];if(!wave)_pkUsed=new Set();if(_pkUsed.size>RACER_POOL.length-n)_pkUsed=new Set();
+  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed),c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.86-.03*k,0),0);if(c)out.push(c)}return out}
 /* (batch 53) a racer that has crashed in a plain race is back on the road after 2.2 s (further on, on a clear spot), not out for the rest of the race; takedowns and death races keep their wrecks */
 function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death')||R.done>=0||!R.go)return false;c.recT=(c.recT||0)+dt;
   if(c.recT>(ev.type=='death'?3.5:2.2)&&racerRespot(c)){c.recT=0;R.catchT=12;c.state=3;c.kind=2;c.dmg=Math.min(c.dmg||0,.45);c.rev=0;c.stk=0;c.hn=0;return true}return false}

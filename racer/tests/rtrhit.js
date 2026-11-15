@@ -33,7 +33,7 @@ const L=require('./rlib.js');
       let hitT=-1,vAfter=0;for(let s=0;s<120*6;s++){if(hitT<0&&Math.hypot(c.x-C.x,c.z-C.z)>9){C.vx=fx*v0;C.vz=fz*v0}RACER.worldStep(1/120);if(IMP.last&&hitT<0){hitT=s;}if(hitT>=0&&s>hitT+30){vAfter=C.speed;break}}
       const im=IMP.q[0];res.push({label,hit:!!im,E:im&&im.E,vn:im&&im.vn,pn:IMP.q.length,zone:im&&im.zone,src:im&&im.src,carV:Math.hypot(c.vx,c.vz),playerAfter:vAfter,mass:TTYPES[type].m,v0,wreck:c.state==1})}
     return res});
-  for(const r of B){const mu=1400*r.mass/(1400+r.mass),Ex=.5*mu*(1-.26*.26)*(r.vn||r.v0)*(r.vn||r.v0);
+  for(const r of B){const mu=1400*r.mass/(1400+r.mass),Ex=.5*mu*(1-.1*.1)*(r.vn||r.v0)*(r.vn||r.v0);   /* (batch 53: restitution .1, was .26) */
     ok(r.hit&&r.src==3,'B '+r.label+': impact recorded (source traffic)');
     ok(r.hit&&r.zone===0,'B '+r.label+': hit on the FRONT of the player (zone '+r.zone+')');
     ok(r.hit&&Math.abs(r.E-Ex)/Ex<.12,'B '+r.label+': impact energy '+(r.E/1000).toFixed(0)+' kJ at '+(r.vn||0).toFixed(1)+' m/s closing (physics says '+(Ex/1000).toFixed(0)+' kJ for that closing speed)');
