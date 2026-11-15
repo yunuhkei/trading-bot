@@ -6,7 +6,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   const T=await L.launch({q:'go=1&scale=1&fixed=1&env=day&tier=2',w:480,h:270,mobile:false,traffic:false,keep:true});
   await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:120000});
   /* ---- 1 style table and shapes ---- */
-  const A=await T.ev(()=>{const out=[];for(const d of CAR_ROSTER){if(d.cc)continue;const B=cgBuild(d.spec,{}),S=B.S,t=S._tub,b=B.body;
+  const A=await T.ev(()=>{const out=[];for(const d of CAR_ROSTER){if(d.cc2)continue;const B=cgBuild(d.spec,{}),S=B.S,t=S._tub,b=B.body;
       /* the outline of the nose and of the tail seen from above and from the side: half width and top height at 12 stations over the first and the last 0.9 m */
       const prof=(from)=>{const o=[];for(let q=0;q<12;q++){const s=from?S.L-.02-q*.08:.02+q*.08;let bi=0,bd=1e9;for(let i=0;i<t.ni;i++){const dd=Math.abs(t.ss[i]-s);if(dd<bd){bd=dd;bi=i}}let w=0,h=0;for(let j=0;j<t.nj;j++){const k=(bi*t.nj+j)*3;w=Math.max(w,Math.abs(t.P[k]));h=Math.max(h,t.P[k+1])}o.push(w,h)}return o};
       let ink=0,nanN=0;for(let v=0;v<b.nv;v++){if(b.M[v]==CGM.ink)ink++;const l=Math.hypot(b.N[v*3],b.N[v*3+1],b.N[v*3+2]);if(!(l>.95&&l<1.05))nanN++}

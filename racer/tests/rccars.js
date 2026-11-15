@@ -9,7 +9,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
       let y0=1e9,y1=-1e9;for(let v=0;v<b.nv;v++){y0=Math.min(y0,b.P[v*3+1]);y1=Math.max(y1,b.P[v*3+1])}
       out.designs.push({k,n:CC_DES[k].n,tris:(b.I.length/3+B.wheelF.I.length/3*2+B.wheelR.I.length/3*2)|0,fin,bad,ms:+ms.toFixed(1),L:+B.S.L.toFixed(2),W:+B.S.W.toFixed(2),H:+B.S.H.toFixed(2),low:+y0.toFixed(2),high:+y1.toFixed(2),wf:+B.S.rf.toFixed(2)})}
     const {C,IN,UI,ROADS,carStep,carPlace,CAR_ROSTER}=RACER;UI.paused=true;QH.cst.fill(0);ROADS.forEach(r=>r.rail.fill(0));const sh=ROADS.find(q=>q.id=='sh'),i0=Math.round(.64*sh.n),a=Math.atan2(sh.X[i0+1]-sh.X[i0],-(sh.Z[i0+1]-sh.Z[i0]));
-    for(let i=0;i<CAR_ROSTER.length;i++){const d=CAR_ROSTER[i];if(!d.cc)continue;RACER.carSelect(i);carPlace(sh.X[i0]-Math.cos(a)*3,sh.Z[i0]-Math.sin(a)*3,a,sh.Y[i0]+.5);IN.assist=false;IN.brk=0;IN.hand=0;C.steer=0;
+    for(let i=0;i<CAR_ROSTER.length;i++){const d=CAR_ROSTER[i];if(!d.cc2)continue;RACER.carSelect(i);carPlace(sh.X[i0]-Math.cos(a)*3,sh.Z[i0]-Math.sin(a)*3,a,sh.Y[i0]+.5);IN.assist=false;IN.brk=0;IN.hand=0;C.steer=0;
       let t=0;IN.thr=1;while(C.speed<27.78&&t<20){carStep(1/120);t+=1/120}IN.thr=0;IN.brk=1;const x0=C.x,z0=C.z;let k=0;while(C.speed>.3&&k<1200){carStep(1/120);k++}IN.brk=0;
       out.roster.push({i,n:d.name,t100:+t.toFixed(2),stop:+Math.hypot(C.x-x0,C.z-z0).toFixed(1),ok:CARM.body&&CARM.body.n>0})}
     RACER.carSelect(carIndex('k1'));return out});

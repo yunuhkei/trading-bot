@@ -58,10 +58,10 @@ function cgBodyCurves(S){
   /* wheels sit inside the fenders: at each axle the body is at least as wide as the outside of the tyre, plus a couple of centimetres */
   S.fF=Math.max(S.flare,S.tf+S.wf/2+.024-S.curves.half(S.fo));S.fR=Math.max(S.flareR==null?S.flare:S.flareR,S.tr+S.wr/2+.024-S.curves.half(S.fo+S.wb));return S.curves}
 function cgBody(S,mb,opt){
-  const L=S.L,K=S.K=opt.lo?(opt.mid?8:5):26;   /* (batch 50) 26 rings (was 16): smoother shoulders and arches; a car body is about 17k vertices, the mesh limit is 65k */S.gs0=S.cowl;S.gs1=S.rearS;cgBodyCurves(S);const zc=S.curves;
+  const L=S.L,K=S.K=opt.lo?(opt.mid?14:5):26;   /* (batch 50) 26 rings (was 16): smoother shoulders and arches; a car body is about 17k vertices, the mesh limit is 65k */S.gs0=S.cowl;S.gs1=S.rearS;cgBodyCurves(S);const zc=S.curves;
   /* stations along the car: even, with more near the wheels (for the arches) and at the two ends */
-  const set=[];const stp=opt.lo?(opt.mid?.21:.3):.07;for(let s=.01;s<L;s+=stp)set.push(s);for(const e of(opt.lo?[.01,.08,.18,L-.01,L-.08,L-.18]:[.006,.02,.045,.09,.16,L-.006,L-.02,L-.045,L-.09,L-.16]))set.push(e);
-  for(const ax of[S.fo,S.fo+S.wb]){const r=(ax==S.fo?S.rf:S.rr)+.12;for(let s=ax-r;s<=ax+r+1e-6;s+=opt.lo?(opt.mid?.09:.13):.022)set.push(s)}
+  const set=[];const stp=opt.lo?(opt.mid?.13:.3):.07;for(let s=.01;s<L;s+=stp)set.push(s);for(const e of(opt.lo?[.01,.08,.18,L-.01,L-.08,L-.18]:[.006,.02,.045,.09,.16,L-.006,L-.02,L-.045,L-.09,L-.16]))set.push(e);
+  for(const ax of[S.fo,S.fo+S.wb]){const r=(ax==S.fo?S.rf:S.rr)+.12;for(let s=ax-r;s<=ax+r+1e-6;s+=opt.lo?(opt.mid?.05:.13):.022)set.push(s)}
   set.sort((a,b)=>a-b);const ss=[];for(const s of set){if(s<=0||s>=L)continue;if(!ss.length||s-ss[ss.length-1]>.018)ss.push(s)}
   const ni=ss.length,rings=[],scA=[],capF=(S.capF||.34)*.88,capR=(S.capR||.5)*.62;
   for(const s of ss){const r=cgTubRing(S,s,K);let sc=1;const d0=s,d1=L-s;let dr=S.noseDrop;if(d0<capF)sc=Math.pow(1-Math.pow((capF-d0)/capF,S.noseP),1/S.noseP);else if(d1<capR){sc=Math.pow(1-Math.pow((capR-d1)/capR,S.tailP),1/S.tailP);dr=S.tailDrop}

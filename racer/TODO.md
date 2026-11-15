@@ -79,3 +79,4 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - The supercars still share one cabin and one basic loft: noses, tails, lamps, creases and paint now differ, the glasshouse does not.
 - The helicopter is built from boxes (reads fine at 30-45 m, plain close up); a burst tyre is not shown on the wheel itself (sparks only).
 - Brakes and cornering do not share the tyre (arcade, left as it is).
+- (batch 51) Work trucks (garbage, box van, SWAT, pickup) and the bus are still boxy; SUV-class generator shapes are plain. `rtraffic` fails on a lane-offset car (ring, coast, and once Sacramento), same family as the known `sc2` failure.

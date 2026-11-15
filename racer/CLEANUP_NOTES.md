@@ -39,7 +39,8 @@ Also this session: crash smoke no longer blinds, the car lasts much longer (`DMG
 ## Rough edges seen while looking at screenshots
 - Shopfronts are a flat glass band and a thin awning: no door, no sign, no interior, same on every side.
 - Downtown towers: only the podium (7-13 m) gets a shopfront; above it the tower is a plain textured box.
-- Garbage truck cab: flat white face with a black slab bumper; the box vans and SWAT truck are boxy.
+- Garbage truck, box vans, SWAT truck, pickup and bus: batch 51 added bumpers, arch panels, mirrors and seams but they are still boxes.
+- The 24 former Close Call player cars are generator cars since batch 51 (roster field `cc2`); traffic civilians and cops use generator bodies; only the bus still uses `ccBuild`.
 - The Close Call cars have no opening panels and keep Close Call's tall glass cabin (cabins taller than 0.46 m above the body were lowered 20 %).
 - Speed blur smears building edges at high speed (by design, but it is strong on High).
 - Autopilot test runs (`play.js` style) freeze the camera after a crash because the crash cinematic is driven by the frame loop, not `worldStep`. Not a game bug.

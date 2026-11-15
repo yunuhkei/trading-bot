@@ -74,20 +74,27 @@ function trBoxVehicle(kind){
     for(const sd of[-1,1]){box(sd*.72,1.08,-3.1,.16,.08,.03,M.head);box(sd*.95,1.0,3.12,.08,.2,.03,M.tail);box(sd*.85,.92,-3.1,.08,.05,.03,M.amber);box(sd*1.06,1.85,-1.75,.05,.08,.12,M.gloss)}box(0,.85,-3.11,.25,.07,.02,M.plate);box(0,.82,3.13,.25,.07,.02,M.plate)}
   else{/* pickup: the SUV body with a short cab and an open bed */const base=Object.assign({},TRGEN[2],{L:5.4,roofF:1.95,roofR:2.75,rearS:2.85,deck:1.05,tail:1.05,roofRails:0,noSkirt:1}),R=cgBuild(base,{lo:1,mid:1});
     const bb=R.body;for(const sd of[-1,1])cgBox(bb,sd*.86,1.13,1.62,.06,.12,1.05,M.paint,0);cgBox(bb,0,1.13,2.66,.92,.12,.05,M.paint,0);cgBox(bb,0,.98,1.62,.82,.02,1.0,M.under,0);return R}
+  /* (batch 51) the work trucks were plain blocks: bumpers, dark wheel-arch panels, mirrors on stalks, door and cargo seams */
+  {const hw=S.W/2,zf=-S.L/2,zr=S.L/2,cz=zf+(kind=='garbage'?1.1:.95);
+   box(0,.5,zf+.03,hw*.97,.13,.11,M.trim);box(0,.5,zr-.03,hw*.97,.13,.11,M.trim);box(0,.66,zf+.03,hw*.6,.05,.115,M.chrome);
+   for(const sd of[-1,1]){for(const[z,R]of[[S.fz,S.rf],[S.rz,S.rr]])box(sd*(hw-.005),R*1.05,z,.035,R*.6,R*1.3,M.under);
+     box(sd*(hw*.97+.15),S.H*.64,cz,.05,.17,.03,M.gloss);box(sd*(hw*.97+.07),S.H*.64,cz,.08,.014,.014,M.trim);
+     box(sd*(hw+.005),S.H*.5,zf+(kind=='swat'?2.55:1.8),.012,S.H*.2,.01,M.under);   /* the cab door's rear seam */
+     box(sd*(hw+.005),S.H*.34,0,.012,.01,S.L*.28,M.under)}}   /* a body-side line */
   S.zs=s=>-S.L/2+s;S._parts={};const lw=2;return{S,body:b,wheelF:cgWheel(S.rf,S.wf,S.rf*.6,6,'disc',null,lw,1),wheelR:cgWheel(S.rr,S.wr,S.rr*.6,6,'disc',null,lw,1)}}
 /* the near body of traffic type i: the generator's family cars, a Close Call body, or a working vehicle */
 function trBodyOf(i){const T=TTYPES[i];
-  if(T.cc){const R=ccBuild(T.cc,{lo:1});if(T.sign){const S=R.S;cgBox(R.body,0,S.H+.12,S.zs(S.roofR-.35),.36,.11,.12,CGM.amber,0);cgBox(R.body,0,S.H+.02,S.zs(S.roofR-.35),.4,.02,.14,CGM.trim,0)}return R}
+  if(T.cc){const gen=!!CC_ARCH[CC_DES[T.cc].ty],sp=Object.assign({noSkirt:1},gen?ccSpec(T.cc):{});if(T.cop)sp.lowerDark=.66;const R=gen?cgBuild(sp,{lo:1,mid:1}):ccBuild(T.cc,{lo:1});if(T.sign){const S=R.S;cgBox(R.body,0,S.H+.12,S.zs(S.roofR-.35),.36,.11,.12,CGM.amber,0);cgBox(R.body,0,S.H+.02,S.zs(S.roofR-.35),.4,.02,.14,CGM.trim,0)}return R}
   if(T.box)return trBoxVehicle(T.box);
   const base=TRGEN[i==4?0:i],spec=Object.assign({noSkirt:1},base);if(i==4)spec.lowerDark=.66;return cgBuild(spec,{lo:1,mid:1})}
 /* the far body: TRSHAPE for the first five, a Close Call body's own low-poly loft, or boxes for the trucks */
 function trFarOf(i){const T=TTYPES[i];if(i<5)return trBuildType(TRSHAPE[i],T.hw);
-  if(T.cc)return trBuildType(ccFar(T.cc),T.hw);
+  if(T.cc)return CC_ARCH[CC_DES[T.cc].ty]?trGenType(i,1):trBuildType(ccFar(T.cc),T.hw);   /* (batch 51) the generator's own low body, so the far car has the near car's shape */
   if(T.box=='garbage')return trBuildType({gz:[2.6,3.9],wheel:.52,sec:[[4.05,.5,2.5,2.9,1.2,1.1],[2.2,.5,2.5,2.9,1.2,1.1],[2.1,.5,3.3,3.3,1.25,1.25],[-3.95,.5,3.3,3.3,1.25,1.25]]},T.hw);
   return trBuildType(TRSHAPE[3],T.hw)}
-function trGenType(i){
+function trGenType(i,far){
   const spec=Object.assign({noSkirt:1},TRGEN[i==4?0:i]||{});if(TTYPES[i].cop)spec.lowerDark=.66;
-  const R=trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
+  const R=far?(()=>{const sp=Object.assign({noSkirt:1},ccSpec(TTYPES[i].cc));if(TTYPES[i].cop)sp.lowerDark=.66;return cgBuild(sp,{lo:1})})():trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
   /* the police livery: white doors, roof and pillars, black bonnet, wings and boot (x, y, z in generator coordinates, front negative) */
   const swat=TTYPES[i].box=='swat',copLivery=(x,y,z,S)=>{if(swat)return 9;const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
   const add=(mb,dx,dy,dz,mirX,mapM,isW)=>{const n=mb.nv;for(let v=0;v<n;v++){const x=mb.P[v*3]*(mirX?-1:1)+dx,y=mb.P[v*3+1]+dy,z=-(mb.P[v*3+2]+dz);P.push(x,y,z);N.push(mb.N[v*3]*(mirX?-1:1),mb.N[v*3+1],-mb.N[v*3+2]);const m=TRMATMAP[mb.M[v]];

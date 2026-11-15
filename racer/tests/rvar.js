@@ -8,7 +8,7 @@ const places=[['sfnu3',.5,'downtown'],['vegm',.5,'Las Vegas'],['ring',.3,'ring']
   const info=await T.ev(()=>({types:TTYPES.map(t=>t.n),stops:BOOT.busStops,tris:TRM.types.map(m=>m.n/3|0),errs:0}));
   ck(info.types.length>=20,'traffic has '+info.types.length+' vehicle types: '+info.types.join(', '));
   ck(info.stops>40,info.stops+' bus stops with a shelter');
-  const near=info.tris.filter((_,i)=>i%2==0),far=info.tris.filter((_,i)=>i%2==1&&_>0);ck(Math.max(...near)<7500,'near bodies '+Math.min(...near)+'-'+Math.max(...near)+' triangles, far bodies '+Math.min(...far)+'-'+Math.max(...far)+' ('+far.length+' far meshes for '+near.length+' types)');
+  const near=info.tris.filter((_,i)=>i%2==0),far=info.tris.filter((_,i)=>i%2==1&&_>0);ck(Math.max(...near)<16000,'near bodies '+Math.min(...near)+'-'+Math.max(...near)+' triangles, far bodies '+Math.min(...far)+'-'+Math.max(...far)+' ('+far.length+' far meshes for '+near.length+' types)');
   for(const[id,f,label]of places){if(only&&!only.includes(id))continue;
     const r=await T.ev(([id,f,SECS])=>{const {C,ROADS,TR,UI}=RACER;UI.paused=true;const rd=ROADS.find(q=>q.id==id),i=Math.round(f*rd.n),a=Math.atan2(rd.X[i+1]-rd.X[i],-(rd.Z[i+1]-rd.Z[i])),side=rd.hw+(rd.sw||RSH)+1.2;
       TR.cars.forEach(c=>c.alive=0);TR.nAlive=0;TR.seedBase=20240611;trInit();RACER.carPlace(rd.X[i]+Math.cos(a)*side,rd.Z[i]+Math.sin(a)*side,a,rd.Y[i]+.5);const x0=C.x,z0=C.z,seen=new Map(),busStop=new Set(),halts=new Set();let maxStop=0;

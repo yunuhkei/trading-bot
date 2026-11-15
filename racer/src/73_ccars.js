@@ -126,9 +126,24 @@ const CC_REAL={coupe:{hp:260,kg:1300,drive:'FR',top:240,t100:5.8,lat:.92,brk:37}
   rally:{hp:380,kg:1350,drive:'AWD',top:250,t100:3.6,lat:1.0,brk:35},sedan:{hp:300,kg:1600,drive:'RWD',top:250,t100:5.5,lat:.9,brk:38},muscle:{hp:480,kg:1700,drive:'FR',top:280,t100:4.3,lat:.95,brk:37},
   hatch:{hp:230,kg:1250,drive:'AWD',top:240,t100:5.6,lat:.95,brk:36},suv:{hp:400,kg:2200,drive:'AWD',top:240,t100:5.3,lat:.85,brk:39}};
 const CC_CLS={coupe:'Compact coupe',hyper:'Hypercar',gt:'Grand tourer',super:'Supercar',sport:'Sports coupe',roadster:'Roadster',rally:'Rally hatch',sedan:'Saloon',muscle:'Muscle car',hatch:'Hot hatch',suv:'Off-roader'};
-for(const key of Object.keys(CC_DES)){const d=CC_DES[key];if(d.ty=='bus'||key=='t_cop')continue;const S=ccBuild(key,{lo:1}).S;
-  CAR_ROSTER.push({id:'cc_'+key,name:d.n+' CC',cls:CC_CLS[d.ty]+'  (from Close Call, working name)',cc:key,paint:d.col.slice(),rim:[190,194,200],caliper:[205,28,28],
-    spec:{L:S.L,W:S.W,H:S.H,wb:S.wb,cowl:S.cowl,roofR:S.roofR},real:Object.assign({},CC_REAL[d.ty])})}
+/* (batch 51) the 24 Close Call cars you can drive are rebuilt by the supercar generator: each class maps to the nearest generator body (CARARCH), scaled to that car's own length, width, height, wheelbase and wheels, so they have the generator's shoulders, arches, lamps and details instead of the soft Close Call loft (which the traffic still uses) */
+const CC_ARCH={coupe:'light',hyper:'hyper',gt:'gt',super:'mid',sport:'rr',roadster:'speed',rally:'coupe',sedan:'gt',muscle:'muscle',hatch:'coupe',suv:'coupe'};
+const CC_STY={coupe:'l2',hyper:'c3',gt:'s1',super:'t1',sport:'k2',roadster:'l3',rally:'h2',sedan:'s1',muscle:'u2',hatch:'h2',suv:'h2'};
+const CC_HEAD={r:'round',s:'slit',w:'oval'},CC_TAIL={r:'round',b:'bar',s:'slit',w:'wide'};
+function ccSpec(key){const d=CC_DES[key],S=ccBuild(key,{lo:1}).S,A=CARARCH[CC_ARCH[d.ty]],sL=S.L/A.L,sH=S.H/A.H,sW=S.W/A.W,o=Object.assign({},A);
+  o.L=S.L;o.W=S.W;o.H=S.H;o.wb=S.wb;o.fo=Math.min(S.fo,S.L*.24);
+  for(const k of['cowl','roofF','roofR','rearS','hwMaxS'])o[k]=A[k]*sL;for(const k of['nose','hood','deck','tail'])o[k]=A[k]*Math.min(sH,1.35);for(const k of['hw0','hwMax','hwTail','tf','tr'])o[k]=A[k]*sW;
+  o.rf=S.rf;o.rr=S.rr;o.wf=S.wf;o.wr=S.wr;o.rimF=S.rf*A.rimF/A.rf;o.rimR=S.rr*A.rimR/A.rr;
+  o.head=CC_HEAD[d.hd]||A.head;o.tail_=CC_TAIL[d.tl]||A.tail_;
+  if(d.ty=='sedan'){Object.assign(o,{cowl:S.L*.31,roofF:S.L*.44,roofR:S.L*.69,rearS:S.L*.8,wing:'none',intake:'mid',duct:0,exh:1,exhS:'center',diff:0,splitter:0,rearGlass:1,sideIntake:0,louvres:0,crown:.05})}
+  else if(d.ty=='hatch'){Object.assign(o,{cowl:S.L*.3,roofF:S.L*.43,roofR:S.L*.86,rearS:S.L*.9,wing:'lip',intake:'mid',exh:2,diff:0,splitter:0,rearGlass:1,sideIntake:0,louvres:0,tail:o.tail*1.2})}
+  else if(d.ty=='suv'){Object.assign(o,{cowl:S.L*.27,roofF:S.L*.4,roofR:S.L*.8,rearS:S.L*.88,wing:'none',intake:'mid',exh:2,diff:0,splitter:0,rearGlass:1,sideIntake:0,louvres:0,sill:.22,cladding:.3,tail:o.tail*1.15})}
+  else if(d.ty=='rally'){Object.assign(o,{wing:'big',sill:.17,cladding:.2,splitter:0,diff:0,sideIntake:0})}
+  else if(d.ty=='coupe'){Object.assign(o,{wing:'none',exh:1,exhS:'center',sideIntake:0,louvres:0})}
+  return o}
+for(const key of Object.keys(CC_DES)){const d=CC_DES[key];if(d.ty=='bus'||key=='t_cop')continue;const sp=ccSpec(key),y=CAR_STYLE[CC_STY[d.ty]];
+  if(y)Object.assign(sp,{noseP:y.n[0],capF:y.n[1],noseDrop:y.n[2],tailP:y.r[0],capR:y.r[1],tailDrop:y.r[2],sq:y.q,hard:y.k,crease:y.c,spine:y.sp||0});sp._name=d.n;
+  CAR_ROSTER.push({id:'cc_'+key,name:d.n,cls:CC_CLS[d.ty],cc2:key,paint:d.col.slice(),rim:[190,194,200],caliper:[205,28,28],fin:y?y.f|0:0,spec:sp,real:Object.assign({},CC_REAL[d.ty])})}
 /* the civilian traffic bodies ported from Close Call (TTYPES 10 and up): sizes from their bodies */
 for(const k of['coupe','n_cruiser','n_magnet','n_courier','n_bruiser','n_banker','rally','h_warden','gt','h_outlaw']){const S=ccBuild(k,{lo:1}).S,ty=CC_DES[k].ty;
   TTYPES.push({n:'cc_'+k,cc:k,hl:S.L/2-.05,hw:S.W/2-.04,m:ty=='suv'?2100:ty=='hatch'?1150:1450,far:ty=='suv'?2:ty=='hatch'||ty=='rally'?1:0,v0:ty=='muscle'||ty=='gt'?1.05:1,civ:1})}

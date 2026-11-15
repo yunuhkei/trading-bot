@@ -4265,20 +4265,27 @@ function trBoxVehicle(kind){
     for(const sd of[-1,1]){box(sd*.72,1.08,-3.1,.16,.08,.03,M.head);box(sd*.95,1.0,3.12,.08,.2,.03,M.tail);box(sd*.85,.92,-3.1,.08,.05,.03,M.amber);box(sd*1.06,1.85,-1.75,.05,.08,.12,M.gloss)}box(0,.85,-3.11,.25,.07,.02,M.plate);box(0,.82,3.13,.25,.07,.02,M.plate)}
   else{/* pickup: the SUV body with a short cab and an open bed */const base=Object.assign({},TRGEN[2],{L:5.4,roofF:1.95,roofR:2.75,rearS:2.85,deck:1.05,tail:1.05,roofRails:0,noSkirt:1}),R=cgBuild(base,{lo:1,mid:1});
     const bb=R.body;for(const sd of[-1,1])cgBox(bb,sd*.86,1.13,1.62,.06,.12,1.05,M.paint,0);cgBox(bb,0,1.13,2.66,.92,.12,.05,M.paint,0);cgBox(bb,0,.98,1.62,.82,.02,1.0,M.under,0);return R}
+  /* (batch 51) the work trucks were plain blocks: bumpers, dark wheel-arch panels, mirrors on stalks, door and cargo seams */
+  {const hw=S.W/2,zf=-S.L/2,zr=S.L/2,cz=zf+(kind=='garbage'?1.1:.95);
+   box(0,.5,zf+.03,hw*.97,.13,.11,M.trim);box(0,.5,zr-.03,hw*.97,.13,.11,M.trim);box(0,.66,zf+.03,hw*.6,.05,.115,M.chrome);
+   for(const sd of[-1,1]){for(const[z,R]of[[S.fz,S.rf],[S.rz,S.rr]])box(sd*(hw-.005),R*1.05,z,.035,R*.6,R*1.3,M.under);
+     box(sd*(hw*.97+.15),S.H*.64,cz,.05,.17,.03,M.gloss);box(sd*(hw*.97+.07),S.H*.64,cz,.08,.014,.014,M.trim);
+     box(sd*(hw+.005),S.H*.5,zf+(kind=='swat'?2.55:1.8),.012,S.H*.2,.01,M.under);   /* the cab door's rear seam */
+     box(sd*(hw+.005),S.H*.34,0,.012,.01,S.L*.28,M.under)}}   /* a body-side line */
   S.zs=s=>-S.L/2+s;S._parts={};const lw=2;return{S,body:b,wheelF:cgWheel(S.rf,S.wf,S.rf*.6,6,'disc',null,lw,1),wheelR:cgWheel(S.rr,S.wr,S.rr*.6,6,'disc',null,lw,1)}}
 /* the near body of traffic type i: the generator's family cars, a Close Call body, or a working vehicle */
 function trBodyOf(i){const T=TTYPES[i];
-  if(T.cc){const R=ccBuild(T.cc,{lo:1});if(T.sign){const S=R.S;cgBox(R.body,0,S.H+.12,S.zs(S.roofR-.35),.36,.11,.12,CGM.amber,0);cgBox(R.body,0,S.H+.02,S.zs(S.roofR-.35),.4,.02,.14,CGM.trim,0)}return R}
+  if(T.cc){const gen=!!CC_ARCH[CC_DES[T.cc].ty],sp=Object.assign({noSkirt:1},gen?ccSpec(T.cc):{});if(T.cop)sp.lowerDark=.66;const R=gen?cgBuild(sp,{lo:1,mid:1}):ccBuild(T.cc,{lo:1});if(T.sign){const S=R.S;cgBox(R.body,0,S.H+.12,S.zs(S.roofR-.35),.36,.11,.12,CGM.amber,0);cgBox(R.body,0,S.H+.02,S.zs(S.roofR-.35),.4,.02,.14,CGM.trim,0)}return R}
   if(T.box)return trBoxVehicle(T.box);
   const base=TRGEN[i==4?0:i],spec=Object.assign({noSkirt:1},base);if(i==4)spec.lowerDark=.66;return cgBuild(spec,{lo:1,mid:1})}
 /* the far body: TRSHAPE for the first five, a Close Call body's own low-poly loft, or boxes for the trucks */
 function trFarOf(i){const T=TTYPES[i];if(i<5)return trBuildType(TRSHAPE[i],T.hw);
-  if(T.cc)return trBuildType(ccFar(T.cc),T.hw);
+  if(T.cc)return CC_ARCH[CC_DES[T.cc].ty]?trGenType(i,1):trBuildType(ccFar(T.cc),T.hw);   /* (batch 51) the generator's own low body, so the far car has the near car's shape */
   if(T.box=='garbage')return trBuildType({gz:[2.6,3.9],wheel:.52,sec:[[4.05,.5,2.5,2.9,1.2,1.1],[2.2,.5,2.5,2.9,1.2,1.1],[2.1,.5,3.3,3.3,1.25,1.25],[-3.95,.5,3.3,3.3,1.25,1.25]]},T.hw);
   return trBuildType(TRSHAPE[3],T.hw)}
-function trGenType(i){
+function trGenType(i,far){
   const spec=Object.assign({noSkirt:1},TRGEN[i==4?0:i]||{});if(TTYPES[i].cop)spec.lowerDark=.66;
-  const R=trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
+  const R=far?(()=>{const sp=Object.assign({noSkirt:1},ccSpec(TTYPES[i].cc));if(TTYPES[i].cop)sp.lowerDark=.66;return cgBuild(sp,{lo:1})})():trBodyOf(i),S=R.S,P=[],N=[],M=[],I=[];let o=0;
   /* the police livery: white doors, roof and pillars, black bonnet, wings and boot (x, y, z in generator coordinates, front negative) */
   const swat=TTYPES[i].box=='swat',copLivery=(x,y,z,S)=>{if(swat)return 9;const belt=S.H*.62,door=z>S.zs(S.cowl+.1)&&z<S.zs(S.roofR+.25)&&Math.abs(x)>.5&&y<belt+.1&&y>.3,upper=y>belt+.12;return(door||upper)?12:9};
   const add=(mb,dx,dy,dz,mirX,mapM,isW)=>{const n=mb.nv;for(let v=0;v<n;v++){const x=mb.P[v*3]*(mirX?-1:1)+dx,y=mb.P[v*3+1]+dy,z=-(mb.P[v*3+2]+dz);P.push(x,y,z);N.push(mb.N[v*3]*(mirX?-1:1),mb.N[v*3+1],-mb.N[v*3+2]);const m=TRMATMAP[mb.M[v]];
@@ -5418,10 +5425,10 @@ function cgBodyCurves(S){
   /* wheels sit inside the fenders: at each axle the body is at least as wide as the outside of the tyre, plus a couple of centimetres */
   S.fF=Math.max(S.flare,S.tf+S.wf/2+.024-S.curves.half(S.fo));S.fR=Math.max(S.flareR==null?S.flare:S.flareR,S.tr+S.wr/2+.024-S.curves.half(S.fo+S.wb));return S.curves}
 function cgBody(S,mb,opt){
-  const L=S.L,K=S.K=opt.lo?(opt.mid?8:5):26;   /* (batch 50) 26 rings (was 16): smoother shoulders and arches; a car body is about 17k vertices, the mesh limit is 65k */S.gs0=S.cowl;S.gs1=S.rearS;cgBodyCurves(S);const zc=S.curves;
+  const L=S.L,K=S.K=opt.lo?(opt.mid?14:5):26;   /* (batch 50) 26 rings (was 16): smoother shoulders and arches; a car body is about 17k vertices, the mesh limit is 65k */S.gs0=S.cowl;S.gs1=S.rearS;cgBodyCurves(S);const zc=S.curves;
   /* stations along the car: even, with more near the wheels (for the arches) and at the two ends */
-  const set=[];const stp=opt.lo?(opt.mid?.21:.3):.07;for(let s=.01;s<L;s+=stp)set.push(s);for(const e of(opt.lo?[.01,.08,.18,L-.01,L-.08,L-.18]:[.006,.02,.045,.09,.16,L-.006,L-.02,L-.045,L-.09,L-.16]))set.push(e);
-  for(const ax of[S.fo,S.fo+S.wb]){const r=(ax==S.fo?S.rf:S.rr)+.12;for(let s=ax-r;s<=ax+r+1e-6;s+=opt.lo?(opt.mid?.09:.13):.022)set.push(s)}
+  const set=[];const stp=opt.lo?(opt.mid?.13:.3):.07;for(let s=.01;s<L;s+=stp)set.push(s);for(const e of(opt.lo?[.01,.08,.18,L-.01,L-.08,L-.18]:[.006,.02,.045,.09,.16,L-.006,L-.02,L-.045,L-.09,L-.16]))set.push(e);
+  for(const ax of[S.fo,S.fo+S.wb]){const r=(ax==S.fo?S.rf:S.rr)+.12;for(let s=ax-r;s<=ax+r+1e-6;s+=opt.lo?(opt.mid?.05:.13):.022)set.push(s)}
   set.sort((a,b)=>a-b);const ss=[];for(const s of set){if(s<=0||s>=L)continue;if(!ss.length||s-ss[ss.length-1]>.018)ss.push(s)}
   const ni=ss.length,rings=[],scA=[],capF=(S.capF||.34)*.88,capR=(S.capR||.5)*.62;
   for(const s of ss){const r=cgTubRing(S,s,K);let sc=1;const d0=s,d1=L-s;let dr=S.noseDrop;if(d0<capF)sc=Math.pow(1-Math.pow((capF-d0)/capF,S.noseP),1/S.noseP);else if(d1<capR){sc=Math.pow(1-Math.pow((capR-d1)/capR,S.tailP),1/S.tailP);dr=S.tailDrop}
@@ -6043,9 +6050,24 @@ const CC_REAL={coupe:{hp:260,kg:1300,drive:'FR',top:240,t100:5.8,lat:.92,brk:37}
   rally:{hp:380,kg:1350,drive:'AWD',top:250,t100:3.6,lat:1.0,brk:35},sedan:{hp:300,kg:1600,drive:'RWD',top:250,t100:5.5,lat:.9,brk:38},muscle:{hp:480,kg:1700,drive:'FR',top:280,t100:4.3,lat:.95,brk:37},
   hatch:{hp:230,kg:1250,drive:'AWD',top:240,t100:5.6,lat:.95,brk:36},suv:{hp:400,kg:2200,drive:'AWD',top:240,t100:5.3,lat:.85,brk:39}};
 const CC_CLS={coupe:'Compact coupe',hyper:'Hypercar',gt:'Grand tourer',super:'Supercar',sport:'Sports coupe',roadster:'Roadster',rally:'Rally hatch',sedan:'Saloon',muscle:'Muscle car',hatch:'Hot hatch',suv:'Off-roader'};
-for(const key of Object.keys(CC_DES)){const d=CC_DES[key];if(d.ty=='bus'||key=='t_cop')continue;const S=ccBuild(key,{lo:1}).S;
-  CAR_ROSTER.push({id:'cc_'+key,name:d.n+' CC',cls:CC_CLS[d.ty]+'  (from Close Call, working name)',cc:key,paint:d.col.slice(),rim:[190,194,200],caliper:[205,28,28],
-    spec:{L:S.L,W:S.W,H:S.H,wb:S.wb,cowl:S.cowl,roofR:S.roofR},real:Object.assign({},CC_REAL[d.ty])})}
+/* (batch 51) the 24 Close Call cars you can drive are rebuilt by the supercar generator: each class maps to the nearest generator body (CARARCH), scaled to that car's own length, width, height, wheelbase and wheels, so they have the generator's shoulders, arches, lamps and details instead of the soft Close Call loft (which the traffic still uses) */
+const CC_ARCH={coupe:'light',hyper:'hyper',gt:'gt',super:'mid',sport:'rr',roadster:'speed',rally:'coupe',sedan:'gt',muscle:'muscle',hatch:'coupe',suv:'coupe'};
+const CC_STY={coupe:'l2',hyper:'c3',gt:'s1',super:'t1',sport:'k2',roadster:'l3',rally:'h2',sedan:'s1',muscle:'u2',hatch:'h2',suv:'h2'};
+const CC_HEAD={r:'round',s:'slit',w:'oval'},CC_TAIL={r:'round',b:'bar',s:'slit',w:'wide'};
+function ccSpec(key){const d=CC_DES[key],S=ccBuild(key,{lo:1}).S,A=CARARCH[CC_ARCH[d.ty]],sL=S.L/A.L,sH=S.H/A.H,sW=S.W/A.W,o=Object.assign({},A);
+  o.L=S.L;o.W=S.W;o.H=S.H;o.wb=S.wb;o.fo=Math.min(S.fo,S.L*.24);
+  for(const k of['cowl','roofF','roofR','rearS','hwMaxS'])o[k]=A[k]*sL;for(const k of['nose','hood','deck','tail'])o[k]=A[k]*Math.min(sH,1.35);for(const k of['hw0','hwMax','hwTail','tf','tr'])o[k]=A[k]*sW;
+  o.rf=S.rf;o.rr=S.rr;o.wf=S.wf;o.wr=S.wr;o.rimF=S.rf*A.rimF/A.rf;o.rimR=S.rr*A.rimR/A.rr;
+  o.head=CC_HEAD[d.hd]||A.head;o.tail_=CC_TAIL[d.tl]||A.tail_;
+  if(d.ty=='sedan'){Object.assign(o,{cowl:S.L*.31,roofF:S.L*.44,roofR:S.L*.69,rearS:S.L*.8,wing:'none',intake:'mid',duct:0,exh:1,exhS:'center',diff:0,splitter:0,rearGlass:1,sideIntake:0,louvres:0,crown:.05})}
+  else if(d.ty=='hatch'){Object.assign(o,{cowl:S.L*.3,roofF:S.L*.43,roofR:S.L*.86,rearS:S.L*.9,wing:'lip',intake:'mid',exh:2,diff:0,splitter:0,rearGlass:1,sideIntake:0,louvres:0,tail:o.tail*1.2})}
+  else if(d.ty=='suv'){Object.assign(o,{cowl:S.L*.27,roofF:S.L*.4,roofR:S.L*.8,rearS:S.L*.88,wing:'none',intake:'mid',exh:2,diff:0,splitter:0,rearGlass:1,sideIntake:0,louvres:0,sill:.22,cladding:.3,tail:o.tail*1.15})}
+  else if(d.ty=='rally'){Object.assign(o,{wing:'big',sill:.17,cladding:.2,splitter:0,diff:0,sideIntake:0})}
+  else if(d.ty=='coupe'){Object.assign(o,{wing:'none',exh:1,exhS:'center',sideIntake:0,louvres:0})}
+  return o}
+for(const key of Object.keys(CC_DES)){const d=CC_DES[key];if(d.ty=='bus'||key=='t_cop')continue;const sp=ccSpec(key),y=CAR_STYLE[CC_STY[d.ty]];
+  if(y)Object.assign(sp,{noseP:y.n[0],capF:y.n[1],noseDrop:y.n[2],tailP:y.r[0],capR:y.r[1],tailDrop:y.r[2],sq:y.q,hard:y.k,crease:y.c,spine:y.sp||0});sp._name=d.n;
+  CAR_ROSTER.push({id:'cc_'+key,name:d.n,cls:CC_CLS[d.ty],cc2:key,paint:d.col.slice(),rim:[190,194,200],caliper:[205,28,28],fin:y?y.f|0:0,spec:sp,real:Object.assign({},CC_REAL[d.ty])})}
 /* the civilian traffic bodies ported from Close Call (TTYPES 10 and up): sizes from their bodies */
 for(const k of['coupe','n_cruiser','n_magnet','n_courier','n_bruiser','n_banker','rally','h_warden','gt','h_outlaw']){const S=ccBuild(k,{lo:1}).S,ty=CC_DES[k].ty;
   TTYPES.push({n:'cc_'+k,cc:k,hl:S.L/2-.05,hw:S.W/2-.04,m:ty=='suv'?2100:ty=='hatch'?1150:1450,far:ty=='suv'?2:ty=='hatch'||ty=='rally'?1:0,v0:ty=='muscle'||ty=='gt'?1.05:1,civ:1})}
