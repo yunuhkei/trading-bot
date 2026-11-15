@@ -22,8 +22,9 @@ function dashLayout(add,w,h,u,m){
   const nh=u*1.0;add('nitro','NOS',gx,gy-u*.24-nh,gw,nh,v=>{if(v)nitroTap()},'#ff3b2b',{guard:1});
   /* (batch 53) steering arrows, an option: two big keys either side of the middle at the bottom */
   {const aw=u*1.15,ah=u*1.05,ay=h-m-ah,ax=w/2-aw-u*.14;add('arL','',ax,ay,aw,ah,v=>{},'#e9e6dc',{arrow:-1});add('arR','',w/2+u*.14,ay,aw,ah,v=>{},'#e9e6dc',{arrow:1})}
-  const R=u*1.2;UI.sp={cx:m+R+u*.06,cy:h-m-R,R};
-  const ggw=u*1.18,ggh=u*.74;UI.gg={x:UI.sp.cx+R+u*.26,y1:h-m-ggh*2-u*.14,y2:h-m-ggh,w:ggw,h:ggh}}
+  /* (batch 53) the speedometer is only numbers now, above the arrow keys at the bottom centre (the dial is gone); the health and nitro gauges move into its corner */
+  const R=u*1.2,rw=u*2.3,rh=u*.86;UI.sp={cx:w/2,cy:h-m-u*1.05-rh/2-u*.12,R,w:rw,h:rh};
+  const ggw=u*1.18,ggh=u*.74;UI.gg={x:m,y1:h-m-ggh*2-u*.14,y2:h-m-ggh,w:ggw,h:ggh}}
 /* ---------- small drawing helpers ---------- */
 function dKey(c,x,y,w,h,r,down,top,bot){c.save();const d=down?h*.04:0;c.fillStyle='rgba(0,0,0,.55)';rr(c,x,y+h*.06,w,h,r);c.fill();
   const g=c.createLinearGradient(0,y+d,0,y+d+h);g.addColorStop(0,top||'#3a3c41');g.addColorStop(1,bot||'#202226');c.fillStyle=g;rr(c,x,y+d,w,h,r);c.fill();
@@ -31,23 +32,11 @@ function dKey(c,x,y,w,h,r,down,top,bot){c.save();const d=down?h*.04:0;c.fillStyl
 function dLcdBox(c,x,y,w,h,r){c.save();c.fillStyle='#0b0b0a';rr(c,x,y,w,h,r);c.fill();c.strokeStyle='rgba(255,173,31,.18)';c.lineWidth=1;rr(c,x+.5,y+.5,w-1,h-1,r);c.stroke();c.restore()}
 function dLcdText(c,t,x,y,px,al){c.save();c.font=dLcd(px);c.textAlign=al||'left';c.fillStyle=DASH.amber;c.shadowColor='rgba(255,173,31,.6)';c.shadowBlur=px*.5;c.fillText(t,x,y);c.restore()}
 /* ---------- the speedometer ---------- */
-function dashSpeedo(c,u,dt){const S=UI.sp,R=S.R,cx=S.cx,cy=S.cy,mph=C.speed*spdK();
-  /* the scale fits the car: up to its top speed and a bit */
-  const top=(CAR_ROSTER[CARSEL.cur]&&upgReal(CAR_ROSTER[CARSEL.cur]).top||300)/(UNITS.imp?1.609:1);DASH.maxMph=Math.max(UNITS.imp?160:260,Math.ceil((top+15)/20)*20);const MX=DASH.maxMph,maj=MX>(UNITS.imp?180:300)?(UNITS.imp?40:50):(UNITS.imp?20:25);
-  /* the needle: a spring, so it overshoots a little and settles */
-  const tgt=-2.094+Math.min(MX*1.04,mph)/MX*4.189;DASH.ndlV+=((tgt-DASH.ndl)*90-DASH.ndlV*13)*dt;DASH.ndl+=DASH.ndlV*dt;
-  c.save();
-  c.fillStyle='rgba(0,0,0,.45)';c.beginPath();c.arc(cx,cy+R*.06,R*1.06,0,TAU);c.fill();
-  const bz=c.createLinearGradient(cx-R,cy-R,cx+R,cy+R);bz.addColorStop(0,'#9da1a7');bz.addColorStop(.5,'#4a4d52');bz.addColorStop(1,'#8d9196');c.fillStyle=bz;c.beginPath();c.arc(cx,cy,R*1.04,0,TAU);c.fill();
-  const fc=c.createRadialGradient(cx,cy-R*.25,R*.1,cx,cy,R);fc.addColorStop(0,'#26272a');fc.addColorStop(1,'#101112');c.fillStyle=fc;c.beginPath();c.arc(cx,cy,R*.97,0,TAU);c.fill();
-  if(C.boosting){c.strokeStyle='rgba(255,173,31,.55)';c.lineWidth=R*.05;c.shadowColor=DASH.amber;c.shadowBlur=R*.3;c.beginPath();c.arc(cx,cy,R*.9,2.62,.52+TAU);c.stroke();c.shadowBlur=0}
-  for(let v=0;v<=MX;v+=UNITS.imp?5:maj/5){const a=-2.094+v/MX*4.189,mj=v%maj==0,mid=v%(UNITS.imp?10:maj/2)==0,r1=R*(mj?.74:mid?.79:.83),r2=R*.88;c.strokeStyle=v>=MX-maj*.75?DASH.red:DASH.ink;c.lineWidth=mj?R*.03:R*.013;
-    c.beginPath();c.moveTo(cx+Math.sin(a)*r1,cy-Math.cos(a)*r1);c.lineTo(cx+Math.sin(a)*r2,cy-Math.cos(a)*r2);c.stroke();
-    if(mj){c.fillStyle=DASH.ink;c.font=dFont(R*.125,600);c.textAlign='center';c.fillText(String(v),cx+Math.sin(a)*R*.6,cy-Math.cos(a)*R*.6+R*.045)}}
-  c.fillStyle='#9b9ea4';c.font=dFont(R*.095,600);c.textAlign='center';c.fillText(spdU().toUpperCase(),cx,cy+R*.36);
-  const lw=R*.56,lh=R*.2;dLcdBox(c,cx-lw/2,cy+R*.45,lw,lh,R*.03);dLcdText(c,String(Math.round(mph)),cx,cy+R*.45+lh*.78,lh*.8,'center');
-  c.save();c.translate(cx,cy);c.rotate(DASH.ndl);c.fillStyle=DASH.red;c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=R*.05;c.beginPath();c.moveTo(-R*.025,R*.08);c.lineTo(0,-R*.8);c.lineTo(R*.025,R*.08);c.closePath();c.fill();c.restore();
-  const hb=c.createRadialGradient(cx-R*.03,cy-R*.03,0,cx,cy,R*.1);hb.addColorStop(0,'#6a6d73');hb.addColorStop(1,'#2a2c30');c.fillStyle=hb;c.beginPath();c.arc(cx,cy,R*.09,0,TAU);c.fill();
+function dashSpeedo(c,u,dt){const S=UI.sp,mph=C.speed*spdK(),bw=S.w,bh=S.h,x=S.cx-bw/2,y=S.cy-bh/2;
+  c.save();dLcdBox(c,x,y,bw,bh,u*.14);
+  c.fillStyle=C.boosting?DASH.amber:DASH.ink;
+  const txt=String(Math.round(mph));c.save();c.font=dLcd(bh*.82);c.textAlign='center';c.fillStyle=C.boosting?'#ffd24a':DASH.amber;c.shadowColor='rgba(255,173,31,.65)';c.shadowBlur=bh*.3;c.fillText(txt,S.cx-bw*.1,y+bh*.8);c.restore();
+  c.fillStyle='#9b9ea4';c.font=dFont(bh*.26,700);c.textAlign='left';c.fillText(spdU().toUpperCase(),S.cx+bw*.2,y+bh*.76);
   c.restore()}
 /* a small gauge: E to F over 120 degrees */
 function dashGauge(c,x,y,w,h,val,label,col,warn){c.save();c.fillStyle='rgba(0,0,0,.45)';rr(c,x,y+h*.05,w,h,h*.18);c.fill();
