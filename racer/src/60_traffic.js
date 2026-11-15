@@ -422,6 +422,7 @@ function trTick(dt){
   for(let i=0;i<TRN;i++){const c=cars[i];if(!c.alive)continue;
     if(c.state==0){if(c.think){trThink(c,dt*2);if((c.flags&2)==0&&c.e)trLaneChange(c,dt*2)}else c.v=Math.max(0,c.v+c.acc*dt);trMove(c,dt);c.vlim=c.hv[0]}
     else if(c.state==3){if(c.kind==2)racerStep(c,dt);else copFree(c,dt)}
+    else if(c.kind==2&&c.race&&c.state==1&&racerRecover(c,dt)){}
     else trWreck(c,dt)}
   trCarCollide();
   /* spawn and despawn */
