@@ -99,7 +99,7 @@ function navHud(c,W_,H_,u){
     fxText(c,txt,cx+u*.95,cy+ch*.52,u*.42,'#ffffff','left');c.fillStyle='#7fe3ff';c.font='800 '+Math.round(u*.2)+'px '+UIF;c.textAlign='left';c.fillText(what+'   ·   '+km+' TO GO',cx+u*.95,cy+ch*.86)}
   /* the waypoint itself, pinned on the screen where it is */
   {const V=R.VP,wy=w.y+9,cwp=V[3]*w.x+V[7]*wy+V[11]*w.z+V[15];if(cwp>1){const nx=(V[0]*w.x+V[4]*wy+V[8]*w.z+V[12])/cwp,ny=(V[1]*w.x+V[5]*wy+V[9]*w.z+V[13])/cwp;
-    if(Math.abs(nx)<.92&&Math.abs(ny)<.9){const px=(nx*.5+.5)*W_,py=(1-(ny*.5+.5))*H_,d=Math.hypot(dx,dz),sc=Math.max(.7,Math.min(1.25,60/Math.max(30,d)*1.4));c.save();c.translate(px,py);c.scale(sc,sc);c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=6;
+    if(Math.abs(nx)<.92&&Math.abs(ny)<.9&&!EV.run&&!(KC.t>0)){const px=(nx*.5+.5)*W_,py=(1-(ny*.5+.5))*H_,d=Math.hypot(dx,dz),sc=Math.max(.7,Math.min(1.25,60/Math.max(30,d)*1.4));c.save();c.translate(px,py);c.scale(sc,sc);c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=6;
       c.fillStyle='#38d3ff';c.strokeStyle='#fff';c.lineWidth=2.4;c.beginPath();c.moveTo(0,u*.34);c.lineTo(-u*.22,-u*.04);c.arc(0,-u*.12,u*.22,Math.PI,0,false);c.lineTo(0,u*.34);c.closePath();c.fill();c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(0,-u*.12,u*.08,0,TAU);c.fill();c.shadowBlur=0;
       fxText(c,fmtLen(d),0,-u*.5,u*.26,'#ffffff','center','rgba(56,211,255,.6)');c.restore()}}}
   /* an arrow along the top edge when it is not in front of you */

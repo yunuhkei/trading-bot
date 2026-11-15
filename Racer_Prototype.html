@@ -3298,23 +3298,23 @@ function hudDraw(){
   if(CC.on){crashHud(c,W_,H_,u);return}   /* (batch 17: the crash cinematic shows only its bars) */
   c.textBaseline='alphabetic';c.font='700 12px '+UIF;
   /* drift points and air time: small, they stay a while after the move is over, then float up and fade out */
-  if(GFX.note){const k=performance.now()-GFX.note.t;if(k<3600){c.save();c.globalAlpha=k<3000?1:1-(k-3000)/600;c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px '+UIF;c.fillStyle='#ffffff';c.shadowColor='rgba(0,0,0,.85)';c.shadowBlur=4;c.fillText(GFX.note.txt,W_*.5,H_*.08);c.restore()}}
+  if(GFX.note){const k=performance.now()-GFX.note.t;if(k<3600){c.save();c.globalAlpha=k<3000?1:1-(k-3000)/600;c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px '+UIF;c.fillStyle='#ffffff';c.shadowColor='rgba(0,0,0,.85)';c.shadowBlur=4;c.fillText(GFX.note.txt,W_*.5,H_*.965);c.restore()}}
   {const font='800 '+Math.round(u*.3)+'px '+UIF;
    const toast=(txt,col,y,age,hold)=>{   /* age: seconds since it appeared (or since it ended, for the hold) */
      let al=1,rise=0,sc=1;if(age<0){const k=Math.min(1,-age/.16);al=k;sc=.8+.2*k;rise=(1-k)*7}
      else if(age>hold){const k=(age-hold)/.6;if(k>=1)return;const e=1-(1-k)*(1-k);al=1-k;rise=e*22;sc=1-.15*k}
      c.save();c.globalAlpha=al;c.translate(W_*.5,y-rise);c.scale(sc,sc);fxText(c,txt,0,0,(parseInt(font.match(/(\d+)px/)[1])||20),col,'center',col);c.restore()};
    /* drift: counting up while sliding, then held and floated away */
-   if(C.dActive&&C.dTime>.3)toast('DRIFT  '+Math.round(C.dCombo)+(C.tapN>0&&C.tapT>0?'   x'+(C.tapN+1):''),'#7fd4ff',H_*.31,-Math.min(.16,C.t-C.dStart-.3)-.0001,1);
-   else if(C.dLast){const age=C.t-C.dLast.t;if(age<2.4)toast('DRIFT  '+C.dLast.pts,'#7fd4ff',H_*.31,age,1.8)}
+   if(C.dActive&&C.dTime>.3)toast('DRIFT  '+Math.round(C.dCombo)+(C.tapN>0&&C.tapT>0?'   x'+(C.tapN+1):''),'#7fd4ff',H_*.385,-Math.min(.16,C.t-C.dStart-.3)-.0001,1);
+   else if(C.dLast){const age=C.t-C.dLast.t;if(age<2.4)toast('DRIFT  '+C.dLast.pts,'#7fd4ff',H_*.385,age,1.8)}
    /* air: counting while flying, then the jump, held and floated away */
-   if(!C.grounded&&C.air>.3)toast('AIR  '+C.air.toFixed(1)+' s','#ffd24a',H_*.31+u*.5,-Math.min(.16,C.air-.3)-.0001,1);
-   else if(C.jump){const age=C.t-C.jump.t;if(age<2.8)toast('JUMP  '+fmtShort(C.jump.d)+'  ·  '+C.jump.air.toFixed(1)+' s','#ffd24a',H_*.31+u*.5,age,2.2)}}
+   if(!C.grounded&&C.air>.3)toast('AIR  '+C.air.toFixed(1)+' s','#ffd24a',H_*.445,-Math.min(.16,C.air-.3)-.0001,1);
+   else if(C.jump){const age=C.t-C.jump.t;if(age<2.8)toast('JUMP  '+fmtShort(C.jump.d)+'  ·  '+C.jump.air.toFixed(1)+' s','#ffd24a',H_*.445,age,2.2)}}
   /* minimap */
   const mm=UI.mm;drawMap(c,mm.cx,mm.cy,mm.r,420,-C.yaw);c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px '+UIF;c.fillStyle='rgba(255,255,255,.85)';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText('MAP',mm.cx,mm.cy+mm.r+u*.3);c.restore();
   /* location banner */
   if(C.t-UI.locT>1.5){const n=regionName();if(n!==UI.locName){UI.locName=n;UI.locT=C.t}}
-  if(UI.locName&&C.t-UI.locT<3.5&&!UI.paused&&!EV.run){const a=Math.min(1,(3.5-(C.t-UI.locT)),(C.t-UI.locT)*3);c.save();c.globalAlpha=a;fxText(c,UI.locName.toUpperCase(),W_*.5,NAV.wp?H_*.3:H_*.2,u*.6,'#ffd24a','center','rgba(255,170,40,.6)');c.restore()}
+  if(UI.locName&&C.t-UI.locT<3.5&&!UI.paused&&!EV.run&&!(KC.t>0)&&!(SAFE.msgT>0)&&!CC.on){   /* (batch 53) every message has its own height on the screen: place name .24, roadblock .285, spikes .335, drift .385, air .445, the amber toast .52 */const a=Math.min(1,(3.5-(C.t-UI.locT)),(C.t-UI.locT)*3);c.save();c.globalAlpha=a;fxText(c,UI.locName.toUpperCase(),W_*.5,H_*.24,u*.6,'#ffd24a','center','rgba(255,170,40,.6)');c.restore()}
   /* the instruments and the controls (52_dash.js) */
   dashDraw(c,W_,H_,u);
   /* the thumb-stick ring where the left thumb is */
@@ -3513,7 +3513,7 @@ function dashDraw(c,W_,H_,u){const dt=dashDt();
   if(IN.lane){const G2=UI.gg,lw=u*.78,lh=u*.32,lx=G2.x+G2.w-lw,ly=G2.y1-lh-u*.12;dLcdBox(c,lx,ly,lw,lh,u*.05);c.save();c.globalAlpha=C.laneOn?1:.35;dLcdText(c,'LANE',lx+lw/2,ly+lh*.74,lh*.62,'center');c.restore()}   /* (batch 22: bright while lane assist is steering) */
   for(const b of UI.btn){if(b.arrow){if(IN.arrows)dashArrow(c,b,u)}else if(b.pedal)dashPedal(c,b,u);else if(b.circle&&b.id=='drift')dashRound(c,b,u);else if(b.guard)dashGuard(c,b,u,dt);else if(b.haz)dashHazard(c,b,u)}}
 /* the toast (from safeHud): an amber trip-computer line */
-function dashToast(c,W_,H_,u,msg,al){c.save();c.globalAlpha=al;c.font=dLcd(u*.36);const tw=c.measureText(msg).width,bw=tw+u*.7,bh=u*.62,bx=W_/2-bw/2,by=H_*.4-bh*.7;
+function dashToast(c,W_,H_,u,msg,al){c.save();c.globalAlpha=al;c.font=dLcd(u*.36);const tw=c.measureText(msg).width,bw=tw+u*.7,bh=u*.62,bx=W_/2-bw/2,by=H_*.52-bh*.7;
   c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=10;dLcdBox(c,bx,by,bw,bh,u*.08);c.shadowBlur=0;dLcdText(c,msg,W_/2,by+bh*.7,u*.36,'center');c.restore()}
 
 /* ================= the pause console ================= */
@@ -4756,8 +4756,8 @@ function copHud(c,W_,H_,u){
       c.fillStyle=fl?'#ff4a3a':'#4a7aff';c.beginPath();const s=u*.2,beh=Math.abs(rel)>1.9;if(beh){c.moveTo(x-s,y-s*.7);c.lineTo(x+s,y-s*.7);c.lineTo(x,y+s*.8)}else if(rel>0){c.moveTo(x-s*.7,y-s);c.lineTo(x-s*.7,y+s);c.lineTo(x+s*.9,y)}else{c.moveTo(x+s*.7,y-s);c.lineTo(x+s*.7,y+s);c.lineTo(x-s*.9,y)}c.closePath();c.fill();
       c.fillStyle='#fff';c.fillText(fmtShort(d),x,y+u*.5)}c.restore()}
   if(COP.bust>.05){const k=Math.min(1,COP.bust/COP.D.bustT),w=u*3,h=u*.2,y=H_*.74;c.save();c.fillStyle='rgba(0,0,0,.55)';c.fillRect(W_*.5-w/2,y,w,h);c.fillStyle=((C.t*8)|0)%2?'#ff4a3a':'#4a7aff';c.fillRect(W_*.5-w/2,y,w*k,h);c.textAlign='center';c.font='800 '+Math.round(u*.26)+'px '+UIF;c.fillStyle='#fff';c.fillText('BUSTED?  keep moving!',W_*.5,y-u*.12);c.restore()}
-  if(COP.spikeWarn>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px '+UIF;c.fillStyle='#ff8a3a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('SPIKE STRIP AHEAD',W_*.5,H_*.36);c.restore()}
-  if(COP.warnT>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px '+UIF;c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('ROADBLOCK AHEAD',W_*.5,H_*.3);c.restore()}}
+  if(COP.spikeWarn>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px '+UIF;c.fillStyle='#ff8a3a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('SPIKE STRIP AHEAD',W_*.5,H_*.335);c.restore()}
+  if(COP.warnT>0){c.save();c.textAlign='center';c.font='800 '+Math.round(u*.3)+'px '+UIF;c.fillStyle='#ffd24a';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('ROADBLOCK AHEAD',W_*.5,H_*.285);c.restore()}}
 
 'use strict';
 /* ===== navigation: route finding on the lane graph, a waypoint you set on the touchable map, the path drawn on the road, and the same routes for the cops ===== */
@@ -4860,7 +4860,7 @@ function navHud(c,W_,H_,u){
     fxText(c,txt,cx+u*.95,cy+ch*.52,u*.42,'#ffffff','left');c.fillStyle='#7fe3ff';c.font='800 '+Math.round(u*.2)+'px '+UIF;c.textAlign='left';c.fillText(what+'   ·   '+km+' TO GO',cx+u*.95,cy+ch*.86)}
   /* the waypoint itself, pinned on the screen where it is */
   {const V=R.VP,wy=w.y+9,cwp=V[3]*w.x+V[7]*wy+V[11]*w.z+V[15];if(cwp>1){const nx=(V[0]*w.x+V[4]*wy+V[8]*w.z+V[12])/cwp,ny=(V[1]*w.x+V[5]*wy+V[9]*w.z+V[13])/cwp;
-    if(Math.abs(nx)<.92&&Math.abs(ny)<.9){const px=(nx*.5+.5)*W_,py=(1-(ny*.5+.5))*H_,d=Math.hypot(dx,dz),sc=Math.max(.7,Math.min(1.25,60/Math.max(30,d)*1.4));c.save();c.translate(px,py);c.scale(sc,sc);c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=6;
+    if(Math.abs(nx)<.92&&Math.abs(ny)<.9&&!EV.run&&!(KC.t>0)){const px=(nx*.5+.5)*W_,py=(1-(ny*.5+.5))*H_,d=Math.hypot(dx,dz),sc=Math.max(.7,Math.min(1.25,60/Math.max(30,d)*1.4));c.save();c.translate(px,py);c.scale(sc,sc);c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=6;
       c.fillStyle='#38d3ff';c.strokeStyle='#fff';c.lineWidth=2.4;c.beginPath();c.moveTo(0,u*.34);c.lineTo(-u*.22,-u*.04);c.arc(0,-u*.12,u*.22,Math.PI,0,false);c.lineTo(0,u*.34);c.closePath();c.fill();c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(0,-u*.12,u*.08,0,TAU);c.fill();c.shadowBlur=0;
       fxText(c,fmtLen(d),0,-u*.5,u*.26,'#ffffff','center','rgba(56,211,255,.6)');c.restore()}}}
   /* an arrow along the top edge when it is not in front of you */
@@ -5191,7 +5191,7 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
   else if(ev.type=='rage'){/* (batch 53) waves of three: over when the clock runs out, you reach the end of the route, or you have the gold number of takedowns; when none of the wave is left ahead of you (wrecked or passed) the next three appear 190 m further on */
     if(r.t>=ev.secs+r.bonus||r.ps>=ev.R.len-45||r.wrecks>=ev.goals[2]){evFinish(true);return}
     if(!r.racers.some(c=>c.alive&&c.race&&c.state==3&&c.race.done<0&&c.race.s>r.ps-40)){r.waveT=(r.waveT||0)+dt;if(r.waveT>.8){r.waveT=0;for(const c of r.racers)if(c.alive&&c.race&&c.state==3){c.race=null;trKill(c,0)}
-      r.wave=(r.wave||0)+1;const nw=racerPack(ev.R,3,r.ps+190,r.wave);for(const c of nw){c.race.go=true;c.v=Math.max(20,C.speed*.8)}r.racers=r.racers.filter(c=>c.alive).concat(nw);if(!nw.length){evFinish(true);return}safeToast('NEXT 3 AHEAD',1.4,1)}}}
+      r.wave=(r.wave||0)+1;const nw=racerPack(ev.R,3,r.ps+190,r.wave);for(const c of nw){c.race.go=true;c.v=Math.max(20,C.speed*.8)}r.racers=r.racers.filter(c=>c.alive).concat(nw);if(!nw.length){evFinish(true);return}}}}
   else{if(COP.heat==0&&r.t>1){evFinish(true);return}if(r.t>=ev.secs)evFinishFail('OUT OF TIME')}}
 /* a car you wrecked (from trPlayerCollide): in road rage it counts and adds 4 s */
 function evTakedown(c){const r=EV.run;if(!r||r.t<0||c.kind!==2)return;if(r.ev.type=='death'){r.wrecks++;r.pop=1.2;evBeep(900,.15);safeToast('RACER WRECKED  +500',1.5,1);return}if(r.ev.type!='rage')return;r.wrecks++;r.bonus+=5;r.pop=1.2;evBeep(700+r.wrecks*20,.1)}   /* (batch 27) only racers count: a takedown adds 5 s */
@@ -5403,7 +5403,7 @@ function killCamStart(c){if(CC.on||KC.t>0||TUM.on)return;const sp=Math.hypot(C.v
   const x=c.x+dx*10+(-dz)*sd*5,z=c.z+dz*10+dx*sd*5;KC.cam[0]=x;KC.cam[2]=z;KC.cam[1]=Math.max(groundAt(x,z,c.y+3)+1.4,c.y+1.8)}
 function killCamFrame(sec){if(KC.t>0){KC.t-=sec;if(!KC.c||!KC.c.alive||CC.on)KC.t=0}}
 function killCam(){const c=KC.c,a=R.alpha;CAM.x=KC.cam[0];CAM.y=KC.cam[1];CAM.z=KC.cam[2];CAM.tx=lerp(c.px,c.x,a);CAM.ty=lerp(c.py,c.y,a)+.7;CAM.tz=lerp(c.pz,c.z,a);CAM.fov=.8}
-function killCamHud(c,W_,H_,u){if(!(KC.t>0))return;const k=Math.min(1,(1.4-KC.t)*5)*Math.min(1,KC.t*3);c.save();c.globalAlpha=k;c.fillStyle='#000';c.fillRect(0,0,W_,H_*.09);c.fillRect(0,H_*.91,W_,H_*.09);fxText(c,'TAKEDOWN!',W_*.5,H_*.24,u*.95,'#ffb000','center','rgba(255,120,20,.8)');c.restore()}
+function killCamHud(c,W_,H_,u){if(!(KC.t>0))return;const k=Math.min(1,(1.4-KC.t)*5)*Math.min(1,KC.t*3);c.save();c.globalAlpha=k;c.fillStyle='#000';c.fillRect(0,0,W_,H_*.09);c.fillRect(0,H_*.91,W_,H_*.09);fxText(c,'TAKEDOWN!',W_*.5,H_*.66,u*.95,'#ffb000','center','rgba(255,120,20,.8)');c.restore()}
 
 'use strict';
 /* ===== batch 11: things on the map you can just drive through: SPEED TRAPS, JUMP SPOTS, DRIFT ZONES =====

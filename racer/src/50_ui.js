@@ -107,23 +107,23 @@ function hudDraw(){
   if(CC.on){crashHud(c,W_,H_,u);return}   /* (batch 17: the crash cinematic shows only its bars) */
   c.textBaseline='alphabetic';c.font='700 12px '+UIF;
   /* drift points and air time: small, they stay a while after the move is over, then float up and fade out */
-  if(GFX.note){const k=performance.now()-GFX.note.t;if(k<3600){c.save();c.globalAlpha=k<3000?1:1-(k-3000)/600;c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px '+UIF;c.fillStyle='#ffffff';c.shadowColor='rgba(0,0,0,.85)';c.shadowBlur=4;c.fillText(GFX.note.txt,W_*.5,H_*.08);c.restore()}}
+  if(GFX.note){const k=performance.now()-GFX.note.t;if(k<3600){c.save();c.globalAlpha=k<3000?1:1-(k-3000)/600;c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px '+UIF;c.fillStyle='#ffffff';c.shadowColor='rgba(0,0,0,.85)';c.shadowBlur=4;c.fillText(GFX.note.txt,W_*.5,H_*.965);c.restore()}}
   {const font='800 '+Math.round(u*.3)+'px '+UIF;
    const toast=(txt,col,y,age,hold)=>{   /* age: seconds since it appeared (or since it ended, for the hold) */
      let al=1,rise=0,sc=1;if(age<0){const k=Math.min(1,-age/.16);al=k;sc=.8+.2*k;rise=(1-k)*7}
      else if(age>hold){const k=(age-hold)/.6;if(k>=1)return;const e=1-(1-k)*(1-k);al=1-k;rise=e*22;sc=1-.15*k}
      c.save();c.globalAlpha=al;c.translate(W_*.5,y-rise);c.scale(sc,sc);fxText(c,txt,0,0,(parseInt(font.match(/(\d+)px/)[1])||20),col,'center',col);c.restore()};
    /* drift: counting up while sliding, then held and floated away */
-   if(C.dActive&&C.dTime>.3)toast('DRIFT  '+Math.round(C.dCombo)+(C.tapN>0&&C.tapT>0?'   x'+(C.tapN+1):''),'#7fd4ff',H_*.31,-Math.min(.16,C.t-C.dStart-.3)-.0001,1);
-   else if(C.dLast){const age=C.t-C.dLast.t;if(age<2.4)toast('DRIFT  '+C.dLast.pts,'#7fd4ff',H_*.31,age,1.8)}
+   if(C.dActive&&C.dTime>.3)toast('DRIFT  '+Math.round(C.dCombo)+(C.tapN>0&&C.tapT>0?'   x'+(C.tapN+1):''),'#7fd4ff',H_*.385,-Math.min(.16,C.t-C.dStart-.3)-.0001,1);
+   else if(C.dLast){const age=C.t-C.dLast.t;if(age<2.4)toast('DRIFT  '+C.dLast.pts,'#7fd4ff',H_*.385,age,1.8)}
    /* air: counting while flying, then the jump, held and floated away */
-   if(!C.grounded&&C.air>.3)toast('AIR  '+C.air.toFixed(1)+' s','#ffd24a',H_*.31+u*.5,-Math.min(.16,C.air-.3)-.0001,1);
-   else if(C.jump){const age=C.t-C.jump.t;if(age<2.8)toast('JUMP  '+fmtShort(C.jump.d)+'  ·  '+C.jump.air.toFixed(1)+' s','#ffd24a',H_*.31+u*.5,age,2.2)}}
+   if(!C.grounded&&C.air>.3)toast('AIR  '+C.air.toFixed(1)+' s','#ffd24a',H_*.445,-Math.min(.16,C.air-.3)-.0001,1);
+   else if(C.jump){const age=C.t-C.jump.t;if(age<2.8)toast('JUMP  '+fmtShort(C.jump.d)+'  ·  '+C.jump.air.toFixed(1)+' s','#ffd24a',H_*.445,age,2.2)}}
   /* minimap */
   const mm=UI.mm;drawMap(c,mm.cx,mm.cy,mm.r,420,-C.yaw);c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px '+UIF;c.fillStyle='rgba(255,255,255,.85)';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText('MAP',mm.cx,mm.cy+mm.r+u*.3);c.restore();
   /* location banner */
   if(C.t-UI.locT>1.5){const n=regionName();if(n!==UI.locName){UI.locName=n;UI.locT=C.t}}
-  if(UI.locName&&C.t-UI.locT<3.5&&!UI.paused&&!EV.run){const a=Math.min(1,(3.5-(C.t-UI.locT)),(C.t-UI.locT)*3);c.save();c.globalAlpha=a;fxText(c,UI.locName.toUpperCase(),W_*.5,NAV.wp?H_*.3:H_*.2,u*.6,'#ffd24a','center','rgba(255,170,40,.6)');c.restore()}
+  if(UI.locName&&C.t-UI.locT<3.5&&!UI.paused&&!EV.run&&!(KC.t>0)&&!(SAFE.msgT>0)&&!CC.on){   /* (batch 53) every message has its own height on the screen: place name .24, roadblock .285, spikes .335, drift .385, air .445, the amber toast .52 */const a=Math.min(1,(3.5-(C.t-UI.locT)),(C.t-UI.locT)*3);c.save();c.globalAlpha=a;fxText(c,UI.locName.toUpperCase(),W_*.5,H_*.24,u*.6,'#ffd24a','center','rgba(255,170,40,.6)');c.restore()}
   /* the instruments and the controls (52_dash.js) */
   dashDraw(c,W_,H_,u);
   /* the thumb-stick ring where the left thumb is */

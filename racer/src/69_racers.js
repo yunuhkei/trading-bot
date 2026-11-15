@@ -118,4 +118,4 @@ function killCamStart(c){if(CC.on||KC.t>0||TUM.on)return;const sp=Math.hypot(C.v
   const x=c.x+dx*10+(-dz)*sd*5,z=c.z+dz*10+dx*sd*5;KC.cam[0]=x;KC.cam[2]=z;KC.cam[1]=Math.max(groundAt(x,z,c.y+3)+1.4,c.y+1.8)}
 function killCamFrame(sec){if(KC.t>0){KC.t-=sec;if(!KC.c||!KC.c.alive||CC.on)KC.t=0}}
 function killCam(){const c=KC.c,a=R.alpha;CAM.x=KC.cam[0];CAM.y=KC.cam[1];CAM.z=KC.cam[2];CAM.tx=lerp(c.px,c.x,a);CAM.ty=lerp(c.py,c.y,a)+.7;CAM.tz=lerp(c.pz,c.z,a);CAM.fov=.8}
-function killCamHud(c,W_,H_,u){if(!(KC.t>0))return;const k=Math.min(1,(1.4-KC.t)*5)*Math.min(1,KC.t*3);c.save();c.globalAlpha=k;c.fillStyle='#000';c.fillRect(0,0,W_,H_*.09);c.fillRect(0,H_*.91,W_,H_*.09);fxText(c,'TAKEDOWN!',W_*.5,H_*.24,u*.95,'#ffb000','center','rgba(255,120,20,.8)');c.restore()}
+function killCamHud(c,W_,H_,u){if(!(KC.t>0))return;const k=Math.min(1,(1.4-KC.t)*5)*Math.min(1,KC.t*3);c.save();c.globalAlpha=k;c.fillStyle='#000';c.fillRect(0,0,W_,H_*.09);c.fillRect(0,H_*.91,W_,H_*.09);fxText(c,'TAKEDOWN!',W_*.5,H_*.66,u*.95,'#ffb000','center','rgba(255,120,20,.8)');c.restore()}
