@@ -83,6 +83,7 @@
     return best;
   }
   function enterCar(car) {
+    if (car.ai) G.traffic.carjack(car);
     player.car = car; car.driver = player; car.lastDriver = player;
     if (!car.lightsOn) A.setLights(car, true);
     G.body.setVisible(player, false);
@@ -327,7 +328,7 @@
   };
   function calmCops() {
     for (const c of G.chars) if (c.kind === 'cop') { c.hostile = false; c.leaving = true; }
-    for (const car of G.cars) if (car.cop) car.sirenOn = false;
+    for (const car of G.cars) if (car.cop) { car.sirenOn = false; if (car.ai) car.ai.cop = false; }
   }
   const MAXCOPS = [0, 2, 4, 6, 8, 10];
   let copT = 0;
@@ -342,6 +343,11 @@
       const d = Math.hypot(c.x - player.x, c.z - player.z);
       if (d < 14 || (d < 48 && c.los)) { seen = true; break; }
     }
+    if (!seen) for (const car of G.cars) {
+      if (!car.ai || !car.ai.cop) continue;
+      const d = Math.hypot(car.x - player.x, car.z - player.z);
+      if (d < 18 || (d < 45 && W.hasLOS(car.x, car.z, player.x, player.z))) { seen = true; break; }
+    }
     if (seen) w.lastSeen = G.time;
     const since = G.time - w.lastSeen;
     w.evading = since > 2.5;
@@ -355,18 +361,8 @@
       copT = 3.2;
       let n = 0;
       for (const c of G.chars) if (c.kind === 'cop' && c.alive && c.hostile) n++;
-      if (n < MAXCOPS[stars]) {
-        const rp = W.randomRoadPoint(player.x, player.z, 45, 75, false);
-        if (rp) {
-          const car = A.spawnCar(rp.x, rp.z, rp.h, { cop: true, lights: true });
-          car.sirenOn = true;
-          const fx = Math.sin(rp.h), fz = Math.cos(rp.h), lx = Math.cos(rp.h), lz = -Math.sin(rp.h);
-          for (const s of [1, -1]) {
-            const x = rp.x + lx * s * 1.9, z = rp.z + lz * s * 1.9 + 0 * fz + 0 * fx;
-            A.spawn('cop', x, z, { hostile: true, rot: rp.h });
-          }
-        }
-      }
+      for (const car of G.cars) if (car.ai && car.ai.cop) n += car.ai.crew || 2;
+      if (n < MAXCOPS[stars]) G.traffic.spawnCop();
     }
   }
 
@@ -409,9 +405,9 @@
         const car = G.cars[k];
         const d = Math.hypot(car.x - px, car.z - pz);
         if (!car.driver && !car.persistent && !car.mission && d > (car.wrecked ? 110 : 165)) { A.removeCar(car); continue; }
-        if (!car.cop && !car.wrecked) civ++;
+        if (!car.cop && !car.wrecked && !car.ai) civ++;
       }
-      if (civ < 9) {
+      if (civ < 5) {
         const p = W.randomRoadPoint(px, pz, 55, 115, true);
         if (p && !G.cars.some((c) => Math.hypot(c.x - p.x, c.z - p.z) < 6)) A.spawnCar(p.x, p.z, p.h);
       }
@@ -845,6 +841,7 @@
       deathT += dt;
       if (deathT > 1.6 && $('death').hidden) $('death').hidden = false;
     }
+    G.traffic.update(dt);
     A.updateCars(dt, input);
     A.updateChars(dt);
     G.body.update(dt);

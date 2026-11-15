@@ -136,6 +136,7 @@
 
   // ---------------------------------------------------------------- AI
   A.alarm = function (x, z, radius) {
+    if (G.traffic) G.traffic.alarm(x, z, radius);
     const r2 = radius * radius;
     for (const c of G.chars) {
       if (!c.alive || c.kind !== 'ped') continue;
@@ -378,7 +379,7 @@
         car.parts.bars[1].material = on && !barPhase ? barBlue : barDim;
       }
     }
-    for (const car of G.cars) updateCar(car, dt, car.driver === G.player ? input : null);
+    for (const car of G.cars) updateCar(car, dt, car.driver === G.player ? input : car.ai && !car.wrecked ? car.ai.ctrl : null);
   };
 
   // Car physics: forward speed + sideways slip. Tyres bleed slip off (grip); the handbrake

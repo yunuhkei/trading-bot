@@ -211,6 +211,16 @@
   A.thud = (vol = 1) => { burst(0.5 * vol, 900, 120, 0.25); thump(0.5 * vol, 90, 30, 0.18); };
   A.click = () => burst(0.25, 3000, 1500, 0.05, 'highpass');
   A.boom = () => { burst(1, 2000, 60, 1.8); thump(1, 80, 20, 1.2); };
+  A.honk = (vol) => {
+    if (!A.ctx || A.muted || vol < 0.03) return;
+    const ctx = A.ctx, t = ctx.currentTime;
+    for (const f of [392, 494]) {
+      const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.06 * vol, t + 0.03); g.gain.setValueAtTime(0.06 * vol, t + 0.32); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400;
+      o.connect(lp).connect(g).connect(A.master); o.start(t); o.stop(t + 0.42);
+    }
+  };
   A.thunder = (delay) => {
     setTimeout(() => { burst(0.55, 500, 40, 3.2); thump(0.4, 55, 22, 2.2); }, delay * 1000);
   };
