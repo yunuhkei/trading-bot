@@ -204,9 +204,9 @@ const SH={
   'vec3 F0=mix(vec3(.04),alb,metal);vec3 fr=F0+(1.-F0)*pow(1.-ndv,5.);vec3 col=alb*(1.-metal)*irr*ao;'+
   'col+=cenv(R,max(rg,.35))*fr*ao*mix(.35,1.,metal);'+
   /* clear coat: a second, sharper reflection over the paint */
-  'float cfr=.05+.95*pow(1.-ndv,5.);col+=cenv(R,.05)*cfr*coat*1.3*(1.-dirt*.5);\n#if LOOK==3\ncol+=cenv(R,.05)*cfr*coat*.3*(1.-dirt*.5);\n#endif\n'+
+  'float cfr=.05+.95*pow(1.-ndv,5.);float pk=pnt>.5?.58:1.;col+=cenv(R,.05)*cfr*coat*1.3*pk*(1.-dirt*.5);\n#if LOOK==3\ncol+=cenv(R,.05)*cfr*coat*.3*pk*(1.-dirt*.5);\n#endif\n'+
   /* the horizon in the paint: a bright band where the reflection looks level, dark road below it: this is what gives a flank its depth */
-  'float hzb=exp(-R.y*R.y*26.)*pnt;col+=(uHor*1.25+uSunC*.04)*hzb*(.035+.965*pow(1.-ndv,3.))*coat*(1.-dirt*.6);col*=1.-pnt*coat*.22*smoothstep(.05,-.5,R.y)*(1.-ndv);'+
+  'float hzb=exp(-R.y*R.y*26.)*pnt;col+=(uHor*1.25+uSunC*.04)*hzb*(.035+.965*pow(1.-ndv,3.))*coat*(1.-dirt*.6)*.7;col*=1.-pnt*coat*.22*smoothstep(.05,-.5,R.y)*(1.-ndv);'+
   /* glass: a clear reflection of the sky, strong at a glancing angle */
   'col+=isG*envl(R,.04)*(.09+.91*pow(1.-ndv,3.))*.95;'+
   /* lights: the emissive material is the head and tail lights (red ones glow harder on the brakes) */
