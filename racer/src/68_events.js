@@ -68,9 +68,15 @@ function evStart(ev){EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=
   if(ev.type!='escape'){COP.on=false;if(ev.cps)navSetPt(ev.type=='rage'?ev.cps[ev.cps.length-1]:ev.cps[0])}else{COP.on=true}EV.run.bonus=0;EV.run.wrecks=0;EV.run.pop=0;
   evBeep(440,.12)}
 function navSetPt(p){navSet(p.x,p.z)}
+function evRejoin(r){const R=r.ev.R,p=R.pts,S=Math.max(5,(r.ps||0)-15);let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,yaw=Math.atan2(dx/l,-dz/l);
+  for(const c of TR.cars)if(c.alive&&c.kind==0&&Math.hypot(c.x-p[j*3],c.z-p[j*3+2])<40)trKill(c,0);
+  if(typeof CC!='undefined'){CC.on=0;CC.scale=1;CC.fade=0;CC.fadeIn=1}carPlace(p[j*3],p[j*3+2],yaw,p[j*3+1]+.5);C.camYaw=yaw;const v=14;C.vx=Math.sin(yaw)*v;C.vz=-Math.cos(yaw)*v;camStep(0,true);
+  IN.thr=IN.brk=IN.hand=IN.nitro=0;dmgReset();GAME.state=0;GAME.lock=0;GAME.t=0;C.shield=2.5;C.flash=1;r.fi=j;safeToast('BACK IN THE RACE',1.6,1)}
 function evQuit(){const r=EV.run;if(!r)return;COP.on=r.copsWas;navClear();EV.run=null;racerClear();safeToast('EVENT ABANDONED',2)}
 function evTick(dt){EV.t+=dt;const r=EV.run;
   if(!r){if(EV.pending&&!GAME.state){EV.card=EV.pending;EV.pending=null}evMarkers();return}
+  /* (batch 53) WRECKED in an event (not busted, not an escape): after the wreck screen you are put back on the route where you crashed, repaired, and the event goes on (it used to end it and send you to a garage) */
+  if(GAME.state==1&&r.ev.type!='escape'&&r.ev.R){if(GAME.t>2.2)evRejoin(r);return}
   if(GAME.state){/* busted or wrecked: the event is lost */COP.on=r.copsWas;navClear();EV.run=null;racerClear();EV.pending=evResultCard(r.ev,false,GAME.state==2?'BUSTED':'WRECKED');return}
   const ev=r.ev;
   if(r.t<0){r.t+=dt;C.vx=C.vz=0;C.x=C.px=ev.s.x;C.z=C.pz=ev.s.z;C.yaw=C.pyaw=ev.s.yaw;C.wyaw=0;const k=Math.ceil(-r.t);if(k<r.lastBeep&&k>0){r.lastBeep=k;evBeep(440,.12)}

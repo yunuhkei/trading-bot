@@ -11,9 +11,11 @@ const RACE={sr:null,srT:60,pending:null};
 const RACER_TYPES=[10,12,16,18,19],RACER_COLS=[0,3,6,9,12,15,1,4,7,10];
 /* a racer at distance S along the route, lat metres to the right of it */
 function racerSpawn(Rt,S,lat,k,skill,aggr){let j=0;while(j<Rt.n-2&&Rt.S[j+1]<S)j++;const p=Rt.pts,x=p[j*3],z=p[j*3+2],dx=p[j*3+3]-x,dz=p[j*3+5]-z,l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l;
+  /* (batch 53) a grid slot off the asphalt (a narrow road) is moved in until it is on the road, well clear of the edge: racers used to start half in the barrier and hit it */
+  {const ok=L=>roadAt(x-uz*L,z+ux*L,p[j*3+1]+1)&&Math.abs(RQ.lat)<RQ.hw-1.3;if(!ok(lat)){let f=null;for(const L of[lat*.7,lat*.45,-lat*.45,0,-lat*.7])if(ok(L)){f=L;break}lat=f==null?0:f}}
   const sn=navSnap(x,z,40);if(!sn)return null;const la=navLane(sn,x,z,ux,uz);if(!la)return null;const c=trPlace(la.e,la.u,skill.type!=null?skill.type:RACER_TYPES[k%RACER_TYPES.length],skill.type!=null?skill.col:RACER_COLS[k%RACER_COLS.length],0,7000+k);if(!c)return null;
   c.x=c.px=x-uz*lat;c.z=c.pz=z+ux*lat;c.y=c.py=groundAt(c.x,c.z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=0;c.vx=c.vz=c.om=0;c.state=3;c.kind=2;c.cm=0;c.siren=0;c.L=null;c.stk=0;c.rev=0;c.hn=0;
-  c.race={Rt,fi:j,s:S,go:false,done:-1,skill,aggr:aggr||0,off:lat,offT:lat,launch:4,ramCd:aggr?0:2,name:['Viper','Blaze','Ghost','Nova','Rook','Jinx','Vandal','Comet'][k%8]};return c}
+  c.race={Rt,fi:j,s:S,go:false,done:-1,skill,aggr:aggr||0,off:lat,offT:lat,launch:4,ramCd:3.5,name:['Viper','Blaze','Ghost','Nova','Rook','Jinx','Vandal','Comet'][k%8]};return c}
 const _ra=(Rt,bi,s)=>{let k=bi;while(k<Rt.n-1&&Rt.S[k]<s)k++;return k};
 function racerStep(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;const R=c.race;if(!R){c.state=1;return}const Rt=R.Rt,p=Rt.pts;
@@ -52,7 +54,10 @@ function racerStep(c,dt){
       /* (batch 53) defending: a car right behind you in a race gets its nose across your line (a move every 1.2 s, never more than 4 m off the route) */
       if(EV.run&&EV.run.ev&&EV.run.ev.type=='race'){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;if(R.defT<=0&&fd<-4&&fd>-35&&Math.abs(lt)<6&&v>20){R.defT=1.2;R.offT=Math.max(-4,Math.min(4,R.off+Math.sign(lt||1)*2.2))}}}
     R.off+=(R.offT-R.off)*Math.min(1,dt*2.6);
-    let tx=p[ahead*3],tz=p[ahead*3+2];{const a2=Math.min(Rt.n-1,ahead+1),dx=p[a2*3]-tx,dz=p[a2*3+2]-tz,l=Math.hypot(dx,dz)||1;tx+=-dz/l*R.off;tz+=dx/l*R.off}
+    let tx=p[ahead*3],tz=p[ahead*3+2];{const a2=Math.min(Rt.n-1,ahead+1),dx=p[a2*3]-tx,dz=p[a2*3+2]-tz,l=Math.hypot(dx,dz)||1;
+      /* (batch 53) never aim off the asphalt: an offset that would put the car on the verge or into the barrier is pulled back towards the route */
+      R.rdT=(R.rdT||0)-dt;if(R.rdT<=0){R.rdT=.15;if(R.off!==0&&!(roadAt(tx-dz/l*R.off,tz+dx/l*R.off,c.y+1)&&Math.abs(RQ.lat)<RQ.hw-1.1)){R.offT*=.4;R.off*=.6;R.launch=0}}
+      tx+=-dz/l*R.off;tz+=dx/l*R.off}
     /* a death racer goes for you when you are close */
     if(R.aggr&&EV.run&&!TUM.on){R.ramCd-=dt;const dpx=C.x-c.x,dpz=C.z-c.z,dp=Math.hypot(dpx,dpz);if(EV.run.ev&&EV.run.ev.type=='death'&&(dpx*sy+dpz*cy)<-6&&dp<110)vt=Math.min(vt,Math.max(C.speed*1.04,26));   /* (batch 53) a death racer stays in reach of you instead of running away from you: it is a fight */
       if(dp<34&&R.ramCd<=0&&(dpx*sy+dpz*cy)>-14){tx=C.x+C.vx*.4;tz=C.z+C.vz*.4;vt=Math.max(vt,C.speed+10);if(dp<4.5)R.ramCd=3.5}}
