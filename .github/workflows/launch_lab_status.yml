@@ -30,6 +30,7 @@ jobs:
           restore-keys: lab-data-
       - run: python -m bot launch-lab --status
       - run: python -m bot brain                # the super bot's brain report (reads the research log only)
+      - run: python tools/coin_model_importance.py   # read-only: which clues the coin model leans on
       - name: Replay the super bot's trades at real on-chain prices (reads the chain only)
         if: ${{ inputs.replay == 'yes' }}
         env:
