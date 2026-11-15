@@ -43,7 +43,10 @@ const NAV={wp:null,route:null,prog:0,pend:null,pendMsg:'',t:0,routeT:-9,off:0,le
 function navRouteFromPlayer(goal){
   const sp=C.speed,hx=sp>3?C.vx/sp:Math.sin(C.yaw),hz=sp>3?C.vz/sp:-Math.cos(C.yaw);
   const sn=navSnap(C.x,C.z,70);if(!sn)return null;const la=navLane(sn,C.x,C.z,hx,hz);if(!la)return null;
-  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),chain=navAStar(e,u0,goal);if(!chain)return null;return navPolyline(chain)}
+  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),chain=navAStar(e,u0,goal);let best=chain?navPolyline(chain):null;
+  /* (batch 53) stopped or crawling, the car can just as well set off the other way: take that route when it is clearly shorter (the route used to run on to the next junction and come back) */
+  if(sp<8){const lb=navLane(sn,C.x,C.z,-hx,-hz);if(lb&&lb.e!==e){const e2=lb.e,u2=e2.closed?(lb.u+2)%e2.n:Math.min(e2.n-1,lb.u+2),ch2=navAStar(e2,u2,goal);if(ch2){const r2=navPolyline(ch2);if(!best||r2.len<best.len-60)best=r2}}}
+  return best}
 function navSet(x,z){
   const sn=navSnap(x,z,Math.max(60,NAV.pickR||60));if(!sn)return{ok:false,msg:'No road near there'};
   const goal={ri:sn.ri,i:sn.i,x:sn.x,z:sn.z},rt=navRouteFromPlayer(goal);if(!rt)return{ok:false,msg:'No way to get there from here'};

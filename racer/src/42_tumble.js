@@ -101,7 +101,7 @@ function tumbleFromStatic(nx,nz,vn,round){if(TUM.on||vn<(round?25:28))return fal
 function tumbleTrip(sideSpeed,why){if(TUM.on||Math.abs(sideSpeed)<15)return false;const k=Math.min(1,(Math.abs(sideSpeed)-15)/18);return tumbleStart(0,0,-Math.sign(sideSpeed)*(3.5+6.5*k),2.5+3.5*k,why)}
 /* ---- traffic cars: thrown, rolled and pitched by a big hit (from trBack), landing on wheels, side or roof (from trWreck) ---- */
 function trFlipKick(c,E){if(E<120e3||c.state!==1)return;const k=Math.min(1,(E-120e3)/260e3),lat=HIT.nx*Math.cos(c.yaw)+HIT.nz*Math.sin(c.yaw),lon=HIT.nx*Math.sin(c.yaw)-HIT.nz*Math.cos(c.yaw);
-  c.vy=Math.max(c.vy||0,1.8+5*k);c.rr=(c.rr||0)+Math.sign(lat||1)*Math.abs(lat)*(2+8*k);c.prr=(c.prr||0)+Math.sign(lon||1)*Math.abs(lon)*(1+3.5*k);c.air=1;c.rec=0}
+  c.vy=Math.max(c.vy||0,(1.8+5*k)*(.3+.7*Math.abs(lat)));   /* (batch 53) only a hit in the side throws a car up and over; a hit from behind or head on used to somersault it onto its roof */c.rr=(c.rr||0)+Math.sign(lat||1)*Math.abs(lat)*(2+8*k);c.prr=(c.prr||0)+Math.sign(lon||1)*Math.abs(lon)*(.25+.7*k);c.air=1;c.rec=0}
 /* how high a car's origin rests above the ground at this roll and pitch (on its side the body is half its width up, on its roof its height) */
 function trRestH(c){const h=c.hw*1.55;return c.hw*Math.abs(Math.sin(c.roll))-Math.min(0,h*Math.cos(c.roll)*Math.cos(c.pitch))+c.hl*.35*Math.abs(Math.sin(c.pitch))}
 function trTumble(c,dt){const g=groundAt(c.x,c.z,c.y+.5);

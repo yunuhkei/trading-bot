@@ -50,7 +50,7 @@ function evRefTime(R){const n=R.n,p=R.pts,v=new Float32Array(n);for(let i=0;i<n;
   let t=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];t+=ds/Math.max(2,(v[i]+v[i-1])/2)}return t}
 function evInit(){EV.list.length=0;evLoad();
   for(const d of EV_DEF){const s=evAt(d.from[0],d.from[1]);if(!s)continue;const ev=Object.assign({},d,{s});
-    if(d.type=='trial'||d.type=='race'||d.type=='death'||d.type=='rage'){const t=evAt(d.to[0],d.to[1]);if(!t)continue;const R=evRoute(s,t.x,t.z);if(!R||R.len<500)continue;ev.len=R.len;ev.cps=[];
+    if(d.type=='trial'||d.type=='race'||d.type=='death'||d.type=='rage'){const t=evAt(d.to[0],d.to[1]);if(!t)continue;let R=evRoute(s,t.x,t.z);{/* (batch 53) start facing whichever way along the road gives the shorter route: one event set off the wrong way and made a U-turn after 280 m */const s2=Object.assign({},s,{yaw:s.yaw+Math.PI}),R2=evRoute(s2,t.x,t.z);if(R2&&(!R||R2.len<R.len-30)){R=R2;s.yaw=s2.yaw;ev.s=s}}if(!R||R.len<500)continue;ev.len=R.len;ev.cps=[];
       const n=Math.max(2,Math.round(R.len/300));for(let k=1;k<=n;k++){const S=R.len*k/n;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const a=Math.min(R.n-2,j),x=R.pts[a*3],y=R.pts[a*3+1],z=R.pts[a*3+2],dx=R.pts[a*3+3]-x,dz=R.pts[a*3+5]-z,l=Math.hypot(dx,dz)||1;
         ev.cps.push({x,y,z,nx:-dz/l,nz:dx/l})}
       ev.ref=evRefTime(R);ev.gold=ev.ref*1.06+2;ev.silver=ev.ref*1.2+3;ev.bronze=ev.ref*1.4+4;ev.R=R;if(d.type=='trial')ev.prize=Math.max(1500,Math.round(ev.len/1000*2600/100)*100)}
@@ -133,6 +133,13 @@ function evEventsCard(){const b=EV.list.map(ev=>{const rec=EV.rec[ev.id]||{};ret
   b.push({label:'BACK',col:'#8a94a6',act:()=>{EV.card=evListCard()},small:1});return{garage:1,cols:3,title:'EVENTS',sub:'your money: '+evMoney(ECON.money),lines:[],btns:b,grid:1}}
 /* ---- the card and the event HUD ---- */
 function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF;c.save();
+  /* (batch 53) the events near you are pinned on the screen: a coloured tag with the kind of event and how far it is (they were only lights on the ground) */
+  if(!EV.run&&!EV.card&&!GAME.state&&!MENU.open&&!UI.paused&&!CC.on){const V=R.VP,NM={trial:'TIME TRIAL',rage:'TAKEDOWN',race:'RACE',death:'DEATH RACE',escape:'ESCAPE'},CL={trial:'#ffb000',rage:'#b060ff',race:'#3ddc84',death:'#ff4a3a',escape:'#4a9dff'};let shown=0;
+    const near=EV.list.map(ev=>[Math.hypot(ev.s.x-C.x,ev.s.z-C.z),ev]).filter(q=>q[0]<650&&q[0]>12).sort((a,b)=>a[0]-b[0]);
+    for(const[d,ev]of near){if(shown>=3)break;const wy=ev.s.y+11,w=V[3]*ev.s.x+V[7]*wy+V[11]*ev.s.z+V[15];if(w<1)continue;const nx=(V[0]*ev.s.x+V[4]*wy+V[8]*ev.s.z+V[12])/w,ny=(V[1]*ev.s.x+V[5]*wy+V[9]*ev.s.z+V[13])/w;if(Math.abs(nx)>.9||ny>.55||ny<-.5)continue;shown++;
+      const px=(nx*.5+.5)*W_,py=(1-(ny*.5+.5))*H_,col=CL[ev.type]||'#fff',t=NM[ev.type]||'EVENT';c.save();c.translate(px,py);c.font=fs(.2,800);const tw=c.measureText(t).width+u*.3;c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=5;
+      c.fillStyle=col;rr(c,-tw/2,-u*.2,tw,u*.34,u*.08);c.fill();c.beginPath();c.moveTo(-u*.1,u*.13);c.lineTo(u*.1,u*.13);c.lineTo(0,u*.3);c.closePath();c.fill();c.shadowBlur=0;c.fillStyle='#10141a';c.textAlign='center';c.fillText(t,0,u*.05);
+      c.fillStyle='#fff';c.font=fs(.17,700);c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText(fmtLen(d),0,-u*.27);c.restore()}}
   /* money, under the minimap */
   if(!MENU.open){const t=evMoney(ECON.money);c.font=dLcd(u*.26);const tw=c.measureText(t).width+u*.4,bx=UI.mm.cx-tw/2,by=UI.mm.cy+UI.mm.r+u*.42;dLcdBox(c,bx,by,tw,u*.42,u*.06);dLcdText(c,t,UI.mm.cx,by+u*.31,u*.26,'center')}   /* (batch 19: money on a small amber display under the map) */
   EV.btns.length=0;const r=EV.run;
@@ -157,11 +164,11 @@ function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF
 function evTap(x,y){for(const b of EV.btns)if(x>=b.x-6&&x<=b.x+b.w+6&&y>=b.y-6&&y<=b.y+b.h+6){b.act();return true}return false}
 /* ---- in the world: the start markers (a glowing ring and a tall beam), the checkpoint gates ---- */
 function evFx(quad,flat,sprite,stage){const r=EV.run;
-  if(stage==5){if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>700)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape;flat(ev.s.x,ev.s.y+.06,ev.s.z,6,6,c3[0],c3[1],c3[2],.8)}
+  if(stage==5){if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>700)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape;flat(ev.s.x,ev.s.y+.06,ev.s.z,6,6,c3[0],c3[1],c3[2],.8);const rr2=9+3*Math.sin(EV.t*4);flat(ev.s.x,ev.s.y+.05,ev.s.z,rr2,rr2,c3[0],c3[1],c3[2],.35)}
     else if(r.ev.cps&&r.t>=0){const p=r.ev.cps[r.cp];if(p)flat(p.x,p.y+.06,p.z,9,9,.3,1,.6,.7)}
 }
   else if(stage==4){const pulse=.75+.25*Math.sin(EV.t*4);
-    if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>900)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape;for(let k=0;k<10;k++)sprite(ev.s.x,ev.s.y+1.5+k*3.4,ev.s.z,1.8+d*.008,c3[0],c3[1],c3[2],(.9-k*.06)*pulse)}
+    if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>900)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape;for(let k=0;k<22;k++)sprite(ev.s.x,ev.s.y+1.5+k*4.2,ev.s.z,3.2+d*.012,c3[0],c3[1],c3[2],(.95-k*.035)*pulse);/* (batch 53) a tall, thick beam and a bobbing marker on top of the old ground light */sprite(ev.s.x,ev.s.y+7+Math.sin(EV.t*3)*.8,ev.s.z,6.5+d*.02,c3[0],c3[1],c3[2],1)}
     else if(r.ev.cps){for(let q=r.cp;q<Math.min(r.cp+2,r.ev.cps.length);q++){const p=r.ev.cps[q],last=q==r.ev.cps.length-1,w=Math.max(9,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+2.5),d=Math.hypot(p.x-C.x,p.z-C.z),al=q==r.cp?pulse:.35;
       for(const sd of[-1,1])for(let k=0;k<7;k++)sprite(p.x+p.nx*w*sd,p.y+1+k*1.4,p.z+p.nz*w*sd,1.1+d*.006,last?1:.3,last?.85:1,last?.3:.6,al)
       /* (batch 53) the gate is an arch: a bar of light across the road on top of the two pillars */
