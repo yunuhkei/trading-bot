@@ -1,6 +1,6 @@
 # Racer: state of the build, for the clean-up prompt
 
-Written after batch 44. Branch `claude/close-call-game-updates-n6s64g`. Never open a pull request; never modify `Close_Call.html` / `Close_Call.backup.html` (reading them to port models is fine).
+Written after batch 44 (updated through batch 52). Branch `claude/close-call-game-updates-n6s64g`. Never open a pull request; never modify `Close_Call.html` / `Close_Call.backup.html` (reading them to port models is fine).
 
 ## How to work on it
 - Source: `racer/src/NN_*.js` + `template.html`. Build: `python3 racer/build.py` -> `Racer_Prototype.html`.
@@ -35,6 +35,12 @@ Also this session: crash smoke no longer blinds, the car lasts much longer (`DMG
 - `rtrail.js` check 4: parked 120 m out in a field, the cops reach you across the grass in 6-13 s.
 - `rtraffic.js`: one car 10 m off its lane on the ring (`sc2`), sometimes the coast road too.
 - `rscenery.js` check 6 (world build time) is noisy on the test box: the same build measured 8.9-10.9 s, so the bar is now 12 s.
+
+## Batch 52 (cars against their real counterparts, physics)
+- The 24 former Close Call cars now have their own real counterpart, figures (`CC_FIG`) and real size (`CC_DIM`) in `73_ccars.js`; before, each class shared one set of numbers and the sizes were off.
+- Handling: new front-wheel-drive branch; body roll/pitch scale with height and weight (`HND.rollK`). The arcade model never slides in a held corner (slip ~0.02 for every car), by design.
+- Look: family cars have their own proportions; paint reflections are weaker so reds are no longer pink. Still open: roadsters have a roof, noses are rounded, one body topology (no pickup/van/open-top).
+- The quick suite was *not* re-run in full after batch 52 (the run was cut off); the car, look, budget and upgrade tests were run one by one and pass.
 
 ## Rough edges seen while looking at screenshots
 - Shopfronts are a flat glass band and a thin awning: no door, no sign, no interior, same on every side.

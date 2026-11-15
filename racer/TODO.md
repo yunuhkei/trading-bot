@@ -80,3 +80,4 @@ Branch `claude/close-call-game-updates-n6s64g`. Build `python3 racer/build.py`, 
 - The helicopter is built from boxes (reads fine at 30-45 m, plain close up); a burst tyre is not shown on the wheel itself (sparks only).
 - Brakes and cornering do not share the tyre (arcade, left as it is).
 - (batch 51) Work trucks (garbage, box van, SWAT, pickup) and the bus are still boxy; SUV-class generator shapes are plain. `rtraffic` fails on a lane-offset car (ring, coast, and once Sacramento), same family as the known `sc2` failure.
+- (batch 52) Roadsters have a closed roof; nose shapes are still rounded for every class; the generator has one body topology (no real pickup, van or open-top). Physics: a held full-lock corner never slides (slip ~0.02 for every car), so oversteer / understeer character only shows under the drift button or under power at low speed.
