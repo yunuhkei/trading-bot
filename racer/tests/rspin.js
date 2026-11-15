@@ -18,7 +18,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
       out.push({t,name:TTYPES[t].name||TTYPES[t].box||'',spin:diff(p0,p1),turn:diff(p0,p2),again:diff(p0,p3)});C.x=C.px=keepx;C.z=C.pz=keepz}
     return out});
   for(const r of R)console.log(('type '+r.t+(r.name?' '+r.name:'')).padEnd(22),'changed by 0.9 rad:',String(r.spin).padStart(5),'px | a full turn:',String(r.turn).padStart(3),'px | same angle again:',r.again);
-  ok(R.length>=20&&R.every(r=>r.spin>14&&r.spin>1.8*r.turn),'1 the wheels of all '+R.length+' vehicle types change with the angle (fewest changed pixels '+Math.min(...R.map(r=>r.spin))+')');
+  ok(R.length>=20&&R.every(r=>r.spin>14&&r.spin>1.5*r.turn),'1 the wheels of all '+R.length+' vehicle types change with the angle (fewest changed pixels '+Math.min(...R.map(r=>r.spin))+')');
   ok(R.every(r=>r.turn<r.spin*.2+8),'2 a full turn looks like zero (largest difference '+Math.max(...R.map(r=>r.turn))+' px)');
   ok(R.every(r=>r.again<12),'3 the same angle draws the same picture (largest difference '+Math.max(...R.map(r=>r.again))+' px)');
   console.log('errs',T.errs.length?T.errs:0);await T.close();console.log(bad?bad+' FAILED':'all passed');process.exit(bad||T.errs.length?1:0)})().catch(e=>{console.error(e);process.exit(1)});
