@@ -69,7 +69,7 @@ function racerStep(c,dt){
     const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?1.14:1))),1.6))*(R.nzT>0?1.5:1),a=Math.max(-(sk.brk||11),Math.min(accNow,(vt-v)*1.6));c.v=Math.max(0,Math.min(sk.vmax*(R.nzT>0?1.2:1.08),v+a*dt));c.brake=a<-2.5?1:0;
     if(c.v<1.5)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
   const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
-  /* (batch 53) a knock: the sideways shove of a hit carries the car across the road for a moment (it used to be cancelled at once) */if(c.kx||c.kz){c.x+=c.kx*dt;c.z+=c.kz*dt;c.vx+=c.kx;c.vz+=c.kz;const kd=Math.exp(-dt*1.8);c.kx*=kd;c.kz*=kd;if(Math.abs(c.kx)+Math.abs(c.kz)<.2)c.kx=c.kz=0}
+  /* (batch 53) a knock: a sideways drift and a spin that die away in about half a second */if(c.kx||c.kz){c.x+=c.kx*dt;c.z+=c.kz*dt;c.vx+=c.kx;c.vz+=c.kz;const kd=Math.exp(-dt*4);c.kx*=kd;c.kz*=kd;if(Math.abs(c.kx)+Math.abs(c.kz)<.15)c.kx=c.kz=0}if(c.ks){c.yaw+=c.ks*dt;c.ks*=Math.exp(-dt*4);if(Math.abs(c.ks)<.02)c.ks=0}
   for(const o of[-1,1]){const px=c.x+sy*o*c.hl*.55,pz=c.z-cy*o*c.hl*.55;if(trStatic(px,pz,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz;c.v*=.6;c.stk+=.2}}
   const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);if(c.y<g)c.y=g;
   const gf=groundAt(c.x+sy*1.6,c.z-cy*1.6,c.y+.5),gb=groundAt(c.x-sy*1.6,c.z+cy*1.6,c.y+.5);c.pitch+=(Math.atan2(gf-gb,3.2)-c.pitch)*Math.min(1,dt*10);c.roll*=.9}
