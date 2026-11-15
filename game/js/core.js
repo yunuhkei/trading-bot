@@ -68,7 +68,9 @@
     el.addEventListener('pointermove', (e) => {
       if (e.pointerType === 'mouse') {
         if (document.pointerLockElement === el || e.buttons) {
-          input.lookDX += e.movementX || 0; input.lookDY += e.movementY || 0;
+          const mx = e.movementX || 0, my = e.movementY || 0;
+          // browsers sometimes report the whole cursor jump when the mouse is captured: ignore it
+          if (Math.abs(mx) < 250 && Math.abs(my) < 250) { input.lookDX += mx; input.lookDY += my; }
         }
         return;
       }

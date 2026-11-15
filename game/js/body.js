@@ -154,6 +154,7 @@
         put(side === 0 ? HAL : HAR, sg * 0.24, hy, hz);
       }
     }
+    if (c.punchT > 0) { put(ELR, -0.16, 1.44 + bob, 0.3 + lz); put(HAR, -0.08, 1.48 + bob, 0.62 + lz); }
     if (!b.posed) { b.jp.set(j); b.posed = true; }
   };
 

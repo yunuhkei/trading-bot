@@ -219,6 +219,43 @@
     position: fixed; left: 50%; bottom: calc(10px + var(--sab)); transform: translateX(-50%); z-index: 9;
     max-width: 90vw; padding: 8px 12px; background: #300; color: #fdd; font: 13px/1.3 var(--f-hud);
   }
+
+  /* weapons, money, armor */
+  .hpbar.armor { height: 5px; }
+  #armorFill { height: 100%; width: 0; background: linear-gradient(90deg, #1d4d8a, #4aa8ff); transition: width 0.15s; }
+  .weap { display: flex; gap: 10px; align-items: baseline; }
+  #wname { font: 600 13px/1 var(--f-hud); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ash); text-shadow: 0 1px 2px #000; }
+  #money { font: 700 17px/1 var(--f-hud); letter-spacing: 0.06em; color: #6be39a; text-shadow: 0 1px 3px #000; font-variant-numeric: tabular-nums; }
+  #notice {
+    position: absolute; right: calc(60px + var(--sar)); top: calc(118px + var(--sat));
+    font: 700 16px/1 var(--f-hud); letter-spacing: 0.08em; color: var(--sodium); text-shadow: 0 1px 3px #000;
+  }
+  #notice.pop { animation: noticeIn 0.35s ease-out; }
+  @keyframes noticeIn { from { opacity: 0; transform: translateY(6px); } }
+  #btnWeapon { width: 54px; height: 54px; right: calc(36px + var(--sar)); bottom: calc(194px + var(--sab)); font-size: 11px; }
+  /* shop */
+  #shop { background: rgba(5, 6, 9, 0.9); z-index: 7; }
+  .shop-panel { width: min(34em, 100%); display: grid; gap: 12px; max-height: 100%; }
+  .shop-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .shop-head h2 { margin: 0; font: 900 clamp(24px, 4vw, 34px)/1 var(--f-display); letter-spacing: 0.05em; text-transform: uppercase; color: #3dff88; text-shadow: 0 0 14px rgba(61, 255, 136, 0.45); }
+  #shopCash { font: 700 20px/1 var(--f-hud); color: #6be39a; font-variant-numeric: tabular-nums; }
+  #shopList { display: grid; gap: 6px; overflow-y: auto; min-height: 0; max-height: 58vh; touch-action: pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  .shop-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; background: rgba(230, 223, 207, 0.06); }
+  .shop-row b { display: block; font: 600 16px/1.2 var(--f-hud); letter-spacing: 0.04em; }
+  .shop-row span { display: block; font: 13px/1.3 var(--f-type); color: var(--ash); }
+  .buy { flex: none; min-width: 92px; padding: 9px 12px; border: 0; cursor: pointer; font: 700 15px/1 var(--f-hud); letter-spacing: 0.08em; background: #3dff88; color: var(--ink); }
+  .buy:disabled { background: rgba(230, 223, 207, 0.12); color: var(--ash); cursor: default; }
+  /* save */
+  #saveRow { display: grid; gap: 8px; justify-items: center; }
+  .save-btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .ghost { margin-top: 8px; padding: 14px 26px; border: 1.5px solid rgba(230, 223, 207, 0.5); background: transparent; cursor: pointer; font: 700 16px/1 var(--f-hud); letter-spacing: 0.2em; text-transform: uppercase; }
+  #saveInfo { font: 500 13px/1 var(--f-hud); color: var(--ash); letter-spacing: 0.06em; }
+  .codebox { display: grid; gap: 6px; padding: 10px; background: rgba(230, 223, 207, 0.06); }
+  .codebox label { font: 600 12px/1 var(--f-hud); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ash); }
+  .codebox textarea { width: 100%; box-sizing: border-box; font: 12px/1.3 ui-monospace, Menlo, monospace; background: #07090d; color: var(--bone); border: 1px solid rgba(230, 223, 207, 0.25); padding: 6px; user-select: text; -webkit-user-select: text; resize: vertical; touch-action: auto; }
+  .codebox div { display: flex; gap: 6px; }
+  .codebox div button { flex: 1; }
+  #codeMsg { margin: 0; font: 13px/1.4 var(--f-type); color: var(--ash); }
   @media (max-height: 520px) {
     .title-inner { gap: 8px; }
     .title-inner h1 { white-space: nowrap; }
@@ -244,13 +281,16 @@
   <div id="objective" hidden></div>
   <div id="status">
     <div class="hpbar"><div id="hpFill"></div></div>
-    <div id="ammo">12 / 12</div>
+    <div class="hpbar armor" id="armorBar" hidden><div id="armorFill"></div></div>
+    <div class="weap"><span id="wname">Pistol</span><span id="ammo">12 / ∞</span></div>
+    <div id="money">$0</div>
     <div id="stars" aria-label="Wanted level"></div>
   </div>
   <button id="btnPause" aria-label="Pause"></button>
   <div id="reticle" hidden></div>
   <div id="subtitle" hidden></div>
   <div id="toast" hidden></div>
+  <div id="notice" hidden></div>
   <div id="vignette"></div>
   <div id="joyHint">MOVE</div>
   <div id="joyBase" hidden><div id="joyKnob"></div></div>
@@ -258,6 +298,7 @@
   <button class="tbtn foot" id="btnReload">RELOAD</button>
   <button class="tbtn foot dim" id="btnAct">CAR</button>
   <button class="tbtn foot" id="btnRun" aria-pressed="false">RUN</button>
+  <button class="tbtn foot" id="btnWeapon">SWAP</button>
   <button class="tbtn foot" id="btnFire">FIRE</button>
   <button class="tbtn drive arrow" id="btnLeft" aria-label="Steer left"></button>
   <button class="tbtn drive arrow" id="btnRight" aria-label="Steer right"></button>
@@ -283,12 +324,27 @@
     <div class="chapter">Chapter One · Hymn for the Drowned</div>
     <p class="tagline">Framed cop. Dead informant. A brotherhood of badges and bishops that wants you in the harbor before sunrise.</p>
     <button class="primary" id="startBtn" disabled>Begin</button>
+    <div id="saveRow" hidden>
+      <div class="save-btns"><button class="primary" id="continueBtn">Continue</button><button class="ghost" id="newBtn">New game</button></div>
+      <div id="saveInfo"></div>
+      <div class="confirm" id="confirmNew" hidden>Start over? Your saved game will be erased.
+        <div><button class="item" id="newYes">Start over</button><button class="item" id="newNo">Cancel</button></div>
+      </div>
+    </div>
     <div id="loading">Building Port Calvary…</div>
     <div class="fineprint">
       <span><b>Phone:</b> turn it sideways. Left thumb moves, right thumb looks around. Tap RUN to run (tap again to walk), or push the stick all the way. FIRE auto-aims at whoever is in front of you. In a car: arrows steer, GAS, BRAKE (hold to reverse), HAND BRAKE to drift, SHOOT out the window.</span>
       <span class="kb"><b>Keyboard:</b> WASD move or drive · mouse look · click fire · F car · R reload · Shift sprint · Space handbrake · P pause</span>
     </div>
     <div class="warn">Contains graphic violence</div>
+  </div>
+</div>
+
+<div class="overlay" id="shop" hidden>
+  <div class="shop-panel">
+    <div class="shop-head"><h2 id="shopName">Shop</h2><span id="shopCash">$0</span></div>
+    <div id="shopList"></div>
+    <button class="primary" id="shopClose">Leave</button>
   </div>
 </div>
 
@@ -306,12 +362,19 @@
     <button class="item" id="resumeBtn">Resume</button>
     <button class="item" id="soundBtn">Sound: On</button>
     <button class="item" id="qBtn">Graphics: High</button>
+    <button class="item" id="codeBtn">Backup save code</button>
+    <div class="codebox" id="codeBox" hidden>
+      <label for="codeText">Save code</label>
+      <textarea id="codeText" rows="3" spellcheck="false"></textarea>
+      <div><button class="item" id="codeCopy">Copy</button><button class="item" id="codeLoad">Load this code</button></div>
+      <p id="codeMsg"></p>
+    </div>
     <button class="item" id="restartBtn">Restart chapter</button>
     <div class="confirm" id="confirmRestart" hidden>
       Start Chapter One over from the crash?
       <div><button class="item" id="restartYes">Restart</button><button class="item" id="restartNo">Cancel</button></div>
     </div>
-    <div class="keys"><b>WASD</b> move · <b>mouse</b> look · <b>click</b> fire · <b>F</b> car · <b>R</b> reload · <b>Shift</b> sprint · <b>Space</b> handbrake</div>
+    <div class="keys"><b>WASD</b> move · <b>mouse</b> look · <b>click</b> fire · <b>F</b> car · <b>R</b> reload · <b>Shift</b> sprint · <b>Space</b> handbrake · <b>Q</b> or <b>1–5</b> weapons</div>
   </div>
 </div>
 
@@ -396,7 +459,9 @@ window.__startGame = function () {
     el.addEventListener('pointermove', (e) => {
       if (e.pointerType === 'mouse') {
         if (document.pointerLockElement === el || e.buttons) {
-          input.lookDX += e.movementX || 0; input.lookDY += e.movementY || 0;
+          const mx = e.movementX || 0, my = e.movementY || 0;
+          // browsers sometimes report the whole cursor jump when the mouse is captured: ignore it
+          if (Math.abs(mx) < 250 && Math.abs(my) < 250) { input.lookDX += mx; input.lookDY += my; }
         }
         return;
       }
@@ -1325,6 +1390,17 @@ window.__startGame = function () {
     addSign('PORT OF CALVARY', '#2ae0ff', -60, 6, 270.2, 0, -1, 1.4, 0.03, { noBoard: false });
   }
 
+  // ------------------------------------------------------------ shops
+  W.shops = [];
+  function buildShops() {
+    // Vesper St. pawn shop, on block (3,3) facing the street the laundromat is on
+    const x = W.blockCenter(3), fz = W.blockCenter(3) - 18;
+    lamps.box(x, 1.6, fz - 0.06, 7, 2.3, 0.06, lin('#c8a050', 0.55));
+    addSign('PAWN · GUNS', '#3dff88', x, 4.4, fz, 0, -1, 1.2, 0.04);
+    glow.disc(x, 0.16, fz - 2.3, 2.4, lin('#3dff88', 0.45));
+    W.shops.push({ id: 'pawn', name: 'Vesper St. Pawn & Guns', x, z: fz - 2.3 });
+  }
+
   // ------------------------------------------------------------ Whitepine
   const roofs = [];
   function buildVillage() {
@@ -1358,6 +1434,7 @@ window.__startGame = function () {
     lamps.box(gx2, vy + 4.7, gz2, 10, 0.1, 6, lin('#e8f0ff', 0.7));
     glow.disc(gx2, vy + 0.12, gz2, 9, lin('#bfd8ff', 0.35));
     addSign('GAS · 24H', '#3dff88', gx2, vy + 6, gz2 - 4.1, 0, -1, 1, 0.08, { noPool: true });
+    W.shops.push({ id: 'whitepine', name: 'Whitepine Gas & General', x: gx2, z: gz2 });
     for (let k = 0; k < 6; k++) {
       const a = (k / 6) * Math.PI * 2;
       const x = VIL.x + Math.cos(a) * 38, z = VIL.z + Math.sin(a) * 38, gy = hm(x, z);
@@ -1483,6 +1560,7 @@ window.__startGame = function () {
     buildCityStreets(roadsB);
     buildRoadMeshes(roads, roadsB);
     buildHarbor();
+    buildShops();
     buildVillage();
     buildLighthouse();
     buildForests();
@@ -2046,6 +2124,7 @@ window.__startGame = function () {
         put(side === 0 ? HAL : HAR, sg * 0.24, hy, hz);
       }
     }
+    if (c.punchT > 0) { put(ELR, -0.16, 1.44 + bob, 0.3 + lz); put(HAR, -0.08, 1.48 + bob, 0.62 + lz); }
     if (!b.posed) { b.jp.set(j); b.posed = true; }
   };
 
@@ -3119,16 +3198,262 @@ window.__startGame = function () {
   };
 })();
 
+// ---- js/arsenal.js
+'use strict';
+// Arsenal: weapons, inventory, money, armor, loot drops, shops, and saving.
+(function () {
+  const T = THREE, W = G.world;
+
+  // ---------------------------------------------------------------- weapons
+  // dmg is per pellet. acc(d) is the chance a pellet lands on the aimed target at distance d.
+  const WEAPONS = (G.WEAPONS = {
+    fists: { name: 'Fists', melee: true, rate: 0.42, dmg: [20, 28], range: 1.9, aim: 3 },
+    pistol: { name: 'Pistol', rate: 0.27, mag: 12, reload: 1.3, pellets: 1, dmg: [36, 48], spread: 0.015, power: 4, range: 70, aim: 36, vol: 1, acc: (d) => G.clamp(1.03 - d * 0.012, 0.6, 0.97), drive: true },
+    shotgun: { name: 'Shotgun', rate: 0.85, mag: 6, reload: 2.1, pellets: 7, dmg: [13, 19], spread: 0.11, power: 9, range: 30, aim: 22, vol: 1.4, acc: (d) => G.clamp(1.15 - d / 16, 0.05, 0.92) },
+    smg: { name: 'SMG', rate: 0.085, mag: 30, reload: 1.6, pellets: 1, dmg: [15, 21], spread: 0.045, power: 2.6, range: 55, aim: 34, vol: 0.65, auto: true, acc: (d) => G.clamp(0.95 - d * 0.014, 0.4, 0.88), drive: true },
+    rifle: { name: 'Rifle', rate: 0.95, mag: 5, reload: 2.3, pellets: 1, dmg: [95, 125], spread: 0.003, power: 7.5, range: 140, aim: 85, vol: 1.6, acc: (d) => G.clamp(1.0 - d * 0.003, 0.82, 0.99) },
+  });
+  const ORDER = ['fists', 'pistol', 'shotgun', 'smg', 'rifle'];
+
+  const inv = (G.inv = {
+    owned: { fists: true, pistol: true }, cur: 'pistol',
+    mag: { pistol: 12, shotgun: 0, smg: 0, rifle: 0 },
+    reserve: { pistol: Infinity, shotgun: 0, smg: 0, rifle: 0 },
+  });
+  G.money = 0;
+  inv.weapon = () => WEAPONS[inv.cur];
+  inv.hasAmmo = (k) => k === 'fists' || inv.mag[k] > 0 || inv.reserve[k] > 0;
+  inv.give = function (k, ammo) {
+    const firstTime = !inv.owned[k];
+    inv.owned[k] = true;
+    if (k !== 'fists' && k !== 'pistol') {
+      if (firstTime) { inv.mag[k] = Math.min(WEAPONS[k].mag, ammo); ammo -= inv.mag[k]; }
+      inv.reserve[k] += Math.max(0, ammo);
+    }
+    return firstTime;
+  };
+  inv.select = function (k) {
+    if (!inv.owned[k] || k === inv.cur) return false;
+    inv.cur = k; G.player.reloadT = 0;
+    G.audio.click();
+    return true;
+  };
+  inv.cycle = function (dir = 1) {
+    let i = ORDER.indexOf(inv.cur);
+    for (let n = 0; n < ORDER.length; n++) {
+      i = (i + dir + ORDER.length) % ORDER.length;
+      const k = ORDER[i];
+      if (inv.owned[k] && inv.hasAmmo(k)) { inv.select(k); return; }
+    }
+  };
+  inv.reset = function () {
+    inv.owned = { fists: true, pistol: true }; inv.cur = 'pistol';
+    inv.mag = { pistol: 12, shotgun: 0, smg: 0, rifle: 0 };
+    inv.reserve = { pistol: Infinity, shotgun: 0, smg: 0, rifle: 0 };
+  };
+
+  // ---------------------------------------------------------------- money
+  G.addMoney = function (n, quiet) {
+    G.money = Math.max(0, Math.round(G.money + n));
+    if (!quiet && n > 0) G.hud.notice('+$' + n);
+  };
+
+  // ---------------------------------------------------------------- loot
+  const pickups = [];
+  const PK = {
+    cash: { color: 0x3dff88, size: [0.32, 0.12, 0.2] },
+    ammo: { color: 0xffd04a, size: [0.3, 0.22, 0.22] },
+    weapon: { color: 0xeae2cc, size: [0.75, 0.14, 0.22] },
+    armor: { color: 0x4aa8ff, size: [0.4, 0.45, 0.14] },
+  };
+  const pkGeo = new T.BoxGeometry(1, 1, 1);
+  const pkMats = {};
+  function spawnPickup(type, x, z, data) {
+    const s = PK[type].size;
+    const m = new T.Mesh(pkGeo, pkMats[type] || (pkMats[type] = new T.MeshBasicMaterial({ color: PK[type].color })));
+    m.scale.set(s[0], s[1], s[2]);
+    const glow = new T.Mesh(new T.CircleGeometry(0.7, 12).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: PK[type].color, map: W.radialTex, transparent: true, opacity: 0.6, blending: T.AdditiveBlending, depthWrite: false }));
+    const gy = W.groundY(x, z);
+    m.position.set(x, gy + 0.5, z); glow.position.set(x, gy + 0.03, z);
+    G.scene.add(m, glow);
+    pickups.push({ type, x, z, gy, m, glow, data, born: G.time, phase: Math.random() * 6 });
+  }
+  G.loot = {
+    drop(c) {
+      const r = () => G.R(-0.8, 0.8);
+      if (c.kind === 'saint') {
+        G.loot.spawn('cash', c.x + r(), c.z + r(), { amount: Math.round(G.R(60, 140)) });
+        const roll = Math.random();
+        if (roll < 0.45) G.loot.spawn(inv.owned.smg ? 'ammo' : 'weapon', c.x + r(), c.z + r(), { weapon: 'smg', ammo: 60 });
+        else if (roll < 0.75) G.loot.spawn(inv.owned.shotgun ? 'ammo' : 'weapon', c.x + r(), c.z + r(), { weapon: 'shotgun', ammo: 12 });
+        if (Math.random() < 0.15) G.loot.spawn('armor', c.x + r(), c.z + r(), { amount: 40 });
+      } else if (c.kind === 'cop') {
+        G.loot.spawn('cash', c.x + r(), c.z + r(), { amount: Math.round(G.R(20, 60)) });
+        if (Math.random() < 0.4) G.loot.spawn(inv.owned.shotgun ? 'ammo' : 'weapon', c.x + r(), c.z + r(), { weapon: 'shotgun', ammo: 8 });
+      } else if (c.kind === 'ped' && Math.random() < 0.6) {
+        G.loot.spawn('cash', c.x + r(), c.z + r(), { amount: Math.round(G.R(5, 40)) });
+      }
+    },
+    spawn: spawnPickup,
+    update(dt) {
+      const pl = G.player;
+      for (let k = pickups.length - 1; k >= 0; k--) {
+        const p = pickups[k];
+        p.phase += dt * 2.5;
+        p.m.position.y = p.gy + 0.5 + Math.sin(p.phase) * 0.08;
+        p.m.rotation.y += dt * 1.6;
+        const d = Math.hypot(pl.x - p.x, pl.z - p.z);
+        const old = G.time - p.born > 90 || d > 160;
+        if (pl.alive && d < (pl.car ? 3.2 : 1.6)) collect(p);
+        else if (!old) continue;
+        G.scene.remove(p.m, p.glow);
+        pickups.splice(k, 1);
+      }
+    },
+    clear() { for (const p of pickups) G.scene.remove(p.m, p.glow); pickups.length = 0; },
+  };
+  function collect(p) {
+    G.audio.click();
+    if (p.type === 'cash') G.addMoney(p.data.amount);
+    else if (p.type === 'armor') { G.player.armor = Math.min(100, (G.player.armor || 0) + p.data.amount); G.hud.notice('+' + p.data.amount + ' armor'); }
+    else {
+      const first = inv.give(p.data.weapon, p.data.ammo);
+      const name = WEAPONS[p.data.weapon].name;
+      G.hud.notice(first ? name + '. Picked up' : '+' + p.data.ammo + ' ' + name + ' ammo');
+      if (first) inv.select(p.data.weapon);
+    }
+  }
+
+  // ---------------------------------------------------------------- shops
+  const STOCK = [
+    { id: 'shotgun', name: 'Pump shotgun', desc: 'Close range. Puts people on the floor.', price: 450, weapon: 'shotgun', ammo: 18 },
+    { id: 'smg', name: 'Submachine gun', desc: 'Fully automatic. Works from a car window.', price: 800, weapon: 'smg', ammo: 90 },
+    { id: 'rifle', name: 'Hunting rifle', desc: 'Long range, one shot, one body.', price: 1500, weapon: 'rifle', ammo: 15 },
+    { id: 'shells', name: 'Shotgun shells ×12', desc: '', price: 60, ammoFor: 'shotgun', ammo: 12 },
+    { id: 'smgammo', name: 'SMG magazines ×60', desc: '', price: 80, ammoFor: 'smg', ammo: 60 },
+    { id: 'rifleammo', name: 'Rifle rounds ×10', desc: '', price: 120, ammoFor: 'rifle', ammo: 10 },
+    { id: 'armor', name: 'Body armor', desc: 'Soaks up most of a bullet. Wears out.', price: 250, armor: 100 },
+    { id: 'medkit', name: 'Medkit', desc: 'Patches you up to full.', price: 100, heal: true },
+  ];
+  G.shops = W.shops;
+  G.shopAt = function (x, z) {
+    for (const s of G.shops) if (Math.hypot(s.x - x, s.z - z) < 2.8) return s;
+    return null;
+  };
+  let openShop = null;
+  G.openShop = function (shop) {
+    openShop = shop;
+    G.shopOpen = true;
+    G.resetInput();
+    if (document.pointerLockElement) document.exitPointerLock();
+    renderShop();
+    document.getElementById('shop').hidden = false;
+  };
+  G.closeShop = function () {
+    openShop = null; G.shopOpen = false;
+    document.getElementById('shop').hidden = true;
+    G.resetInput();
+    G.saveGame('shop');
+  };
+  function canBuy(it) {
+    if (G.money < it.price) return [false, 'Not enough cash'];
+    if (it.weapon && inv.owned[it.weapon]) return [false, 'Owned'];
+    if (it.ammoFor && !inv.owned[it.ammoFor]) return [false, 'Need the gun'];
+    if (it.armor && (G.player.armor || 0) >= 100) return [false, 'Full'];
+    if (it.heal && G.player.hp >= 100) return [false, 'Healthy'];
+    return [true, '$' + it.price];
+  }
+  function buy(it) {
+    const [ok] = canBuy(it);
+    if (!ok) return;
+    G.money -= it.price;
+    if (it.weapon) { inv.give(it.weapon, it.ammo); inv.select(it.weapon); }
+    if (it.ammoFor) inv.reserve[it.ammoFor] += it.ammo;
+    if (it.armor) G.player.armor = 100;
+    if (it.heal) G.player.hp = 100;
+    G.audio.click();
+    G.story.onPurchase && G.story.onPurchase(it);
+    renderShop();
+  }
+  function renderShop() {
+    const list = document.getElementById('shopList');
+    document.getElementById('shopName').textContent = openShop.name;
+    document.getElementById('shopCash').textContent = '$' + G.money.toLocaleString();
+    list.textContent = '';
+    for (const it of STOCK) {
+      const row = document.createElement('div');
+      row.className = 'shop-row';
+      const [ok, label] = canBuy(it);
+      const info = document.createElement('div');
+      const nm = document.createElement('b'); nm.textContent = it.name;
+      info.appendChild(nm);
+      if (it.desc) { const ds = document.createElement('span'); ds.textContent = it.desc; info.appendChild(ds); }
+      const btn = document.createElement('button');
+      btn.className = 'buy'; btn.textContent = label; btn.disabled = !ok;
+      btn.addEventListener('click', () => buy(it));
+      row.append(info, btn);
+      list.appendChild(row);
+    }
+  }
+
+  // ---------------------------------------------------------------- saving
+  const KEY = 'save';
+  G.saveGame = function (why) {
+    if (!G.running || !G.story.checkpoint) return;
+    const p = G.player;
+    const data = {
+      v: 1, at: Date.now(), why,
+      cp: G.story.checkpoint, flags: G.story.flags || {},
+      money: G.money, armor: Math.round(p.armor || 0),
+      inv: { owned: inv.owned, cur: inv.cur, mag: inv.mag, reserve: Object.fromEntries(Object.entries(inv.reserve).map(([k, v]) => [k, v === Infinity ? -1 : v])) },
+      stats: G.stats,
+    };
+    G.store.set(KEY, data);
+    return data;
+  };
+  G.loadSave = () => G.store.get(KEY, null);
+  G.applySave = function (data) {
+    G.money = data.money || 0;
+    G.player.armor = data.armor || 0;
+    inv.owned = Object.assign({ fists: true, pistol: true }, data.inv.owned);
+    inv.cur = data.inv.cur || 'pistol';
+    inv.mag = Object.assign({ pistol: 12, shotgun: 0, smg: 0, rifle: 0 }, data.inv.mag);
+    inv.reserve = { pistol: Infinity, shotgun: 0, smg: 0, rifle: 0 };
+    for (const [k, v] of Object.entries(data.inv.reserve || {})) inv.reserve[k] = v < 0 ? Infinity : v;
+    Object.assign(G.stats, data.stats || {});
+  };
+  G.clearSave = () => { try { localStorage.removeItem('hs_' + KEY); } catch (e) { /* blocked */ } };
+  // a copyable backup, in case the browser forgets
+  G.saveCode = function () {
+    const d = G.saveGame('code') || G.loadSave();
+    if (!d) return '';
+    return 'HS1-' + btoa(unescape(encodeURIComponent(JSON.stringify(d))));
+  };
+  G.loadCode = function (code) {
+    try {
+      const raw = code.trim();
+      if (!raw.startsWith('HS1-')) return false;
+      const d = JSON.parse(decodeURIComponent(escape(atob(raw.slice(4)))));
+      if (!d || d.v !== 1 || !d.cp) return false;
+      G.store.set(KEY, d);
+      return true;
+    } catch (e) { return false; }
+  };
+})();
+
 // ---- js/story.js
 'use strict';
 // Story: Hollow Saints, Chapter One — "Hymn for the Drowned".
 (function () {
-  const S = (G.story = { stage: null, data: {}, checkpoint: null });
+  const S = (G.story = { stage: null, data: {}, checkpoint: null, flags: {} });
   const START = { x: 146, z: -175 };
   const LAUNDRO = { x: 30, z: -50.5 };
   const MARS = { x: 30, z: -49.3 };
   const MOTEL = { x: -191.5, z: 150 };
   S.START = START;
+  const PAWN = { x: -30, z: -50.3 };
+  // safehouses: rest here to heal and save (once the story unlocks them)
+  const SAFEHOUSES = [{ id: 'motel', name: 'Calvary Motel, room 9', x: -192.2, z: 150, flag: 'motel' }];
 
   const INTRO = [
     { h: 'Port Calvary · 3:12 a.m.', t: 'Six years ago, Detective Elias Crowe was convicted of executing a witness in an interview room on the fourth floor of the Ninth Precinct.\n\nHe says he didn\'t do it. He also says he doesn\'t remember that night.' },
@@ -3148,7 +3473,7 @@ window.__startGame = function () {
 
   const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
-  S.start = function () {
+  S.start = function (save) {
     // the dead: the guards at the wreck, and Mars at her door
     G.actors.spawn('guard', 146.5, -183.5, { dead: true, persistent: true, rot: 2.2 });
     G.actors.spawn('guard', 154.5, -177.2, { dead: true, persistent: true, rot: -0.6 });
@@ -3156,8 +3481,33 @@ window.__startGame = function () {
     const car = G.actors.spawnCar(138, -182.2, Math.PI / 2 + 0.25, { color: '#141619', persistent: true, lights: true });
     car.idling = true;
     G.stats.start = G.time;
+    if (save && save.cp) {
+      G.applySave(save);
+      S.flags = save.flags || {};
+      S.checkpoint = save.cp;
+      S.respawn(true);
+      G.hud.say('Welcome back.', 2.5);
+      return;
+    }
     S.go('intro');
   };
+  S.safehouseAt = function (x, z) {
+    for (const h of SAFEHOUSES) if (S.flags[h.flag] && Math.hypot(h.x - x, h.z - z) < 2.6) return h;
+    return null;
+  };
+  S.useSafehouse = function (h) {
+    if (G.wanted.level > 0) { G.hud.say('Not with cops on you. Lose them first.', 3); return; }
+    G.player.hp = 100;
+    S.checkpoint = { x: h.x + 2, z: h.z, stage: S.stage === 'rest' ? 'free' : S.stage, heat: 0, rot: Math.PI / 2 };
+    if (S.stage === 'rest') { S.go('restDone'); return; }
+    G.saveGame('safehouse');
+    G.hud.toast('Saved');
+    G.hud.say('Rested at ' + h.name + '. Game saved.', 3);
+  };
+  S.onPurchase = function (it) {
+    if (S.stage === 'pawn' && (it.weapon || it.armor)) S.go('rest');
+  };
+  function checkpoint(cp) { S.checkpoint = cp; G.saveGame('checkpoint'); }
 
   S.go = function (id) {
     S.stage = id;
@@ -3169,7 +3519,7 @@ window.__startGame = function () {
     if (st && st.update) st.update(dt);
   };
 
-  S.respawn = function () {
+  S.respawn = function (fromSave) {
     const cp = S.checkpoint || { x: START.x, z: START.z, stage: 'find', heat: 0 };
     for (let k = G.chars.length - 1; k >= 0; k--) {
       const c = G.chars[k];
@@ -3181,6 +3531,11 @@ window.__startGame = function () {
     }
     G.resetPlayer(cp.x, cp.z, cp.rot || 0);
     G.setHeat(0);
+    G.loot.clear();
+    if (!fromSave) {
+      const bill = Math.min(Math.round(G.money * 0.1), 300);
+      if (bill > 0) { G.money -= bill; setTimeout(() => G.hud.say('Back-alley doctor took $' + bill + '.', 3), 300); }
+    }
     S.go(cp.stage);
     if (cp.heat) G.setHeat(cp.heat);
   };
@@ -3197,7 +3552,7 @@ window.__startGame = function () {
     },
     find: {
       enter() {
-        S.checkpoint = { x: START.x, z: START.z, stage: 'find', heat: 0, rot: -2.4 };
+        checkpoint({ x: START.x, z: START.z, stage: 'find', heat: 0, rot: -2.4 });
         G.hud.objective('Find Marisol at the <b>St. Agnes</b> laundromat');
         G.setWaypoint(LAUNDRO.x, LAUNDRO.z);
         G.hud.say('Take their car. Follow the marker.', 5);
@@ -3214,7 +3569,7 @@ window.__startGame = function () {
     },
     fight: {
       enter() {
-        S.checkpoint = { x: 20, z: -57, stage: 'fight', heat: 0, rot: 0 };
+        checkpoint({ x: 20, z: -57, stage: 'fight', heat: 0, rot: 0 });
         S.data.killed = 0; S.data.total = 6; S.data.wave2 = false;
         G.suppressShotHeat = true;
         spawnSaint(12, -60); spawnSaint(48, -60.5); spawnSaint(-0.5, -40); spawnSaint(60.5, -36);
@@ -3253,7 +3608,7 @@ window.__startGame = function () {
     },
     escape: {
       enter() {
-        S.checkpoint = { x: 30, z: -57, stage: 'escape', heat: 2, rot: Math.PI };
+        checkpoint({ x: 30, z: -57, stage: 'escape', heat: 2, rot: Math.PI });
         G.hud.objective('Get to the <b>Calvary Motel</b>, room 9');
         G.setWaypoint(MOTEL.x, MOTEL.z);
         S.data.nagT = 0;
@@ -3277,13 +3632,41 @@ window.__startGame = function () {
           t: `Time  ${mins}:${String(secs).padStart(2, '0')}\nSaints put down  ${s.saints}\nPolice killed  ${s.cops}\nBystanders killed  ${s.civs}\n\nChapter Two: The Bishop's Garden. Coming soon.`,
         };
         G.hud.objective('');
-        G.hud.cards(END_CARDS.concat([tally]), () => S.go('free'));
+        G.hud.cards(END_CARDS.concat([tally]), () => {
+          S.flags.motel = true; S.flags.ch1 = true;
+          G.addMoney(1000);
+          G.hud.say('There was cash in the ledger\'s lining. $1,000.', 4);
+          S.go('pawn');
+        });
+      },
+    },
+    // Mission 1.2, "Room 9": arm up, then rest. Teaches the shop and saving.
+    pawn: {
+      enter() {
+        checkpoint({ x: MOTEL.x + 3, z: MOTEL.z, stage: 'pawn', heat: 0, rot: Math.PI / 2 });
+        G.hud.objective('Room 9 · Buy something at the <b>pawn shop</b> on Vesper St.');
+        G.setWaypoint(PAWN.x, PAWN.z);
+      },
+    },
+    rest: {
+      enter() {
+        checkpoint({ x: -30, z: -54, stage: 'rest', heat: 0, rot: Math.PI });
+        G.hud.objective('Room 9 · Go back to the motel and <b>rest</b>');
+        G.setWaypoint(MOTEL.x - 0.7, MOTEL.z);
+        G.hud.say('Room 9. Tap REST at the door to heal and save.', 4);
+      },
+    },
+    restDone: {
+      enter() {
+        G.setWaypoint(null);
+        G.hud.cards([{ h: 'Room 9', t: 'You sleep with the shotgun across your chest and the chair under the door handle.\n\nAt 2 a.m. the phone rings. A woman\'s voice: "You knew my sister. Mars. Meet me at the garage behind St. Jude\'s. Come alone, cop."\n\nShe hangs up before you can ask how she got the number.' }], () => S.go('free'));
       },
     },
     free: {
       enter() {
-        S.checkpoint = { x: MOTEL.x + 3, z: MOTEL.z, stage: 'free', heat: 0, rot: Math.PI / 2 };
-        G.hud.objective('Free roam · Port Calvary is yours tonight');
+        checkpoint({ x: MOTEL.x + 3, z: MOTEL.z, stage: 'free', heat: 0, rot: Math.PI / 2 });
+        G.hud.objective('Free roam · Chapter Two is coming');
+        G.setWaypoint(null);
       },
     },
   };
@@ -3360,13 +3743,14 @@ window.__startGame = function () {
 
   function makePlayer() {
     player = G.player = A.spawn('player', G.story.START.x, G.story.START.z, { rot: -2.4 });
-    Object.assign(player, { hp: 100, ammo: 12, mag: 12, reloadT: 0, fireCD: 0, car: null, lastHurt: -99, aimHold: 0, moving: 0 });
+    Object.assign(player, { hp: 100, armor: 0, reloadT: 0, fireCD: 0, car: null, lastHurt: -99, aimHold: 0, moving: 0, punchT: 0 });
   }
 
   G.resetPlayer = function (x, z, rot) {
     if (player.car) G.exitCar(true);
     player.x = x; player.z = z; player.rot = rot; camYaw = rot; camPitch = 0.3;
-    player.hp = 100; player.alive = true; player.ammo = player.mag; player.reloadT = 0;
+    player.hp = 100; player.alive = true; player.reloadT = 0; G.inv.mag.pistol = 12;
+    if (!G.inv.hasAmmo(G.inv.cur)) G.inv.cur = 'pistol';
     G.body.revive(player);
     setDriving(false);
     deathT = 0;
@@ -3410,10 +3794,58 @@ window.__startGame = function () {
     player.rot = car.heading;
   };
 
-  function startReload() {
-    if (player.reloadT > 0 || player.ammo === player.mag) return;
-    player.reloadT = 1.3;
+  // the gun in your hands right now (in a car only one-handed guns work)
+  function activeWeapon() {
+    let k = G.inv.cur;
+    if (player.car && !G.WEAPONS[k].drive) k = G.inv.owned.smg && G.inv.hasAmmo('smg') ? 'smg' : 'pistol';
+    return k;
+  }
+  function startReload(k) {
+    k = k || activeWeapon();
+    const w = G.WEAPONS[k], inv = G.inv;
+    if (w.melee || player.reloadT > 0 || inv.mag[k] >= w.mag || inv.reserve[k] <= 0) return false;
+    player.reloadT = w.reload; player.reloadK = k;
     G.audio.click();
+    return true;
+  }
+  function tickReload(dt) {
+    if (player.reloadT <= 0) return;
+    player.reloadT -= dt;
+    if (player.reloadT <= 0) {
+      const k = player.reloadK, w = G.WEAPONS[k], inv = G.inv;
+      const take = Math.min(w.mag - inv.mag[k], inv.reserve[k]);
+      inv.mag[k] += take; inv.reserve[k] -= take;
+    }
+  }
+  // pull the trigger: fire, punch, reload, or switch to something that still has bullets
+  function tryFire(fromCar) {
+    const k = activeWeapon(), w = G.WEAPONS[k], inv = G.inv;
+    if (player.fireCD > 0 || player.reloadT > 0) return;
+    if (w.melee) { punch(); return; }
+    if (inv.mag[k] > 0) { inv.mag[k]--; if (fromCar) driveBy(k); else playerShoot(k); return; }
+    if (startReload(k)) return;
+    G.audio.click(); player.fireCD = 0.35;
+    if (!fromCar) { inv.cycle(1); G.hud.say('Out of ammo.', 1.5); }
+  }
+  function punch() {
+    player.fireCD = G.WEAPONS.fists.rate; player.punchT = 0.22; player.aimHold = 0.5;
+    const fx = Math.sin(player.rot), fz = Math.cos(player.rot);
+    let best = null, bd = G.WEAPONS.fists.range;
+    for (const c of G.chars) {
+      if (!c.alive) continue;
+      const dx = c.x - player.x, dz = c.z - player.z, d = Math.hypot(dx, dz);
+      if (d < bd && (dx * fx + dz * fz) / (d || 1) > 0.4) { bd = d; best = c; }
+    }
+    if (!best) { G.audio.thud(0.15); return; }
+    const dx = (best.x - player.x) / (bd || 1), dz = (best.z - player.z) / (bd || 1);
+    G.audio.thud(0.6);
+    G.shake(0.12);
+    best.hp -= G.R(20, 28);
+    best.flinch = 1;
+    if (best.kind === 'ped') { best.fleeT = 12; best.tx = player.x; best.tz = player.z; }
+    if (best.kind === 'cop') G.addHeat(G.wanted.level < 1 ? 1 : 0.2);
+    if (best.hp <= 0) G.killChar(best, { kind: 'bullet', dx, dz, power: 5, joint: G.body.J.HEAD }, true);
+    else if (Math.random() < 0.3) G.blood.spray(best.x, 1.6, best.z, dx, dz, 0.35, false);
   }
 
   function computeAim() {
@@ -3425,7 +3857,7 @@ window.__startGame = function () {
     for (const c of G.chars) {
       if (!c.alive) continue;
       const dx = c.x - player.x, dz = c.z - player.z, d = Math.hypot(dx, dz);
-      if (d > 36 || d < 0.3) continue;
+      if (d > G.WEAPONS[activeWeapon()].aim || d < 0.3) continue;
       const cos = (dx * fx + dz * fz) / d;
       const hostile = c.hostile;
       if (cos < (inCar ? (hostile ? 0.45 : 0.75) : hostile ? 0.84 : 0.94)) continue;
@@ -3443,57 +3875,68 @@ window.__startGame = function () {
     return false;
   }
 
-  // one pistol shot from (ox, oz): at the aim target if there is one, else straight down the camera
-  function shootFrom(ox, oy, oz) {
-    player.fireCD = 0.27; player.ammo--; player.aimHold = 0.9;
-    let dx, dz, forced = null;
-    if (aimTarget) {
-      const t = aimTarget, d = Math.hypot(t.x - ox, t.z - oz) || 1;
-      dx = (t.x - ox) / d; dz = (t.z - oz) / d;
-      const p = G.clamp(1.03 - d * 0.012, 0.62, 0.97) * (player.car ? 0.85 : 1);
-      if (Math.random() < p) forced = t;
-      else { const a = Math.atan2(dx, dz) + (Math.random() < 0.5 ? -1 : 1) * G.R(0.05, 0.1); dx = Math.sin(a); dz = Math.cos(a); }
-    } else {
-      const a = camYaw + G.R(-0.015, 0.015);
-      dx = Math.sin(a); dz = Math.cos(a);
-    }
-    const wallT = W.raycast(ox, oz, dx, dz, 70);
-    let hit = forced ? { c: forced, t: Math.hypot(forced.x - ox, forced.z - oz) } : A.rayChars(ox, oz, dx, dz, wallT, null);
-    let ex, ey, ez;
-    if (hit) {
-      const head = Math.random() < (hit.t < 8 ? 0.2 : 0.12);
-      ex = hit.c.x; ez = hit.c.z; ey = head ? 1.66 : 1.25;
-      G.damageChar(hit.c, head ? 150 : G.R(36, 48), ox, oz, true, { kind: 'bullet', dx, dz, power: head ? 5.5 : 4, joint: head ? G.body.J.HEAD : G.body.J.NECK, head });
-      if (head && !hit.c.alive) G.hud.toast('Headshot');
-    } else {
-      const dead = !forced && G.body.rayDead(ox, oz, dx, dz, Math.min(wallT, 25));
-      if (dead) {
-        const jp = G.body.jointPos(dead.c, dead.k);
-        ex = jp.x; ey = jp.y; ez = jp.z;
-        G.body.push(dead.c, dead.k, dx * 3.2, 1.2, dz * 3.2, 0.12);
-        G.blood.spray(jp.x, jp.y, jp.z, dx, dz, 0.7, dead.k === G.body.J.HEAD);
-        G.body.addBlood(dead.c, 0.15);
+  // one trigger pull from (ox, oz): each pellet lands on the aim target (by the gun's accuracy)
+  // or flies along the aim line with spread
+  function shootFrom(ox, oy, oz, k) {
+    const w = G.WEAPONS[k];
+    player.fireCD = w.rate; player.aimHold = 0.9;
+    let baseA;
+    if (aimTarget) baseA = Math.atan2(aimTarget.x - ox, aimTarget.z - oz);
+    else baseA = camYaw;
+    const d0 = aimTarget ? Math.hypot(aimTarget.x - ox, aimTarget.z - oz) : 0;
+    const hits = new Map();
+    for (let n = 0; n < w.pellets; n++) {
+      let a = baseA + G.R(-w.spread, w.spread), forced = null;
+      if (aimTarget && Math.random() < w.acc(d0) * (player.car ? 0.85 : 1)) forced = aimTarget;
+      else if (aimTarget && w.pellets === 1) a += (Math.random() < 0.5 ? -1 : 1) * G.R(0.05, 0.1);
+      const dx = Math.sin(a), dz = Math.cos(a);
+      const wallT = W.raycast(ox, oz, dx, dz, w.range);
+      const hit = forced ? { c: forced, t: d0 } : A.rayChars(ox, oz, dx, dz, wallT, null);
+      let ex, ey, ez;
+      if (hit) {
+        const head = w.pellets === 1 && Math.random() < (hit.t < 8 ? 0.2 : 0.12) + (k === 'rifle' ? 0.15 : 0);
+        ex = hit.c.x; ez = hit.c.z; ey = head ? 1.66 : G.R(1.0, 1.45);
+        const h = hits.get(hit.c) || { dmg: 0, dx: 0, dz: 0, head: false, n: 0 };
+        h.dmg += head ? 150 : G.R(w.dmg[0], w.dmg[1]); h.dx += dx; h.dz += dz; h.head = h.head || head; h.n++;
+        hits.set(hit.c, h);
       } else {
-        ex = ox + dx * wallT; ez = oz + dz * wallT; ey = oy - 0.1;
-        if (wallT < 70) G.fx.spark(ex, ey, ez, 6);
+        const dead = G.body.rayDead(ox, oz, dx, dz, Math.min(wallT, 25));
+        if (dead) {
+          const jp = G.body.jointPos(dead.c, dead.k);
+          ex = jp.x; ey = jp.y; ez = jp.z;
+          G.body.push(dead.c, dead.k, dx * w.power * 0.8, 1.2, dz * w.power * 0.8, 0.12);
+          G.blood.spray(jp.x, jp.y, jp.z, dx, dz, 0.7, dead.k === G.body.J.HEAD);
+          G.body.addBlood(dead.c, 0.15);
+        } else {
+          ex = ox + dx * wallT; ez = oz + dz * wallT; ey = oy - 0.1 + G.R(-0.2, 0.2);
+          if (wallT < w.range) G.fx.spark(ex, ey, ez, 4);
+        }
       }
+      G.fx.tracer(ox, oy, oz, ex, ey, ez);
     }
-    G.fx.tracer(ox, oy, oz, ex, ey, ez);
-    G.fx.flash(ox, oy + 0.1, oz, 1);
-    G.audio.shot(1);
-    A.alarm(player.x, player.z, 45);
+    for (const [c, h] of hits) {
+      const l = Math.hypot(h.dx, h.dz) || 1;
+      const power = w.power * (w.pellets > 1 ? Math.min(1, 0.35 + h.n / w.pellets) : 1) * (h.head ? 1.3 : 1);
+      G.damageChar(c, h.dmg, ox, oz, true, { kind: 'bullet', dx: h.dx / l, dz: h.dz / l, power, joint: h.head ? G.body.J.HEAD : G.body.J.NECK, head: h.head });
+      if (h.head && !c.alive) G.hud.toast('Headshot');
+    }
+    G.lastShot = { k, ox, oz, baseA, aim: aimTarget ? aimTarget.kind : null, hits: hits.size, camYaw };
+    G.fx.flash(ox, oy + 0.1, oz, k === 'smg' ? 0.6 : 1);
+    G.audio.shot(w.vol);
+    if (k === 'shotgun' || k === 'rifle') { G.audio.thud(0.5); G.shake(0.12); }
+    A.alarm(player.x, player.z, k === 'rifle' ? 70 : 45);
     if (!G.suppressShotHeat && G.wanted.level < 1 && witnesses(25)) G.addHeat(1);
   }
-  function playerShoot() {
+  function playerShoot(k) {
     const fx = Math.sin(player.rot), fz = Math.cos(player.rot);
-    shootFrom(player.x + fx * 0.6 - fz * 0.28, 1.45 + W.groundY(player.x, player.z), player.z + fz * 0.6 + fx * 0.28);
+    shootFrom(player.x + fx * 0.6 - fz * 0.28, 1.45 + W.groundY(player.x, player.z), player.z + fz * 0.6 + fx * 0.28, k);
   }
   // shooting out of the driver's window, toward the target
-  function driveBy() {
+  function driveBy(k) {
     const car = player.car;
     let tx = aimTarget ? aimTarget.x : car.x + Math.sin(camYaw) * 10, tz = aimTarget ? aimTarget.z : car.z + Math.cos(camYaw) * 10;
     const dx = tx - car.x, dz = tz - car.z, l = Math.hypot(dx, dz) || 1;
-    shootFrom(car.x + (dx / l) * 1.3, 1.35, car.z + (dz / l) * 1.3);
+    shootFrom(car.x + (dx / l) * 1.3, car.y + 1.35, car.z + (dz / l) * 1.3, k);
   }
 
   // ---------------------------------------------------------------- damage
@@ -3519,6 +3962,7 @@ window.__startGame = function () {
   };
   G.killChar = function (c, hit, byPlayer) {
     A.kill(c, hit);
+    G.loot.drop(c);
     if (!byPlayer) return;
     G.stats.kills++;
     if (c.kind === 'ped') { G.stats.civs++; G.addHeat(G.wanted.level < 1 ? 1 : 0.5); }
@@ -3528,6 +3972,10 @@ window.__startGame = function () {
   G.damagePlayer = function (amt, fx, fz, direct, kind) {
     if (!player.alive) return;
     if (player.car && !direct) { A.damageCar(player.car, amt * 0.9); amt *= 0.35; }
+    if (player.armor > 0 && kind !== 'blast') {
+      const soak = Math.min(player.armor, amt * 0.7);
+      player.armor -= soak; amt -= soak;
+    }
     player.hp -= amt;
     player.lastHurt = G.time;
     let dx = player.x - fx, dz = player.z - fz;
@@ -3678,13 +4126,16 @@ window.__startGame = function () {
     if (face !== null) player.rot = G.angleLerp(player.rot, face, Math.min(1, dt * (aiming ? 20 : 10)));
     G.body.pose(player, dt, speed, aiming);
 
-    if (player.reloadT > 0) { player.reloadT -= dt; if (player.reloadT <= 0) player.ammo = player.mag; }
+    tickReload(dt);
     if (input.reload) startReload();
-    player.fireCD -= dt;
-    if (input.fire && player.fireCD <= 0 && player.reloadT <= 0) {
-      if (player.ammo > 0) playerShoot(); else { startReload(); player.fireCD = 0.3; }
+    player.fireCD -= dt; player.punchT -= dt;
+    if (input.fire) tryFire(false);
+    if (input.action) {
+      const shop = G.shopAt(player.x, player.z), safe = G.story.safehouseAt(player.x, player.z), car = nearestCar(3.8);
+      if (shop) G.openShop(shop);
+      else if (safe) G.story.useSafehouse(safe);
+      else if (car) enterCar(car);
     }
-    if (input.action) { const car = nearestCar(3.8); if (car) enterCar(car); }
   }
 
   function updateDriving(dt) {
@@ -3692,12 +4143,10 @@ window.__startGame = function () {
     player.x = car.x; player.z = car.z; player.moving = Math.hypot(car.speed, car.slip);
     if (input.action) { G.exitCar(false); return; }
     computeAim();
-    if (player.reloadT > 0) { player.reloadT -= dt; if (player.reloadT <= 0) player.ammo = player.mag; }
+    tickReload(dt);
     if (input.reload) startReload();
     player.fireCD -= dt;
-    if (input.fire && player.fireCD <= 0 && player.reloadT <= 0) {
-      if (player.ammo > 0) driveBy(); else { startReload(); player.fireCD = 0.3; }
-    }
+    if (input.fire) tryFire(true);
   }
   function setDriving(v) {
     G.driving = v;
@@ -3765,7 +4214,7 @@ window.__startGame = function () {
   // ---------------------------------------------------------------- HUD
   const hud = (G.hud = {});
   const el = {
-    hp: $('hpFill'), ammo: $('ammo'), stars: $('stars'), obj: $('objective'), sub: $('subtitle'), toast: $('toast'),
+    hp: $('hpFill'), ammo: $('ammo'), wname: $('wname'), money: $('money'), armor: $('armorFill'), armorBar: $('armorBar'), notice: $('notice'), stars: $('stars'), obj: $('objective'), sub: $('subtitle'), toast: $('toast'),
     ret: $('reticle'), arrow: $('wpArrow'), wpDist: $('wpDist'), wp: $('wp'), vig: $('vignette'),
     act: $('btnAct'), fire: $('btnFire'), reload: $('btnReload'), blood: $('bloodScreen'),
     joyBase: $('joyBase'), joyKnob: $('joyKnob'), cards: $('cards'), cardH: $('cardH'), cardT: $('cardT'), cardNext: $('cardNext'),
@@ -3783,6 +4232,8 @@ window.__startGame = function () {
     if (!text) return;
     el.sub.textContent = text; el.sub.hidden = false; subT = sec;
   };
+  let noticeT = 0;
+  hud.notice = (text) => { el.notice.textContent = text; el.notice.hidden = false; el.notice.classList.remove('pop'); void el.notice.offsetWidth; el.notice.classList.add('pop'); noticeT = 1.6; };
   let toastT = 0;
   hud.toast = (text) => { el.toast.textContent = text; el.toast.hidden = false; toastT = 1.2; };
   let hurtV = 0;
@@ -3908,8 +4359,14 @@ window.__startGame = function () {
   hud.update = function (dt) {
     const hp = Math.round(player.hp);
     if (hp !== last.hp) { el.hp.style.width = hp + '%'; el.hp.classList.toggle('low', hp < 30); last.hp = hp; }
-    const ammo = player.reloadT > 0 ? 'RELOADING' : player.ammo + ' / ' + player.mag;
+    const k = activeWeapon(), w = G.WEAPONS[k], inv = G.inv;
+    const ammo = w.melee ? '' : player.reloadT > 0 ? 'RELOADING' : inv.mag[k] + ' / ' + (inv.reserve[k] === Infinity ? '∞' : inv.reserve[k]);
     if (ammo !== last.ammo) { el.ammo.textContent = ammo; last.ammo = ammo; }
+    if (w.name !== last.wname) { el.wname.textContent = w.name; last.wname = w.name; }
+    if (G.money !== last.money) { el.money.textContent = '$' + G.money.toLocaleString(); last.money = G.money; }
+    const ar = Math.round(player.armor || 0);
+    if (ar !== last.armor) { el.armor.style.width = ar + '%'; el.armorBar.hidden = ar <= 0; last.armor = ar; }
+    if (noticeT > 0) { noticeT -= dt; if (noticeT <= 0) el.notice.hidden = true; }
     const stars = Math.ceil(G.wanted.level - 0.01);
     if (stars !== last.stars) { starEls.forEach((s, k) => s.classList.toggle('on', k < stars)); last.stars = stars; }
     if (G.wanted.evading !== last.ev) { el.stars.classList.toggle('evading', !!G.wanted.evading); last.ev = G.wanted.evading; }
@@ -3926,8 +4383,10 @@ window.__startGame = function () {
 
     // context button
     let act = '';
-    if (player.alive) {
-      if (!player.car && nearestCar(3.8)) act = 'CAR';
+    if (player.alive && !player.car) {
+      if (G.shopAt(player.x, player.z)) act = 'SHOP';
+      else if (G.story.safehouseAt(player.x, player.z)) act = 'REST';
+      else if (nearestCar(3.8)) act = 'CAR';
     }
     if (act !== last.act) { el.act.textContent = act || 'CAR'; el.act.classList.toggle('dim', !act); last.act = act; }
 
@@ -3960,7 +4419,7 @@ window.__startGame = function () {
 
   // ---------------------------------------------------------------- menus
   function setPaused(p) {
-    if (!G.running || G.cardMode || !player.alive) p = false;
+    if (!G.running || G.cardMode || G.shopOpen || !player.alive) p = false;
     G.paused = p;
     $('pause').hidden = !p;
     $('confirmRestart').hidden = true;
@@ -4005,10 +4464,39 @@ window.__startGame = function () {
     $('restartNo').addEventListener('click', () => { $('confirmRestart').hidden = true; });
     $('restartYes').addEventListener('click', () => location.reload());
     $('retryBtn').addEventListener('click', () => { G.story.respawn(); });
-    $('startBtn').addEventListener('click', startGame);
+    $('startBtn').addEventListener('click', () => startGame(null));
+    $('continueBtn').addEventListener('click', () => startGame(G.loadSave()));
+    $('newBtn').addEventListener('click', () => { $('confirmNew').hidden = false; });
+    $('newNo').addEventListener('click', () => { $('confirmNew').hidden = true; });
+    $('newYes').addEventListener('click', () => { G.clearSave(); startGame(null); });
+    G.bindHold($('btnWeapon'), (v) => { if (v) G.inv.cycle(1); });
+    window.addEventListener('keydown', (e) => {
+      if (!G.running || G.paused || G.cardMode || G.shopOpen) return;
+      if (e.code === 'KeyQ') G.inv.cycle(1);
+      const n = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(e.code);
+      if (n >= 0) G.inv.select(['fists', 'pistol', 'shotgun', 'smg', 'rifle'][n]);
+    });
+    window.addEventListener('wheel', (e) => { if (G.running && !G.paused && !G.shopOpen && !G.cardMode) G.inv.cycle(e.deltaY > 0 ? 1 : -1); }, { passive: true });
+    $('shopClose').addEventListener('click', () => G.closeShop());
+    // backup save code
+    $('codeBtn').addEventListener('click', () => {
+      const box = $('codeBox'); box.hidden = false;
+      $('codeText').value = G.saveCode();
+      $('codeMsg').textContent = 'Copy this somewhere safe. Paste it back here to restore your game.';
+    });
+    $('codeCopy').addEventListener('click', () => {
+      const t = $('codeText'); t.select();
+      const done = () => { $('codeMsg').textContent = 'Copied.'; };
+      try { navigator.clipboard.writeText(t.value).then(done).catch(() => { $('codeMsg').textContent = 'Select the text and copy it yourself.'; }); }
+      catch (e) { $('codeMsg').textContent = 'Select the text and copy it yourself.'; }
+    });
+    $('codeLoad').addEventListener('click', () => {
+      if (G.loadCode($('codeText').value)) { $('codeMsg').textContent = 'Loaded. Restarting…'; setTimeout(() => location.reload(), 600); }
+      else $('codeMsg').textContent = 'That code did not work. Check it was copied in full.';
+    });
   }
 
-  function startGame() {
+  function startGame(save) {
     G.audio.init();
     try {
       const de = document.documentElement;
@@ -4021,7 +4509,7 @@ window.__startGame = function () {
     $('hud').hidden = false;
     G.running = true;
     for (let k = G.chars.length - 1; k >= 0; k--) if (G.chars[k].kind === 'ped' && Math.hypot(G.chars[k].x - player.x, G.chars[k].z - player.z) < 30) A.remove(G.chars[k]);
-    G.story.start();
+    G.story.start(save);
     perfStart = G.time;
   }
 
@@ -4051,6 +4539,7 @@ window.__startGame = function () {
     updateCamera(dt);
     W.update(dt, camera.position);
     G.fx.update(dt);
+    G.loot.update(dt);
     let siren = 0;
     if (G.wanted.level > 0) {
       for (const car of G.cars) if (car.sirenOn) siren = Math.max(siren, 1 - Math.hypot(car.x - player.x, car.z - player.z) / 90);
@@ -4081,7 +4570,7 @@ window.__startGame = function () {
       A.updateChars(dt);
       G.body.update(dt);
       populate(dt);
-    } else if (!G.paused && !G.cardMode) {
+    } else if (!G.paused && !G.cardMode && !G.shopOpen) {
       update(dt);
     } else {
       G.clearEdges();
@@ -4102,6 +4591,8 @@ window.__startGame = function () {
     for (let k = 0; k < 16; k++) { const p = W.randomSidewalkPoint(150, -180, 10, 80); if (p) A.spawn('ped', p.x, p.z, { ring: p }); }
     $('loading').hidden = true;
     $('startBtn').disabled = false;
+    const sv = G.loadSave();
+    if (sv) { $('startBtn').hidden = true; $('saveRow').hidden = false; $('saveInfo').textContent = 'Saved ' + new Date(sv.at).toLocaleString(); }
     requestAnimationFrame((t) => { lastT = t; frame(t); });
   }
   const fontsReady = document.fonts && document.fonts.load

@@ -1,12 +1,15 @@
 'use strict';
 // Story: Hollow Saints, Chapter One — "Hymn for the Drowned".
 (function () {
-  const S = (G.story = { stage: null, data: {}, checkpoint: null });
+  const S = (G.story = { stage: null, data: {}, checkpoint: null, flags: {} });
   const START = { x: 146, z: -175 };
   const LAUNDRO = { x: 30, z: -50.5 };
   const MARS = { x: 30, z: -49.3 };
   const MOTEL = { x: -191.5, z: 150 };
   S.START = START;
+  const PAWN = { x: -30, z: -50.3 };
+  // safehouses: rest here to heal and save (once the story unlocks them)
+  const SAFEHOUSES = [{ id: 'motel', name: 'Calvary Motel, room 9', x: -192.2, z: 150, flag: 'motel' }];
 
   const INTRO = [
     { h: 'Port Calvary · 3:12 a.m.', t: 'Six years ago, Detective Elias Crowe was convicted of executing a witness in an interview room on the fourth floor of the Ninth Precinct.\n\nHe says he didn\'t do it. He also says he doesn\'t remember that night.' },
@@ -26,7 +29,7 @@
 
   const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
-  S.start = function () {
+  S.start = function (save) {
     // the dead: the guards at the wreck, and Mars at her door
     G.actors.spawn('guard', 146.5, -183.5, { dead: true, persistent: true, rot: 2.2 });
     G.actors.spawn('guard', 154.5, -177.2, { dead: true, persistent: true, rot: -0.6 });
@@ -34,8 +37,33 @@
     const car = G.actors.spawnCar(138, -182.2, Math.PI / 2 + 0.25, { color: '#141619', persistent: true, lights: true });
     car.idling = true;
     G.stats.start = G.time;
+    if (save && save.cp) {
+      G.applySave(save);
+      S.flags = save.flags || {};
+      S.checkpoint = save.cp;
+      S.respawn(true);
+      G.hud.say('Welcome back.', 2.5);
+      return;
+    }
     S.go('intro');
   };
+  S.safehouseAt = function (x, z) {
+    for (const h of SAFEHOUSES) if (S.flags[h.flag] && Math.hypot(h.x - x, h.z - z) < 2.6) return h;
+    return null;
+  };
+  S.useSafehouse = function (h) {
+    if (G.wanted.level > 0) { G.hud.say('Not with cops on you. Lose them first.', 3); return; }
+    G.player.hp = 100;
+    S.checkpoint = { x: h.x + 2, z: h.z, stage: S.stage === 'rest' ? 'free' : S.stage, heat: 0, rot: Math.PI / 2 };
+    if (S.stage === 'rest') { S.go('restDone'); return; }
+    G.saveGame('safehouse');
+    G.hud.toast('Saved');
+    G.hud.say('Rested at ' + h.name + '. Game saved.', 3);
+  };
+  S.onPurchase = function (it) {
+    if (S.stage === 'pawn' && (it.weapon || it.armor)) S.go('rest');
+  };
+  function checkpoint(cp) { S.checkpoint = cp; G.saveGame('checkpoint'); }
 
   S.go = function (id) {
     S.stage = id;
@@ -47,7 +75,7 @@
     if (st && st.update) st.update(dt);
   };
 
-  S.respawn = function () {
+  S.respawn = function (fromSave) {
     const cp = S.checkpoint || { x: START.x, z: START.z, stage: 'find', heat: 0 };
     for (let k = G.chars.length - 1; k >= 0; k--) {
       const c = G.chars[k];
@@ -59,6 +87,11 @@
     }
     G.resetPlayer(cp.x, cp.z, cp.rot || 0);
     G.setHeat(0);
+    G.loot.clear();
+    if (!fromSave) {
+      const bill = Math.min(Math.round(G.money * 0.1), 300);
+      if (bill > 0) { G.money -= bill; setTimeout(() => G.hud.say('Back-alley doctor took $' + bill + '.', 3), 300); }
+    }
     S.go(cp.stage);
     if (cp.heat) G.setHeat(cp.heat);
   };
@@ -75,7 +108,7 @@
     },
     find: {
       enter() {
-        S.checkpoint = { x: START.x, z: START.z, stage: 'find', heat: 0, rot: -2.4 };
+        checkpoint({ x: START.x, z: START.z, stage: 'find', heat: 0, rot: -2.4 });
         G.hud.objective('Find Marisol at the <b>St. Agnes</b> laundromat');
         G.setWaypoint(LAUNDRO.x, LAUNDRO.z);
         G.hud.say('Take their car. Follow the marker.', 5);
@@ -92,7 +125,7 @@
     },
     fight: {
       enter() {
-        S.checkpoint = { x: 20, z: -57, stage: 'fight', heat: 0, rot: 0 };
+        checkpoint({ x: 20, z: -57, stage: 'fight', heat: 0, rot: 0 });
         S.data.killed = 0; S.data.total = 6; S.data.wave2 = false;
         G.suppressShotHeat = true;
         spawnSaint(12, -60); spawnSaint(48, -60.5); spawnSaint(-0.5, -40); spawnSaint(60.5, -36);
@@ -131,7 +164,7 @@
     },
     escape: {
       enter() {
-        S.checkpoint = { x: 30, z: -57, stage: 'escape', heat: 2, rot: Math.PI };
+        checkpoint({ x: 30, z: -57, stage: 'escape', heat: 2, rot: Math.PI });
         G.hud.objective('Get to the <b>Calvary Motel</b>, room 9');
         G.setWaypoint(MOTEL.x, MOTEL.z);
         S.data.nagT = 0;
@@ -155,13 +188,41 @@
           t: `Time  ${mins}:${String(secs).padStart(2, '0')}\nSaints put down  ${s.saints}\nPolice killed  ${s.cops}\nBystanders killed  ${s.civs}\n\nChapter Two: The Bishop's Garden. Coming soon.`,
         };
         G.hud.objective('');
-        G.hud.cards(END_CARDS.concat([tally]), () => S.go('free'));
+        G.hud.cards(END_CARDS.concat([tally]), () => {
+          S.flags.motel = true; S.flags.ch1 = true;
+          G.addMoney(1000);
+          G.hud.say('There was cash in the ledger\'s lining. $1,000.', 4);
+          S.go('pawn');
+        });
+      },
+    },
+    // Mission 1.2, "Room 9": arm up, then rest. Teaches the shop and saving.
+    pawn: {
+      enter() {
+        checkpoint({ x: MOTEL.x + 3, z: MOTEL.z, stage: 'pawn', heat: 0, rot: Math.PI / 2 });
+        G.hud.objective('Room 9 · Buy something at the <b>pawn shop</b> on Vesper St.');
+        G.setWaypoint(PAWN.x, PAWN.z);
+      },
+    },
+    rest: {
+      enter() {
+        checkpoint({ x: -30, z: -54, stage: 'rest', heat: 0, rot: Math.PI });
+        G.hud.objective('Room 9 · Go back to the motel and <b>rest</b>');
+        G.setWaypoint(MOTEL.x - 0.7, MOTEL.z);
+        G.hud.say('Room 9. Tap REST at the door to heal and save.', 4);
+      },
+    },
+    restDone: {
+      enter() {
+        G.setWaypoint(null);
+        G.hud.cards([{ h: 'Room 9', t: 'You sleep with the shotgun across your chest and the chair under the door handle.\n\nAt 2 a.m. the phone rings. A woman\'s voice: "You knew my sister. Mars. Meet me at the garage behind St. Jude\'s. Come alone, cop."\n\nShe hangs up before you can ask how she got the number.' }], () => S.go('free'));
       },
     },
     free: {
       enter() {
-        S.checkpoint = { x: MOTEL.x + 3, z: MOTEL.z, stage: 'free', heat: 0, rot: Math.PI / 2 };
-        G.hud.objective('Free roam · Port Calvary is yours tonight');
+        checkpoint({ x: MOTEL.x + 3, z: MOTEL.z, stage: 'free', heat: 0, rot: Math.PI / 2 });
+        G.hud.objective('Free roam · Chapter Two is coming');
+        G.setWaypoint(null);
       },
     },
   };

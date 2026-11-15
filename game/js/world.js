@@ -771,6 +771,17 @@
     addSign('PORT OF CALVARY', '#2ae0ff', -60, 6, 270.2, 0, -1, 1.4, 0.03, { noBoard: false });
   }
 
+  // ------------------------------------------------------------ shops
+  W.shops = [];
+  function buildShops() {
+    // Vesper St. pawn shop, on block (3,3) facing the street the laundromat is on
+    const x = W.blockCenter(3), fz = W.blockCenter(3) - 18;
+    lamps.box(x, 1.6, fz - 0.06, 7, 2.3, 0.06, lin('#c8a050', 0.55));
+    addSign('PAWN · GUNS', '#3dff88', x, 4.4, fz, 0, -1, 1.2, 0.04);
+    glow.disc(x, 0.16, fz - 2.3, 2.4, lin('#3dff88', 0.45));
+    W.shops.push({ id: 'pawn', name: 'Vesper St. Pawn & Guns', x, z: fz - 2.3 });
+  }
+
   // ------------------------------------------------------------ Whitepine
   const roofs = [];
   function buildVillage() {
@@ -804,6 +815,7 @@
     lamps.box(gx2, vy + 4.7, gz2, 10, 0.1, 6, lin('#e8f0ff', 0.7));
     glow.disc(gx2, vy + 0.12, gz2, 9, lin('#bfd8ff', 0.35));
     addSign('GAS · 24H', '#3dff88', gx2, vy + 6, gz2 - 4.1, 0, -1, 1, 0.08, { noPool: true });
+    W.shops.push({ id: 'whitepine', name: 'Whitepine Gas & General', x: gx2, z: gz2 });
     for (let k = 0; k < 6; k++) {
       const a = (k / 6) * Math.PI * 2;
       const x = VIL.x + Math.cos(a) * 38, z = VIL.z + Math.sin(a) * 38, gy = hm(x, z);
@@ -929,6 +941,7 @@
     buildCityStreets(roadsB);
     buildRoadMeshes(roads, roadsB);
     buildHarbor();
+    buildShops();
     buildVillage();
     buildLighthouse();
     buildForests();

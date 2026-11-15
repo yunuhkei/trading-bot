@@ -58,13 +58,14 @@
 
   function makePlayer() {
     player = G.player = A.spawn('player', G.story.START.x, G.story.START.z, { rot: -2.4 });
-    Object.assign(player, { hp: 100, ammo: 12, mag: 12, reloadT: 0, fireCD: 0, car: null, lastHurt: -99, aimHold: 0, moving: 0 });
+    Object.assign(player, { hp: 100, armor: 0, reloadT: 0, fireCD: 0, car: null, lastHurt: -99, aimHold: 0, moving: 0, punchT: 0 });
   }
 
   G.resetPlayer = function (x, z, rot) {
     if (player.car) G.exitCar(true);
     player.x = x; player.z = z; player.rot = rot; camYaw = rot; camPitch = 0.3;
-    player.hp = 100; player.alive = true; player.ammo = player.mag; player.reloadT = 0;
+    player.hp = 100; player.alive = true; player.reloadT = 0; G.inv.mag.pistol = 12;
+    if (!G.inv.hasAmmo(G.inv.cur)) G.inv.cur = 'pistol';
     G.body.revive(player);
     setDriving(false);
     deathT = 0;
@@ -108,10 +109,58 @@
     player.rot = car.heading;
   };
 
-  function startReload() {
-    if (player.reloadT > 0 || player.ammo === player.mag) return;
-    player.reloadT = 1.3;
+  // the gun in your hands right now (in a car only one-handed guns work)
+  function activeWeapon() {
+    let k = G.inv.cur;
+    if (player.car && !G.WEAPONS[k].drive) k = G.inv.owned.smg && G.inv.hasAmmo('smg') ? 'smg' : 'pistol';
+    return k;
+  }
+  function startReload(k) {
+    k = k || activeWeapon();
+    const w = G.WEAPONS[k], inv = G.inv;
+    if (w.melee || player.reloadT > 0 || inv.mag[k] >= w.mag || inv.reserve[k] <= 0) return false;
+    player.reloadT = w.reload; player.reloadK = k;
     G.audio.click();
+    return true;
+  }
+  function tickReload(dt) {
+    if (player.reloadT <= 0) return;
+    player.reloadT -= dt;
+    if (player.reloadT <= 0) {
+      const k = player.reloadK, w = G.WEAPONS[k], inv = G.inv;
+      const take = Math.min(w.mag - inv.mag[k], inv.reserve[k]);
+      inv.mag[k] += take; inv.reserve[k] -= take;
+    }
+  }
+  // pull the trigger: fire, punch, reload, or switch to something that still has bullets
+  function tryFire(fromCar) {
+    const k = activeWeapon(), w = G.WEAPONS[k], inv = G.inv;
+    if (player.fireCD > 0 || player.reloadT > 0) return;
+    if (w.melee) { punch(); return; }
+    if (inv.mag[k] > 0) { inv.mag[k]--; if (fromCar) driveBy(k); else playerShoot(k); return; }
+    if (startReload(k)) return;
+    G.audio.click(); player.fireCD = 0.35;
+    if (!fromCar) { inv.cycle(1); G.hud.say('Out of ammo.', 1.5); }
+  }
+  function punch() {
+    player.fireCD = G.WEAPONS.fists.rate; player.punchT = 0.22; player.aimHold = 0.5;
+    const fx = Math.sin(player.rot), fz = Math.cos(player.rot);
+    let best = null, bd = G.WEAPONS.fists.range;
+    for (const c of G.chars) {
+      if (!c.alive) continue;
+      const dx = c.x - player.x, dz = c.z - player.z, d = Math.hypot(dx, dz);
+      if (d < bd && (dx * fx + dz * fz) / (d || 1) > 0.4) { bd = d; best = c; }
+    }
+    if (!best) { G.audio.thud(0.15); return; }
+    const dx = (best.x - player.x) / (bd || 1), dz = (best.z - player.z) / (bd || 1);
+    G.audio.thud(0.6);
+    G.shake(0.12);
+    best.hp -= G.R(20, 28);
+    best.flinch = 1;
+    if (best.kind === 'ped') { best.fleeT = 12; best.tx = player.x; best.tz = player.z; }
+    if (best.kind === 'cop') G.addHeat(G.wanted.level < 1 ? 1 : 0.2);
+    if (best.hp <= 0) G.killChar(best, { kind: 'bullet', dx, dz, power: 5, joint: G.body.J.HEAD }, true);
+    else if (Math.random() < 0.3) G.blood.spray(best.x, 1.6, best.z, dx, dz, 0.35, false);
   }
 
   function computeAim() {
@@ -123,7 +172,7 @@
     for (const c of G.chars) {
       if (!c.alive) continue;
       const dx = c.x - player.x, dz = c.z - player.z, d = Math.hypot(dx, dz);
-      if (d > 36 || d < 0.3) continue;
+      if (d > G.WEAPONS[activeWeapon()].aim || d < 0.3) continue;
       const cos = (dx * fx + dz * fz) / d;
       const hostile = c.hostile;
       if (cos < (inCar ? (hostile ? 0.45 : 0.75) : hostile ? 0.84 : 0.94)) continue;
@@ -141,57 +190,68 @@
     return false;
   }
 
-  // one pistol shot from (ox, oz): at the aim target if there is one, else straight down the camera
-  function shootFrom(ox, oy, oz) {
-    player.fireCD = 0.27; player.ammo--; player.aimHold = 0.9;
-    let dx, dz, forced = null;
-    if (aimTarget) {
-      const t = aimTarget, d = Math.hypot(t.x - ox, t.z - oz) || 1;
-      dx = (t.x - ox) / d; dz = (t.z - oz) / d;
-      const p = G.clamp(1.03 - d * 0.012, 0.62, 0.97) * (player.car ? 0.85 : 1);
-      if (Math.random() < p) forced = t;
-      else { const a = Math.atan2(dx, dz) + (Math.random() < 0.5 ? -1 : 1) * G.R(0.05, 0.1); dx = Math.sin(a); dz = Math.cos(a); }
-    } else {
-      const a = camYaw + G.R(-0.015, 0.015);
-      dx = Math.sin(a); dz = Math.cos(a);
-    }
-    const wallT = W.raycast(ox, oz, dx, dz, 70);
-    let hit = forced ? { c: forced, t: Math.hypot(forced.x - ox, forced.z - oz) } : A.rayChars(ox, oz, dx, dz, wallT, null);
-    let ex, ey, ez;
-    if (hit) {
-      const head = Math.random() < (hit.t < 8 ? 0.2 : 0.12);
-      ex = hit.c.x; ez = hit.c.z; ey = head ? 1.66 : 1.25;
-      G.damageChar(hit.c, head ? 150 : G.R(36, 48), ox, oz, true, { kind: 'bullet', dx, dz, power: head ? 5.5 : 4, joint: head ? G.body.J.HEAD : G.body.J.NECK, head });
-      if (head && !hit.c.alive) G.hud.toast('Headshot');
-    } else {
-      const dead = !forced && G.body.rayDead(ox, oz, dx, dz, Math.min(wallT, 25));
-      if (dead) {
-        const jp = G.body.jointPos(dead.c, dead.k);
-        ex = jp.x; ey = jp.y; ez = jp.z;
-        G.body.push(dead.c, dead.k, dx * 3.2, 1.2, dz * 3.2, 0.12);
-        G.blood.spray(jp.x, jp.y, jp.z, dx, dz, 0.7, dead.k === G.body.J.HEAD);
-        G.body.addBlood(dead.c, 0.15);
+  // one trigger pull from (ox, oz): each pellet lands on the aim target (by the gun's accuracy)
+  // or flies along the aim line with spread
+  function shootFrom(ox, oy, oz, k) {
+    const w = G.WEAPONS[k];
+    player.fireCD = w.rate; player.aimHold = 0.9;
+    let baseA;
+    if (aimTarget) baseA = Math.atan2(aimTarget.x - ox, aimTarget.z - oz);
+    else baseA = camYaw;
+    const d0 = aimTarget ? Math.hypot(aimTarget.x - ox, aimTarget.z - oz) : 0;
+    const hits = new Map();
+    for (let n = 0; n < w.pellets; n++) {
+      let a = baseA + G.R(-w.spread, w.spread), forced = null;
+      if (aimTarget && Math.random() < w.acc(d0) * (player.car ? 0.85 : 1)) forced = aimTarget;
+      else if (aimTarget && w.pellets === 1) a += (Math.random() < 0.5 ? -1 : 1) * G.R(0.05, 0.1);
+      const dx = Math.sin(a), dz = Math.cos(a);
+      const wallT = W.raycast(ox, oz, dx, dz, w.range);
+      const hit = forced ? { c: forced, t: d0 } : A.rayChars(ox, oz, dx, dz, wallT, null);
+      let ex, ey, ez;
+      if (hit) {
+        const head = w.pellets === 1 && Math.random() < (hit.t < 8 ? 0.2 : 0.12) + (k === 'rifle' ? 0.15 : 0);
+        ex = hit.c.x; ez = hit.c.z; ey = head ? 1.66 : G.R(1.0, 1.45);
+        const h = hits.get(hit.c) || { dmg: 0, dx: 0, dz: 0, head: false, n: 0 };
+        h.dmg += head ? 150 : G.R(w.dmg[0], w.dmg[1]); h.dx += dx; h.dz += dz; h.head = h.head || head; h.n++;
+        hits.set(hit.c, h);
       } else {
-        ex = ox + dx * wallT; ez = oz + dz * wallT; ey = oy - 0.1;
-        if (wallT < 70) G.fx.spark(ex, ey, ez, 6);
+        const dead = G.body.rayDead(ox, oz, dx, dz, Math.min(wallT, 25));
+        if (dead) {
+          const jp = G.body.jointPos(dead.c, dead.k);
+          ex = jp.x; ey = jp.y; ez = jp.z;
+          G.body.push(dead.c, dead.k, dx * w.power * 0.8, 1.2, dz * w.power * 0.8, 0.12);
+          G.blood.spray(jp.x, jp.y, jp.z, dx, dz, 0.7, dead.k === G.body.J.HEAD);
+          G.body.addBlood(dead.c, 0.15);
+        } else {
+          ex = ox + dx * wallT; ez = oz + dz * wallT; ey = oy - 0.1 + G.R(-0.2, 0.2);
+          if (wallT < w.range) G.fx.spark(ex, ey, ez, 4);
+        }
       }
+      G.fx.tracer(ox, oy, oz, ex, ey, ez);
     }
-    G.fx.tracer(ox, oy, oz, ex, ey, ez);
-    G.fx.flash(ox, oy + 0.1, oz, 1);
-    G.audio.shot(1);
-    A.alarm(player.x, player.z, 45);
+    for (const [c, h] of hits) {
+      const l = Math.hypot(h.dx, h.dz) || 1;
+      const power = w.power * (w.pellets > 1 ? Math.min(1, 0.35 + h.n / w.pellets) : 1) * (h.head ? 1.3 : 1);
+      G.damageChar(c, h.dmg, ox, oz, true, { kind: 'bullet', dx: h.dx / l, dz: h.dz / l, power, joint: h.head ? G.body.J.HEAD : G.body.J.NECK, head: h.head });
+      if (h.head && !c.alive) G.hud.toast('Headshot');
+    }
+    G.lastShot = { k, ox, oz, baseA, aim: aimTarget ? aimTarget.kind : null, hits: hits.size, camYaw };
+    G.fx.flash(ox, oy + 0.1, oz, k === 'smg' ? 0.6 : 1);
+    G.audio.shot(w.vol);
+    if (k === 'shotgun' || k === 'rifle') { G.audio.thud(0.5); G.shake(0.12); }
+    A.alarm(player.x, player.z, k === 'rifle' ? 70 : 45);
     if (!G.suppressShotHeat && G.wanted.level < 1 && witnesses(25)) G.addHeat(1);
   }
-  function playerShoot() {
+  function playerShoot(k) {
     const fx = Math.sin(player.rot), fz = Math.cos(player.rot);
-    shootFrom(player.x + fx * 0.6 - fz * 0.28, 1.45 + W.groundY(player.x, player.z), player.z + fz * 0.6 + fx * 0.28);
+    shootFrom(player.x + fx * 0.6 - fz * 0.28, 1.45 + W.groundY(player.x, player.z), player.z + fz * 0.6 + fx * 0.28, k);
   }
   // shooting out of the driver's window, toward the target
-  function driveBy() {
+  function driveBy(k) {
     const car = player.car;
     let tx = aimTarget ? aimTarget.x : car.x + Math.sin(camYaw) * 10, tz = aimTarget ? aimTarget.z : car.z + Math.cos(camYaw) * 10;
     const dx = tx - car.x, dz = tz - car.z, l = Math.hypot(dx, dz) || 1;
-    shootFrom(car.x + (dx / l) * 1.3, 1.35, car.z + (dz / l) * 1.3);
+    shootFrom(car.x + (dx / l) * 1.3, car.y + 1.35, car.z + (dz / l) * 1.3, k);
   }
 
   // ---------------------------------------------------------------- damage
@@ -217,6 +277,7 @@
   };
   G.killChar = function (c, hit, byPlayer) {
     A.kill(c, hit);
+    G.loot.drop(c);
     if (!byPlayer) return;
     G.stats.kills++;
     if (c.kind === 'ped') { G.stats.civs++; G.addHeat(G.wanted.level < 1 ? 1 : 0.5); }
@@ -226,6 +287,10 @@
   G.damagePlayer = function (amt, fx, fz, direct, kind) {
     if (!player.alive) return;
     if (player.car && !direct) { A.damageCar(player.car, amt * 0.9); amt *= 0.35; }
+    if (player.armor > 0 && kind !== 'blast') {
+      const soak = Math.min(player.armor, amt * 0.7);
+      player.armor -= soak; amt -= soak;
+    }
     player.hp -= amt;
     player.lastHurt = G.time;
     let dx = player.x - fx, dz = player.z - fz;
@@ -376,13 +441,16 @@
     if (face !== null) player.rot = G.angleLerp(player.rot, face, Math.min(1, dt * (aiming ? 20 : 10)));
     G.body.pose(player, dt, speed, aiming);
 
-    if (player.reloadT > 0) { player.reloadT -= dt; if (player.reloadT <= 0) player.ammo = player.mag; }
+    tickReload(dt);
     if (input.reload) startReload();
-    player.fireCD -= dt;
-    if (input.fire && player.fireCD <= 0 && player.reloadT <= 0) {
-      if (player.ammo > 0) playerShoot(); else { startReload(); player.fireCD = 0.3; }
+    player.fireCD -= dt; player.punchT -= dt;
+    if (input.fire) tryFire(false);
+    if (input.action) {
+      const shop = G.shopAt(player.x, player.z), safe = G.story.safehouseAt(player.x, player.z), car = nearestCar(3.8);
+      if (shop) G.openShop(shop);
+      else if (safe) G.story.useSafehouse(safe);
+      else if (car) enterCar(car);
     }
-    if (input.action) { const car = nearestCar(3.8); if (car) enterCar(car); }
   }
 
   function updateDriving(dt) {
@@ -390,12 +458,10 @@
     player.x = car.x; player.z = car.z; player.moving = Math.hypot(car.speed, car.slip);
     if (input.action) { G.exitCar(false); return; }
     computeAim();
-    if (player.reloadT > 0) { player.reloadT -= dt; if (player.reloadT <= 0) player.ammo = player.mag; }
+    tickReload(dt);
     if (input.reload) startReload();
     player.fireCD -= dt;
-    if (input.fire && player.fireCD <= 0 && player.reloadT <= 0) {
-      if (player.ammo > 0) driveBy(); else { startReload(); player.fireCD = 0.3; }
-    }
+    if (input.fire) tryFire(true);
   }
   function setDriving(v) {
     G.driving = v;
@@ -463,7 +529,7 @@
   // ---------------------------------------------------------------- HUD
   const hud = (G.hud = {});
   const el = {
-    hp: $('hpFill'), ammo: $('ammo'), stars: $('stars'), obj: $('objective'), sub: $('subtitle'), toast: $('toast'),
+    hp: $('hpFill'), ammo: $('ammo'), wname: $('wname'), money: $('money'), armor: $('armorFill'), armorBar: $('armorBar'), notice: $('notice'), stars: $('stars'), obj: $('objective'), sub: $('subtitle'), toast: $('toast'),
     ret: $('reticle'), arrow: $('wpArrow'), wpDist: $('wpDist'), wp: $('wp'), vig: $('vignette'),
     act: $('btnAct'), fire: $('btnFire'), reload: $('btnReload'), blood: $('bloodScreen'),
     joyBase: $('joyBase'), joyKnob: $('joyKnob'), cards: $('cards'), cardH: $('cardH'), cardT: $('cardT'), cardNext: $('cardNext'),
@@ -481,6 +547,8 @@
     if (!text) return;
     el.sub.textContent = text; el.sub.hidden = false; subT = sec;
   };
+  let noticeT = 0;
+  hud.notice = (text) => { el.notice.textContent = text; el.notice.hidden = false; el.notice.classList.remove('pop'); void el.notice.offsetWidth; el.notice.classList.add('pop'); noticeT = 1.6; };
   let toastT = 0;
   hud.toast = (text) => { el.toast.textContent = text; el.toast.hidden = false; toastT = 1.2; };
   let hurtV = 0;
@@ -606,8 +674,14 @@
   hud.update = function (dt) {
     const hp = Math.round(player.hp);
     if (hp !== last.hp) { el.hp.style.width = hp + '%'; el.hp.classList.toggle('low', hp < 30); last.hp = hp; }
-    const ammo = player.reloadT > 0 ? 'RELOADING' : player.ammo + ' / ' + player.mag;
+    const k = activeWeapon(), w = G.WEAPONS[k], inv = G.inv;
+    const ammo = w.melee ? '' : player.reloadT > 0 ? 'RELOADING' : inv.mag[k] + ' / ' + (inv.reserve[k] === Infinity ? '∞' : inv.reserve[k]);
     if (ammo !== last.ammo) { el.ammo.textContent = ammo; last.ammo = ammo; }
+    if (w.name !== last.wname) { el.wname.textContent = w.name; last.wname = w.name; }
+    if (G.money !== last.money) { el.money.textContent = '$' + G.money.toLocaleString(); last.money = G.money; }
+    const ar = Math.round(player.armor || 0);
+    if (ar !== last.armor) { el.armor.style.width = ar + '%'; el.armorBar.hidden = ar <= 0; last.armor = ar; }
+    if (noticeT > 0) { noticeT -= dt; if (noticeT <= 0) el.notice.hidden = true; }
     const stars = Math.ceil(G.wanted.level - 0.01);
     if (stars !== last.stars) { starEls.forEach((s, k) => s.classList.toggle('on', k < stars)); last.stars = stars; }
     if (G.wanted.evading !== last.ev) { el.stars.classList.toggle('evading', !!G.wanted.evading); last.ev = G.wanted.evading; }
@@ -624,8 +698,10 @@
 
     // context button
     let act = '';
-    if (player.alive) {
-      if (!player.car && nearestCar(3.8)) act = 'CAR';
+    if (player.alive && !player.car) {
+      if (G.shopAt(player.x, player.z)) act = 'SHOP';
+      else if (G.story.safehouseAt(player.x, player.z)) act = 'REST';
+      else if (nearestCar(3.8)) act = 'CAR';
     }
     if (act !== last.act) { el.act.textContent = act || 'CAR'; el.act.classList.toggle('dim', !act); last.act = act; }
 
@@ -658,7 +734,7 @@
 
   // ---------------------------------------------------------------- menus
   function setPaused(p) {
-    if (!G.running || G.cardMode || !player.alive) p = false;
+    if (!G.running || G.cardMode || G.shopOpen || !player.alive) p = false;
     G.paused = p;
     $('pause').hidden = !p;
     $('confirmRestart').hidden = true;
@@ -703,10 +779,39 @@
     $('restartNo').addEventListener('click', () => { $('confirmRestart').hidden = true; });
     $('restartYes').addEventListener('click', () => location.reload());
     $('retryBtn').addEventListener('click', () => { G.story.respawn(); });
-    $('startBtn').addEventListener('click', startGame);
+    $('startBtn').addEventListener('click', () => startGame(null));
+    $('continueBtn').addEventListener('click', () => startGame(G.loadSave()));
+    $('newBtn').addEventListener('click', () => { $('confirmNew').hidden = false; });
+    $('newNo').addEventListener('click', () => { $('confirmNew').hidden = true; });
+    $('newYes').addEventListener('click', () => { G.clearSave(); startGame(null); });
+    G.bindHold($('btnWeapon'), (v) => { if (v) G.inv.cycle(1); });
+    window.addEventListener('keydown', (e) => {
+      if (!G.running || G.paused || G.cardMode || G.shopOpen) return;
+      if (e.code === 'KeyQ') G.inv.cycle(1);
+      const n = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(e.code);
+      if (n >= 0) G.inv.select(['fists', 'pistol', 'shotgun', 'smg', 'rifle'][n]);
+    });
+    window.addEventListener('wheel', (e) => { if (G.running && !G.paused && !G.shopOpen && !G.cardMode) G.inv.cycle(e.deltaY > 0 ? 1 : -1); }, { passive: true });
+    $('shopClose').addEventListener('click', () => G.closeShop());
+    // backup save code
+    $('codeBtn').addEventListener('click', () => {
+      const box = $('codeBox'); box.hidden = false;
+      $('codeText').value = G.saveCode();
+      $('codeMsg').textContent = 'Copy this somewhere safe. Paste it back here to restore your game.';
+    });
+    $('codeCopy').addEventListener('click', () => {
+      const t = $('codeText'); t.select();
+      const done = () => { $('codeMsg').textContent = 'Copied.'; };
+      try { navigator.clipboard.writeText(t.value).then(done).catch(() => { $('codeMsg').textContent = 'Select the text and copy it yourself.'; }); }
+      catch (e) { $('codeMsg').textContent = 'Select the text and copy it yourself.'; }
+    });
+    $('codeLoad').addEventListener('click', () => {
+      if (G.loadCode($('codeText').value)) { $('codeMsg').textContent = 'Loaded. Restarting…'; setTimeout(() => location.reload(), 600); }
+      else $('codeMsg').textContent = 'That code did not work. Check it was copied in full.';
+    });
   }
 
-  function startGame() {
+  function startGame(save) {
     G.audio.init();
     try {
       const de = document.documentElement;
@@ -719,7 +824,7 @@
     $('hud').hidden = false;
     G.running = true;
     for (let k = G.chars.length - 1; k >= 0; k--) if (G.chars[k].kind === 'ped' && Math.hypot(G.chars[k].x - player.x, G.chars[k].z - player.z) < 30) A.remove(G.chars[k]);
-    G.story.start();
+    G.story.start(save);
     perfStart = G.time;
   }
 
@@ -749,6 +854,7 @@
     updateCamera(dt);
     W.update(dt, camera.position);
     G.fx.update(dt);
+    G.loot.update(dt);
     let siren = 0;
     if (G.wanted.level > 0) {
       for (const car of G.cars) if (car.sirenOn) siren = Math.max(siren, 1 - Math.hypot(car.x - player.x, car.z - player.z) / 90);
@@ -779,7 +885,7 @@
       A.updateChars(dt);
       G.body.update(dt);
       populate(dt);
-    } else if (!G.paused && !G.cardMode) {
+    } else if (!G.paused && !G.cardMode && !G.shopOpen) {
       update(dt);
     } else {
       G.clearEdges();
@@ -800,6 +906,8 @@
     for (let k = 0; k < 16; k++) { const p = W.randomSidewalkPoint(150, -180, 10, 80); if (p) A.spawn('ped', p.x, p.z, { ring: p }); }
     $('loading').hidden = true;
     $('startBtn').disabled = false;
+    const sv = G.loadSave();
+    if (sv) { $('startBtn').hidden = true; $('saveRow').hidden = false; $('saveInfo').textContent = 'Saved ' + new Date(sv.at).toLocaleString(); }
     requestAnimationFrame((t) => { lastT = t; frame(t); });
   }
   const fontsReady = document.fonts && document.fonts.load
