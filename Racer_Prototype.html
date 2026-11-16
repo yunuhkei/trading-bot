@@ -4786,7 +4786,9 @@ function navLane(sn,x,z,hx,hz){
   let best=null,bd=1e18;for(const di of dirs)for(const e of o[di]){const u=e.dir>0?Math.min(e.n-1,sn.i+(sn.t>.5?1:0)):Math.max(0,e.n-1-sn.i-(sn.t>.5?1:0)),d=(e.X[u]-x)**2+(e.Z[u]-z)**2;if(d<bd){bd=d;best={e,u}}}
   return best}
 /* A*: the chain of states from (e0,u0) to the road sample goal {ri,i,x,z}, or null */
-function navAStar(e0,u0,goal,maxIt){
+/* (batch 54) how sharply a turn link changes direction (rad), cached on the link */
+function navTurnA(l){if(l.ta!=null)return l.ta;const a=l.from,b=l.to,fu=l.fu,tu=l.tu,i0=Math.max(0,fu-2),i1=Math.min(b.n-1,tu+2);const h1=Math.atan2(a.X[fu]-a.X[i0],-(a.Z[fu]-a.Z[i0])),h2=Math.atan2(b.X[i1]-b.X[tu],-(b.Z[i1]-b.Z[tu]));l.ta=(fu>i0&&i1>tu)?Math.abs(angd(h2,h1)):0;return l.ta}
+function navAStar(e0,u0,goal,maxIt,tp){tp=tp||0;
   const open=new NavHeap(),st=[],best=new Map();
   const push=(e,u,g,prev,link)=>{const key=e.id*8192+u,old=best.get(key);if(old!==undefined&&old<=g)return;best.set(key,g);st.push({e,u,g,prev,link});open.push(st.length-1,g+Math.hypot(e.X[u]-goal.x,e.Z[u]-goal.z))};
   push(e0,u0,0,-1,null);let it=0,gn=-1;const lim=maxIt||9000;
@@ -4794,13 +4796,14 @@ function navAStar(e0,u0,goal,maxIt){
     const e=s.e,u=s.u;
     if(e.ri===goal.ri){const ug=e.dir>0?goal.i:e.n-1-goal.i;let d=-1;if(ug>=u)d=e.S[ug]-e.S[u];else if(e.closed)d=e.len-e.S[u]+e.S[ug];if(d>=0){st.push({e,u:ug,g:s.g+d,prev:k,link:null,goal:1});open.push(st.length-1,s.g+d)}}
     /* a car may change lane (the traffic does), so every lane of this road direction offers its turns from the same sample onwards */
-    const lanes=LG.ofRoad[e.ri][e.dir>0?0:1];for(const e2 of lanes)for(const l of e2.out){let d;if(l.fu>=u)d=e2.S[l.fu]-e2.S[u];else if(e2.closed)d=e2.len-e2.S[u]+e2.S[l.fu];else continue;push(l.to,l.tu,s.g+d+l.len+(e2===e?0:2.5),k,l)}}
+    const lanes=LG.ofRoad[e.ri][e.dir>0?0:1];for(const e2 of lanes)for(const l of e2.out){let d;if(l.fu>=u)d=e2.S[l.fu]-e2.S[u];else if(e2.closed)d=e2.len-e2.S[u]+e2.S[l.fu];else continue;push(l.to,l.tu,s.g+d+l.len+(e2===e?0:2.5)+(tp?tp*Math.max(0,navTurnA(l)-.45)**2:0),k,l)}}
   if(gn<0)return null;const chain=[];for(let k=gn;k>=0;k=st[k].prev)chain.push(st[k]);chain.reverse();return chain}
 /* the chain as a polyline (x,y,z per point, about 4 m apart) with the distance along it */
 function navPolyline(chain){
   const P=[];const addEdge=(e,a,b)=>{if(b>=a){for(let i=a;i<=b;i++)P.push(e.X[i],e.Y[i],e.Z[i])}else{for(let i=a;i<e.n;i++)P.push(e.X[i],e.Y[i],e.Z[i]);for(let i=0;i<=b;i++)P.push(e.X[i],e.Y[i],e.Z[i])}};
   for(let k=0;k<chain.length-1;k++){const s=chain[k],nx=chain[k+1];if(nx.link){addEdge(nx.link.from,s.u,nx.link.fu);const l=nx.link;for(let j=1;j<l.n;j++)P.push(l.X[j],l.Y[j],l.Z[j])}else addEdge(s.e,s.u,nx.u)}
   const n=P.length/3,pts=new Float32Array(P),S=new Float32Array(n);for(let i=1;i<n;i++)S[i]=S[i-1]+Math.hypot(pts[i*3]-pts[i*3-3],pts[i*3+2]-pts[i*3-1]);
+  /* (batch 54) the guide lines are painted at the real road height (the road between two route points bulges over a straight line on crests, which hid patches of the guide) */for(let i=0;i<n;i++){const y=pts[i*3+1],g=groundAt(pts[i*3],pts[i*3+2],y+1.2);if(g>y&&g<y+1.2)pts[i*3+1]=g}
   return{pts,n,S,len:S[n-1]||0}}
 /* the turn links of a chain, in order */
 const navLinksOf=chain=>{const L=[];for(const s of chain)if(s.link)L.push(s.link);return L};
@@ -4810,9 +4813,9 @@ const NAV={wp:null,route:null,prog:0,pend:null,pendMsg:'',t:0,routeT:-9,off:0,le
 function navRouteFromPlayer(goal){
   const sp=C.speed,hx=sp>3?C.vx/sp:Math.sin(C.yaw),hz=sp>3?C.vz/sp:-Math.cos(C.yaw);
   const sn=navSnap(C.x,C.z,70);if(!sn)return null;const la=navLane(sn,C.x,C.z,hx,hz);if(!la)return null;
-  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),chain=navAStar(e,u0,goal);let best=chain?navPolyline(chain):null;
+  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),chain=navAStar(e,u0,goal,0,70);let best=chain?navPolyline(chain):null;
   /* (batch 53) stopped or crawling, the car can just as well set off the other way: take that route when it is clearly shorter (the route used to run on to the next junction and come back) */
-  if(sp<8){const lb=navLane(sn,C.x,C.z,-hx,-hz);if(lb&&lb.e!==e){const e2=lb.e,u2=e2.closed?(lb.u+2)%e2.n:Math.min(e2.n-1,lb.u+2),ch2=navAStar(e2,u2,goal);if(ch2){const r2=navPolyline(ch2);if(!best||r2.len<best.len-60)best=r2}}}
+  if(sp<8){const lb=navLane(sn,C.x,C.z,-hx,-hz);if(lb&&lb.e!==e){const e2=lb.e,u2=e2.closed?(lb.u+2)%e2.n:Math.min(e2.n-1,lb.u+2),ch2=navAStar(e2,u2,goal,0,70);if(ch2){const r2=navPolyline(ch2);if(!best||r2.len<best.len-60)best=r2}}}
   return best}
 function navSet(x,z){
   const sn=navSnap(x,z,Math.max(60,NAV.pickR||60));if(!sn)return{ok:false,msg:'No road near there'};
@@ -4860,10 +4863,15 @@ function navFx(quad,sprite,time){
             quad(bx-fx*hw,yt,bz-fz*hw,bx+fx*hw,yt,bz+fz*hw,bx+fx*hw+rx*pk,(yt+yb)/2,bz+fz*hw+rz*pk,bx-fx*hw+rx*pk,(yt+yb)/2,bz-fz*hw+rz*pk,1,.85,.15,al);
             quad(bx-fx*hw+rx*pk,(yt+yb)/2,bz-fz*hw+rz*pk,bx+fx*hw+rx*pk,(yt+yb)/2,bz+fz*hw+rz*pk,bx+fx*hw,yb,bz+fz*hw,bx-fx*hw,yb,bz-fz*hw,1,.85,.15,al)}}}}}
   if(!NAV.wp||!NAV.route||(EV.run&&EV.run.ev.R&&EV.run.ev.type!='escape'))return 0;   /* in a race the race route above is the guide */const R=NAV.route,p=R.pts,n=R.n,start=Math.max(0,NAV.prog-1);let drawn=0;const maxS=R.S[start]+420;
+  /* (batch 54) the waypoint route looks like the race guide now (a wide band on the road with arrows sliding along it), in blue and white instead of green and yellow: it used to be a thin pulsing line that flickered */
   for(let i=start;i<n-1&&R.S[i]<maxS&&drawn<130;i++){
-    const x0=p[i*3],y0=p[i*3+1]+.1,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.1,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*.8,nz=dx/l*.8;
-    const s=R.S[i],fade=Math.min(1,(maxS-s)/120),pulse=.55+.35*Math.sin(s*.22-time*7);
-    quad(x0-nx,y0,z0-nz,x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz,.15,.8,1,.62*pulse*fade);drawn++}
+    const x0=p[i*3],y0=p[i*3+1]+.17,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.17,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*1.9,nz=dx/l*1.9;
+    const s=R.S[i],fade=Math.min(1,(maxS-s)/140)*Math.min(1,(s-R.S[start]+6)/10);
+    quad(x0-nx,y0,z0-nz,x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz,.1,.6,1,.6*fade);
+    quad(x0-nx*1.12,y0-.01,z0-nz*1.12,x0-nx*.92,y0-.01,z0-nz*.92,x1-nx*.92,y1-.01,z1-nz*.92,x1-nx*1.12,y1-.01,z1-nz*1.12,.75,.92,1,.8*fade);
+    quad(x0+nx*.92,y0-.01,z0+nz*.92,x0+nx*1.12,y0-.01,z0+nz*1.12,x1+nx*1.12,y1-.01,z1+nz*1.12,x1+nx*.92,y1-.01,z1+nz*.92,.75,.92,1,.8*fade);drawn++}
+  {const s0=R.S[start],ph=(time*24)%12;let k=start;for(let sc=s0+6+ph;sc<s0+300;sc+=12){while(k<n-2&&R.S[k+1]<sc)k++;if(k>=n-2)break;const t=(sc-R.S[k])/Math.max(.01,R.S[k+1]-R.S[k]),x=lerp(p[k*3],p[k*3+3],t),y=lerp(p[k*3+1],p[k*3+4],t)+.2,z=lerp(p[k*3+2],p[k*3+5],t),dx=p[k*3+3]-p[k*3],dz=p[k*3+5]-p[k*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,rx=-uz,rz=ux,w=1.75,al=Math.min(1,(s0+300-sc)/90);
+    for(const sd of[-1,1])quad(x+ux*2.6,y,z+uz*2.6,x+ux*1.0,y,z+uz*1.0,x-ux*2.0+rx*w*sd,y,z-uz*2.0+rz*w*sd,x-ux*.4+rx*w*sd,y,z-uz*.4+rz*w*sd,1,1,1,al)}}
   /* a pulsing ring on the ground at the waypoint */
   {const w=NAV.wp,gy=w.y+.2,k=.5+.5*Math.sin(time*4);for(let i=0;i<28;i++){const a0=i/28*TAU,a1=(i+1)/28*TAU,r0=5+k*1.2,r1=r0+1.5;quad(w.x+Math.cos(a0)*r0,gy,w.z+Math.sin(a0)*r0,w.x+Math.cos(a0)*r1,gy,w.z+Math.sin(a0)*r1,w.x+Math.cos(a1)*r1,gy,w.z+Math.sin(a1)*r1,w.x+Math.cos(a1)*r0,gy,w.z+Math.sin(a1)*r0,.2,.85,1,.55-.25*k)}}
   return drawn}
@@ -5171,7 +5179,7 @@ function evAt(id,f){const r=ROADS.find(q=>q.id==id);if(!r)return null;const i=Ma
   return{x:r.X[i]+Math.cos(yaw)*o,z:r.Z[i]+Math.sin(yaw)*o,y:r.Y[i],yaw,ri:ROADS.indexOf(r),i}}
 /* a route along the roads from a start (position and heading) to a point */
 function evRoute(s,gx,gz){const sn=navSnap(s.x,s.z,40);if(!sn)return null;const la=navLane(sn,s.x,s.z,Math.sin(s.yaw),-Math.cos(s.yaw));if(!la)return null;const g=navSnap(gx,gz,80);if(!g)return null;
-  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),ch=navAStar(e,u0,{ri:g.ri,i:g.i,x:g.x,z:g.z},60000);return ch?navPolyline(ch):null}
+  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),ch=navAStar(e,u0,{ri:g.ri,i:g.i,x:g.x,z:g.z},60000,260);   /* (batch 54) event routes avoid sharp junction turns: a 90-degree turn costs as much as ~290 m more road */return ch?navPolyline(ch):null}
 /* the medal times come from the route itself: the time of a good driver who takes every bend at 9.5 m/s2 of grip, never goes over 72 m/s, pulls away at 6 m/s2 and brakes at 11 */
 function evRefTime(R){const n=R.n,p=R.pts,v=new Float32Array(n);for(let i=0;i<n;i++){const a=Math.max(0,i-4),b=Math.min(n-1,i+4),c=Math.min(n-1,i+8);const h1=Math.atan2(p[b*3]-p[a*3],p[b*3+2]-p[a*3+2]),h2=Math.atan2(p[c*3]-p[b*3],p[c*3+2]-p[b*3+2]),ds=Math.max(1,R.S[c]-R.S[a]),k=Math.abs(angd(h2,h1))/ds;v[i]=Math.min(72,k>1e-4?Math.sqrt(9.5/k):72)}
   v[0]=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];v[i]=Math.min(v[i],Math.sqrt(v[i-1]*v[i-1]+2*6*ds))}for(let i=n-2;i>=0;i--){const ds=R.S[i+1]-R.S[i];v[i]=Math.min(v[i],Math.sqrt(v[i+1]*v[i+1]+2*11*ds))}
@@ -5220,7 +5228,8 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
   if(r.crashN&&r.racers&&r.racers.some(c=>c.alive&&c.race&&c.state==3&&Math.abs(c.race.s-(r.ps||0))<25))r.crashN=0;   /* caught up with a racer: the next crash starts from 60 m again */
   /* (batch 53) the GPS never drops out in an event: if the route to the next checkpoint (or the end) could not be found, or got lost, it is looked for again every half second */
   if(ev.cps&&ev.type!='escape'){r.navT=(r.navT||0)-dt;if((!NAV.wp||!NAV.route)&&r.navT<=0){r.navT=.5;const q=ev.type=='rage'?ev.cps[ev.cps.length-1]:ev.cps[Math.min(r.cp,ev.cps.length-1)];if(q)navSetPt(q)}}
-  if(r.racers&&r.racers.length&&ev.R){/* your progress along the race route (for the order) */const R=ev.R,p=R.pts;let bi=r.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(R.n,bi+50);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
+  if(ev.R){/* your progress along the route (for the order, and for the guide painted on the road: (batch 54) every route event, time trials too, which never moved it, so their guide vanished behind you after the first checkpoint) */const R=ev.R,p=R.pts;let bi=r.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(R.n,bi+60);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}
+    if(bd>35*35){/* lost (a respawn, a shortcut, a long slide): look along the whole route, preferring the stretch at or after the next checkpoint */for(let k=0;k<R.n;k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2+(k<bi-40?2500:0);if(d<bd){bd=d;bi=k}}}r.fi=bi;r.ps=R.S[bi]}
   if(ev.type=='race'||ev.type=='death'){const p=ev.cps[r.cp],R=Math.max(14,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+5);if(Math.hypot(C.x-p.x,C.z-p.z)<R&&Math.abs(C.y-p.y)<6){r.cp++;if(r.cp>=ev.cps.length){evFinish(true);return}evBeep(660,.08);navSetPt(ev.cps[r.cp])}
     if(r.t>Math.max(ev.bronze*2.4,ev.bronze+150))evFinishFail('TOO SLOW')}
   else if(ev.type=='trial'){r.gt+=dt;if(r.gt>=.1){r.gt-=.1;r.ghost.push(+C.x.toFixed(1),+C.y.toFixed(2),+C.z.toFixed(1),+C.yaw.toFixed(3))}
@@ -5363,15 +5372,15 @@ function racerStep(c,dt){
     /* the tightest bend in the next stretch: the curvature of the circle through three points of it (Menger), at two distances, and the speed its grip allows there */
     let cornerV=1e9;
     /* (batch 53) corners: the speed the tightest bend in the next ~3 s allows, looked at every 9 m (the two coarse samples above smoothed a 90-degree turn away), with the braking it takes to get there */
-    {const bk=(sk.brk||9)*.72,maxD=Math.max(90,v*3.2),hd=q=>{const a=_ra(Rt,bi,q),b=_ra(Rt,bi,q+14);return Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2]))};let h0=hd(R.s+4);
-      for(let d=12;d<maxD;d+=9){const h1=hd(R.s+d+4),kc=Math.abs(angd(h1,h0))/9;h0=h1;if(kc>1e-3){const vc=Math.sqrt(sk.grip*1.05/kc);cornerV=Math.min(cornerV,Math.sqrt(vc*vc+2*bk*d))}}}
+    {const bk=(sk.brk||9)*.72,maxD=Math.max(90,v*3.2),hd=q=>{const a=_ra(Rt,bi,q),b=_ra(Rt,bi,q+10);return Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2]))};let h0=hd(R.s-8);
+      for(let d=-2;d<maxD;d+=6){const h1=hd(R.s+d),kc=Math.abs(angd(h1,h0))/6;h0=h1;   /* (batch 54) from where it is now, every 6 m: the scan began 12 m ahead, so a car already in a tight turn stopped seeing it and accelerated out wide */if(kc>1e-3){const vc=Math.sqrt(sk.grip*1.05/kc);cornerV=Math.min(cornerV,Math.sqrt(vc*vc+2*bk*Math.max(0,d)))}}}
     /* nitro: the racers use it too, on a clear straight, for 2.5 s every 12-20 s */
     R.nzCd=(R.nzCd||4)-dt;if(R.nzT>0)R.nzT-=dt;else if(sk.nitro&&R.nzCd<=0&&v>25&&!(R.launch>0)){R.nzT=2.5;R.nzCd=12+((c.seed|0)%8)}
     let vt=sk.vmax*(R.nzT>0?1.14:1);for(const L of[Math.max(40,v*1.4),Math.max(80,v*2.6)]){const A=_ra(Rt,bi,R.s+10),B=_ra(Rt,bi,R.s+10+L/2),Cc=_ra(Rt,bi,R.s+10+L);const ax=p[A*3],az=p[A*3+2],bx=p[B*3],bz=p[B*3+2],cx=p[Cc*3],cz=p[Cc*3+2];
       const ar=Math.abs((bx-ax)*(cz-az)-(bz-az)*(cx-ax)),dd=Math.hypot(bx-ax,bz-az)*Math.hypot(cx-bx,cz-bz)*Math.hypot(cx-ax,cz-az),kc=dd>1e-3?2*ar/dd:0;if(kc>1e-4){const vb=Math.sqrt(sk.grip/kc),dist=Math.max(0,Rt.S[A]-R.s);vt=Math.min(vt,Math.sqrt(vb*vb+2*(sk.brk||9)*.72*dist))}}
     /* catch-up: a little faster when far behind you, a little slower when far ahead */
-    vt=Math.min(vt,cornerV);
-    const gap=(EV.run&&EV.run.ps!=null)?EV.run.ps-R.s:0;vt*=gap>300?1.3:gap>150?1.18:gap>60?1.08:gap<-320?.93:1;if(R.catchT>0){R.catchT-=dt;if(gap>20)vt*=1.12}   /* (batch 53) it really comes back at you after you knock it out or leave it behind */   /* (batch 53) it chases harder when it is behind you, and eases off only when it is a long way ahead */
+    const gap=(EV.run&&EV.run.ps!=null)?EV.run.ps-R.s:0;vt*=gap>300?1.3:gap>150?1.18:gap>60?1.08:gap<-320?.93:1;if(R.catchT>0){R.catchT-=dt;if(gap>20)vt*=1.12}
+    vt=Math.min(vt,cornerV);   /* (batch 54) the catch-up boost is for the straights only: it used to be applied after the corner limit, so a racer catching up took bends up to 46 % too fast and ran wide off the road */   /* (batch 53) it really comes back at you after you knock it out or leave it behind */   /* (batch 53) it chases harder when it is behind you, and eases off only when it is a long way ahead */
     /* traffic in the way: overtake on the free side */
     const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),look=Math.max(40,v*1.6),lat2=(o,dx,dz)=>{const ovx=Math.sin(o.yaw)*o.v,ovz=-Math.cos(o.yaw)*o.v,lt=dx*-cy+dz*sy,lv=ovx*-cy+ovz*sy;return[lt,lt+lv*.9]},   /* where it is across our path now and in 0.9 s (a car changing lanes) */
       inLane=(o,off)=>{const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<2||f>look)return -1;const L=lat2(o,dx,dz),q=off-R.off;return Math.min(Math.abs(L[0]-q),Math.abs(L[1]-q),(L[0]-q)*(L[1]-q)<0?0:9)<2.6?f:-1};   /* L is measured from this car; off is from the route centre, where this car is R.off */
@@ -5395,12 +5404,14 @@ function racerStep(c,dt){
     if(R.aggr&&EV.run&&!TUM.on){R.ramCd-=dt;const dpx=C.x-c.x,dpz=C.z-c.z,dp=Math.hypot(dpx,dpz);if(EV.run.ev&&EV.run.ev.type=='death'&&(dpx*sy+dpz*cy)<-6&&dp<110)vt=Math.min(vt,Math.max(C.speed*1.04,26));   /* (batch 53) a death racer stays in reach of you instead of running away from you: it is a fight */
       /* (batch 53) THE FIGHT: within 75 m it comes for you: from behind it aims at your rear corner (a PIT), alongside it swings into your door, then it backs off a second and comes again */
       if(dp<75&&R.ramCd<=0&&C.speed>15&&!(c.spinT>0)&&(dpx*sy+dpz*cy)>(EV.run.ev&&EV.run.ev.type=='death'?-28:-6)){   /* (only a moving target: a racer does not park itself against you when you have stopped) */const lt=dpx*-cy+dpz*sy,side=Math.sign(lt||1),fwd=dpx*sy+dpz*cy,cvx=C.vx,cvz=C.vz,cs=Math.hypot(cvx,cvz)||1,lead=Math.min(.6,dp/Math.max(8,v));
-        let ax=C.x+cvx*lead,az=C.z+cvz*lead;if(fwd>2){ax-=cvx/cs*2.2;az-=cvz/cs*2.2}ax-=(-cvz/cs)*side*.4;az-=(cvx/cs)*side*.4;tx=ax;tz=az;vt=Math.max(vt,C.speed+18);if(dp<4.8)R.ramCd=1.1}}
+        let ax=C.x+cvx*lead,az=C.z+cvz*lead;if(fwd>2){ax-=cvx/cs*2.2;az-=cvz/cs*2.2}ax-=(-cvz/cs)*side*.4;az-=(cvx/cs)*side*.4;
+        /* (batch 54) it only cuts straight at you when that line is along the road (you close by, or ahead down the road), and only onto asphalt: it used to dive across the inside of bends after you, off the road */const ra=Math.atan2(tx-c.x,-(tz-c.z)),aa=Math.atan2(ax-c.x,-(az-c.z));if((dp<16||Math.abs(angd(aa,ra))<.35)&&roadAt(ax,az,c.y+1)){tx=ax;tz=az;vt=Math.max(vt,Math.min(C.speed+18,cornerV*1.05))}else vt=Math.max(vt,Math.min(C.speed+12,cornerV));if(dp<4.8)R.ramCd=1.1}}
     if(c.rev>0){c.rev-=dt;c.yaw+=c.revS*1.1*dt;c.v=0;c.x-=sy*4*dt;c.z-=cy*4*dt;c.vx=-sy*4;c.vz=-cy*4;if(trStatic(c.x,c.z,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz}const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);return}
     if(c.stk>.8&&c.v<2){c.rev=1;c.revS=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw)>0?-1:1;c.stk=.3}
     if(c.spinT>0){c.spinT-=dt;c.v*=Math.exp(-dt*.75);c.ks=c.ks||0;if(c.spinT<=0){c.yaw=c.yaw;c.ks*=.3}}   /* spinning out: no steering, it slides on and loses speed */
     const err=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw),maxYr=Math.min(2.4,sk.grip*1.3/Math.max(v,4)),yr=c.spinT>0?0:Math.max(-maxYr,Math.min(maxYr,err*3))*(c.loose>0?Math.max(.2,1-c.loose*.9):1);c.om=yr;c.yaw+=yr*dt;
-    const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?1.14:1))),1.6))*(R.nzT>0?1.5:1),a=Math.max(-(sk.brk||11),Math.min(accNow,(vt-v)*1.6));if(!(c.spinT>0))c.v=Math.max(0,Math.min(sk.vmax*(R.nzT>0?1.2:1.08),v+a*dt));c.brake=a<-2.5?1:0;
+    {const ea=Math.abs(angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw));if(ea>.3&&!(c.spinT>0))vt=Math.min(vt,v*(ea>.6?.97:1))}   /* (batch 54) still turning in (pointing well away from where it is going): it does not put the power down yet */
+    R.cv=cornerV;R.vt=vt;const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?1.14:1))),1.6))*(R.nzT>0?1.5:1),a=Math.max(-(sk.brk||11),Math.min(accNow,(vt-v)*1.6));if(!(c.spinT>0))c.v=Math.max(0,Math.min(sk.vmax*(R.nzT>0?1.2:1.08),v+a*dt));c.brake=a<-2.5?1:0;
     if(c.v<1.5)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
   const mvy=c.spinT>0&&c.sdir!=null?c.sdir+angd(c.yaw,c.sdir)*Math.max(0,1-c.spinT/.45):c.yaw,sy=Math.sin(mvy),cy=Math.cos(mvy);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
   /* (batch 53) a knock: a sideways drift and a spin that die away in about half a second */if(c.kx||c.kz){c.x+=c.kx*dt;c.z+=c.kz*dt;c.vx+=c.kx;c.vz+=c.kz;const kl=Math.hypot(c.kx,c.kz),nk=Math.max(0,kl-dt*(c.loose>0?6.5:14)-kl*dt*.8);c.kx*=nk/kl;c.kz*=nk/kl;if(nk<.15)c.kx=c.kz=0}if(c.ks){c.yaw+=c.ks*dt;c.ks*=Math.exp(-dt*(c.spinT>0?.8:c.loose>0?1.6:4));if(Math.abs(c.ks)<.02)c.ks=0}   /* (batch 54) the sideways slide is scrubbed off by the tyres (a steady ~0.7 g while they are loose), so a shove carries it several metres across: off the road if you push it there */if(c.loose>0)c.loose-=dt;

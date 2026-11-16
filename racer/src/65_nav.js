@@ -19,7 +19,9 @@ function navLane(sn,x,z,hx,hz){
   let best=null,bd=1e18;for(const di of dirs)for(const e of o[di]){const u=e.dir>0?Math.min(e.n-1,sn.i+(sn.t>.5?1:0)):Math.max(0,e.n-1-sn.i-(sn.t>.5?1:0)),d=(e.X[u]-x)**2+(e.Z[u]-z)**2;if(d<bd){bd=d;best={e,u}}}
   return best}
 /* A*: the chain of states from (e0,u0) to the road sample goal {ri,i,x,z}, or null */
-function navAStar(e0,u0,goal,maxIt){
+/* (batch 54) how sharply a turn link changes direction (rad), cached on the link */
+function navTurnA(l){if(l.ta!=null)return l.ta;const a=l.from,b=l.to,fu=l.fu,tu=l.tu,i0=Math.max(0,fu-2),i1=Math.min(b.n-1,tu+2);const h1=Math.atan2(a.X[fu]-a.X[i0],-(a.Z[fu]-a.Z[i0])),h2=Math.atan2(b.X[i1]-b.X[tu],-(b.Z[i1]-b.Z[tu]));l.ta=(fu>i0&&i1>tu)?Math.abs(angd(h2,h1)):0;return l.ta}
+function navAStar(e0,u0,goal,maxIt,tp){tp=tp||0;
   const open=new NavHeap(),st=[],best=new Map();
   const push=(e,u,g,prev,link)=>{const key=e.id*8192+u,old=best.get(key);if(old!==undefined&&old<=g)return;best.set(key,g);st.push({e,u,g,prev,link});open.push(st.length-1,g+Math.hypot(e.X[u]-goal.x,e.Z[u]-goal.z))};
   push(e0,u0,0,-1,null);let it=0,gn=-1;const lim=maxIt||9000;
@@ -27,13 +29,14 @@ function navAStar(e0,u0,goal,maxIt){
     const e=s.e,u=s.u;
     if(e.ri===goal.ri){const ug=e.dir>0?goal.i:e.n-1-goal.i;let d=-1;if(ug>=u)d=e.S[ug]-e.S[u];else if(e.closed)d=e.len-e.S[u]+e.S[ug];if(d>=0){st.push({e,u:ug,g:s.g+d,prev:k,link:null,goal:1});open.push(st.length-1,s.g+d)}}
     /* a car may change lane (the traffic does), so every lane of this road direction offers its turns from the same sample onwards */
-    const lanes=LG.ofRoad[e.ri][e.dir>0?0:1];for(const e2 of lanes)for(const l of e2.out){let d;if(l.fu>=u)d=e2.S[l.fu]-e2.S[u];else if(e2.closed)d=e2.len-e2.S[u]+e2.S[l.fu];else continue;push(l.to,l.tu,s.g+d+l.len+(e2===e?0:2.5),k,l)}}
+    const lanes=LG.ofRoad[e.ri][e.dir>0?0:1];for(const e2 of lanes)for(const l of e2.out){let d;if(l.fu>=u)d=e2.S[l.fu]-e2.S[u];else if(e2.closed)d=e2.len-e2.S[u]+e2.S[l.fu];else continue;push(l.to,l.tu,s.g+d+l.len+(e2===e?0:2.5)+(tp?tp*Math.max(0,navTurnA(l)-.45)**2:0),k,l)}}
   if(gn<0)return null;const chain=[];for(let k=gn;k>=0;k=st[k].prev)chain.push(st[k]);chain.reverse();return chain}
 /* the chain as a polyline (x,y,z per point, about 4 m apart) with the distance along it */
 function navPolyline(chain){
   const P=[];const addEdge=(e,a,b)=>{if(b>=a){for(let i=a;i<=b;i++)P.push(e.X[i],e.Y[i],e.Z[i])}else{for(let i=a;i<e.n;i++)P.push(e.X[i],e.Y[i],e.Z[i]);for(let i=0;i<=b;i++)P.push(e.X[i],e.Y[i],e.Z[i])}};
   for(let k=0;k<chain.length-1;k++){const s=chain[k],nx=chain[k+1];if(nx.link){addEdge(nx.link.from,s.u,nx.link.fu);const l=nx.link;for(let j=1;j<l.n;j++)P.push(l.X[j],l.Y[j],l.Z[j])}else addEdge(s.e,s.u,nx.u)}
   const n=P.length/3,pts=new Float32Array(P),S=new Float32Array(n);for(let i=1;i<n;i++)S[i]=S[i-1]+Math.hypot(pts[i*3]-pts[i*3-3],pts[i*3+2]-pts[i*3-1]);
+  /* (batch 54) the guide lines are painted at the real road height (the road between two route points bulges over a straight line on crests, which hid patches of the guide) */for(let i=0;i<n;i++){const y=pts[i*3+1],g=groundAt(pts[i*3],pts[i*3+2],y+1.2);if(g>y&&g<y+1.2)pts[i*3+1]=g}
   return{pts,n,S,len:S[n-1]||0}}
 /* the turn links of a chain, in order */
 const navLinksOf=chain=>{const L=[];for(const s of chain)if(s.link)L.push(s.link);return L};
@@ -43,9 +46,9 @@ const NAV={wp:null,route:null,prog:0,pend:null,pendMsg:'',t:0,routeT:-9,off:0,le
 function navRouteFromPlayer(goal){
   const sp=C.speed,hx=sp>3?C.vx/sp:Math.sin(C.yaw),hz=sp>3?C.vz/sp:-Math.cos(C.yaw);
   const sn=navSnap(C.x,C.z,70);if(!sn)return null;const la=navLane(sn,C.x,C.z,hx,hz);if(!la)return null;
-  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),chain=navAStar(e,u0,goal);let best=chain?navPolyline(chain):null;
+  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),chain=navAStar(e,u0,goal,0,70);let best=chain?navPolyline(chain):null;
   /* (batch 53) stopped or crawling, the car can just as well set off the other way: take that route when it is clearly shorter (the route used to run on to the next junction and come back) */
-  if(sp<8){const lb=navLane(sn,C.x,C.z,-hx,-hz);if(lb&&lb.e!==e){const e2=lb.e,u2=e2.closed?(lb.u+2)%e2.n:Math.min(e2.n-1,lb.u+2),ch2=navAStar(e2,u2,goal);if(ch2){const r2=navPolyline(ch2);if(!best||r2.len<best.len-60)best=r2}}}
+  if(sp<8){const lb=navLane(sn,C.x,C.z,-hx,-hz);if(lb&&lb.e!==e){const e2=lb.e,u2=e2.closed?(lb.u+2)%e2.n:Math.min(e2.n-1,lb.u+2),ch2=navAStar(e2,u2,goal,0,70);if(ch2){const r2=navPolyline(ch2);if(!best||r2.len<best.len-60)best=r2}}}
   return best}
 function navSet(x,z){
   const sn=navSnap(x,z,Math.max(60,NAV.pickR||60));if(!sn)return{ok:false,msg:'No road near there'};
@@ -93,10 +96,15 @@ function navFx(quad,sprite,time){
             quad(bx-fx*hw,yt,bz-fz*hw,bx+fx*hw,yt,bz+fz*hw,bx+fx*hw+rx*pk,(yt+yb)/2,bz+fz*hw+rz*pk,bx-fx*hw+rx*pk,(yt+yb)/2,bz-fz*hw+rz*pk,1,.85,.15,al);
             quad(bx-fx*hw+rx*pk,(yt+yb)/2,bz-fz*hw+rz*pk,bx+fx*hw+rx*pk,(yt+yb)/2,bz+fz*hw+rz*pk,bx+fx*hw,yb,bz+fz*hw,bx-fx*hw,yb,bz-fz*hw,1,.85,.15,al)}}}}}
   if(!NAV.wp||!NAV.route||(EV.run&&EV.run.ev.R&&EV.run.ev.type!='escape'))return 0;   /* in a race the race route above is the guide */const R=NAV.route,p=R.pts,n=R.n,start=Math.max(0,NAV.prog-1);let drawn=0;const maxS=R.S[start]+420;
+  /* (batch 54) the waypoint route looks like the race guide now (a wide band on the road with arrows sliding along it), in blue and white instead of green and yellow: it used to be a thin pulsing line that flickered */
   for(let i=start;i<n-1&&R.S[i]<maxS&&drawn<130;i++){
-    const x0=p[i*3],y0=p[i*3+1]+.1,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.1,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*.8,nz=dx/l*.8;
-    const s=R.S[i],fade=Math.min(1,(maxS-s)/120),pulse=.55+.35*Math.sin(s*.22-time*7);
-    quad(x0-nx,y0,z0-nz,x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz,.15,.8,1,.62*pulse*fade);drawn++}
+    const x0=p[i*3],y0=p[i*3+1]+.17,z0=p[i*3+2],x1=p[i*3+3],y1=p[i*3+4]+.17,z1=p[i*3+5],dx=x1-x0,dz=z1-z0,l=Math.hypot(dx,dz)||1,nx=-dz/l*1.9,nz=dx/l*1.9;
+    const s=R.S[i],fade=Math.min(1,(maxS-s)/140)*Math.min(1,(s-R.S[start]+6)/10);
+    quad(x0-nx,y0,z0-nz,x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz,.1,.6,1,.6*fade);
+    quad(x0-nx*1.12,y0-.01,z0-nz*1.12,x0-nx*.92,y0-.01,z0-nz*.92,x1-nx*.92,y1-.01,z1-nz*.92,x1-nx*1.12,y1-.01,z1-nz*1.12,.75,.92,1,.8*fade);
+    quad(x0+nx*.92,y0-.01,z0+nz*.92,x0+nx*1.12,y0-.01,z0+nz*1.12,x1+nx*1.12,y1-.01,z1+nz*1.12,x1+nx*.92,y1-.01,z1+nz*.92,.75,.92,1,.8*fade);drawn++}
+  {const s0=R.S[start],ph=(time*24)%12;let k=start;for(let sc=s0+6+ph;sc<s0+300;sc+=12){while(k<n-2&&R.S[k+1]<sc)k++;if(k>=n-2)break;const t=(sc-R.S[k])/Math.max(.01,R.S[k+1]-R.S[k]),x=lerp(p[k*3],p[k*3+3],t),y=lerp(p[k*3+1],p[k*3+4],t)+.2,z=lerp(p[k*3+2],p[k*3+5],t),dx=p[k*3+3]-p[k*3],dz=p[k*3+5]-p[k*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,rx=-uz,rz=ux,w=1.75,al=Math.min(1,(s0+300-sc)/90);
+    for(const sd of[-1,1])quad(x+ux*2.6,y,z+uz*2.6,x+ux*1.0,y,z+uz*1.0,x-ux*2.0+rx*w*sd,y,z-uz*2.0+rz*w*sd,x-ux*.4+rx*w*sd,y,z-uz*.4+rz*w*sd,1,1,1,al)}}
   /* a pulsing ring on the ground at the waypoint */
   {const w=NAV.wp,gy=w.y+.2,k=.5+.5*Math.sin(time*4);for(let i=0;i<28;i++){const a0=i/28*TAU,a1=(i+1)/28*TAU,r0=5+k*1.2,r1=r0+1.5;quad(w.x+Math.cos(a0)*r0,gy,w.z+Math.sin(a0)*r0,w.x+Math.cos(a0)*r1,gy,w.z+Math.sin(a0)*r1,w.x+Math.cos(a1)*r1,gy,w.z+Math.sin(a1)*r1,w.x+Math.cos(a1)*r0,gy,w.z+Math.sin(a1)*r0,.2,.85,1,.55-.25*k)}}
   return drawn}

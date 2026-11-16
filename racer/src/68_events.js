@@ -43,7 +43,7 @@ function evAt(id,f){const r=ROADS.find(q=>q.id==id);if(!r)return null;const i=Ma
   return{x:r.X[i]+Math.cos(yaw)*o,z:r.Z[i]+Math.sin(yaw)*o,y:r.Y[i],yaw,ri:ROADS.indexOf(r),i}}
 /* a route along the roads from a start (position and heading) to a point */
 function evRoute(s,gx,gz){const sn=navSnap(s.x,s.z,40);if(!sn)return null;const la=navLane(sn,s.x,s.z,Math.sin(s.yaw),-Math.cos(s.yaw));if(!la)return null;const g=navSnap(gx,gz,80);if(!g)return null;
-  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),ch=navAStar(e,u0,{ri:g.ri,i:g.i,x:g.x,z:g.z},60000);return ch?navPolyline(ch):null}
+  const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),ch=navAStar(e,u0,{ri:g.ri,i:g.i,x:g.x,z:g.z},60000,260);   /* (batch 54) event routes avoid sharp junction turns: a 90-degree turn costs as much as ~290 m more road */return ch?navPolyline(ch):null}
 /* the medal times come from the route itself: the time of a good driver who takes every bend at 9.5 m/s2 of grip, never goes over 72 m/s, pulls away at 6 m/s2 and brakes at 11 */
 function evRefTime(R){const n=R.n,p=R.pts,v=new Float32Array(n);for(let i=0;i<n;i++){const a=Math.max(0,i-4),b=Math.min(n-1,i+4),c=Math.min(n-1,i+8);const h1=Math.atan2(p[b*3]-p[a*3],p[b*3+2]-p[a*3+2]),h2=Math.atan2(p[c*3]-p[b*3],p[c*3+2]-p[b*3+2]),ds=Math.max(1,R.S[c]-R.S[a]),k=Math.abs(angd(h2,h1))/ds;v[i]=Math.min(72,k>1e-4?Math.sqrt(9.5/k):72)}
   v[0]=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];v[i]=Math.min(v[i],Math.sqrt(v[i-1]*v[i-1]+2*6*ds))}for(let i=n-2;i>=0;i--){const ds=R.S[i+1]-R.S[i];v[i]=Math.min(v[i],Math.sqrt(v[i+1]*v[i+1]+2*11*ds))}
@@ -92,7 +92,8 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
   if(r.crashN&&r.racers&&r.racers.some(c=>c.alive&&c.race&&c.state==3&&Math.abs(c.race.s-(r.ps||0))<25))r.crashN=0;   /* caught up with a racer: the next crash starts from 60 m again */
   /* (batch 53) the GPS never drops out in an event: if the route to the next checkpoint (or the end) could not be found, or got lost, it is looked for again every half second */
   if(ev.cps&&ev.type!='escape'){r.navT=(r.navT||0)-dt;if((!NAV.wp||!NAV.route)&&r.navT<=0){r.navT=.5;const q=ev.type=='rage'?ev.cps[ev.cps.length-1]:ev.cps[Math.min(r.cp,ev.cps.length-1)];if(q)navSetPt(q)}}
-  if(r.racers&&r.racers.length&&ev.R){/* your progress along the race route (for the order) */const R=ev.R,p=R.pts;let bi=r.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(R.n,bi+50);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
+  if(ev.R){/* your progress along the route (for the order, and for the guide painted on the road: (batch 54) every route event, time trials too, which never moved it, so their guide vanished behind you after the first checkpoint) */const R=ev.R,p=R.pts;let bi=r.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(R.n,bi+60);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}
+    if(bd>35*35){/* lost (a respawn, a shortcut, a long slide): look along the whole route, preferring the stretch at or after the next checkpoint */for(let k=0;k<R.n;k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2+(k<bi-40?2500:0);if(d<bd){bd=d;bi=k}}}r.fi=bi;r.ps=R.S[bi]}
   if(ev.type=='race'||ev.type=='death'){const p=ev.cps[r.cp],R=Math.max(14,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+5);if(Math.hypot(C.x-p.x,C.z-p.z)<R&&Math.abs(C.y-p.y)<6){r.cp++;if(r.cp>=ev.cps.length){evFinish(true);return}evBeep(660,.08);navSetPt(ev.cps[r.cp])}
     if(r.t>Math.max(ev.bronze*2.4,ev.bronze+150))evFinishFail('TOO SLOW')}
   else if(ev.type=='trial'){r.gt+=dt;if(r.gt>=.1){r.gt-=.1;r.ghost.push(+C.x.toFixed(1),+C.y.toFixed(2),+C.z.toFixed(1),+C.yaw.toFixed(3))}
