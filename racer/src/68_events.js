@@ -78,7 +78,7 @@ function evPullRacers(r){if(!r||!r.racers||!r.racers.length||!r.ev.R)return;cons
   r.crashN=(r.crashN||0)+1;const D=Math.min(480,60*Math.pow(2,r.crashN-1));let k=0;
   const ahead=r.racers.filter(c=>c.alive&&c.race&&c.state==3&&c.race.done<0&&c.race.s>r.ps+D).sort((a,b)=>a.race.s-b.race.s);
   for(const c of ahead){const S=Math.min(R.len-40,r.ps+D+k*22),lat=(k&1)?-3.2:3.2;k++;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;
-    c.x=c.px=x;c.z=c.pz=z;c.y=c.py=groundAt(x,z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=Math.max(15,C.speed);c.vx=ux*c.v;c.vz=uz*c.v;c.om=0;c.rev=0;c.stk=0;c.kx=c.kz=c.ks=0;c.spinT=0;c.race.fi=j;c.race.s=R.S[j];c.race.off=c.race.offT=lat;c.race.still=0}}
+    c.x=c.px=x;c.z=c.pz=z;c.y=c.py=groundAt(x,z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=Math.max(15,C.speed);c.vx=ux*c.v;c.vz=uz*c.v;c.om=0;c.rev=0;c.stk=0;c.kx=c.kz=c.ks=0;c.loose=0;c.spinT=0;c.race.fi=j;c.race.s=R.S[j];c.race.off=c.race.offT=lat;c.race.still=0}}
 function evQuit(){const r=EV.run;if(!r)return;COP.on=r.copsWas;navClear();EV.run=null;racerClear();safeToast('EVENT ABANDONED',2)}
 function evTick(dt){EV.t+=dt;const r=EV.run;
   if(!r){if(EV.pending&&!GAME.state){EV.card=EV.pending;EV.pending=null}evMarkers();return}
