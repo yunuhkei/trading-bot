@@ -247,8 +247,8 @@ function collide(fx,fz){
         const ddx=cx-ox,ddz=cz-oz,lx=ddx*cs2+ddz*sn2,lz=-ddx*sn2+ddz*cs2,px=lx<-hx?-hx:lx>hx?hx:lx,pz=lz<-hz?-hz:lz>hz?hz:lz,ex=lx-px,ez=lz-pz,d2=ex*ex+ez*ez;let nlx=0,nlz=0;
         if(d2>=RADIUS*RADIUS)continue;if(d2>1e-6){const d=Math.sqrt(d2);nlx=ex/d;nlz=ez/d;pen=RADIUS-d}else{const a1=lx+hx,a2=hx-lx,a3=lz+hz,a4=hz-lz,m=Math.min(a1,a2,a3,a4);if(m==a1)nlx=-1;else if(m==a2)nlx=1;else if(m==a3)nlz=-1;else nlz=1;pen=RADIUS+m}
         nx=nlx*cs2-nlz*sn2;nz=nlx*sn2+nlz*cs2}
-      C.x+=nx*pen;C.z+=nz*pen;const vn=C.vx*nx+C.vz*nz;
-      if(vn<0){const e=.22;if(PHYS.classic||(k>=QH.nR&&k<QH.nR+QH.nC)){C.vx-=(1+e)*vn*nx;C.vz-=(1+e)*vn*nz;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,-vn*.3)/vt;C.vx*=sc;C.vz*=sc}else deflect(nx,nz,-vn,e,PHYS.wallMu);   /* trees and poles (circles) knock the car as before; walls deflect it */if(-vn>25&&!PHYS.classic)tumbleFromStatic(nx,nz,-vn,k>=QH.nR&&k<QH.nR+QH.nC);C.hit=Math.max(C.hit,-vn);C.shake=Math.min(1,C.shake+-vn*.04);if(-vn>1.2)impactAdd(0,-vn,0,0,cx,cz,nx,nz);
+      C.x+=nx*pen;C.z+=nz*pen;const vn=C.vx*nx+C.vz*nz,_pv=Math.hypot(C.vx,C.vz);
+      if(vn<0){const e=.22;if(PHYS.classic||(k>=QH.nR&&k<QH.nR+QH.nC)){C.vx-=(1+e)*vn*nx;C.vz-=(1+e)*vn*nz;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,-vn*.3)/vt;C.vx*=sc;C.vz*=sc}else deflect(nx,nz,-vn,e,PHYS.wallMu);   /* trees and poles (circles) knock the car as before; walls deflect it */if(-vn>25&&!PHYS.classic){TUM.preV=_pv;tumbleFromStatic(nx,nz,-vn,k>=QH.nR&&k<QH.nR+QH.nC);TUM.preV=0}C.hit=Math.max(C.hit,-vn);C.shake=Math.min(1,C.shake+-vn*.04);if(-vn>1.2)impactAdd(0,-vn,0,0,cx,cz,nx,nz);
         /* a glancing hit turns the nose along the wall */if(PHYS.classic){const tx=-nz,tz=nx,al=C.vx*tx+C.vz*tz,fa=Math.sin(C.yaw)*tx-Math.cos(C.yaw)*tz;C.wyaw+=(fa>0?-1:1)*Math.min(1.2,-vn*.05)*(ci?1:-1)*.3}}}}}}
 /* ---------- chase camera ---------- */
 const CAM={x:0,y:0,z:0,tx:0,ty:0,tz:0,fov:1.08};

@@ -71,7 +71,7 @@ function racerStep(c,dt){
     if(c.v<1.5)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
   const mvy=c.spinT>0&&c.sdir!=null?c.sdir+angd(c.yaw,c.sdir)*Math.max(0,1-c.spinT/.45):c.yaw,sy=Math.sin(mvy),cy=Math.cos(mvy);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
   /* (batch 53) a knock: a sideways drift and a spin that die away in about half a second */if(c.kx||c.kz){c.x+=c.kx*dt;c.z+=c.kz*dt;c.vx+=c.kx;c.vz+=c.kz;const kd=Math.exp(-dt*4);c.kx*=kd;c.kz*=kd;if(Math.abs(c.kx)+Math.abs(c.kz)<.15)c.kx=c.kz=0}if(c.ks){c.yaw+=c.ks*dt;c.ks*=Math.exp(-dt*(c.spinT>0?.8:4));if(Math.abs(c.ks)<.02)c.ks=0}
-  for(const o of[-1,1]){const px=c.x+sy*o*c.hl*.55,pz=c.z-cy*o*c.hl*.55;if(trStatic(px,pz,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz;c.v*=.6;c.stk+=.2}}
+  for(const o of[-1,1]){const px=c.x+sy*o*c.hl*.55,pz=c.z-cy*o*c.hl*.55;if(trStatic(px,pz,c.hw+.1,c.y)){const vh=Math.hypot(c.vx,c.vz);c.x+=_sx;c.z+=_sz;c.v*=.6;c.stk+=.2;if(c.state==3&&c.alive&&C.t-(c.hitT||-9)<1.8&&vh>13){/* (batch 54) a racer you shoved into a wall or a pole at 30 mph or more is taken down (and it is your takedown) */c.state=1;c.wt=0;c.byP=1;TR.stat.wrecks++;trFlipKick(c,9e5);evTakedown(c);boostTakedown(c);return}}}
   const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);if(c.y<g)c.y=g;
   const gf=groundAt(c.x+sy*1.6,c.z-cy*1.6,c.y+.5),gb=groundAt(c.x-sy*1.6,c.z+cy*1.6,c.y+.5);c.pitch+=(Math.atan2(gf-gb,3.2)-c.pitch)*Math.min(1,dt*10);c.roll*=.9}
 /* (batch 53) a racer is one of the playable cars: the pool car about as fast as yours (the lead racer 3 % faster), driven with that car's own figures: its grip, top speed, acceleration and braking, a little under what you can do with it (95-99 %) */

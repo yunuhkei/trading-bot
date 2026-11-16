@@ -53,7 +53,7 @@ function safeStep(dt){
 /* ---------------- wrecked / busted ---------------- */
 const GAME={state:0,t:0,msg:'',why:'',lock:0};      /* state 0 playing, 1 wrecked, 2 busted */
 function gameEnd(state,msg){if(GAME.state)return;GAME.state=state;GAME.t=0;GAME.msg=msg;GAME.lock=1;if(state==1)ECON.onWrecked();else ECON.onBusted()}
-function gameWrecked(){gameEnd(1,(EV.run&&C.t-(C.hitByT??-9)<2.5)?'TAKEN DOWN':'WRECKED')}   /* (batch 53) a racer put you out: say so */
+function gameWrecked(){gameEnd(1,(EV.run&&(C.t-(C.hitByT??-9)<2.5||(CC.tdn&&C.t-(CC.crashT??-99)<12)))?'TAKEN DOWN':'WRECKED')}   /* (batch 53) a racer put you out: say so */
 function gameBusted(){gameEnd(2,'BUSTED')}
 function gameStep(dt){
   if(!GAME.state){if(DMG.wrecked)gameWrecked();return}

@@ -22,7 +22,7 @@ function tumOrtho(R){/* Gram-Schmidt on the columns */let l=Math.hypot(R[0],R[1]
 /* (batch 27) the car only ever rolls in a crash big enough for the crash movie: at 25 m/s (56 mph) or more, and the movie starts with it; anything smaller does not roll it
    (with the movie switched off, CC.enabled=false in the physics tests, every tumble plays as before) */
 function tumbleStart(wbx,wby,wbz,vy,why){
-  if(TUM.on||GAME.state||!CARM.body||C.shield>0)return false;const big=Math.hypot(C.vx,C.vz)>=58;   /* (batch 53) the car only rolls in a crash from about 130-140 mph up (it was 56 mph): these cars go 300 mph */if(CC.enabled&&!big)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
+  if(TUM.on||GAME.state||!CARM.body||C.shield>0)return false;const big=Math.max(Math.hypot(C.vx,C.vz),TUM.preV||0)>=58;   /* (batch 54) the speed BEFORE the hit counts (a 150 mph head-on used to leave you at 50 mph, too slow to roll: no tumble at all, just a long coast) */   /* (batch 53) the car only rolls in a crash from about 130-140 mph up (it was 56 mph): these cars go 300 mph */if(CC.enabled&&!big)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
   const w=tumMul(R,wbx,wby,wbz);TUM.w[0]=w[0];TUM.w[1]=w[1]+C.wyaw;TUM.w[2]=w[2];const cm=tumMul(R,0,TUM_COM,0);TUM.p[0]=C.x+cm[0];TUM.p[1]=C.y+cm[1];TUM.p[2]=C.z+cm[2];
   C.vy=Math.max(C.vy||0,vy);TUM.on=1;TUM.rest=0;TUM.slow=0;TUM.rightT=0;TUM.t=0;TUM.n++;TUM.why=why;TUM.touch.fill(0);TUM.maxTilt=0;C.grounded=0;C.drift=0;C.dActive=0;C.slideT=0;IN.nitro=0;C.wyaw=0;
   C.shake=Math.min(1,C.shake+.6);if(CC.enabled){CC.tn=TUM.n;CC.tv=Math.hypot(C.vx,C.vz);crashStart(why)}return true}
@@ -77,7 +77,7 @@ function tumbleStep(dt){
   C.speed=sp;C.kmh=sp*3.6;C.pitch=C.roll=0;C.grounded=bottom>=3?1:0;C.t+=dt;C.distance+=sp*dt;C.shake*=Math.max(0,1-dt*4);C.hit*=Math.max(0,1-dt*6);C.flash*=Math.max(0,1-dt*3);C.braking=0;C.boosting=0;C.boostK*=.9;
   const up=R[4];TUM.maxTilt=Math.max(TUM.maxTilt,Math.acos(Math.max(-1,Math.min(1,up))));
   /* back on its wheels and calm enough to drive: a car again */
-  if(TUM.t>.5&&up>.9&&bottom>=3&&Math.hypot(w[0],w[2])<1.4&&C.vy<1.5){tumbleEnd();return}
+  if(TUM.t>.5&&(up>.965||(up>.9&&TUM.rest>.25))&&bottom>=3&&Math.hypot(w[0],w[2])<1.4&&C.vy<1.5){tumbleEnd();return}   /* (batch 54) it settles nearly flat before it drives again: it used to snap flat from up to 25 degrees */
   /* at rest on its side or roof: wait, then right it */
   if(nTouch&&sp<1.5&&wl<1.5)TUM.rest+=dt;else TUM.rest=Math.max(0,TUM.rest-dt*2);if(sp<2.5&&TUM.t>4)TUM.slow=(TUM.slow||0)+dt;else TUM.slow=0;
   if((TUM.rest>2.2||TUM.slow>4)&&up<=.9){TUM.rightT=1;TUM.R0=Float64Array.from(R);TUM.yawT=fl>.2?Math.atan2(fx,-fz):C.yaw;TUM.y0=p[1];safeToast('FLIPPED  -  RIGHTING THE CAR',1.6)}
@@ -93,7 +93,7 @@ function tumbleEnd(){const R=TUM.R,fx=-R[6],fz=-R[8];C.yaw=C.pyaw=Math.abs(fx)+M
   const g=groundAt(C.x,C.z,C.y+1);C.y=C.py=C.gs=C.gsp=C.gf=Math.max(g,Math.min(C.y,g+.3));C.vy=0;C.grounded=1;C.air=0;C.pitch=C.roll=C.ppitch=C.proll=0;C.kv=0;TUM.on=0;TUM.rightT=0}
 /* ---- what starts a tumble (called from the collision code); all return true when it started ---- */
 /* a hit from or into another car: n = the contact normal (from the other car to you), vn = the closing speed, E = the energy */
-function tumbleFromCar(nx,nz,vn,E,mass){if(TUM.on||vn<13||E<110e3)return false;const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),lat=nx*rx+nz*rz,lon=nx*fx+nz*fz;
+function tumbleFromCar(nx,nz,vn,E,mass){if(TUM.on||vn<13||E<110e3)return false;if(CC.enabled&&E<9e5)return false;   /* (batch 54) at 140 mph a scrape or a nudge (under ~100 mph closing speed) does not roll you */const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),lat=nx*rx+nz*rz,lon=nx*fx+nz*fz;
   const k=Math.min(1,(vn-13)/22)*Math.min(1.5,(mass||1400)/1500+.3);if(Math.abs(lat)>.55){const rs=Math.sign(lat);return tumbleStart(0,(TR.rng()-.5)*2*k,-rs*(3+5*k),1.8+2.4*k,'side hit')}
   if(k>.45)return tumbleStart(Math.sign(lon)*(1.5+3*k),(TR.rng()-.5)*3,(TR.rng()-.5)*2,1.2+1.8*k,'head-on');return false}
 /* a pole, a tree or a wall taken flat out (vn = the speed into it) */

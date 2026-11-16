@@ -2840,8 +2840,8 @@ function collide(fx,fz){
         const ddx=cx-ox,ddz=cz-oz,lx=ddx*cs2+ddz*sn2,lz=-ddx*sn2+ddz*cs2,px=lx<-hx?-hx:lx>hx?hx:lx,pz=lz<-hz?-hz:lz>hz?hz:lz,ex=lx-px,ez=lz-pz,d2=ex*ex+ez*ez;let nlx=0,nlz=0;
         if(d2>=RADIUS*RADIUS)continue;if(d2>1e-6){const d=Math.sqrt(d2);nlx=ex/d;nlz=ez/d;pen=RADIUS-d}else{const a1=lx+hx,a2=hx-lx,a3=lz+hz,a4=hz-lz,m=Math.min(a1,a2,a3,a4);if(m==a1)nlx=-1;else if(m==a2)nlx=1;else if(m==a3)nlz=-1;else nlz=1;pen=RADIUS+m}
         nx=nlx*cs2-nlz*sn2;nz=nlx*sn2+nlz*cs2}
-      C.x+=nx*pen;C.z+=nz*pen;const vn=C.vx*nx+C.vz*nz;
-      if(vn<0){const e=.22;if(PHYS.classic||(k>=QH.nR&&k<QH.nR+QH.nC)){C.vx-=(1+e)*vn*nx;C.vz-=(1+e)*vn*nz;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,-vn*.3)/vt;C.vx*=sc;C.vz*=sc}else deflect(nx,nz,-vn,e,PHYS.wallMu);   /* trees and poles (circles) knock the car as before; walls deflect it */if(-vn>25&&!PHYS.classic)tumbleFromStatic(nx,nz,-vn,k>=QH.nR&&k<QH.nR+QH.nC);C.hit=Math.max(C.hit,-vn);C.shake=Math.min(1,C.shake+-vn*.04);if(-vn>1.2)impactAdd(0,-vn,0,0,cx,cz,nx,nz);
+      C.x+=nx*pen;C.z+=nz*pen;const vn=C.vx*nx+C.vz*nz,_pv=Math.hypot(C.vx,C.vz);
+      if(vn<0){const e=.22;if(PHYS.classic||(k>=QH.nR&&k<QH.nR+QH.nC)){C.vx-=(1+e)*vn*nx;C.vz-=(1+e)*vn*nz;const vt=Math.hypot(C.vx,C.vz)||1,sc=1-Math.min(vt*.5,-vn*.3)/vt;C.vx*=sc;C.vz*=sc}else deflect(nx,nz,-vn,e,PHYS.wallMu);   /* trees and poles (circles) knock the car as before; walls deflect it */if(-vn>25&&!PHYS.classic){TUM.preV=_pv;tumbleFromStatic(nx,nz,-vn,k>=QH.nR&&k<QH.nR+QH.nC);TUM.preV=0}C.hit=Math.max(C.hit,-vn);C.shake=Math.min(1,C.shake+-vn*.04);if(-vn>1.2)impactAdd(0,-vn,0,0,cx,cz,nx,nz);
         /* a glancing hit turns the nose along the wall */if(PHYS.classic){const tx=-nz,tz=nx,al=C.vx*tx+C.vz*tz,fa=Math.sin(C.yaw)*tx-Math.cos(C.yaw)*tz;C.wyaw+=(fa>0?-1:1)*Math.min(1.2,-vn*.05)*(ci?1:-1)*.3}}}}}}
 /* ---------- chase camera ---------- */
 const CAM={x:0,y:0,z:0,tx:0,ty:0,tz:0,fov:1.08};
@@ -3022,7 +3022,7 @@ function tumOrtho(R){/* Gram-Schmidt on the columns */let l=Math.hypot(R[0],R[1]
 /* (batch 27) the car only ever rolls in a crash big enough for the crash movie: at 25 m/s (56 mph) or more, and the movie starts with it; anything smaller does not roll it
    (with the movie switched off, CC.enabled=false in the physics tests, every tumble plays as before) */
 function tumbleStart(wbx,wby,wbz,vy,why){
-  if(TUM.on||GAME.state||!CARM.body||C.shield>0)return false;const big=Math.hypot(C.vx,C.vz)>=58;   /* (batch 53) the car only rolls in a crash from about 130-140 mph up (it was 56 mph): these cars go 300 mph */if(CC.enabled&&!big)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
+  if(TUM.on||GAME.state||!CARM.body||C.shield>0)return false;const big=Math.max(Math.hypot(C.vx,C.vz),TUM.preV||0)>=58;   /* (batch 54) the speed BEFORE the hit counts (a 150 mph head-on used to leave you at 50 mph, too slow to roll: no tumble at all, just a long coast) */   /* (batch 53) the car only rolls in a crash from about 130-140 mph up (it was 56 mph): these cars go 300 mph */if(CC.enabled&&!big)return false;const M=_tm16;M4.trs(M,0,0,0,-C.yaw,C.pitch,C.roll,1,1,1);const R=TUM.R;for(let c=0;c<3;c++)for(let r=0;r<3;r++)R[c*3+r]=M[c*4+r];
   const w=tumMul(R,wbx,wby,wbz);TUM.w[0]=w[0];TUM.w[1]=w[1]+C.wyaw;TUM.w[2]=w[2];const cm=tumMul(R,0,TUM_COM,0);TUM.p[0]=C.x+cm[0];TUM.p[1]=C.y+cm[1];TUM.p[2]=C.z+cm[2];
   C.vy=Math.max(C.vy||0,vy);TUM.on=1;TUM.rest=0;TUM.slow=0;TUM.rightT=0;TUM.t=0;TUM.n++;TUM.why=why;TUM.touch.fill(0);TUM.maxTilt=0;C.grounded=0;C.drift=0;C.dActive=0;C.slideT=0;IN.nitro=0;C.wyaw=0;
   C.shake=Math.min(1,C.shake+.6);if(CC.enabled){CC.tn=TUM.n;CC.tv=Math.hypot(C.vx,C.vz);crashStart(why)}return true}
@@ -3077,7 +3077,7 @@ function tumbleStep(dt){
   C.speed=sp;C.kmh=sp*3.6;C.pitch=C.roll=0;C.grounded=bottom>=3?1:0;C.t+=dt;C.distance+=sp*dt;C.shake*=Math.max(0,1-dt*4);C.hit*=Math.max(0,1-dt*6);C.flash*=Math.max(0,1-dt*3);C.braking=0;C.boosting=0;C.boostK*=.9;
   const up=R[4];TUM.maxTilt=Math.max(TUM.maxTilt,Math.acos(Math.max(-1,Math.min(1,up))));
   /* back on its wheels and calm enough to drive: a car again */
-  if(TUM.t>.5&&up>.9&&bottom>=3&&Math.hypot(w[0],w[2])<1.4&&C.vy<1.5){tumbleEnd();return}
+  if(TUM.t>.5&&(up>.965||(up>.9&&TUM.rest>.25))&&bottom>=3&&Math.hypot(w[0],w[2])<1.4&&C.vy<1.5){tumbleEnd();return}   /* (batch 54) it settles nearly flat before it drives again: it used to snap flat from up to 25 degrees */
   /* at rest on its side or roof: wait, then right it */
   if(nTouch&&sp<1.5&&wl<1.5)TUM.rest+=dt;else TUM.rest=Math.max(0,TUM.rest-dt*2);if(sp<2.5&&TUM.t>4)TUM.slow=(TUM.slow||0)+dt;else TUM.slow=0;
   if((TUM.rest>2.2||TUM.slow>4)&&up<=.9){TUM.rightT=1;TUM.R0=Float64Array.from(R);TUM.yawT=fl>.2?Math.atan2(fx,-fz):C.yaw;TUM.y0=p[1];safeToast('FLIPPED  -  RIGHTING THE CAR',1.6)}
@@ -3093,7 +3093,7 @@ function tumbleEnd(){const R=TUM.R,fx=-R[6],fz=-R[8];C.yaw=C.pyaw=Math.abs(fx)+M
   const g=groundAt(C.x,C.z,C.y+1);C.y=C.py=C.gs=C.gsp=C.gf=Math.max(g,Math.min(C.y,g+.3));C.vy=0;C.grounded=1;C.air=0;C.pitch=C.roll=C.ppitch=C.proll=0;C.kv=0;TUM.on=0;TUM.rightT=0}
 /* ---- what starts a tumble (called from the collision code); all return true when it started ---- */
 /* a hit from or into another car: n = the contact normal (from the other car to you), vn = the closing speed, E = the energy */
-function tumbleFromCar(nx,nz,vn,E,mass){if(TUM.on||vn<13||E<110e3)return false;const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),lat=nx*rx+nz*rz,lon=nx*fx+nz*fz;
+function tumbleFromCar(nx,nz,vn,E,mass){if(TUM.on||vn<13||E<110e3)return false;if(CC.enabled&&E<9e5)return false;   /* (batch 54) at 140 mph a scrape or a nudge (under ~100 mph closing speed) does not roll you */const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),lat=nx*rx+nz*rz,lon=nx*fx+nz*fz;
   const k=Math.min(1,(vn-13)/22)*Math.min(1.5,(mass||1400)/1500+.3);if(Math.abs(lat)>.55){const rs=Math.sign(lat);return tumbleStart(0,(TR.rng()-.5)*2*k,-rs*(3+5*k),1.8+2.4*k,'side hit')}
   if(k>.45)return tumbleStart(Math.sign(lon)*(1.5+3*k),(TR.rng()-.5)*3,(TR.rng()-.5)*2,1.2+1.8*k,'head-on');return false}
 /* a pole, a tree or a wall taken flat out (vn = the speed into it) */
@@ -3142,7 +3142,7 @@ function crashHistory(){if(TUM.on||CC.on||C.shield>0)return;const H=CC.hist;
 /* is this crash wild enough for the cinematic? */
 function crashWild(){if(!TUM.on||TUM.rightT>0)return false;const w=Math.hypot(TUM.w[0],TUM.w[1]*.4,TUM.w[2]),g=groundAt(TUM.p[0],TUM.p[2],TUM.p[1]+.5);
   return TUM.t>.25&&CC.tv>58&&(TUM.maxTilt>1.5||w>4||TUM.p[1]-g>3.5)}   /* (batch 25: only very big crashes: a roll past 86 degrees, a violent spin or a throw 3.5 m up, starting above 25 m/s; the rest right themselves as before) */
-function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.slow=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;
+function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.slow=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;CC.tdn=!!(EV.run&&C.t-(C.hitByT??-9)<2.5);   /* (batch 54) decided once, when the crash starts: the banner no longer flips from TAKEN DOWN! to CRASH! as the movie plays */
   /* the camera: a fixed spot beside the crash, a little ahead of where it is going, looking back at it */
   let dx=C.vx,dz=C.vz,l=Math.hypot(dx,dz);if(l<2){dx=Math.sin(C.yaw);dz=-Math.cos(C.yaw);l=1}dx/=l;dz/=l;const sd=(CC.n&1)?1:-1,sx=-dz*sd,sz=dx*sd,ahead=Math.min(14,4+C.speed*.25);
   const x=C.x+dx*ahead+sx*9,z=C.z+dz*ahead+sz*9,g=groundAt(x,z,C.y+3);CC.cam[0]=x;CC.cam[2]=z;CC.cam[1]=Math.max(g+1.6,C.y+2.2);C.shake=0}
@@ -3152,6 +3152,7 @@ function crashTick(dt){if(C.shield>0){C.shield=Math.max(0,C.shield-dt);COP.bust=
   crashHistory();if(!CC.enabled)return;
   if(!CC.on&&crashWild())crashStart(TUM.why||'roll');   /* (batch 27: a tumble now starts the movie itself, in tumbleStart) */
   if(CC.on){IN.thr=IN.brk=0;IN.nitro=0;COP.bust=0;
+    /* (batch 54) a wrecked car that stays on its wheels scrubs off its speed (broken, dragging, tyres locked) instead of coasting on at 50 mph for five seconds */if(!TUM.on){const sp=Math.hypot(C.vx,C.vz);if(sp>.05){const k=Math.max(0,1-dt*(6.5/sp+.35));C.vx*=k;C.vz*=k}}
     /* the clock of the cinematic runs in real time: the world step is slowed by CC.scale */
     /* (batch 24) it plays until the car has stopped: slow motion for the first moments, then the rest of the tumble at full speed; it ends 0.7 s after the car comes to rest
        (or starts to be righted), 12 s at most, then fades out */
@@ -3186,7 +3187,7 @@ function crashFx(sprite){if(!(C.shield>0))return;const k=Math.min(1,C.shield),t=
 /* the black bars, the label and the fades (from hudDraw) */
 function crashHud(c,W_,H_,u){if(!CC.on&&!(CC.fadeIn>0))return;c.save();
   if(CC.on){const b=H_*.11*sstep(0,.35,CC.t);c.fillStyle='#000';c.fillRect(0,0,W_,b);c.fillRect(0,H_-b,W_,b);
-    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);fxText(c,(C.t-(C.hitByT??-9)<2.5&&EV.run)?'TAKEN DOWN!':'CRASH!',W_/2,H_-b*.38,u*.6,'#ff6a4a','center','rgba(255,70,30,.6)')}
+    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);fxText(c,CC.tdn?'TAKEN DOWN!':'CRASH!',W_/2,H_-b*.38,u*.6,'#ff6a4a','center','rgba(255,70,30,.6)')}
     if(CC.t>=1.5&&CC.endT==null){c.globalAlpha=sstep(1.5,1.9,CC.t)*.75;c.fillStyle='#fff';c.font='600 '+Math.round(u*.2)+'px '+UIF;c.textAlign='right';c.fillText('TAP TO SKIP',W_-u*.4,H_-b*.42)}}
   const f=CC.on?CC.fade:CC.fadeIn;if(f>0){c.globalAlpha=f;c.fillStyle='#000';c.fillRect(0,0,W_,H_)}c.restore()}
 /* (batch 25) a tap skips the movie, but not in its first 1.5 s: the fade starts at once */
@@ -4064,7 +4065,7 @@ function trBack(B,c,E){
   trDent(c,HIT.cx,HIT.cz,E);
   if(c.state==3&&(c.kind==1||c.kind==2)&&(c.dmg||0)>=.92){/* (batch 24) a chasing cop or a racer worn down by hits is destroyed, like a car taken out by one big hit */E=Math.max(E,c.kind==1||TR.hitP?140000:230000);if(c.kind==1){c.cm=2;c.siren=0;c.block=0}}
   if(c.state==3){/* a chasing cop: it keeps driving, with the new velocity */const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.x=B.x;c.z=B.z;{const v0=c.v,vn=Math.max(0,B.vx*hx+B.vz*hz);c.v=(c.kind==2&&TR.hitP&&!(c.spinT>0))?Math.max(vn,v0*.97):vn}   /* (batch 53) a racer leaning on you does not grind to a halt either */c.vx=B.vx;c.vz=B.vz;if(c.kind==2){/* (batch 53) a racer that is hit is shoved sideways and slews round smoothly (a knock speed and a spin that die away), never snapped */const lat=B.vx*Math.cos(c.yaw)+B.vz*Math.sin(c.yaw),kl=Math.max(-7,Math.min(7,lat*.6));c.kx=Math.cos(c.yaw)*kl;c.kz=Math.sin(c.yaw)*kl;c.ks=Math.max(-1.6,Math.min(1.6,(c.ks||0)+B.om*.12));
-    /* (batch 53) SPIN-OUT: a hard hit on its rear quarter (from you) sends it spinning for a moment, sliding on along its old path */if(TR.hitP&&!TR.rRam){const hf=Math.sin(c.yaw),hz=-Math.cos(c.yaw),along=(HIT.cx-c.x)*hf+(HIT.cz-c.z)*hz;const latn=Math.abs(HIT.nx*Math.cos(c.yaw)+HIT.nz*Math.sin(c.yaw));if(along<-.3&&latn>.55&&(TR.pin||0)>8&&!(c.spinT>0)){c.spinT=.9+Math.min(.5,(TR.pin-8)*.03);c.sdir=Math.atan2(B.vx,-B.vz);c.ks=(B.om>=0?1:-1)*Math.min(4.5,2.2+(TR.pin||0)*.08)}}}else c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>(TR.hitP?110000:300000)&&c.kind==1){c.state=1;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;trFlipKick(c,E)}if(c.kind==2&&(TR.hitP?(!TR.rRam&&(TR.pin||0)>38):E>1.6e6)){   /* (batch 53) you wreck a racer by driving into it at 85 mph or more (your own speed into it), not by a tap; its own ram into you never wrecks it */   /* (batch 53) a racer takes a much bigger hit to wreck (it was 70 kJ: a tap), and never wrecks itself ramming you */c.state=1;c.wt=0;TR.stat.wrecks++;trFlipKick(c,E)}return}   /* a racer wrecked by a big hit is out of the race */
+    /* (batch 53) SPIN-OUT: a hard hit on its rear quarter (from you) sends it spinning for a moment, sliding on along its old path */if(TR.hitP&&!TR.rRam){const hf=Math.sin(c.yaw),hz=-Math.cos(c.yaw),along=(HIT.cx-c.x)*hf+(HIT.cz-c.z)*hz;const latn=Math.abs(HIT.nx*Math.cos(c.yaw)+HIT.nz*Math.sin(c.yaw));if(along<-.3&&latn>.55&&(TR.pin||0)>8&&!(c.spinT>0)){c.spinT=.9+Math.min(.5,(TR.pin-8)*.03);c.sdir=Math.atan2(B.vx,-B.vz);c.ks=(B.om>=0?1:-1)*Math.min(4.5,2.2+(TR.pin||0)*.08)}}}else c.yaw+=Math.max(-.6,Math.min(.6,B.om*.08));if(E>(TR.hitP?110000:300000)&&c.kind==1){c.state=1;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;trFlipKick(c,E)}if(c.kind==2&&(TR.hitP?(!TR.rRam&&((TR.pin||0)>(Math.abs(HIT.nx*Math.cos(c.yaw)+HIT.nz*Math.sin(c.yaw))>.55?17:24)||(c.dmg||0)>=.92)):E>1.6e6)){   /* (batch 54) easier: a side slam at 38 mph closing speed or a hit from behind at 54 mph takes a racer out (it took 85 mph), and so does wearing it down */   /* (batch 53) you wreck a racer by driving into it at 85 mph or more (your own speed into it), not by a tap; its own ram into you never wrecks it */   /* (batch 53) a racer takes a much bigger hit to wreck (it was 70 kJ: a tap), and never wrecks itself ramming you */c.state=1;c.wt=0;TR.stat.wrecks++;trFlipKick(c,E)}return}   /* a racer wrecked by a big hit is out of the race */
   if(c.state==0&&E<2500){const hx=Math.sin(c.yaw),hz=-Math.cos(c.yaw);c.v=Math.max(0,B.vx*hx+B.vz*hz);c.x=B.x;c.z=B.z;return}
   if(c.state==0){c.state=1;c.wt=0;c.brake=0;c.L=null;TR.stat.wrecks++;c.rec=(c.kind==0&&E<32000&&(c.dmg||0)<.72)?1:0}      /* a knock spins it round and it drives on, limping; a big hit finishes it */
   c.x=B.x;c.z=B.z;c.vx=B.vx;c.vz=B.vz;c.om=B.om>5?5:B.om<-5?-5:B.om;c.v=Math.hypot(c.vx,c.vz);trFlipKick(c,E)}   /* batch 6: a big hit throws it up and rolls it */
@@ -4089,7 +4090,7 @@ function trPlayerCollide(){
         const pin=-(pvx*HIT.nx+pvz*HIT.nz)+0,cin=c.state==0?(Math.sin(c.yaw)*c.v*HIT.nx-Math.cos(c.yaw)*c.v*HIT.nz):(c.vx*HIT.nx+c.vz*HIT.nz),fault=pin>2.5&&pin>cin&&!(c.state==0&&c.L&&c.L.kind!=0);   /* (a car caught turning across you, pulling out of a side road, is to blame, not you: after the batch 13-16 towns' new junctions) */
         const was=c.state;if(c.kind==1)copRammed(c,e,fault);else if(fault&&e>5000)copTrigger(e>70000?2:1,'crash');                 /* crashing into a car is a crime */
         TR.hitP=1;TR.hitF=fault?1:0;TR.rRam=c.kind==2&&cin>pin+8&&cin>pin*1.5;if(c.kind==2&&cin>3){C.hitByT=C.t;C.hitBy=c.race&&c.race.name||'A RACER'}TR.pin=HIT.vn;if(TR.rRam){/* (batch 53) a racer that rams YOU knocks you about the way you knock it: a real shove sideways and a spin */const k=Math.min(1,cin/18),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),fx2=Math.sin(C.yaw),fz2=-Math.cos(C.yaw),cl=HIT.cx-C.x,cz2=HIT.cz-C.z,along=cl*fx2+cz2*fz2,lat2=HIT.nx*rx+HIT.nz*rz,sp=Math.sign((along<0?1:-1)*(lat2||1));C.wyaw+=sp*(1.6+2.8*k);{const ddx=C.x-c.x,ddz=C.z-c.z,dl=Math.hypot(ddx,ddz)||1;C.vx+=ddx/dl*cin*.3;C.vz+=ddz/dl*cin*.3}   /* pushed AWAY from the racer (the contact normal's sign was backwards: a shove from behind slowed you down) */C.shake=Math.min(1,C.shake+.5);
-          /* a hard hit on your rear quarter spins you out (the tyres let go for a second) */if(along<-.3&&Math.abs(lat2)>.6&&cin>12)C.spinT=.45+.25*k}   /* only a real PIT (a side-on hit at your back corner), and only briefly: a straight shove from behind just pushes you on */trBack(BB,c,e);TR.hitP=0;TR.rRam=0;c.hitT=C.t;if(was!==1&&c.state==1){c.byP=1;evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic&&!ram)tumbleFromCar(hnx,hnz,vn,e,c.m)}
+          /* a hard hit on your rear quarter spins you out (the tyres let go for a second) */if(along<-.3&&Math.abs(lat2)>.6&&cin>12)C.spinT=.45+.25*k}   /* only a real PIT (a side-on hit at your back corner), and only briefly: a straight shove from behind just pushes you on */trBack(BB,c,e);TR.hitP=0;TR.rRam=0;c.hitT=C.t;if(was!==1&&c.state==1){c.byP=1;evTakedown(c);boostTakedown(c)}if(fault&&c.kind==0&&was==0&&c.state==1)copTrigger(2,'wreck');if(!PHYS.classic&&!ram){TUM.preV=Math.hypot(pvx,pvz);tumbleFromCar(hnx,hnz,vn,e,c.m);TUM.preV=0}}
       else{C.x=BA.x;C.z=BA.z;c.x=BB.x;c.z=BB.z}}}}
 /* wreck against car / wreck against wreck (not the player) */
 function trCarCollide(){
@@ -4525,7 +4526,7 @@ function safeStep(dt){
 /* ---------------- wrecked / busted ---------------- */
 const GAME={state:0,t:0,msg:'',why:'',lock:0};      /* state 0 playing, 1 wrecked, 2 busted */
 function gameEnd(state,msg){if(GAME.state)return;GAME.state=state;GAME.t=0;GAME.msg=msg;GAME.lock=1;if(state==1)ECON.onWrecked();else ECON.onBusted()}
-function gameWrecked(){gameEnd(1,(EV.run&&C.t-(C.hitByT??-9)<2.5)?'TAKEN DOWN':'WRECKED')}   /* (batch 53) a racer put you out: say so */
+function gameWrecked(){gameEnd(1,(EV.run&&(C.t-(C.hitByT??-9)<2.5||(CC.tdn&&C.t-(CC.crashT??-99)<12)))?'TAKEN DOWN':'WRECKED')}   /* (batch 53) a racer put you out: say so */
 function gameBusted(){gameEnd(2,'BUSTED')}
 function gameStep(dt){
   if(!GAME.state){if(DMG.wrecked)gameWrecked();return}
@@ -5403,7 +5404,7 @@ function racerStep(c,dt){
     if(c.v<1.5)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
   const mvy=c.spinT>0&&c.sdir!=null?c.sdir+angd(c.yaw,c.sdir)*Math.max(0,1-c.spinT/.45):c.yaw,sy=Math.sin(mvy),cy=Math.cos(mvy);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
   /* (batch 53) a knock: a sideways drift and a spin that die away in about half a second */if(c.kx||c.kz){c.x+=c.kx*dt;c.z+=c.kz*dt;c.vx+=c.kx;c.vz+=c.kz;const kd=Math.exp(-dt*4);c.kx*=kd;c.kz*=kd;if(Math.abs(c.kx)+Math.abs(c.kz)<.15)c.kx=c.kz=0}if(c.ks){c.yaw+=c.ks*dt;c.ks*=Math.exp(-dt*(c.spinT>0?.8:4));if(Math.abs(c.ks)<.02)c.ks=0}
-  for(const o of[-1,1]){const px=c.x+sy*o*c.hl*.55,pz=c.z-cy*o*c.hl*.55;if(trStatic(px,pz,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz;c.v*=.6;c.stk+=.2}}
+  for(const o of[-1,1]){const px=c.x+sy*o*c.hl*.55,pz=c.z-cy*o*c.hl*.55;if(trStatic(px,pz,c.hw+.1,c.y)){const vh=Math.hypot(c.vx,c.vz);c.x+=_sx;c.z+=_sz;c.v*=.6;c.stk+=.2;if(c.state==3&&c.alive&&C.t-(c.hitT||-9)<1.8&&vh>13){/* (batch 54) a racer you shoved into a wall or a pole at 30 mph or more is taken down (and it is your takedown) */c.state=1;c.wt=0;c.byP=1;TR.stat.wrecks++;trFlipKick(c,9e5);evTakedown(c);boostTakedown(c);return}}}
   const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);if(c.y<g)c.y=g;
   const gf=groundAt(c.x+sy*1.6,c.z-cy*1.6,c.y+.5),gb=groundAt(c.x-sy*1.6,c.z+cy*1.6,c.y+.5);c.pitch+=(Math.atan2(gf-gb,3.2)-c.pitch)*Math.min(1,dt*10);c.roll*=.9}
 /* (batch 53) a racer is one of the playable cars: the pool car about as fast as yours (the lead racer 3 % faster), driven with that car's own figures: its grip, top speed, acceleration and braking, a little under what you can do with it (95-99 %) */

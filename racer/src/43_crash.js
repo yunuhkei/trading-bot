@@ -14,7 +14,7 @@ function crashHistory(){if(TUM.on||CC.on||C.shield>0)return;const H=CC.hist;
 /* is this crash wild enough for the cinematic? */
 function crashWild(){if(!TUM.on||TUM.rightT>0)return false;const w=Math.hypot(TUM.w[0],TUM.w[1]*.4,TUM.w[2]),g=groundAt(TUM.p[0],TUM.p[2],TUM.p[1]+.5);
   return TUM.t>.25&&CC.tv>58&&(TUM.maxTilt>1.5||w>4||TUM.p[1]-g>3.5)}   /* (batch 25: only very big crashes: a roll past 86 degrees, a violent spin or a throw 3.5 m up, starting above 25 m/s; the rest right themselves as before) */
-function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.slow=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;
+function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.slow=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;CC.tdn=!!(EV.run&&C.t-(C.hitByT??-9)<2.5);   /* (batch 54) decided once, when the crash starts: the banner no longer flips from TAKEN DOWN! to CRASH! as the movie plays */
   /* the camera: a fixed spot beside the crash, a little ahead of where it is going, looking back at it */
   let dx=C.vx,dz=C.vz,l=Math.hypot(dx,dz);if(l<2){dx=Math.sin(C.yaw);dz=-Math.cos(C.yaw);l=1}dx/=l;dz/=l;const sd=(CC.n&1)?1:-1,sx=-dz*sd,sz=dx*sd,ahead=Math.min(14,4+C.speed*.25);
   const x=C.x+dx*ahead+sx*9,z=C.z+dz*ahead+sz*9,g=groundAt(x,z,C.y+3);CC.cam[0]=x;CC.cam[2]=z;CC.cam[1]=Math.max(g+1.6,C.y+2.2);C.shake=0}
@@ -24,6 +24,7 @@ function crashTick(dt){if(C.shield>0){C.shield=Math.max(0,C.shield-dt);COP.bust=
   crashHistory();if(!CC.enabled)return;
   if(!CC.on&&crashWild())crashStart(TUM.why||'roll');   /* (batch 27: a tumble now starts the movie itself, in tumbleStart) */
   if(CC.on){IN.thr=IN.brk=0;IN.nitro=0;COP.bust=0;
+    /* (batch 54) a wrecked car that stays on its wheels scrubs off its speed (broken, dragging, tyres locked) instead of coasting on at 50 mph for five seconds */if(!TUM.on){const sp=Math.hypot(C.vx,C.vz);if(sp>.05){const k=Math.max(0,1-dt*(6.5/sp+.35));C.vx*=k;C.vz*=k}}
     /* the clock of the cinematic runs in real time: the world step is slowed by CC.scale */
     /* (batch 24) it plays until the car has stopped: slow motion for the first moments, then the rest of the tumble at full speed; it ends 0.7 s after the car comes to rest
        (or starts to be righted), 12 s at most, then fades out */
@@ -58,7 +59,7 @@ function crashFx(sprite){if(!(C.shield>0))return;const k=Math.min(1,C.shield),t=
 /* the black bars, the label and the fades (from hudDraw) */
 function crashHud(c,W_,H_,u){if(!CC.on&&!(CC.fadeIn>0))return;c.save();
   if(CC.on){const b=H_*.11*sstep(0,.35,CC.t);c.fillStyle='#000';c.fillRect(0,0,W_,b);c.fillRect(0,H_-b,W_,b);
-    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);fxText(c,(C.t-(C.hitByT??-9)<2.5&&EV.run)?'TAKEN DOWN!':'CRASH!',W_/2,H_-b*.38,u*.6,'#ff6a4a','center','rgba(255,70,30,.6)')}
+    if(CC.t>.4){c.globalAlpha=sstep(.4,.8,CC.t)*(1-CC.fade);fxText(c,CC.tdn?'TAKEN DOWN!':'CRASH!',W_/2,H_-b*.38,u*.6,'#ff6a4a','center','rgba(255,70,30,.6)')}
     if(CC.t>=1.5&&CC.endT==null){c.globalAlpha=sstep(1.5,1.9,CC.t)*.75;c.fillStyle='#fff';c.font='600 '+Math.round(u*.2)+'px '+UIF;c.textAlign='right';c.fillText('TAP TO SKIP',W_-u*.4,H_-b*.42)}}
   const f=CC.on?CC.fade:CC.fadeIn;if(f>0){c.globalAlpha=f;c.fillStyle='#000';c.fillRect(0,0,W_,H_)}c.restore()}
 /* (batch 25) a tap skips the movie, but not in its first 1.5 s: the fade starts at once */
