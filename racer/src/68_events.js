@@ -9,14 +9,14 @@
    garages (park on a locked garage's pad), and BUSTED costs 8 % of it (at most 10,000). Records (best times, medals, the ghost) are saved in localStorage. */
 const EV={list:[],run:null,card:null,btns:[],dismiss:null,rec:{},key:'racer.events',t:0,res:null,pending:null};
 const EV_DEF=[
- {id:'t_ring',type:'trial',name:'Ring Sprint',from:['ring',.30],to:['ring',.62]},
- {id:'t_desert',type:'trial',name:'Desert Dash',from:['eh',.08],to:['barp',.5]},
- {id:'t_canyon',type:'trial',name:'Canyon Climb',from:['cyr',.04],to:['rim',.5]},
- {id:'t_north',type:'trial',name:'Northern Line',from:['nt1',.06],to:['nt2',.94]},
- {id:'t_coast',type:'trial',name:'Coast Highway',from:['cr',.08],to:['btp',.5]},
- {id:'t_pass',type:'trial',name:'Mountain Pass',from:['nh1',.08],to:['bigp',.5]},
- {id:'t_vegas',type:'trial',name:'Vegas Run',from:['sh3',.88],to:['vegm',.99]},
- {id:'t_south',type:'trial',name:'Southern Cross',from:['sh',.12],to:['sh',.88]},
+ {id:'t_ring',diff:2,type:'trial',name:'Ring Sprint',from:['ring',.30],to:['ring',.62]},
+ {id:'t_desert',diff:2,type:'trial',name:'Desert Dash',from:['eh',.08],to:['barp',.5]},
+ {id:'t_canyon',diff:3,type:'trial',name:'Canyon Climb',from:['cyr',.04],to:['rim',.5]},
+ {id:'t_north',diff:2,type:'trial',name:'Northern Line',from:['nt1',.06],to:['nt2',.94]},
+ {id:'t_coast',diff:3,type:'trial',name:'Coast Highway',from:['cr',.08],to:['btp',.5]},
+ {id:'t_pass',diff:1,type:'trial',name:'Mountain Pass',from:['nh1',.08],to:['bigp',.5]},
+ {id:'t_vegas',diff:1,type:'trial',name:'Vegas Run',from:['sh3',.88],to:['vegm',.99]},
+ {id:'t_south',diff:1,type:'trial',name:'Southern Cross',from:['sh',.12],to:['sh',.88]},
  /* (batch 27) longer clocks: getting away now means a mile between you and the nearest police car */
  {id:'e_2',type:'escape',name:'Hot Pursuit',stars:2,secs:180,from:['ring',.55]},
  {id:'e_3',type:'escape',name:'Roadblocks',stars:3,secs:210,from:['bv',.5]},
@@ -24,15 +24,15 @@ const EV_DEF=[
  {id:'e_5',type:'escape',name:'Most Wanted',stars:5,secs:280,from:['sfp',.3]},
  /* (batch 27) TAKEDOWN (type 'rage'; it replaced ROAD RAGE, which counted any traffic you wrecked): a pack of 6 AI racers sets off ahead of you along a route; wreck as many as you can
     before they reach the end of it or the clock runs out; every takedown adds 5 s; medals by the number taken down */
- {id:'k_ring',type:'rage',name:'Takedown: The Ring',secs:150,goals:[2,4,6],prize:7000,n:6,from:['ring',.2],to:['ring',.7]},
- {id:'k_coast',type:'rage',name:'Takedown: Coast',secs:150,goals:[2,4,6],prize:7000,n:6,from:['cr',.1],to:['btp',.5]},
- {id:'k_south',type:'rage',name:'Takedown: Southern Cross',secs:160,goals:[2,4,6],prize:8000,n:6,from:['sh',.1],to:['sh',.88]},
+ {id:'k_ring',diff:3,type:'rage',name:'Takedown: The Ring',secs:150,goals:[2,4,6],prize:7000,n:6,from:['ring',.2],to:['ring',.7]},
+ {id:'k_coast',diff:2,type:'rage',name:'Takedown: Coast',secs:150,goals:[2,4,6],prize:7000,n:6,from:['cr',.1],to:['btp',.5]},
+ {id:'k_south',diff:1,type:'rage',name:'Takedown: Southern Cross',secs:160,goals:[2,4,6],prize:8000,n:6,from:['sh',.1],to:['sh',.88]},
  /* batch 12: RACES against 4 AI racers (prizes for 1st / 2nd / 3rd) and DEATH RACES against 5 that ram you (points for every racer you wreck and for your place) */
- {id:'x_coast',type:'race',name:'Coast Race',from:['cr',.15],to:['btp',.5],n:4,prize:9000},
- {id:'x_desert',type:'race',name:'Desert Race',from:['eh',.15],to:['barp',.75],n:4,prize:8000},
- {id:'x_north',type:'race',name:'Northern Race',from:['nt1',.12],to:['nt2',.94],n:4,prize:8000},
- {id:'d_ring',type:'death',name:'Death Race: The Ring',from:['ring',.36],to:['ring',.66],n:5,prize:12000,goals:[1000,2000,3200]},
- {id:'d_south',type:'death',name:'Death Race: Southern Cross',from:['sh',.18],to:['sh',.9],n:5,prize:10000,goals:[1000,2000,3200]}];
+ {id:'x_coast',diff:3,type:'race',name:'Coast Race',from:['cr',.15],to:['btp',.5],n:4,prize:9000},
+ {id:'x_desert',diff:2,type:'race',name:'Desert Race',from:['eh',.15],to:['barp',.75],n:4,prize:8000},
+ {id:'x_north',diff:1,type:'race',name:'Northern Race',from:['nt1',.12],to:['nt2',.94],n:4,prize:8000},
+ {id:'d_ring',diff:3,type:'death',name:'Death Race: The Ring',from:['ring',.36],to:['ring',.66],n:5,prize:12000,goals:[1000,2000,3200]},
+ {id:'d_south',diff:2,type:'death',name:'Death Race: Southern Cross',from:['sh',.18],to:['sh',.9],n:5,prize:10000,goals:[1000,2000,3200]}];
 const EV_FXC={trial:[1,.75,.2],rage:[.7,.3,1],race:[.2,.6,1],death:[1,.3,.15],escape:[1,.2,.2]},EV_ESC_PAY=[0,0,4000,8000,15000,25000],EV_MEDAL=['','BRONZE','SILVER','GOLD'],EV_MCOL=['#aaa','#d08a4a','#cfd6e0','#ffd23a'];
 function evLoad(){try{EV.rec=JSON.parse(localStorage.getItem(EV.key)||'{}')||{}}catch(e){EV.rec={}}}
 function evSave(){try{localStorage.setItem(EV.key,JSON.stringify(EV.rec))}catch(e){}}
@@ -45,7 +45,7 @@ function evAt(id,f){const r=ROADS.find(q=>q.id==id);if(!r)return null;const i=Ma
 function evRoute(s,gx,gz){const sn=navSnap(s.x,s.z,40);if(!sn)return null;const la=navLane(sn,s.x,s.z,Math.sin(s.yaw),-Math.cos(s.yaw));if(!la)return null;const g=navSnap(gx,gz,80);if(!g)return null;
   const e=la.e,u0=e.closed?(la.u+2)%e.n:Math.min(e.n-1,la.u+2),ch=navAStar(e,u0,{ri:g.ri,i:g.i,x:g.x,z:g.z},60000,260);   /* (batch 54) event routes avoid sharp junction turns: a 90-degree turn costs as much as ~290 m more road */return ch?navPolyline(ch):null}
 /* the medal times come from the route itself: the time of a good driver who takes every bend at 9.5 m/s2 of grip, never goes over 72 m/s, pulls away at 6 m/s2 and brakes at 11 */
-function evRefTime(R){const n=R.n,p=R.pts,v=new Float32Array(n);for(let i=0;i<n;i++){const a=Math.max(0,i-4),b=Math.min(n-1,i+4),c=Math.min(n-1,i+8);const h1=Math.atan2(p[b*3]-p[a*3],p[b*3+2]-p[a*3+2]),h2=Math.atan2(p[c*3]-p[b*3],p[c*3+2]-p[b*3+2]),ds=Math.max(1,R.S[c]-R.S[a]),k=Math.abs(angd(h2,h1))/ds;v[i]=Math.min(72,k>1e-4?Math.sqrt(9.5/k):72)}
+function evRefTime(R,cap){cap=cap||72;const n=R.n,p=R.pts,v=new Float32Array(n);for(let i=0;i<n;i++){const a=Math.max(0,i-4),b=Math.min(n-1,i+4),c=Math.min(n-1,i+8);const h1=Math.atan2(p[b*3]-p[a*3],p[b*3+2]-p[a*3+2]),h2=Math.atan2(p[c*3]-p[b*3],p[c*3+2]-p[b*3+2]),ds=Math.max(1,R.S[c]-R.S[a]),k=Math.abs(angd(h2,h1))/ds;v[i]=Math.min(cap,k>1e-4?Math.sqrt(9.5/k):cap)}
   v[0]=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];v[i]=Math.min(v[i],Math.sqrt(v[i-1]*v[i-1]+2*6*ds))}for(let i=n-2;i>=0;i--){const ds=R.S[i+1]-R.S[i];v[i]=Math.min(v[i],Math.sqrt(v[i+1]*v[i+1]+2*11*ds))}
   let t=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];t+=ds/Math.max(2,(v[i]+v[i-1])/2)}return t}
 function evInit(){EV.list.length=0;evLoad();
@@ -53,12 +53,12 @@ function evInit(){EV.list.length=0;evLoad();
     if(d.type=='trial'||d.type=='race'||d.type=='death'||d.type=='rage'){const t=evAt(d.to[0],d.to[1]);if(!t)continue;let R=evRoute(s,t.x,t.z);{/* (batch 53) start facing whichever way along the road gives the shorter route: one event set off the wrong way and made a U-turn after 280 m */const s2=Object.assign({},s,{yaw:s.yaw+Math.PI}),R2=evRoute(s2,t.x,t.z);if(R2&&(!R||R2.len<R.len-30)){R=R2;s.yaw=s2.yaw;ev.s=s}}if(!R||R.len<500)continue;ev.len=R.len;ev.cps=[];
       const n=Math.max(2,Math.round(R.len/300));for(let k=1;k<=n;k++){const S=R.len*k/n;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const a=Math.min(R.n-2,j),x=R.pts[a*3],y=R.pts[a*3+1],z=R.pts[a*3+2],dx=R.pts[a*3+3]-x,dz=R.pts[a*3+5]-z,l=Math.hypot(dx,dz)||1;
         ev.cps.push({x,y,z,nx:-dz/l,nz:dx/l})}
-      ev.ref=evRefTime(R);ev.gold=ev.ref*1.06+2;ev.silver=ev.ref*1.2+3;ev.bronze=ev.ref*1.4+4;ev.R=R;if(d.type=='trial')ev.prize=Math.max(1500,Math.round(ev.len/1000*2600/100)*100)}
+      ev.ref=evRefTime(R,d.type=='trial'?EV_DCAP[evDiff(d)]:72);ev.gold=ev.ref*1.06+2;ev.silver=ev.ref*1.2+3;ev.bronze=ev.ref*1.4+4;ev.R=R;if(d.type=='trial')ev.prize=Math.max(1500,Math.round(ev.len/1000*2600/100)*100);ev.prize=Math.round(ev.prize*[1,.7,1,1.4][evDiff(d)]/100)*100}
     else if(d.type=='escape')ev.prize=EV_ESC_PAY[d.stars];
     EV.list.push(ev)}}
 const evMedal=(ev,t)=>t<=ev.gold?3:t<=ev.silver?2:t<=ev.bronze?1:0;
 /* ---- start, run, finish ---- */
-function evStart(ev){EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=0;racerClear();
+function evStart(ev){IN.nitro=0;C.boostK=0;EV._starting=ev;EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=0;racerClear();
   const s=ev.s;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-s.x,c.z-s.z)<40&&c.kind!==1)trKill(c,0);copClear(true);for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);
   let sx=s.x,sz=s.z,sy=s.y,syaw=s.yaw;const racing=ev.type=='race'||ev.type=='death';
   if(racing){/* the grid: you on the front row, on the right, 24 m along the route */const R=ev.R;let j=0;while(j<R.n-2&&R.S[j+1]<24)j++;const dx=R.pts[j*3+3]-R.pts[j*3],dz=R.pts[j*3+5]-R.pts[j*3+2],l=Math.hypot(dx,dz)||1;syaw=Math.atan2(dx/l,-dz/l);sx=R.pts[j*3]+(-dz/l)*3.4;sz=R.pts[j*3+2]+(dx/l)*3.4;sy=R.pts[j*3+1];
@@ -136,17 +136,22 @@ function evMarkers(){if(GAME.state||MENU.open)return;let near=null;for(const ev 
   /* a garage you own: the list of every event */
   if(!EV.card&&SAFE.at&&SAFE.owned[SAFE.at.id]&&SAFE.visit===SAFE.at.id&&C.speed<2&&EV.dismiss!==SAFE.at)EV.card=evListCard();
   if(EV.card&&EV.card.garage&&!SAFE.at)EV.card=null}
+/* (batch 54) DIFFICULTY: every event is EASY, MEDIUM or HARD. In races, death races and takedowns it picks the racers' cars (easy: the slow ones, up to 160 mph; medium: 160-200 mph; hard: 200 mph and up) and how hard they drive;
+   in time trials it sets the car the medal times are made for (easy: a 124 mph car can take gold; hard: you need a 200 mph car); escapes go by their stars. Easy pays less, hard pays more. */
+const EV_DIFF=['','EASY','MEDIUM','HARD'],EV_DCOL=['#fff','#3ddc84','#ffc23a','#ff4a3a'],EV_DTOP=[[0,999],[0,260],[255,325],[320,999]],EV_DCAP=[72,55,72,90];
+const evDiff=ev=>ev.diff||(ev.stars?(ev.stars<=2?1:ev.stars==3?2:3):2);
+function evDiffNote(ev){const d=evDiff(ev);return EV_DIFF[d]+'  ·  '+(ev.type=='trial'?['','medal times for a 124 mph car','medal times for a 160 mph car','medal times for a 200 mph car'][d]:ev.type=='escape'?ev.stars+' stars of police':['','slower cars, up to 160 mph','cars from 160 to 200 mph','the fastest cars, 200 mph and up'][d])}
 function evInfo(ev){const rec=EV.rec[ev.id]||{};if(ev.type=='trial')return[fmtLen(ev.len)+'  ·  gold '+evFmt(ev.gold)+'  ·  prize '+evMoney(ev.prize),rec.t?'best '+evFmt(rec.t)+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not run yet'];
   if(ev.type=='race')return[fmtLen(ev.len)+' against '+ev.n+' racers  ·  1st wins '+evMoney(ev.prize),rec.m?'best: '+['','3rd','2nd','1st'][rec.m]:'not raced yet'];
   if(ev.type=='death')return[fmtLen(ev.len)+', '+ev.n+' racers who ram you  ·  500 a wreck  ·  gold '+ev.goals[2]+' pts  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' pts'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not raced yet'];
   if(ev.type=='rage')return['wreck the '+ev.n+' racers before they get away  ·  '+Math.round(ev.secs)+' s, +5 s a takedown  ·  bronze '+ev.goals[0]+' / silver '+ev.goals[1]+' / gold '+ev.goals[2]+'  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' takedowns'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not done yet'];
   return[ev.stars+' stars  ·  lose them within '+evFmt(ev.secs).replace(/\.00$/,'')+'  ·  prize '+evMoney(ev.prize),rec.done?'escaped '+rec.done+'x, best '+evFmt(rec.t):'not done yet']}
-function evOfferCard(ev,fromGarage){const inf=evInfo(ev);return{offer:1,title:{trial:'TIME TRIAL',rage:'TAKEDOWN',race:'RACE',death:'DEATH RACE'}[ev.type]||'ESCAPE THE COPS',sub:ev.name,lines:[[inf[0],'#fff'],[inf[1],'#9cc8ff']],
+function evOfferCard(ev,fromGarage){const inf=evInfo(ev);return{offer:1,title:{trial:'TIME TRIAL',rage:'TAKEDOWN',race:'RACE',death:'DEATH RACE'}[ev.type]||'ESCAPE THE COPS',sub:ev.name,lines:[[evDiffNote(ev),EV_DCOL[evDiff(ev)]],[inf[0],'#fff'],[inf[1],'#9cc8ff']],
   btns:[{label:'START',col:'#ff7a1a',act:()=>evStart(ev)},{label:fromGarage?'BACK':'NOT NOW',col:'#8a94a6',act:()=>{if(fromGarage)EV.card=evEventsCard();else{EV.card=null;EV.dismiss=ev}}}]}}
 /* the garage card (batch 19): go inside, the events, or drive on */
 function evListCard(){const nm=SAFE.at?SAFE.at.name.toUpperCase():'GARAGE';return{garage:1,title:nm,sub:'Repaired and saved',lines:[['Cars are changed inside the garage.','rgba(233,230,220,.75)']],
   btns:[{label:'ENTER GARAGE',col:'#ffad1f',act:()=>garageEnter()},{label:'EVENTS',col:'#8a94a6',act:()=>{EV.card=evEventsCard()}},{label:'DRIVE ON',col:'#8a94a6',act:()=>{EV.card=null;EV.dismiss=SAFE.at}}]}}
-function evEventsCard(){const b=EV.list.map(ev=>{const rec=EV.rec[ev.id]||{};return{label:ev.name.replace('Takedown: ','Takedown: ').replace('Death Race: ','Death: ')+(ev.type!='escape'?(rec.m?'  '+'★'.repeat(rec.m):''):'  '+ev.stars+'★'),col:{trial:'#d9a020',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#d04848',act:()=>{EV.card=Object.assign(evOfferCard(ev,true),{garage:1})},small:1}});
+function evEventsCard(){const b=EV.list.map(ev=>{const rec=EV.rec[ev.id]||{};return{label:['','E · ','M · ','H · '][evDiff(ev)]+ev.name.replace('Takedown: ','Takedown: ').replace('Death Race: ','Death: ')+(ev.type!='escape'?(rec.m?'  '+'★'.repeat(rec.m):''):'  '+ev.stars+'★'),col:{trial:'#d9a020',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#d04848',act:()=>{EV.card=Object.assign(evOfferCard(ev,true),{garage:1})},small:1}});
   b.push({label:'BACK',col:'#8a94a6',act:()=>{EV.card=evListCard()},small:1});return{garage:1,cols:3,title:'EVENTS',sub:'your money: '+evMoney(ECON.money),lines:[],btns:b,grid:1}}
 /* ---- the card and the event HUD ---- */
 function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF;c.save();
@@ -154,7 +159,7 @@ function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF
   if(!EV.run&&!EV.card&&!GAME.state&&!MENU.open&&!UI.paused&&!CC.on){const V=R.VP,NM={trial:'TIME TRIAL',rage:'TAKEDOWN',race:'RACE',death:'DEATH RACE',escape:'ESCAPE'},CL={trial:'#ffb000',rage:'#b060ff',race:'#3ddc84',death:'#ff4a3a',escape:'#4a9dff'};let shown=0;
     const near=EV.list.map(ev=>[Math.hypot(ev.s.x-C.x,ev.s.z-C.z),ev]).filter(q=>q[0]<11).sort((a,b)=>a[0]-b[0]);
     for(const[d,ev]of near){if(shown>=3)break;const wy=ev.s.y+3.2,w=V[3]*ev.s.x+V[7]*wy+V[11]*ev.s.z+V[15];if(w<1)continue;const nx=(V[0]*ev.s.x+V[4]*wy+V[8]*ev.s.z+V[12])/w,ny=(V[1]*ev.s.x+V[5]*wy+V[9]*ev.s.z+V[13])/w;if(Math.abs(nx)>.9)continue;shown++;
-      const px=(nx*.5+.5)*W_,py=(1-(ny*.5+.5))*H_,col=CL[ev.type]||'#fff',t=NM[ev.type]||'EVENT';c.save();c.translate(px,py);c.font=fs(.2,800);const tw=c.measureText(t).width+u*.3;c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=5;
+      const px=(nx*.5+.5)*W_,py=(1-(ny*.5+.5))*H_,col=CL[ev.type]||'#fff',t=(NM[ev.type]||'EVENT')+'  ·  '+EV_DIFF[evDiff(ev)];c.save();c.translate(px,py);c.font=fs(.2,800);const tw=c.measureText(t).width+u*.3;c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=5;
       c.fillStyle=col;rr(c,-tw/2,-u*.2,tw,u*.34,u*.08);c.fill();c.beginPath();c.moveTo(-u*.1,u*.13);c.lineTo(u*.1,u*.13);c.lineTo(0,u*.3);c.closePath();c.fill();c.shadowBlur=0;c.fillStyle='#10141a';c.textAlign='center';c.fillText(t,0,u*.05);
       c.fillStyle='#fff';c.font=fs(.17,700);c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText(fmtLen(d),0,-u*.27);c.restore()}}
   /* money, under the minimap */
