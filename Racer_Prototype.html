@@ -3879,7 +3879,7 @@ function railWreck(c){if(!RAILSEG.length)return;const i=railHit(c.x,c.z,c.y,(c.h
 
 'use strict';
 /* (batch 54) THINGS TO DO IN TOWN, and out east.
-   RAMPS are never on the road. They are SECRET WAYS: a striped steel kicker hidden just off the road on the inside of a bend; leave the road, hit it flat out and you fly
+   RAMPS are never on the road. They are SECRET WAYS: a natural mound of earth (a kicker) hidden just off the road on the inside of a bend; leave the road, hit it flat out and you fly
    across the corner and land back on the road further on (a shortcut), or STUNT JUMPS where the ground falls away beside the road. They are part of the ground (groundAt adds
    their height), and your car's own take-off rule does the flying. Every path is checked once the world is built (nothing solid, no water, no hill in the way); a ramp whose path
    is blocked is taken away again. Each is a JUMP spot, hidden from the map until you have jumped it once.
@@ -3889,11 +3889,14 @@ const RAMPS=[],RAMPG=new Map(),RAMP_CELL=64,TOKENS={list:[],got:{},key:'racer.to
 const rampKey=(gx,gz)=>(gx+512)*4096+(gz+512);
 /* the height a ramp adds at (x,z) (0 where there is none) */
 let _rampOff=0;const RAMPDBG={cand:0,cuts:0,geo:0,why:{}};
+/* (batch 54) a NATURAL jump: a mound of earth. It rises in a curve (a kicker) over L, falls away steeply over B behind the crest (that is what throws you), and its sides roll
+   smoothly into the ground over 'side' metres, so it looks like part of the land, not a ramp */
+function rampProf(p,u,v){if(u<0||u>p.L+p.B)return 0;const av=Math.abs(v);if(av>p.W/2)return 0;const t=Math.min(1,(p.W/2-av)/p.side),k=t*t*(3-2*t);
+  const h=u<=p.L?p.H*Math.pow(u/p.L,1.4):p.H*Math.pow(1-(u-p.L)/p.B,.7);return h*k}
 function rampAt(x,z){if(!RAMPS.length||_rampOff)return 0;const L=RAMPG.get(rampKey(Math.floor(x/RAMP_CELL),Math.floor(z/RAMP_CELL)));if(!L)return 0;let h=0;
-  for(const p of L){const dx=x-p.x,dz=z-p.z,u=dx*p.fx+dz*p.fz,v=dx*p.rx+dz*p.rz;if(u<0||u>p.L||Math.abs(v)>p.W/2)continue;
-    const k=Math.min(1,(p.W/2-Math.abs(v))/p.side),y=p.H*Math.pow(u/p.L,1.25)*k;if(y>h)h=y}
+  for(const p of L){const dx=x-p.x,dz=z-p.z,y=rampProf(p,dx*p.fx+dz*p.fz,dx*p.rx+dz*p.rz);if(y>h)h=y}
   return h}
-function rampAdd(x,z,fx,fz,o){const p=Object.assign({x,z,fx,fz,rx:-fz,rz:fx,L:13,H:2.3,W:6.2,side:1.4},o||{});RAMPS.push(p);rampGrid(p);return p}
+function rampAdd(x,z,fx,fz,o){const p=Object.assign({x,z,fx,fz,rx:-fz,rz:fx,L:12,B:4.5,H:2.4,W:8.4,side:2.8},o||{});RAMPS.push(p);rampGrid(p);return p}
 /* a straight, junction-free stretch of road around sample i (no bridge, flat enough) */
 function cityStraight(r,i,half){if(i<half+2||i>r.n-half-3)return false;const h=k=>{const t=_tan(r,k);return Math.atan2(t[0],t[1])};
   if(Math.abs(angd(h(i-half),h(i)))>.08||Math.abs(angd(h(i+half),h(i)))>.08)return false;for(let k=i-half;k<=i+half;k++)if(r.br&&r.br[k])return false;
@@ -3933,11 +3936,11 @@ function rampsPlace(){const C2=[],rd=(r,i)=>({x:r.X[i],z:r.Z[i],t:_tan(r,i)});
         const g0=terrainH(ax,az),g1=terrainH(ax+fx*55,az+fz*55);if(g0-g1<6||g1<.5)continue;C2.push({kind:'stunt',ax,az,fx,fz,bx:ax+fx*55,bz:az+fz*55,D:55,score:1+(g0-g1)/10,road:r,i})}}}
   C2.sort((p,q)=>q.score-p.score);let nc=0,ns=0;RAMPDBG.cand=C2.length;RAMPDBG.cuts=C2.filter(c=>c.kind=='cut').length;
   for(const c of C2){if(c.kind=='cut'?nc>=160:ns>=50)continue;if(RAMPS.some(q=>Math.hypot(q.x-c.ax,q.z-c.az)<150))continue;if(!rampPathOk(c,false)){RAMPDBG.geo++;continue}
-    rampAdd(c.ax,c.az,c.fx,c.fz,{L:12,H:2.4,W:5.8,kind:c.kind,bx:c.bx,bz:c.bz,D:c.D,score:c.score+(c.kind=='cut'?1:0)});if(c.kind=='cut')nc++;else ns++}}
+    rampAdd(c.ax,c.az,c.fx,c.fz,{kind:c.kind,bx:c.bx,bz:c.bz,D:c.D,score:c.score+(c.kind=='cut'?1:0)});if(c.kind=='cut')nc++;else ns++}}
 /* is the way clear? (geometry only; with solid things too once the world exists) */
 const rbad=w=>{RAMPDBG.why[w]=(RAMPDBG.why[w]||0)+1;return false};
 function rampPathOk(c,solid){const L=12,H=2.4,gA=rampBaseG(c.ax+c.fx*L,c.az+c.fz*L),lip=gA+H;
-  for(let u=-2;u<=L+1;u+=1.5)for(const v of[-3.2,0,3.2]){const x=c.ax+c.fx*u-c.fz*v,z=c.az+c.fz*u+c.fx*v;if(roadAt(x,z,99)&&Math.abs(RQ.lat)<RQ.hw+.5)return rbad('footRoad');if(terrainH(x,z)<.3)return rbad('footWater');if(solid&&trStatic(x,z,1.4,rampBaseG(x,z)))return rbad('footSolid')}
+  for(let u=-2;u<=L+5;u+=1.5)for(const v of[-4,0,4]){const x=c.ax+c.fx*u-c.fz*v,z=c.az+c.fz*u+c.fx*v;if(roadAt(x,z,99)&&Math.abs(RQ.lat)<RQ.hw+.5)return rbad('footRoad');if(terrainH(x,z)<.3)return rbad('footWater');if(solid&&trStatic(x,z,1.4,rampBaseG(x,z)))return rbad('footSolid')}
   const end=c.kind=='cut'?c.D-4:c.D;for(let u=L+1;u<end;u+=2){const x=c.ax+c.fx*u,z=c.az+c.fz*u,k=(u-L)/(c.D-L),gt=terrainH(x,z);
     if(gt<.3)return rbad('pathWater');if(gt>lip-.6+k*(c.kind=='cut'?Math.max(0,rampBaseG(c.bx,c.bz)-lip+.6):0))return rbad('pathHill');
     if(c.kind=='cut'&&u<c.D-8&&roadAt(x,z,99)&&Math.abs(RQ.lat)<RQ.hw+.5)return rbad('pathRoad');if(solid&&trStatic(x,z,1.6,rampBaseG(x,z)))return rbad('pathSolid')}
@@ -3952,14 +3955,18 @@ function rampGrid(p){const c0x=Math.floor((p.x-20)/RAMP_CELL),c1x=Math.floor((p.
 function rampFinish(){for(const p of RAMPS)for(const q of(p.pieces||[])){if(!q.m)continue;q.pi=q.m.outIdx;q.cpu=q.m.f.slice(q.a*7,q.b*7);q.m=null}}
 function rampHide(p){const gl=G.gl;if(!gl||!R.props)return;for(const q of(p.pieces||[])){const P=R.props[q.pi];if(!P||!q.cpu)continue;const d=q.cpu.slice(),x=d[0],y=d[1]-5,z=d[2];for(let o=0;o<d.length;o+=7){d[o]=x;d[o+1]=y;d[o+2]=z}gl.bindBuffer(gl.ARRAY_BUFFER,P.vb);gl.bufferSubData(gl.ARRAY_BUFFER,q.a*28,d)}}
 /* the ramp meshes (from buildFurniture): a striped steel deck, side cheeks and a dark lip face */
-function cityBuild(){for(const p of RAMPS){const m=pmb(p.x,p.z,0,160),a0=m.n,N=8;p.pieces=[];
-    const pt=(u,v,h)=>{const x=p.x+p.fx*u+p.rx*v,z=p.z+p.fz*u+p.rz*v;return[x,rampBaseG(x,z)+h+.02,z]};   /* it sits on the ground under it */
-    const hu=u=>p.H*Math.pow(u/p.L,1.25);
-    for(let k=0;k<N;k++){const u0=p.L*k/N,u1=p.L*(k+1)/N,h0=hu(u0),h1=hu(u1),yel=(k&1)==0,c=yel?[235,190,40]:[40,40,44],w=p.W/2-p.side*.15;
-      const a=pt(u0,-w,h0),b=pt(u0,w,h0),cc=pt(u1,w,h1),d=pt(u1,-w,h1);
-      const v=q=>m.v(q[0],q[1],q[2],-p.fx*.2,.98,-p.fz*.2,c[0],c[1],c[2],.03,.03,0);m.q(v(a),v(b),v(cc),v(d));
-      for(const sd of[-1,1]){const o=pt(u0,sd*p.W/2,0),i0=pt(u0,sd*w,h0),i1=pt(u1,sd*w,h1),o1=pt(u1,sd*p.W/2,0),vv=q=>m.v(q[0],q[1],q[2],p.rx*sd,.5,p.rz*sd,90,92,96,.03,.03,0);if(sd<0)m.q(vv(o),vv(i0),vv(i1),vv(o1));else m.q(vv(o1),vv(i1),vv(i0),vv(o))}}
-    {const w=p.W/2-p.side*.15,a=pt(p.L,-w,p.H),b=pt(p.L,w,p.H),c2=pt(p.L,w,-.3),d=pt(p.L,-w,-.3),v=q=>m.v(q[0],q[1],q[2],p.fx,0,p.fz,30,30,34,.03,.03,0);m.q(v(a),v(b),v(c2),v(d))}
+/* the mounds' meshes (from buildFurniture): a smooth grid of earth on the ground under it, coloured like the land round it (sand out in the desert, dirt fading into grass elsewhere) */
+function cityBuild(){for(const p of RAMPS){const m=pmb(p.x,p.z,0,260),a0=m.n;p.pieces=[];const NU=16,NV=8,UL=p.L+p.B;
+    const dry=Math.min(1,sstep(1300,2300,p.z)*.8+sstep(500,1800,p.x)*.15+sstep(2600,3800,p.x)*.9),hs=(a,b)=>{const v=Math.sin(a*12.9898+b*78.233+p.x)*43758.5453;return v-Math.floor(v)};
+    const P=(i,j)=>{const u=i<=12?p.L*i/12:p.L+p.B*(i-12)/(NU-12),v=-p.W/2+p.W*j/NV,x=p.x+p.fx*u+p.rx*v,z=p.z+p.fz*u+p.rz*v,h=rampProf(p,u,v);return{x,z,u,v,h,y:rampBaseG(x,z)+h+.03}};
+    const G=[];for(let i=0;i<=NU;i++){G.push([]);for(let j=0;j<=NV;j++)G[i].push(P(i,j))}
+    const id=[];for(let i=0;i<=NU;i++){id.push([]);for(let j=0;j<=NV;j++){const q=G[i][j],a=G[Math.max(0,i-1)][j],b=G[Math.min(NU,i+1)][j],c=G[i][Math.max(0,j-1)],d=G[i][Math.min(NV,j+1)];
+        const du=Math.max(.1,b.u-a.u),dv=Math.max(.1,d.v-c.v),gu=(b.y-a.y)/du,gv=(d.y-c.y)/dv,nl=Math.hypot(gu,gv,1),nU=-gu/nl,nV=-gv/nl,ny=1/nl;
+        const nx=p.fx*nU+p.rx*nV,nz=p.fz*nU+p.rz*nV,top=Math.min(1,q.h/p.H),n=hs(i,j)*.18-.09,edge=1-Math.min(1,q.h/.35);
+        const dirt=[118+n*80,96+n*60,68+n*40],grass=[82+n*60,94+n*60,56+n*40],sand=[176+n*60,152+n*50,110+n*40],ground=dry>.55?sand:grass,body=dry>.55?[160+n*60,132+n*50,92+n*40]:dirt;
+        const k=Math.max(edge,dry>.55?0:.25*(1-top)),col=[0,1,2].map(e=>Math.max(0,Math.min(255,body[e]*(1-k)+ground[e]*k)));
+        id[i].push(m.v(q.x,q.y,q.z,nx,ny,nz,col[0],col[1],col[2],.03,.03,0))}}
+    for(let i=0;i<NU;i++)for(let j=0;j<NV;j++)m.q(id[i][j],id[i][j+1],id[i+1][j+1],id[i+1][j]);
     p.pieces.push({m,a:a0,b:m.n})}}
 /* picking tokens up (every frame) */
 function cityTick(dt){if(GAME.state||TUM.on||!TOKENS.list.length)return;for(const t of TOKENS.list){if(TOKENS.got[t.id])continue;if(Math.abs(C.x-t.x)>5||Math.abs(C.z-t.z)>5||Math.abs(C.y+.8-t.y)>3)continue;
