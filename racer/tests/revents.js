@@ -13,7 +13,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
       const vt=Math.min(vmax,bend>.05?Math.sqrt(9*45/bend):vmax);C.steer=clamp(angd(h0,C.yaw)*1.8,-1,1);IN.thr=C.speed<vt?1:0;IN.brk=C.speed>vt+3?1:0}});
   /* 1 the list */
   const A=await T.ev(()=>({n:EV.list.length,tr:EV.list.filter(e=>e.type=='trial').map(e=>[e.id,Math.round(e.len),e.cps.length]),es:EV.list.filter(e=>e.type=='escape').length,rg:EV.list.filter(e=>e.type=='rage').length,onRoad:EV.list.every(e=>roadAt(e.s.x,e.s.z,e.s.y+1))}));
-  ok(A.n==20&&A.tr.length==8&&A.es==4&&A.rg==3&&A.tr.every(t=>t[1]>1000&&t[2]>=4)&&A.onRoad,'1 20 events: 8 time trials ('+A.tr.map(t=>t[0]+' '+(t[1]/1000).toFixed(1)+' km').join(', ')+') 4 escapes, 3 takedowns, 3 races and 2 death races, every start on a road');
+  ok(A.n>=50&&A.tr.length>=14&&A.es>=9&&A.rg>=9&&A.tr.every(t=>t[1]>1000&&t[2]>=4)&&A.onRoad,'1 '+A.n+' events ('+A.tr.length+' time trials: '+A.tr.map(t=>t[0]+' '+(t[1]/1000).toFixed(1)+' km').join(', ')+') '+A.es+' escapes, '+A.rg+' takedowns, every start on a road (batch 54: 54 events, one in every town)');
   /* 2 the marker card */
   const B=await T.ev(()=>{const ev=EV.list[0];RACER.carPlace(ev.s.x,ev.s.z,ev.s.yaw,ev.s.y+.5);for(let s=0;s<30;s++)RACER.worldStep(1/120);const o={title:EV.card&&EV.card.title,sub:EV.card&&EV.card.sub};EV.card.btns[1].act();for(let s=0;s<30;s++)RACER.worldStep(1/120);o.after=!!EV.card;return o});
   ok(/^TIME TRIAL  ·  (EASY|MEDIUM|HARD)$/.test(B.title)&&B.sub=='Ring Sprint'&&!B.after,'2 stopping on a marker offers the event ("'+B.title+': '+B.sub+'"); NOT NOW puts it away');
@@ -52,7 +52,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(G.poor&&G.bought,'6 a car costs money: the Mac Seven-Twenty is '+G.price+' (one short: still locked; with enough: bought, 500 left)');
   ok(G.free==0&&G.cheap<G.dear,'6 prices follow speed: the starter is free, the slowest car '+G.cheap+', the fastest '+G.dear);
   ok(G.garage&&G.left==5000,'6 stopping on a locked garage with 20,000 buys it for 15,000');
-  console.log(JSON.stringify(G.dbg));ok(G.garage=='ENTER GARAGE/EVENTS/DRIVE ON'&&G.list=='EVENTS'&&G.items==21,'6 parked in your garage, the garage card ('+G.garage+'), EVENTS lists all 20 events (and BACK)');
+  console.log(JSON.stringify(G.dbg));ok(G.garage=='ENTER GARAGE/EVENTS/DRIVE ON'&&G.list=='EVENTS'&&G.items>=51,'6 parked in your garage, the garage card ('+G.garage+'), EVENTS lists all '+(G.items-1)+' events (and BACK)');
   /* 7 TAKEDOWN (batch 27, it replaced road rage): a pack of 6 racers sets off ahead of you; only racers count, +5 s each; light traffic while it runs; a racer stuck for 2.4 s (batch 53; it was 5 s) is put back on the route */
   const H=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='k_ring');const m0=ECON.money;const o={};o.tgt0=trTarget();evStart(ev);const r=EV.run;o.n=r.racers.length;
     o.ahead=r.racers.map(c=>Math.round(c.race.s)).sort((a,b)=>a-b);o.tgt=trTarget();o.cops=COP.on;
@@ -73,20 +73,18 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(H.civ==0&&H.wrecks==1&&H.bonus==5&&H.tgState==1,'7 a wrecked traffic car does not count; ramming a racer takes it down: '+H.wrecks+' (+'+H.bonus+' s)');
   ok(H.respot>=2.3&&H.respot<3.6&&H.respotGain>=20,'7 a racer stuck for '+H.respot+' s is put back on the route '+H.respotGain+' m further on');
   ok(H.card=='TAKEDOWN OVER'&&H.copsAfter&&/1 OF 6/.test((H.lines||[]).join()),'7 when the rest get away: '+(H.lines||[]).join(', ')+', the police are back');
-  /* 8 speed trap, jump spot, drift zone */
+  /* 8 speed trap, jump spot */
   const K=await T.ev(()=>{const o={};EV.card=null;for(const sp of SPOTS.list)delete EV.rec[sp.id];const m0=ECON.money;
     const tr=SPOTS.list.find(s=>s.type=='trap');const yaw=Math.atan2(tr.t[0],-tr.t[1]);RACER.carPlace(tr.x-tr.t[0]*120,tr.z-tr.t[1]*120,yaw,tr.y+.5);C.vx=tr.t[0]*50;C.vz=tr.t[1]*50;
     for(let s=0;s<120*4;s++){C.steer=0;IN.thr=1;RACER.worldStep(1/120)}IN.thr=0;o.trap=(EV.rec[tr.id]||{}).v;o.trapMsg=SAFE.msg;
     const jp=SPOTS.list.find(s=>s.type=='jump'),sn=navSnap(jp.x,jp.z,40),r=ROADS[sn.ri];let k0=sn.i-Math.round(260/r.ds);const t0=_tan(r,k0),a0=Math.atan2(t0[0],-t0[1]);RACER.carPlace(r.X[k0]+Math.cos(a0)*5,r.Z[k0]+Math.sin(a0)*5,a0,r.Y[k0]+.5);C.vx=t0[0]*45;C.vz=t0[1]*45;
     for(let s=0;s<120*8;s++){const sn2=navSnap(C.x,C.z,30);if(sn2){const i=Math.min(r.n-1,sn2.i+Math.round(25/r.ds));C.steer=clamp(angd(Math.atan2(r.X[i]+Math.cos(a0)*5-C.x,-(r.Z[i]+Math.sin(a0)*5-C.z)),C.yaw)*1.5,-1,1)}IN.thr=C.speed<45?1:0;RACER.worldStep(1/120)}IN.thr=0;o.jump=(EV.rec[jp.id]||{}).v;o.jumpMsg=SAFE.msg;
-    const dz=SPOTS.list.find(s=>s.type=='drift'),R=ROADS[dz.ri];const i0=Math.max(2,dz.i0-8),t2=_tan(R,i0);RACER.carPlace(R.X[i0],R.Z[i0],Math.atan2(t2[0],-t2[1]),R.Y[i0]+.5);
-    for(let s=0;s<120*60;s++){const sn3=navSnap(C.x,C.z,30);if(sn3){const i=Math.min(R.n-1,sn3.i+Math.round(14/R.ds));C.steer=clamp(angd(Math.atan2(R.X[i]-C.x,-(R.Z[i]-C.z)),C.yaw)*1.8,-1,1)}IN.thr=C.speed<16?1:0;C.driftScore=(C.driftScore||0)+.5;if(s%60==0)for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-C.x,c.z-C.z)<90)trKill(c,0);RACER.worldStep(1/120);   /* (the bot steers by the centre line only: keep the traffic off it) */if((EV.rec[dz.id]||{}).v!=null)break}
-    IN.thr=0;o.drift=(EV.rec[dz.id]||{}).v;o.driftMsg=SAFE.msg;o.paid=ECON.money-m0;return o});
+    /* (batch 54) the drift zones are gone */
+    IN.thr=0;o.paid=ECON.money-m0;return o});
   console.log('     '+JSON.stringify(K));
   ok(K.trap>150,'8 a speed trap records '+K.trap+' km/h ("'+K.trapMsg+'")');
   ok(K.jump>15,'8 a jump spot records a '+K.jump+' m jump ("'+K.jumpMsg+'")');
-  ok(K.drift>100,'8 a drift zone adds up the drift points between its gates: '+K.drift+' ("'+K.driftMsg+'")');
-  ok(K.paid==1500,'8 each first record pays 500 ('+K.paid+')');
+  ok(K.paid==1000,'8 each first record pays 500 ('+K.paid+')');
   /* 9 a race: 4 AI racers on the grid; the bot drives the route; racers keep going and the order is kept; the result has a place */
   const Rr=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='x_desert');const m0=ECON.money;EV.card=null;evStart(ev);const n0=EV.run.racers.length;const Rt=ev.R;window.__fi=0;let minV=1e9,racerProg=[],pos=[];
     for(let s=0;s<120*300&&EV.run;s++){if(EV.run.t>=0)follow(Rt,46);if(s%60==0)for(const c of TR.cars)if(c.alive&&c.kind==0&&[C].concat(EV.run.racers).some(q=>Math.hypot(c.x-q.x,c.z-q.z)<80))trKill(c,0);   /* (the bot does not dodge traffic or wrecks: the traffic is kept off the race) */

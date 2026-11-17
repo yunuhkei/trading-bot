@@ -91,7 +91,8 @@ function evRefTime(R,cap){cap=cap||72;const n=R.n,p=R.pts,v=new Float32Array(n);
   v[0]=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];v[i]=Math.min(v[i],Math.sqrt(v[i-1]*v[i-1]+2*6*ds))}for(let i=n-2;i>=0;i--){const ds=R.S[i+1]-R.S[i];v[i]=Math.min(v[i],Math.sqrt(v[i+1]*v[i+1]+2*11*ds))}
   let t=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];t+=ds/Math.max(2,(v[i]+v[i-1])/2)}return t}
 function evInit(){EV.list.length=0;evLoad();
-  for(const d of EV_DEF){const s=evAt(d.from[0],d.from[1]);if(!s)continue;const ev=Object.assign({},d,{s});
+  for(const d of EV_DEF){let s=evAt(d.from[0],d.from[1]);{/* (batch 54) never on top of a garage pad or a repair shop (the marker used to hide the garage card): slide along the street */const busy=q=>q&&((SAFE.pads||[]).some(p=>Math.hypot(p.pad.x-q.x,p.pad.z-q.z)<70)||(typeof REPAIRS!='undefined'&&REPAIRS.some(p=>Math.hypot(p.x-q.x,p.z-q.z)<70))||EV.list.some(e=>Math.hypot(e.s.x-q.x,e.s.z-q.z)<40));
+      for(let k=1;k<12&&busy(s);k++){const f=d.from[1]+(k&1?1:-1)*Math.ceil(k/2)*.07;if(f<.03||f>.97)continue;const s2=evAt(d.from[0],f);if(s2)s=s2}}if(!s)continue;const ev=Object.assign({},d,{s});
     if(d.type=='trial'||d.type=='race'||d.type=='death'||d.type=='rage'){const t=evAt(d.to[0],d.to[1]);if(!t)continue;let R=evRoute(s,t.x,t.z);{/* (batch 53) start facing whichever way along the road gives the shorter route: one event set off the wrong way and made a U-turn after 280 m */const s2=Object.assign({},s,{yaw:s.yaw+Math.PI}),R2=evRoute(s2,t.x,t.z);if(R2&&(!R||R2.len<R.len-30)){R=R2;s.yaw=s2.yaw;ev.s=s}}if(!R||R.len<500)continue;ev.len=R.len;ev.cps=[];
       const n=Math.max(2,Math.round(R.len/300));for(let k=1;k<=n;k++){const S=R.len*k/n;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const a=Math.min(R.n-2,j),x=R.pts[a*3],y=R.pts[a*3+1],z=R.pts[a*3+2],dx=R.pts[a*3+3]-x,dz=R.pts[a*3+5]-z,l=Math.hypot(dx,dz)||1;
         ev.cps.push({x,y,z,nx:-dz/l,nz:dx/l})}
