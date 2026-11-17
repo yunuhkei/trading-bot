@@ -27,6 +27,12 @@ if os.path.isdir(sd):
   for fn in sorted(os.listdir(sd)):
     if fn.endswith('.wav') or fn.endswith('.mp3'):sfx.append("%s:'%s'"%(fn.rsplit('.',1)[0],base64.b64encode(open(os.path.join(sd,fn),'rb').read()).decode()))
 if '/*SFXB64*/' in js:js=js.replace('/*SFXB64*/',','.join(sfx))
+# (batch 55) music (CC0, OpenGameArt; see assets/music/CREDITS.md): assets/music/*.mp3 become base64 strings in MUSB64 (played as streamed <audio>, not decoded)
+md=os.path.join(here,'assets','music');mus=[]
+if os.path.isdir(md):
+  for fn in sorted(os.listdir(md)):
+    if fn.endswith('.mp3'):mus.append("'%s'"%base64.b64encode(open(os.path.join(md,fn),'rb').read()).decode())
+if '/*MUSB64*/' in js:js=js.replace('/*MUSB64*/',','.join(mus))
 assert '/*TEXB64*/' in js
 js=js.replace('/*TEXB64*/',','.join(tex))
 assert '/*FONTS*/' in tpl

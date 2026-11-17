@@ -162,7 +162,7 @@ function holoPanel(c,x,y,w,h,r,a){const t=performance.now()/1000;a=a==null?.5:a;
 const AU={ctx:null,eng:null,eng2:null,gain:null,wind:null,tire:null,ready:false};
 function audioStart(){if(AU.ctx||window.__noAudio)return;try{const A=window.AudioContext||window.webkitAudioContext;if(!A)return;const x=AU.ctx=new A();
   const mkNoise=()=>{const b=x.createBuffer(1,x.sampleRate*2,x.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const s=x.createBufferSource();s.buffer=b;s.loop=true;return s};
-  const master=x.createGain();master.gain.value=.5;master.connect(x.destination);
+  const master=x.createGain();master.gain.value=.5;/* (batch 55) a compressor + make-up gain after the mix: the engine can sit louder and big crashes do not clip */{let out=x.destination;try{const k=x.createDynamicsCompressor();k.threshold.value=-18;k.knee.value=8;k.ratio.value=4;k.attack.value=.004;k.release.value=.22;const mk=x.createGain();mk.gain.value=1.7;master.connect(k);k.connect(mk);mk.connect(out)}catch(e){master.connect(out)}}
   AU.eng=x.createOscillator();AU.eng.type='sawtooth';AU.eng2=x.createOscillator();AU.eng2.type='square';const lp=x.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;AU.lp=lp;
   AU.gain=x.createGain();AU.gain.gain.value=0;AU.eng.connect(lp);AU.eng2.connect(lp);lp.connect(AU.gain);AU.gain.connect(master);AU.eng.start();AU.eng2.start();
   const wn=mkNoise(),wf=x.createBiquadFilter();wf.type='lowpass';wf.frequency.value=700;AU.windG=x.createGain();AU.windG.gain.value=0;wn.connect(wf);wf.connect(AU.windG);AU.windG.connect(master);wn.start();
@@ -172,7 +172,7 @@ function audioStart(){if(AU.ctx||window.__noAudio)return;try{const A=window.Audi
   /* the helicopter: low noise chopped by a 14 Hz wave (the rotor) */
   {const hn=mkNoise(),hf=x.createBiquadFilter();hf.type='lowpass';hf.frequency.value=260;const hg=x.createGain();hg.gain.value=0;const lfo=x.createOscillator();lfo.type='square';lfo.frequency.value=14;const lg=x.createGain();lg.gain.value=.5;lfo.connect(lg);lg.connect(hg.gain);hn.connect(hf);hf.connect(hg);AU.heliG=x.createGain();AU.heliG.gain.value=0;hg.connect(AU.heliG);AU.heliG.connect(master);hn.start();lfo.start();hg.gain.value=.5}
   AU.master=master;AU.mkNoise=mkNoise;
-  AU.sir=x.createOscillator();AU.sir.type='triangle';AU.sir.frequency.value=800;AU.sirG=x.createGain();AU.sirG.gain.value=0;AU.sir.connect(AU.sirG);AU.sirG.connect(master);AU.sir.start();AU.ready=true;if(typeof sfxLoad=='function')sfxLoad(x)}catch(e){}}   /* (batch 54) then the recorded sounds (49_sfx.js) */
+  AU.sir=x.createOscillator();AU.sir.type='triangle';AU.sir.frequency.value=800;AU.sirG=x.createGain();AU.sirG.gain.value=0;AU.sir.connect(AU.sirG);AU.sirG.connect(master);AU.sir.start();AU.ready=true;if(typeof sfxLoad=='function')sfxLoad(x);if(typeof musStart=='function')musStart(x)}catch(e){}}   /* (batch 54) then the recorded sounds (49_sfx.js) */
 /* a bang (a tyre bursting): a short burst of noise */
 function audioBang(k){if(!AU.ready)return;k=k==null?1:Math.max(.15,Math.min(1,k));if(typeof SFX!='undefined'&&SFX.ready){sfxHit(k);return}   /* (batch 54) recorded crashes, metal, glass */const x=AU.ctx,t=x.currentTime,n=AU.mkNoise(),g=x.createGain();g.gain.setValueAtTime(.9*k,t);
   /* (batch 54) and a low thump under it: the weight of the hit */try{const o=x.createOscillator(),og=x.createGain();o.type='sine';o.frequency.setValueAtTime(95,t);o.frequency.exponentialRampToValueAtTime(42,t+.22);og.gain.setValueAtTime(.7*k,t);og.gain.exponentialRampToValueAtTime(.001,t+.3);o.connect(og);og.connect(AU.master);o.start(t);o.stop(t+.32)}catch(e){}g.gain.exponentialRampToValueAtTime(.001,t+.35);n.connect(g);g.connect(AU.master);n.start(t);n.stop(t+.4)}
@@ -184,4 +184,4 @@ function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.s
   if(AU.scrG){const on=C.railT>0&&!UI.paused&&!UI.mapOpen;AU.scrG.gain.setTargetAtTime(on?.1+.14*Math.min(1,C.speed/45):0,t,on?.015:.06);AU.scrF.frequency.setTargetAtTime(2400+C.speed*30+Math.random()*600,t,.03)}
   /* the siren: a two-tone wail, louder the nearer the nearest chasing cop */
   if(AU.sir){const ph=Math.sin(t*5.2)>0;AU.sir.frequency.setTargetAtTime(ph?960:720,t,.04);AU.sirG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:COP.sirenVol*.07,t,.1)}
-  if(typeof sfxUpdate=='function')sfxUpdate(t,rpm,sp,UI.paused||UI.mapOpen)}
+  if(typeof sfxUpdate=='function')sfxUpdate(t,rpm,sp,UI.paused||UI.mapOpen);if(typeof musUpdate=='function')musUpdate(t,UI.paused||UI.mapOpen)}
