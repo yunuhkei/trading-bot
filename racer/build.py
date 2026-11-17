@@ -21,6 +21,12 @@ td=os.path.join(here,'assets','tex');tex=[]
 if os.path.isdir(td):
   for fn in sorted(os.listdir(td)):
     if fn.endswith('.jpg'):tex.append("%s:'data:image/jpeg;base64,%s'"%(fn[:-4],base64.b64encode(open(os.path.join(td,fn),'rb').read()).decode()))
+# (batch 54) sounds (CC0 / CC-BY, OpenGameArt; see assets/sfx/CREDITS.md): assets/sfx/*.wav|mp3 become base64 strings in SFXB64
+sd=os.path.join(here,'assets','sfx');sfx=[]
+if os.path.isdir(sd):
+  for fn in sorted(os.listdir(sd)):
+    if fn.endswith('.wav') or fn.endswith('.mp3'):sfx.append("%s:'%s'"%(fn.rsplit('.',1)[0],base64.b64encode(open(os.path.join(sd,fn),'rb').read()).decode()))
+if '/*SFXB64*/' in js:js=js.replace('/*SFXB64*/',','.join(sfx))
 assert '/*TEXB64*/' in js
 js=js.replace('/*TEXB64*/',','.join(tex))
 assert '/*FONTS*/' in tpl

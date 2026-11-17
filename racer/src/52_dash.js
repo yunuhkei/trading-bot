@@ -118,6 +118,7 @@ function pauseDraw(c,W_,H_,u){pauseSync();const L=pauseLayout(W_,H_,u),dt=dashDt
   /* the trip computer: PAUSED types itself out */
   const Lc=L.lcd;dLcdBox(c,Lc.x,Lc.y,Lc.w,Lc.h,u*.12);const chars=Math.max(0,Math.min(6,Math.floor((performance.now()-DASH.pT0-300)/70)));
   dLcdText(c,'PAUSED'.slice(0,chars)+(chars<6&&((performance.now()/300)|0)%2?'_':''),Lc.x+u*.3,Lc.y+Lc.h*.7,u*.44);
+  /* (batch 54) sound credits (the tyre squeal is CC-BY: it must be credited) */c.save();c.globalAlpha=.55*L.p;c.fillStyle='#cfe9f5';c.font='600 '+Math.round(u*.14)+'px '+UIF;c.textAlign='center';c.fillText('Sounds: OpenGameArt (CC0) · tyre squeal by qubodup (CC-BY 3.0)',L.x+L.w/2,L.y+L.h-u*.12);c.restore();
   dLcdText(c,((regionName()||'COUNTY').toUpperCase())+'  ·  '+evMoney(ECON.money),Lc.x+Lc.w-u*.3,Lc.y+Lc.h*.68,u*.26,'right');
   const pr=id=>DASH.press[id]&&performance.now()-DASH.press[id]<160;
   for(const b of L.b){

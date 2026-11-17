@@ -172,9 +172,9 @@ function audioStart(){if(AU.ctx||window.__noAudio)return;try{const A=window.Audi
   /* the helicopter: low noise chopped by a 14 Hz wave (the rotor) */
   {const hn=mkNoise(),hf=x.createBiquadFilter();hf.type='lowpass';hf.frequency.value=260;const hg=x.createGain();hg.gain.value=0;const lfo=x.createOscillator();lfo.type='square';lfo.frequency.value=14;const lg=x.createGain();lg.gain.value=.5;lfo.connect(lg);lg.connect(hg.gain);hn.connect(hf);hf.connect(hg);AU.heliG=x.createGain();AU.heliG.gain.value=0;hg.connect(AU.heliG);AU.heliG.connect(master);hn.start();lfo.start();hg.gain.value=.5}
   AU.master=master;AU.mkNoise=mkNoise;
-  AU.sir=x.createOscillator();AU.sir.type='triangle';AU.sir.frequency.value=800;AU.sirG=x.createGain();AU.sirG.gain.value=0;AU.sir.connect(AU.sirG);AU.sirG.connect(master);AU.sir.start();AU.ready=true}catch(e){}}
+  AU.sir=x.createOscillator();AU.sir.type='triangle';AU.sir.frequency.value=800;AU.sirG=x.createGain();AU.sirG.gain.value=0;AU.sir.connect(AU.sirG);AU.sirG.connect(master);AU.sir.start();AU.ready=true;if(typeof sfxLoad=='function')sfxLoad(x)}catch(e){}}   /* (batch 54) then the recorded sounds (49_sfx.js) */
 /* a bang (a tyre bursting): a short burst of noise */
-function audioBang(k){if(!AU.ready)return;k=k==null?1:Math.max(.15,Math.min(1,k));const x=AU.ctx,t=x.currentTime,n=AU.mkNoise(),g=x.createGain();g.gain.setValueAtTime(.9*k,t);
+function audioBang(k){if(!AU.ready)return;k=k==null?1:Math.max(.15,Math.min(1,k));if(typeof SFX!='undefined'&&SFX.ready){sfxHit(k);return}   /* (batch 54) recorded crashes, metal, glass */const x=AU.ctx,t=x.currentTime,n=AU.mkNoise(),g=x.createGain();g.gain.setValueAtTime(.9*k,t);
   /* (batch 54) and a low thump under it: the weight of the hit */try{const o=x.createOscillator(),og=x.createGain();o.type='sine';o.frequency.setValueAtTime(95,t);o.frequency.exponentialRampToValueAtTime(42,t+.22);og.gain.setValueAtTime(.7*k,t);og.gain.exponentialRampToValueAtTime(.001,t+.3);o.connect(og);og.connect(AU.master);o.start(t);o.stop(t+.32)}catch(e){}g.gain.exponentialRampToValueAtTime(.001,t+.35);n.connect(g);g.connect(AU.master);n.start(t);n.stop(t+.4)}
 function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.state=='suspended')x.resume();
   const sp=Math.min(1,C.speed/80),gear=Math.min(5,Math.floor(C.speed/16)),gp=(C.speed-gear*16)/16,rpm=.22+(Math.min(1,gp*.9+.1)*.55)+(IN.thr||IN.auto?.12:0)+(C.boosting?.1:0)+(C.grounded?0:.16);
@@ -183,4 +183,5 @@ function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.s
   if(AU.heliG)AU.heliG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:Math.max(0,1-HELI.near/350)*.9,t,.2);
   if(AU.scrG){const on=C.railT>0&&!UI.paused&&!UI.mapOpen;AU.scrG.gain.setTargetAtTime(on?.1+.14*Math.min(1,C.speed/45):0,t,on?.015:.06);AU.scrF.frequency.setTargetAtTime(2400+C.speed*30+Math.random()*600,t,.03)}
   /* the siren: a two-tone wail, louder the nearer the nearest chasing cop */
-  if(AU.sir){const ph=Math.sin(t*5.2)>0;AU.sir.frequency.setTargetAtTime(ph?960:720,t,.04);AU.sirG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:COP.sirenVol*.07,t,.1)}}
+  if(AU.sir){const ph=Math.sin(t*5.2)>0;AU.sir.frequency.setTargetAtTime(ph?960:720,t,.04);AU.sirG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:COP.sirenVol*.07,t,.1)}
+  if(typeof sfxUpdate=='function')sfxUpdate(t,rpm,sp,UI.paused||UI.mapOpen)}
