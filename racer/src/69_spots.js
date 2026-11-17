@@ -33,7 +33,7 @@ function spotTick(dt){if(GAME.state||TUM.on){SPOTS.zone=null;return}if(SPOTS.fla
       const o=spotRecord(s,d,'m',(a,b)=>a>b);if(!run)safeToast('JUMP  '+fmtShort(d)+(o.pay?(o.prev!=null?'  NEW BEST':'')+'  +'+evMoney(o.pay):'  (best '+fmtShort(o.prev)+')'),2.6);break}}}
 function spotFx(flat,sprite,stage){if(EV.run)return;const t=EV.t;
   for(const s of SPOTS.list){const d=Math.hypot(s.x-C.x,s.z-C.z);if(d>600)continue;const c=SPOT_COL[s.type];
-    if(stage==5){if(s.type!='drift')flat(s.x,s.y+.07,s.z,s.type=='trap'?4:7,s.type=='trap'?4:7,c[0],c[1],c[2],.45)}
+    if(s.secret)continue;if(stage==5){if(s.type!='drift')flat(s.x,s.y+.07,s.z,s.type=='trap'?4:7,s.type=='trap'?4:7,c[0],c[1],c[2],.45)}
     else if(s.type=='trap'){const fl=EV.t-(s.flashT||-9)<.25;sprite(s.x+s.t[1]*0,s.y+6.5,s.z,fl?3:.6+d*.004,fl?1:c[0],fl?1:c[1],fl?1:c[2],fl?1:.75)}
     else if(s.type=='drift'){const r=ROADS[s.ri];for(const [x,y,z,i] of[[s.x,s.y,s.z,s.i0],[s.x1,s.y1,s.z1,s.i1]]){const tt=_tan(r,i);for(const sd of[-1,1])for(let k=0;k<4;k++)sprite(x-tt[1]*sd*(r.hw+1),y+1+k*1.5,z+tt[0]*sd*(r.hw+1),.6+d*.004,c[0],c[1],c[2],.7)}}
     else sprite(s.x,s.y+3+Math.sin(t*3)*.4,s.z,1+d*.004,c[0],c[1],c[2],.7)}}

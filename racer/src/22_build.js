@@ -841,4 +841,4 @@ function groundAt(x,z,yh){const ty=terrainH(x,z);RQ.on=0;RQ.cb=0;if(roadAt(x,z,y
     if(over>0){const r=ROADS[RQ.ri];if(r.sw&&swOn(r,RQ.lat>0?1:0,RQ.ds)&&!(RQS.soft&&otherAsphalt(x,z,r,y,.2))){y+=CURB_H*Math.min(1,over/(RQS.soft?1:.04));RQ.cb=1}else y-=Math.min(over,RSH)/RSH*.12}
     if(RQ.mm>.001){const dm=MEDW-Math.abs(RQ.lat);if(dm>0){y+=CURB_H*RQ.mm*Math.min(1,dm/(RQS.soft?1.25:.05));if(RQ.mm>.5)RQ.cb=1}}   /* (batch 33) the raised median: a gentle 1.25 m ramp for the wheels (RQS.soft; a curb's is 1 m, the median gets more because the car crosses two of them in a row), a rumble like a curb */
     y+=rampAt(x,z);   /* (batch 54) the ramps in town (58_city.js) */
-    if(y>ty-2.2){RQ.on=1;return y}}return ty}
+    if(y>ty-2.2){RQ.on=1;return y}}return ty+rampAt(x,z)}

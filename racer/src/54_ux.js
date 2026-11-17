@@ -33,7 +33,7 @@ function mapBlips(){const B=[];
   for(const ev of EV.list)B.push({x:ev.s.x,z:ev.s.z,col:{trial:'#ffb000',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#e03030',title:ev.name,tag:TN[ev.type]||'EVENT',lines:evInfo(ev).concat(['Stop in the ring at the start to begin.'])});
   for(const s of SPOTS.list){const rec=(EV.rec[s.id]||{}).v;
     if(s.type=='trap')B.push({x:s.x,z:s.z,col:'rgb(76,153,255)',title:'Speed trap',lines:['Drive past it as fast as you can: your best speed is kept.',rec!=null?'Best '+fmtKmh(rec):'Not set yet']});
-    else if(s.type=='jump')B.push({x:s.x,z:s.z,col:'rgb(76,255,115)',title:'Jump',lines:['Take off here: your longest jump is kept.',rec!=null?'Best '+fmtShort(rec):'Not set yet']});
+    else if(s.type=='jump'){if(s.secret&&rec==null)continue;B.push({x:s.x,z:s.z,col:'rgb(76,255,115)',title:'Jump',lines:['Take off here: your longest jump is kept.',rec!=null?'Best '+fmtShort(rec):'Not set yet']});}
     else B.push({x:s.x,z:s.z,col:'rgb(204,89,255)',title:'Drift zone',lines:['Drift between the purple gates: every point counts.',rec!=null?'Best '+rec.toLocaleString('en-US')+' pts':'Not set yet']})}
   const sr=typeof RACE!='undefined'&&RACE.sr;if(sr&&sr.alive)B.push({x:sr.x,z:sr.z,col:'#ffd23a',title:'Street racer',lines:['Drive up behind it for a moment and it challenges you.']});
   return B}
