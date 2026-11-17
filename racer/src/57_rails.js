@@ -25,9 +25,9 @@ function railRepair(){if(!RAILSEG.length)return;for(const s of RAILSEG)if(s.brok
 function railReset(){for(const s of RAILSEG)if(s.broken){s.broken=0;railShow(s,true)}}
 /* the nearest unbroken section a circle (cx,cz, radius r, at height y) is touching: returns its index and sets _rl (normal from the rail to the circle, penetration) */
 const _rl={nx:0,nz:0,pen:0,i:-1};
-function railHit(cx,cz,y,r){const gx=Math.floor(cx/RAIL_CELL),gz=Math.floor(cz/RAIL_CELL),L=RAILG.get(railKey(gx,gz));if(!L)return -1;let best=-1,bp=0;
+function railHit(cx,cz,y,r,yTop){yTop=yTop||1.1;const gx=Math.floor(cx/RAIL_CELL),gz=Math.floor(cz/RAIL_CELL),L=RAILG.get(railKey(gx,gz));if(!L)return -1;let best=-1,bp=0;
   for(const i of L){const s=RAILSEG[i];if(s.broken||(s.road&&!(s.road.rail[s.ri]&s.bit)))continue;const ex=s.bx-s.ax,ez=s.bz-s.az,l2=ex*ex+ez*ez||1;let t=((cx-s.ax)*ex+(cz-s.az)*ez)/l2;t=t<0?0:t>1?1:t;
-    const ry=s.ay+(s.by-s.ay)*t;if(y>ry+1.1||y<ry-2.2)continue;const px=s.ax+ex*t,pz=s.az+ez*t,dx=cx-px,dz=cz-pz,d=Math.hypot(dx,dz),pen=r+.1-d;if(pen<=0||pen<=bp)continue;
+    const ry=s.ay+(s.by-s.ay)*t;if(y>ry+yTop||y<ry-2.2)continue;const px=s.ax+ex*t,pz=s.az+ez*t,dx=cx-px,dz=cz-pz,d=Math.hypot(dx,dz),pen=r+.1-d;if(pen<=0||pen<=bp)continue;
     bp=pen;best=i;if(d>1e-4){_rl.nx=dx/d;_rl.nz=dz/d}else{const l=Math.sqrt(l2);_rl.nx=-ez/l*s.side;_rl.nz=ex/l*s.side}}
   _rl.pen=bp;_rl.i=best;return best}
 /* YOUR CAR against the rails (from carStep, replacing the old nearest-road test) */
@@ -56,3 +56,10 @@ function railRacer(c){if(!RAILSEG.length)return false;const fx=Math.sin(c.yaw),f
     c.x+=nx*_rl.pen;c.z+=nz*_rl.pen;if(vn>0){c.kx=(c.kx||0)+nx*Math.min(4,vn*.8);c.kz=(c.kz||0)+nz*Math.min(4,vn*.8);c.v*=.985}
     if(typeof sparkAt=='function'&&Math.random()<.3)sparkAt(cx-nx*r,c.y+.45,cz-nz*r,nx,nz,3,5)}
   return false}
+
+/* (batch 54) the rails stay solid in a crash too: your tumbling car (from the tumble step) and a wrecked car sliding or flying (from trWreck) bounce off them; nothing breaks them then */
+function railTumble(){if(!RAILSEG.length)return;for(let it=0;it<2;it++){const i=railHit(C.x,C.z,C.y,1.25,2.6);if(i<0)return;const nx=_rl.nx,nz=_rl.nz;
+  C.x+=nx*_rl.pen;C.z+=nz*_rl.pen;TUM.p[0]+=nx*_rl.pen;TUM.p[2]+=nz*_rl.pen;const vn=C.vx*nx+C.vz*nz;
+  if(vn<0){C.vx-=1.25*vn*nx;C.vz-=1.25*vn*nz;C.vx*=.92;C.vz*=.92;if(-vn>3){TUM.w[1]+=(Math.random()-.5)*Math.min(2,-vn*.08);if(typeof sparkAt=='function')sparkAt(C.x-nx*1.2,C.y+.6,C.z-nz*1.2,nx,nz,Math.min(16,4+Math.round(-vn*.5)),Math.min(10,2-vn*.3));if(typeof audioBang=='function'&&-vn>6)audioBang(Math.min(1,-vn/25))}}}}
+function railWreck(c){if(!RAILSEG.length)return;const i=railHit(c.x,c.z,c.y,(c.hw||.95)+.1,2.4);if(i<0)return;const nx=_rl.nx,nz=_rl.nz;c.x+=nx*_rl.pen;c.z+=nz*_rl.pen;
+  const vn=c.vx*nx+c.vz*nz;if(vn<0){c.vx-=1.2*vn*nx;c.vz-=1.2*vn*nz;c.vx*=.9;c.vz*=.9;c.om=(c.om||0)*.7+(Math.random()-.5)*Math.min(2,-vn*.1);if(-vn>4&&typeof sparkAt=='function')sparkAt(c.x-nx,c.y+.5,c.z-nz,nx,nz,8,6)}}

@@ -229,7 +229,7 @@ function trStatic(cx,cz,r,y){_sx=_sz=0;const cs=QH.ccs,cn=QH.cnc,a=Math.floor((c
   return hit}
 function trWreck(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;c.wt+=dt;c.brake=0;
-  c.x+=c.vx*dt;c.z+=c.vz*dt;c.yaw+=c.om*dt;
+  c.x+=c.vx*dt;c.z+=c.vz*dt;c.yaw+=c.om*dt;if(typeof railWreck=='function')railWreck(c);
   const sp=Math.hypot(c.vx,c.vz);if(sp>0){/* (batch 53) a wreck is a ton and a half of metal on its tyres and belly: it scrubs off speed hard, harder still going sideways (it used to slide as if on ice, 6.5 m/s2) */const hs=Math.abs((c.vx*Math.cos(c.yaw)+c.vz*Math.sin(c.yaw))/sp),fr=(9+5*hs)*dt;if(sp>fr){const k=1-fr/sp;c.vx*=k;c.vz*=k}else{c.vx=c.vz=0}}
   c.om*=Math.exp(-dt*(sp>4?1.3:3));if(sp<.05&&Math.abs(c.om)<.03)c.om=0;
   c.v=sp;

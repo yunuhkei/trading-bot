@@ -2658,7 +2658,7 @@ function deflect(nx,nz,vn,e,mu){
   return vn}
 
 /* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
-const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5,engBrk0:.15,engBrk1:.012};
+const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:14,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5,engBrk0:.15,engBrk1:.012};
 function carPlace(x,z,yaw,yh){IN.nitro=0;C.boostK=0;C.boosting=0;C.jr=C.jrv=C.jp=C.jpv=0;TUM.on=0;   /* (batch 54) a restart or a retry switches the boost off: it used to stay latched through the countdown and burn the whole tank */
   C.shield=0;CC.on=0;CC.scale=1;CC.fadeIn=0;TUM.rightT=0;C.flatT=0;C.orbY=C.orbP=0;C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6;C.flatT=0}
 function respawn(){TUM.on=0;TUM.rightT=0;IN.nitro=0;C.boostK=0;C.boosting=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1;C.dActive=0;C.dLast=null;C.grounded=1;C.air=0;C.liftT=0;C.kv=0;C.drift=0;C.slideT=0;C.tapN=0;C.tapT=0;C.dbK=0}
@@ -2748,7 +2748,7 @@ function carStep(dt){
     /* drift assist: the stick chooses the slide angle, the assist holds it and straightens the car the moment you let go */
     /* full-circle slide angle (signed forward speed): at speed the stick asks for a modest slide, as the drift sheds speed the allowed angle grows until a full-stick handbrake spins the car right round */
     beta=spd>2?Math.atan2(s,f):0;
-    const bmax=lerp(HND.betaSlow,HND.betaFast,sstep(10,34,spd))*(1+.8*C.dbK);let bt=-steer*bmax;
+    const bmax=Math.min(2.4,lerp(HND.betaSlow,HND.betaFast,sstep(10,34,spd))*(1+.8*C.dbK));   /* (batch 54) never past ~137 degrees: at low speed it asked for more than 180, which wrapped round and spun the car the WRONG way */let bt=-steer*bmax;
     if(sl>0){const minA=Math.min(HND.tapAng*(1+1.5*C.dbK),HND.tapFrac*bmax)*sl*(hand?lerp(1,.5,sstep(.6,1.8,C.handT)):1),sg=Math.abs(steer)>.12?Math.sign(steer):C.slideDir;if(Math.abs(bt)<minA)bt=-sg*minA}   /* even with the stick centred the tap asks for a slide */
     const omDm=HND.omDrift*(1+.55*C.dbK),omD=clamp(HND.kBeta*(1+.4*C.dbK)*angd(beta,bt),-omDm,omDm);
     /* lateral friction: strong normally, weak in a drift; always limited, so a hit or a hard turn cannot snap the car around */
@@ -2762,7 +2762,7 @@ function carStep(dt){
     /* sliding costs a little speed; so does cornering at the limit */
     /* the handbrake is a brake: rear wheels locked, so a slide sheds speed (a straight pull still slows you; a full slide a lot more) */
     if(dr>.02&&spd>.5&&!(C.spinT>0&&!hand)){const D=HND.driftBrake*dr*(HND.handBrake0+(1-HND.handBrake0)*C.hk)*(.5+.5*Math.min(1,Math.abs(Math.sin(beta))*2)),kk2=Math.max(0,1-D*dt/spd);f*=kk2;s*=kk2}
-    const ratio=Math.min(1.2,Math.abs(C.wyaw)*af/Math.max(A,1));f-=Math.sign(f)*HND.scrub*A*ratio*ratio*(1-dr)*dt;
+    const ratio=Math.min(1.2,Math.abs(C.wyaw)*af/Math.max(A,1));f-=Math.sign(f)*HND.scrub*.6*A*ratio*ratio*(1-dr)*dt;   /* (batch 54) cornering at the limit scrubs less speed (a full-lock slalom used to halve your speed) */
     let wt=lerp(omN,omD,dr);
     /* steering assist: with the thumb off the stick the car quietly follows the road (fades out as you steer) */
     C.laneOn=0;
@@ -3067,7 +3067,7 @@ function tumbleStep(dt){
   {const wl2=Math.hypot(w[0],w[1],w[2]);if(wl2>7.5){w[0]*=7.5/wl2;w[1]*=7.5/wl2;w[2]*=7.5/wl2}}
   if(nTouch){const k=Math.exp(-dt*(bottom>=3?2.5:Math.hypot(C.vx,C.vz)<3?3:1.7));w[0]*=k;w[1]*=Math.exp(-dt*1.2);w[2]*=k}else{w[0]*=Math.exp(-dt*.05);w[1]*=Math.exp(-dt*.05);w[2]*=Math.exp(-dt*.05)}
   /* walls and posts still stop it (the car's ground-plane circles) */
-  const cm=tumMul(R,0,TUM_COM,0);C.x=p[0]-cm[0];C.y=p[1]-cm[1];C.z=p[2]-cm[2];const ox=C.x,oz=C.z;C.speed=Math.hypot(C.vx,C.vz);collide(Math.sin(C.yaw),-Math.cos(C.yaw));p[0]+=C.x-ox;p[2]+=C.z-oz;
+  const cm=tumMul(R,0,TUM_COM,0);C.x=p[0]-cm[0];C.y=p[1]-cm[1];C.z=p[2]-cm[2];const ox=C.x,oz=C.z;C.speed=Math.hypot(C.vx,C.vz);collide(Math.sin(C.yaw),-Math.cos(C.yaw));p[0]+=C.x-ox;p[2]+=C.z-oz;if(typeof railTumble=='function')railTumble();
   /* the heading the camera follows: the direction of travel while it is moving, the car's nose when it stops */
   const fx=-R[6],fz=-R[8],fl=Math.hypot(fx,fz),sp=Math.hypot(C.vx,C.vz);if(sp>4)C.yaw=C.pyaw+angd(Math.atan2(C.vx,-C.vz),C.pyaw)*Math.min(1,dt*3);else if(fl>.3)C.yaw=C.pyaw+angd(Math.atan2(fx,-fz),C.pyaw)*Math.min(1,dt*3);
   C.speed=sp;C.kmh=sp*3.6;C.pitch=C.roll=0;C.grounded=bottom>=3?1:0;C.t+=dt;C.distance+=sp*dt;C.shake*=Math.max(0,1-dt*4);C.hit*=Math.max(0,1-dt*6);C.flash*=Math.max(0,1-dt*3);C.braking=0;C.boosting=0;C.boostK*=.9;
@@ -3250,8 +3250,11 @@ function uiInputs(dt){
   let tstick=UI.stickT;
   if(tstick){const R2=Math.max(46,UI.w*.075);st+=clamp((tstick.x-tstick.x0)/R2,-1,1)}
   /* steering response: eases in so small thumb movements are gentle */
-  const target=clamp(st,-1,1),sh=Math.sign(target)*Math.pow(Math.abs(target),1.25);
-  C.steer+=(sh-C.steer)*Math.min(1,dt*(Math.abs(sh)>Math.abs(C.steer)?20:26));
+  /* (batch 54) SMOOTHER STEERING: buttons and keys (on/off) ease in over about a third of a second instead of snapping to full lock, the stick a little faster;
+     at speed, outside a drift, the full lock asked for shrinks (to 60 % at 170 mph) so a flick of the thumb does not throw the car about; in a drift you keep the full stick for the slide angle */
+  const digital=!tstick,spdK=(C.drift>.3||IN.hand)?1:lerp(1,.6,sstep(25,75,C.speed||0));
+  const target=clamp(st,-1,1)*spdK,sh=Math.sign(target)*Math.pow(Math.abs(target),1.25),grow=Math.abs(sh)>Math.abs(C.steer)&&Math.sign(sh||1)==Math.sign(C.steer||sh||1);
+  C.steer+=(sh-C.steer)*Math.min(1,dt*(grow?(digital?6:14):(digital?12:18)));
   if(K.Space)IN.hand=1;else if(!UI.bn.drift.on)IN.hand=0;
     if(brk)IN.brk=1;else if(!UI.bn.brake.on)IN.brk=0;
   IN.thr=(gas||UI.bn.gas.on)?1:0;
@@ -3816,9 +3819,9 @@ function railRepair(){if(!RAILSEG.length)return;for(const s of RAILSEG)if(s.brok
 function railReset(){for(const s of RAILSEG)if(s.broken){s.broken=0;railShow(s,true)}}
 /* the nearest unbroken section a circle (cx,cz, radius r, at height y) is touching: returns its index and sets _rl (normal from the rail to the circle, penetration) */
 const _rl={nx:0,nz:0,pen:0,i:-1};
-function railHit(cx,cz,y,r){const gx=Math.floor(cx/RAIL_CELL),gz=Math.floor(cz/RAIL_CELL),L=RAILG.get(railKey(gx,gz));if(!L)return -1;let best=-1,bp=0;
+function railHit(cx,cz,y,r,yTop){yTop=yTop||1.1;const gx=Math.floor(cx/RAIL_CELL),gz=Math.floor(cz/RAIL_CELL),L=RAILG.get(railKey(gx,gz));if(!L)return -1;let best=-1,bp=0;
   for(const i of L){const s=RAILSEG[i];if(s.broken||(s.road&&!(s.road.rail[s.ri]&s.bit)))continue;const ex=s.bx-s.ax,ez=s.bz-s.az,l2=ex*ex+ez*ez||1;let t=((cx-s.ax)*ex+(cz-s.az)*ez)/l2;t=t<0?0:t>1?1:t;
-    const ry=s.ay+(s.by-s.ay)*t;if(y>ry+1.1||y<ry-2.2)continue;const px=s.ax+ex*t,pz=s.az+ez*t,dx=cx-px,dz=cz-pz,d=Math.hypot(dx,dz),pen=r+.1-d;if(pen<=0||pen<=bp)continue;
+    const ry=s.ay+(s.by-s.ay)*t;if(y>ry+yTop||y<ry-2.2)continue;const px=s.ax+ex*t,pz=s.az+ez*t,dx=cx-px,dz=cz-pz,d=Math.hypot(dx,dz),pen=r+.1-d;if(pen<=0||pen<=bp)continue;
     bp=pen;best=i;if(d>1e-4){_rl.nx=dx/d;_rl.nz=dz/d}else{const l=Math.sqrt(l2);_rl.nx=-ez/l*s.side;_rl.nz=ex/l*s.side}}
   _rl.pen=bp;_rl.i=best;return best}
 /* YOUR CAR against the rails (from carStep, replacing the old nearest-road test) */
@@ -3847,6 +3850,13 @@ function railRacer(c){if(!RAILSEG.length)return false;const fx=Math.sin(c.yaw),f
     c.x+=nx*_rl.pen;c.z+=nz*_rl.pen;if(vn>0){c.kx=(c.kx||0)+nx*Math.min(4,vn*.8);c.kz=(c.kz||0)+nz*Math.min(4,vn*.8);c.v*=.985}
     if(typeof sparkAt=='function'&&Math.random()<.3)sparkAt(cx-nx*r,c.y+.45,cz-nz*r,nx,nz,3,5)}
   return false}
+
+/* (batch 54) the rails stay solid in a crash too: your tumbling car (from the tumble step) and a wrecked car sliding or flying (from trWreck) bounce off them; nothing breaks them then */
+function railTumble(){if(!RAILSEG.length)return;for(let it=0;it<2;it++){const i=railHit(C.x,C.z,C.y,1.25,2.6);if(i<0)return;const nx=_rl.nx,nz=_rl.nz;
+  C.x+=nx*_rl.pen;C.z+=nz*_rl.pen;TUM.p[0]+=nx*_rl.pen;TUM.p[2]+=nz*_rl.pen;const vn=C.vx*nx+C.vz*nz;
+  if(vn<0){C.vx-=1.25*vn*nx;C.vz-=1.25*vn*nz;C.vx*=.92;C.vz*=.92;if(-vn>3){TUM.w[1]+=(Math.random()-.5)*Math.min(2,-vn*.08);if(typeof sparkAt=='function')sparkAt(C.x-nx*1.2,C.y+.6,C.z-nz*1.2,nx,nz,Math.min(16,4+Math.round(-vn*.5)),Math.min(10,2-vn*.3));if(typeof audioBang=='function'&&-vn>6)audioBang(Math.min(1,-vn/25))}}}}
+function railWreck(c){if(!RAILSEG.length)return;const i=railHit(c.x,c.z,c.y,(c.hw||.95)+.1,2.4);if(i<0)return;const nx=_rl.nx,nz=_rl.nz;c.x+=nx*_rl.pen;c.z+=nz*_rl.pen;
+  const vn=c.vx*nx+c.vz*nz;if(vn<0){c.vx-=1.2*vn*nx;c.vz-=1.2*vn*nz;c.vx*=.9;c.vz*=.9;c.om=(c.om||0)*.7+(Math.random()-.5)*Math.min(2,-vn*.1);if(-vn>4&&typeof sparkAt=='function')sparkAt(c.x-nx,c.y+.5,c.z-nz,nx,nz,8,6)}}
 
 'use strict';
 /* ===== traffic: cars that follow the lane graph (23_lanes.js) ===== */
@@ -4079,7 +4089,7 @@ function trStatic(cx,cz,r,y){_sx=_sz=0;const cs=QH.ccs,cn=QH.cnc,a=Math.floor((c
   return hit}
 function trWreck(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;c.wt+=dt;c.brake=0;
-  c.x+=c.vx*dt;c.z+=c.vz*dt;c.yaw+=c.om*dt;
+  c.x+=c.vx*dt;c.z+=c.vz*dt;c.yaw+=c.om*dt;if(typeof railWreck=='function')railWreck(c);
   const sp=Math.hypot(c.vx,c.vz);if(sp>0){/* (batch 53) a wreck is a ton and a half of metal on its tyres and belly: it scrubs off speed hard, harder still going sideways (it used to slide as if on ice, 6.5 m/s2) */const hs=Math.abs((c.vx*Math.cos(c.yaw)+c.vz*Math.sin(c.yaw))/sp),fr=(9+5*hs)*dt;if(sp>fr){const k=1-fr/sp;c.vx*=k;c.vz*=k}else{c.vx=c.vz=0}}
   c.om*=Math.exp(-dt*(sp>4?1.3:3));if(sp<.05&&Math.abs(c.om)<.03)c.om=0;
   c.v=sp;

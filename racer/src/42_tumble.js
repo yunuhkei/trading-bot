@@ -71,7 +71,7 @@ function tumbleStep(dt){
   {const wl2=Math.hypot(w[0],w[1],w[2]);if(wl2>7.5){w[0]*=7.5/wl2;w[1]*=7.5/wl2;w[2]*=7.5/wl2}}
   if(nTouch){const k=Math.exp(-dt*(bottom>=3?2.5:Math.hypot(C.vx,C.vz)<3?3:1.7));w[0]*=k;w[1]*=Math.exp(-dt*1.2);w[2]*=k}else{w[0]*=Math.exp(-dt*.05);w[1]*=Math.exp(-dt*.05);w[2]*=Math.exp(-dt*.05)}
   /* walls and posts still stop it (the car's ground-plane circles) */
-  const cm=tumMul(R,0,TUM_COM,0);C.x=p[0]-cm[0];C.y=p[1]-cm[1];C.z=p[2]-cm[2];const ox=C.x,oz=C.z;C.speed=Math.hypot(C.vx,C.vz);collide(Math.sin(C.yaw),-Math.cos(C.yaw));p[0]+=C.x-ox;p[2]+=C.z-oz;
+  const cm=tumMul(R,0,TUM_COM,0);C.x=p[0]-cm[0];C.y=p[1]-cm[1];C.z=p[2]-cm[2];const ox=C.x,oz=C.z;C.speed=Math.hypot(C.vx,C.vz);collide(Math.sin(C.yaw),-Math.cos(C.yaw));p[0]+=C.x-ox;p[2]+=C.z-oz;if(typeof railTumble=='function')railTumble();
   /* the heading the camera follows: the direction of travel while it is moving, the car's nose when it stops */
   const fx=-R[6],fz=-R[8],fl=Math.hypot(fx,fz),sp=Math.hypot(C.vx,C.vz);if(sp>4)C.yaw=C.pyaw+angd(Math.atan2(C.vx,-C.vz),C.pyaw)*Math.min(1,dt*3);else if(fl>.3)C.yaw=C.pyaw+angd(Math.atan2(fx,-fz),C.pyaw)*Math.min(1,dt*3);
   C.speed=sp;C.kmh=sp*3.6;C.pitch=C.roll=0;C.grounded=bottom>=3?1:0;C.t+=dt;C.distance+=sp*dt;C.shake*=Math.max(0,1-dt*4);C.hit*=Math.max(0,1-dt*6);C.flash*=Math.max(0,1-dt*3);C.braking=0;C.boosting=0;C.boostK*=.9;
