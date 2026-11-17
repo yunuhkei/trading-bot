@@ -378,7 +378,7 @@ function trStopProps(){let n=0;for(const e of LG.edges){const B=trBusStops(e);if
 /* put a car on lane edge e at index u */
 function trPlace(e,u,type,col,v,seed){
   let c=null;for(const q of TR.cars)if(!q.alive){c=q;break}if(!c)return null;
-  const T=TTYPES[type];c.alive=1;c.state=0;c.byP=0;c.spinT=0;c.loose=0;c.kx=c.kz=c.ks=0;c.kind=0;if(c.dn)c.dn.fill(0);c.dmg=0;c.pf=0;c.rec=0;c.type=type;c.col=col;c.m=T.m;c.hl=T.hl;c.hw=T.hw;c.I=T.m*(T.hl*T.hl+T.hw*T.hw)/3;c.e=e;c.u=u;c.L=null;c.lu=0;c.seed=seed|0;
+  const T=TTYPES[type];c.alive=1;c.state=0;c.byP=0;c.spinT=0;c.loose=0;c.air=0;c.vy=0;c.kv=0;c.kx=c.kz=c.ks=0;c.kind=0;if(c.dn)c.dn.fill(0);c.dmg=0;c.pf=0;c.rec=0;c.type=type;c.col=col;c.m=T.m;c.hl=T.hl;c.hw=T.hw;c.I=T.m*(T.hl*T.hl+T.hw*T.hw)/3;c.e=e;c.u=u;c.L=null;c.lu=0;c.seed=seed|0;
   trPt(e,u);c.x=_pt.x;c.z=_pt.z;c.y=_pt.y;c.yaw=Math.atan2(_pt.tx,-_pt.tz);c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.v=v;c.vx=Math.sin(c.yaw)*v;c.vz=-Math.cos(c.yaw)*v;c.om=0;c.pitch=c.roll=0;
   c.acc=0;c.v0f=(.86+trHash(seed,7)*.22)*(T.v0||1);c.A=(1.9+trHash(seed,11)*.9)*(T.m>5000?.6:1);c.T=(1.0+trHash(seed,13)*.7)*(T.beh=='taxi'?.75:1);c.beh=T.beh||'';c.dwell=0;c.odo=0;c.halt=40+trHash(seed,19)*30;c.lastStop=-1e9;c.nh=0;c.off=c.offT=c.offHold=0;c.brake=0;c.wait=0;c.ign=0;c.age=0;c.hitT=0;c.pl=null;c.pjid=-1;c.lcCool=1+trHash(seed,17)*2;c.hn=0;c.hend=0;c.wt=0;c.flags=0;c.nxt=-1;c.stamp=0;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.pickL=null;c.role=0;c.ramCd=0;c.los=null;c.stk=0;
   TR.nAlive++;TR.stat.spawn++;return c}
