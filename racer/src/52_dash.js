@@ -26,10 +26,10 @@ function dashLayout(add,w,h,u,m){
   const R=u*1.2,rw=u*1.9,rh=u*.62;UI.sp={cx:m+(u*1.15*2+u*.14)/2,cy:h-m-u*1.05-rh/2-u*.07,R,w:rw,h:rh};
   const ggw=u*1.18,ggh=u*.74;UI.gg={x:m+u*1.15*2+u*.14+u*.3,y1:h-m-ggh*2-u*.14,y2:h-m-ggh,w:ggw,h:ggh}}
 /* ---------- small drawing helpers ---------- */
-function dKey(c,x,y,w,h,r,down,top,bot){c.save();const d=down?h*.04:0;c.fillStyle='rgba(0,0,0,.55)';rr(c,x,y+h*.06,w,h,r);c.fill();
-  const g=c.createLinearGradient(0,y+d,0,y+d+h);g.addColorStop(0,top||'#3a3c41');g.addColorStop(1,bot||'#202226');c.fillStyle=g;rr(c,x,y+d,w,h,r);c.fill();
-  c.strokeStyle='rgba(255,255,255,.08)';c.lineWidth=1;rr(c,x+.5,y+d+.5,w-1,h-1,r);c.stroke();c.restore();return d}
-function dLcdBox(c,x,y,w,h,r){c.save();c.fillStyle='#0b0b0a';rr(c,x,y,w,h,r);c.fill();c.strokeStyle='rgba(255,173,31,.18)';c.lineWidth=1;rr(c,x+.5,y+.5,w-1,h-1,r);c.stroke();c.restore()}
+function dKey(c,x,y,w,h,r,down,top,bot){c.save();const d=down?h*.04:0;const holo=!top;c.fillStyle=holo?'rgba(0,0,0,.25)':'rgba(0,0,0,.55)';rr(c,x,y+h*.06,w,h,r);c.fill();
+  const g=c.createLinearGradient(0,y+d,0,y+d+h);g.addColorStop(0,top||(down?'rgba(40,120,150,.55)':'rgba(40,80,105,.42)'));g.addColorStop(1,bot||'rgba(8,18,28,.55)');c.fillStyle=g;rr(c,x,y+d,w,h,r);c.fill();
+  c.strokeStyle=holo?'rgba(90,230,255,.55)':'rgba(255,255,255,.08)';c.lineWidth=1;rr(c,x+.5,y+d+.5,w-1,h-1,r);c.stroke();if(holo){c.strokeStyle='rgba(255,60,170,.25)';rr(c,x-.5,y+d+1.5,w-1,h-1,r);c.stroke()}c.restore();return d}   /* (batch 54) keys in the cards and the console are see-through holo keys (a coloured key keeps its colours) */
+function dLcdBox(c,x,y,w,h,r){c.save();c.fillStyle='rgba(4,10,14,.55)';rr(c,x,y,w,h,r);c.fill();   /* (batch 54) see-through like the holo panels */c.strokeStyle='rgba(255,173,31,.18)';c.lineWidth=1;rr(c,x+.5,y+.5,w-1,h-1,r);c.stroke();c.restore()}
 function dLcdText(c,t,x,y,px,al){c.save();c.font=dLcd(px);c.textAlign=al||'left';c.fillStyle=DASH.amber;c.shadowColor='rgba(255,173,31,.6)';c.shadowBlur=px*.5;c.fillText(t,x,y);c.restore()}
 /* ---------- the speedometer ---------- */
 function dashSpeedo(c,u,dt){const S=UI.sp,mph=C.speed*spdK(),bw=S.w,bh=S.h,x=S.cx-bw/2,y=S.cy-bh/2;
@@ -113,7 +113,7 @@ function pauseKey(id){if(id=='quit'){pauseClose();evQuit()}else if(id=='reset'){
 function pauseSync(){PAUSE.k.gfx=Math.max(0,GFX_OPTS.indexOf(GFX.mode));PAUSE.k.sky=Math.max(0,ENV_NAMES.indexOf(ENV.name))}
 function pauseDraw(c,W_,H_,u){pauseSync();const L=pauseLayout(W_,H_,u),dt=dashDt();PAUSE.btns=L.b;c.save();
   c.fillStyle='rgba(5,5,6,'+(.55*L.p)+')';c.fillRect(0,0,W_,H_);
-  c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=u*.6;const g=c.createLinearGradient(0,L.y,0,L.y+L.h);g.addColorStop(0,'#2a2b2e');g.addColorStop(1,'#18191b');c.fillStyle=g;rr(c,L.x,L.y,L.w,L.h,u*.32);c.fill();c.shadowBlur=0;
+  holoPanel(c,L.x,L.y,L.w,L.h,u*.32,.62);
   c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,L.x+.5,L.y+.5,L.w-1,L.h-1,u*.32);c.stroke();
   /* the trip computer: PAUSED types itself out */
   const Lc=L.lcd;dLcdBox(c,Lc.x,Lc.y,Lc.w,Lc.h,u*.12);const chars=Math.max(0,Math.min(6,Math.floor((performance.now()-DASH.pT0-300)/70)));

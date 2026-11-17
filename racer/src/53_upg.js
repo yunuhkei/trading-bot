@@ -30,7 +30,7 @@ function upgLayout(W_,H_,u){const b=[],m=u*.3,pw=Math.min(W_*.5,u*8.8),px=W_-pw-
 function upgTap(k){const d=CAR_ROSTER[MENU.i];if(!carOwned(MENU.i)){safeToast('BUY THIS CAR FIRST',2);return}const r=upgBuy(d.id,k);const D=UPG_DEF.find(q=>q.k==k);
   if(r=='OK')safeToast(D.name+'  STAGE '+upgLv(d.id,k),2.2);else if(r=='MAX')safeToast(D.name+'  FULLY UPGRADED',2);else safeToast(r+'  (YOU HAVE '+evMoney(ECON.money)+')',2.4)}
 function upgDraw(c,W_,H_,u){const L=upgLayout(W_,H_,u),d=CAR_ROSTER[MENU.i],own=carOwned(MENU.i);MENU.btns=L.b;
-  c.save();{const g=c.createLinearGradient(0,L.py,0,L.py+L.ph);g.addColorStop(0,'rgba(42,43,46,.96)');g.addColorStop(1,'rgba(24,25,27,.96)');c.fillStyle=g}rr(c,L.px,L.py,L.pw,L.ph,u*.24);c.fill();
+  c.save();holoPanel(c,L.px,L.py,L.pw,L.ph,u*.24,.62);
   c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,L.px+.5,L.py+.5,L.pw-1,L.ph-1,u*.24);c.stroke();
   if(MENU.garage){c.font=dLcd(u*.3);const gt=MENU.garage.toUpperCase(),gw=c.measureText(gt).width+u*.6;dLcdBox(c,u*.3,u*.3,gw,u*.55,u*.08);dLcdText(c,gt,u*.6,u*.3+u*.39,u*.3);
     c.font=dLcd(u*.26);const mt=evMoney(ECON.money),mw=c.measureText(mt).width+u*.5;dLcdBox(c,u*.3,u*.95,mw,u*.46,u*.07);dLcdText(c,mt,u*.55,u*.95+u*.33,u*.26)}   /* (batch 21: your money under the garage name) */

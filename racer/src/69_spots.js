@@ -13,10 +13,8 @@ function spotInit(){SPOTS.list.length=0;
       SPOTS.list.push({type:'trap',id:'sp_trap_'+SPOTS.list.length,name:'Speed trap',x,z,y:r.Y[i],ri:ROADS.indexOf(r),i,hw:r.hw,t:_tan(r,i)});if(SPOTS.list.filter(s=>s.type=='trap').length>=10)break}}
   /* jump spots: the humps */
   for(const j of JUMPZ){const sn=navSnap(j[0],j[1],40);SPOTS.list.push({type:'jump',id:'sp_jump_'+Math.round(j[0])+'_'+Math.round(j[1]),name:'Jump',x:j[0],z:j[1],y:sn?ROADS[sn.ri].Y[sn.i]:terrainH(j[0],j[1]),r:j[2]})}
-  /* drift zones: the twistiest 500 m of some mountain roads */
-  for(const id of['mh','mp','cyr','nh2','th1','nt2','sc3','fr2','lombard']){const r=ROADS.find(q=>q.id==id);if(!r||r.n*r.ds<600)continue;const w=Math.round(500/r.ds);let best=-1,bi=0;
-    for(let i=4;i<r.n-w-4;i+=4){let t=0;for(let k=i;k<i+w;k+=2){const a=_tan(r,k),b=_tan(r,k+2);t+=Math.abs(angd(Math.atan2(a[0],a[1]),Math.atan2(b[0],b[1])))}if(t>best){best=t;bi=i}}
-    SPOTS.list.push({type:'drift',id:'sp_drift_'+id,name:'Drift zone',ri:ROADS.indexOf(r),i0:bi,i1:bi+w,x:r.X[bi],z:r.Z[bi],y:r.Y[bi],x1:r.X[bi+w],z1:r.Z[bi+w],y1:r.Y[bi+w]})}}
+  /* (batch 54) the drift zones are gone (they were not fun) */
+  if(typeof citySpots=='function')citySpots()}
 function spotRecord(s,val,unit,better){const rec=EV.rec[s.id]||(EV.rec[s.id]={});const prev=rec.v;let pay=0;
   if(prev==null||better(val,prev)){pay=prev==null?500:Math.round((250+Math.abs(val-prev)*(unit=='pts'?.05:unit=='m'?20:10))/50)*50;rec.v=val;evSave();ECON.add(pay)}
   return{prev,pay}}

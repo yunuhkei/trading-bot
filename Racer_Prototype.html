@@ -1376,6 +1376,7 @@ const COLC=[],COLR=[],COLO=[];
 const LAMPS=[],NEONS=[],LPOST=[],LPOSTC=[];let PROP_TAG=0;   /* batch 6: street lamp posts that can be knocked down: LPOST[lamp] = [x, z, base y, circle], LPOSTC[circle] = lamp; the post's vertices carry 10000 + lamp in u (PROP_TAG while it is built) */
 /* colliders: circles [x,z,r], rects [x0,z0,x1,z1,top], rotated rects [cx,z,hx,hz,cos,sin,top] */
 function buildFurniture(){
+  if(typeof cityInit=='function'){cityInit();cityBuild()}   /* (batch 54) ramps and tokens in town */
   if(typeof sigProps==='function')BOOT.sigHeads=sigProps();if(typeof trStopProps==='function')BOOT.busStops=trStopProps();
   const cc=[170,166,158];
   for(const r of ROADS){const n=r.n,cnt=r.closed?n:n-1;
@@ -2030,6 +2031,7 @@ const RQS={soft:0};
 function groundAt(x,z,yh){const ty=terrainH(x,z);RQ.on=0;RQ.cb=0;if(roadAt(x,z,yh)){const over=Math.abs(RQ.lat)-RQ.hw;let y=RQ.y;
     if(over>0){const r=ROADS[RQ.ri];if(r.sw&&swOn(r,RQ.lat>0?1:0,RQ.ds)&&!(RQS.soft&&otherAsphalt(x,z,r,y,.2))){y+=CURB_H*Math.min(1,over/(RQS.soft?1:.04));RQ.cb=1}else y-=Math.min(over,RSH)/RSH*.12}
     if(RQ.mm>.001){const dm=MEDW-Math.abs(RQ.lat);if(dm>0){y+=CURB_H*RQ.mm*Math.min(1,dm/(RQS.soft?1.25:.05));if(RQ.mm>.5)RQ.cb=1}}   /* (batch 33) the raised median: a gentle 1.25 m ramp for the wheels (RQS.soft; a curb's is 1 m, the median gets more because the car crosses two of them in a row), a rumble like a curb */
+    y+=rampAt(x,z);   /* (batch 54) the ramps in town (58_city.js) */
     if(y>ty-2.2){RQ.on=1;return y}}return ty}
 
 'use strict';
@@ -2923,7 +2925,7 @@ function fxDraw(){
   batch(2);heliFx(quad,flat,2);
   const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,al=.55*(1-age/40)*q[6];if(l>6)continue;
     quad(q[0]-nx,y,q[1]-nz,q[0]+nx,y,q[1]+nz,q[2]+nx,y,q[3]+nz,q[2]-nx,y,q[3]-nz,.02,.02,.02,al)}
-  navFx(quad,sprite,R.time);if(typeof slipFx=='function')slipFx(quad,R.time);
+  navFx(quad,sprite,R.time);if(typeof slipFx=='function')slipFx(quad,R.time);if(typeof cityFx=='function')cityFx(sprite,quad,R.time);
   batch(3);safePads(quad);
   batch(1);
   for(const s of SMOKE){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sz=s.sz+t*(s.k?1.3:s.dark?1.5:2.6),dc=Math.hypot(s.x-R.cx,s.y-R.cy,s.z-R.cz),al=s.a*(1-t)*(1-t)*(s.dark?sstep(4,14,dc):sstep(1.2,4,dc));if(al<.004)continue;const ux=R.up[0]*sz,uy=R.up[1]*sz,uz=R.up[2]*sz,hx=rx*sz,hz=rz*sz;
@@ -3335,6 +3337,22 @@ function hudDraw(){
 }
 const MAPLBL=[['DOWNTOWN',-860,330,1],['RUSSIAN HILL',-1090,-190,1],['TWIN PEAKS',-640,940,1],['GOLDEN GATE PARK',-1440,400,1,'r'],['THE VALLEY',640,880,1],['SANTA CRUZ',-325,2650,1],['PALM SPRINGS',1620,1660,1],['MULHOLLAND',1000,-330,1],['ORBITAL RING',-150,-1120,1],['MOUNTAIN PASS',1850,-1800,1],['NORTH COUNTRY',-350,-2610,1],['PACIFICA',-1640,1330,1],['FRESNO',-1500,-2330,1],['BARSTOW',3680,1190,1],['BIG PINES',-190,-3330,1],['HARBOR',1200,2520,1],['MOJAVE WORKS',3375,2090,1],['THE CANYON',3750,-1100,1],['NORTHERN RANGE',600,-4200,1],['MOJAVE DESERT',3900,1900,1],['FARMLAND',-1000,-1750,1],['PACIFIC COAST',-1850,1720,1],['SOUTHERN PLAINS',1200,2290,1],['EAST LINK',2200,1450,1],['OCEAN',-2640,-500,0]];
 function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+/* (batch 54) HOLO PANELS: every pop-up card, the map's cards and key, the garage, the upgrade shop and the pause console are see-through digital glass now,
+   not solid grey: a thin dark-blue body, scanlines with a slow bright scan band, now and then a glitch (a slice of the panel jumps sideways in cyan and magenta),
+   a split pink/cyan edge like a misaligned screen, and corner brackets. a = how solid the body is. */
+function holoPanel(c,x,y,w,h,r,a){const t=performance.now()/1000;a=a==null?.5:a;c.save();
+  rr(c,x,y,w,h,r);c.fillStyle='rgba(5,14,24,'+a+')';c.fill();
+  c.save();rr(c,x,y,w,h,r);c.clip();
+  {const g=c.createLinearGradient(x,y,x+w*.4,y+h);g.addColorStop(0,'rgba(70,210,255,.13)');g.addColorStop(.6,'rgba(70,120,255,.04)');g.addColorStop(1,'rgba(190,70,255,.09)');c.fillStyle=g;c.fillRect(x,y,w,h)}
+  c.fillStyle='rgba(140,230,255,.05)';const sp=3;for(let yy=y+((t*14)%(sp*2));yy<y+h;yy+=sp*2)c.fillRect(x,yy,w,1);
+  {const by=y+((t*.28)%1)*(h+60)-30,bg=c.createLinearGradient(0,by-24,0,by+24);bg.addColorStop(0,'rgba(120,235,255,0)');bg.addColorStop(.5,'rgba(120,235,255,.10)');bg.addColorStop(1,'rgba(120,235,255,0)');c.fillStyle=bg;c.fillRect(x,by-24,w,48)}
+  {const f=Math.floor(t*9),q=n=>{const v=Math.sin(f*12.9898+n*78.233+x*.01)*43758.5453;return v-Math.floor(v)};if(q(1)<.22){for(let k=0;k<2;k++){const gy=y+q(2+k)*h,gh=2+q(4+k)*h*.05,off=(q(6+k)-.5)*w*.05;
+      c.fillStyle='rgba(0,240,255,.16)';c.fillRect(x+off,gy,w,gh);c.fillStyle='rgba(255,40,170,.12)';c.fillRect(x-off*.7,gy+gh*.4,w,gh*.6)}}}
+  c.restore();
+  const lw=Math.max(1,Math.round(r*.07));c.lineWidth=lw;c.strokeStyle='rgba(255,50,160,.45)';rr(c,x-1.5,y+.5,w,h,r);c.stroke();c.strokeStyle='rgba(60,235,255,.75)';rr(c,x+1,y-.5,w,h,r);c.stroke();
+  {const L=Math.min(w,h)*.12,o=lw*2;c.strokeStyle='rgba(170,245,255,.95)';c.lineWidth=lw*2;c.beginPath();
+    c.moveTo(x-o,y+L);c.lineTo(x-o,y-o);c.lineTo(x+L,y-o);c.moveTo(x+w-L,y-o);c.lineTo(x+w+o,y-o);c.lineTo(x+w+o,y+L);c.moveTo(x+w+o,y+h-L);c.lineTo(x+w+o,y+h+o);c.lineTo(x+w-L,y+h+o);c.moveTo(x+L,y+h+o);c.lineTo(x-o,y+h+o);c.lineTo(x-o,y+h-L);c.stroke()}
+  c.restore()}
 /* ---------- audio: synthesised engine, wind, tyres ---------- */
 const AU={ctx:null,eng:null,eng2:null,gain:null,wind:null,tire:null,ready:false};
 function audioStart(){if(AU.ctx||window.__noAudio)return;try{const A=window.AudioContext||window.webkitAudioContext;if(!A)return;const x=AU.ctx=new A();
@@ -3404,7 +3422,7 @@ function menuLayout(W_,H_,u){
   L.b=b;return L}
 function menuDraw(c,W_,H_,u){if(MENU.tab==1){upgDraw(c,W_,H_,u);return}
   const L=menuLayout(W_,H_,u),d=CAR_ROSTER[MENU.i],own=carOwned(MENU.i),cur=MENU.i==CARSEL.cur;MENU.btns=L.b;
-  c.save();{const g=c.createLinearGradient(0,L.py,0,L.py+L.ph);g.addColorStop(0,'rgba(42,43,46,.96)');g.addColorStop(1,'rgba(24,25,27,.96)');c.fillStyle=g}rr(c,L.px,L.py,L.pw,L.ph,u*.24);c.fill();c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,L.px+.5,L.py+.5,L.pw-1,L.ph-1,u*.24);c.stroke();c.textAlign='left';
+  c.save();holoPanel(c,L.px,L.py,L.pw,L.ph,u*.24,.62);c.textAlign='left';
   if(MENU.garage){c.font=dLcd(u*.3);const gt=MENU.garage.toUpperCase(),gw=c.measureText(gt).width+u*.6;dLcdBox(c,u*.3,u*.3,gw,u*.55,u*.08);dLcdText(c,gt,u*.6,u*.3+u*.39,u*.3);
     c.font=dLcd(u*.26);const mt=evMoney(ECON.money),mw=c.measureText(mt).width+u*.5;dLcdBox(c,u*.3,u*.95,mw,u*.46,u*.07);dLcdText(c,mt,u*.55,u*.95+u*.33,u*.26)}   /* (batch 21: your money under the garage name) */
   const x0=L.x0,fs=(f,w)=>(w||700)+' '+Math.round(u*f)+'px '+UIF;
@@ -3456,10 +3474,10 @@ function dashLayout(add,w,h,u,m){
   const R=u*1.2,rw=u*1.9,rh=u*.62;UI.sp={cx:m+(u*1.15*2+u*.14)/2,cy:h-m-u*1.05-rh/2-u*.07,R,w:rw,h:rh};
   const ggw=u*1.18,ggh=u*.74;UI.gg={x:m+u*1.15*2+u*.14+u*.3,y1:h-m-ggh*2-u*.14,y2:h-m-ggh,w:ggw,h:ggh}}
 /* ---------- small drawing helpers ---------- */
-function dKey(c,x,y,w,h,r,down,top,bot){c.save();const d=down?h*.04:0;c.fillStyle='rgba(0,0,0,.55)';rr(c,x,y+h*.06,w,h,r);c.fill();
-  const g=c.createLinearGradient(0,y+d,0,y+d+h);g.addColorStop(0,top||'#3a3c41');g.addColorStop(1,bot||'#202226');c.fillStyle=g;rr(c,x,y+d,w,h,r);c.fill();
-  c.strokeStyle='rgba(255,255,255,.08)';c.lineWidth=1;rr(c,x+.5,y+d+.5,w-1,h-1,r);c.stroke();c.restore();return d}
-function dLcdBox(c,x,y,w,h,r){c.save();c.fillStyle='#0b0b0a';rr(c,x,y,w,h,r);c.fill();c.strokeStyle='rgba(255,173,31,.18)';c.lineWidth=1;rr(c,x+.5,y+.5,w-1,h-1,r);c.stroke();c.restore()}
+function dKey(c,x,y,w,h,r,down,top,bot){c.save();const d=down?h*.04:0;const holo=!top;c.fillStyle=holo?'rgba(0,0,0,.25)':'rgba(0,0,0,.55)';rr(c,x,y+h*.06,w,h,r);c.fill();
+  const g=c.createLinearGradient(0,y+d,0,y+d+h);g.addColorStop(0,top||(down?'rgba(40,120,150,.55)':'rgba(40,80,105,.42)'));g.addColorStop(1,bot||'rgba(8,18,28,.55)');c.fillStyle=g;rr(c,x,y+d,w,h,r);c.fill();
+  c.strokeStyle=holo?'rgba(90,230,255,.55)':'rgba(255,255,255,.08)';c.lineWidth=1;rr(c,x+.5,y+d+.5,w-1,h-1,r);c.stroke();if(holo){c.strokeStyle='rgba(255,60,170,.25)';rr(c,x-.5,y+d+1.5,w-1,h-1,r);c.stroke()}c.restore();return d}   /* (batch 54) keys in the cards and the console are see-through holo keys (a coloured key keeps its colours) */
+function dLcdBox(c,x,y,w,h,r){c.save();c.fillStyle='rgba(4,10,14,.55)';rr(c,x,y,w,h,r);c.fill();   /* (batch 54) see-through like the holo panels */c.strokeStyle='rgba(255,173,31,.18)';c.lineWidth=1;rr(c,x+.5,y+.5,w-1,h-1,r);c.stroke();c.restore()}
 function dLcdText(c,t,x,y,px,al){c.save();c.font=dLcd(px);c.textAlign=al||'left';c.fillStyle=DASH.amber;c.shadowColor='rgba(255,173,31,.6)';c.shadowBlur=px*.5;c.fillText(t,x,y);c.restore()}
 /* ---------- the speedometer ---------- */
 function dashSpeedo(c,u,dt){const S=UI.sp,mph=C.speed*spdK(),bw=S.w,bh=S.h,x=S.cx-bw/2,y=S.cy-bh/2;
@@ -3543,7 +3561,7 @@ function pauseKey(id){if(id=='quit'){pauseClose();evQuit()}else if(id=='reset'){
 function pauseSync(){PAUSE.k.gfx=Math.max(0,GFX_OPTS.indexOf(GFX.mode));PAUSE.k.sky=Math.max(0,ENV_NAMES.indexOf(ENV.name))}
 function pauseDraw(c,W_,H_,u){pauseSync();const L=pauseLayout(W_,H_,u),dt=dashDt();PAUSE.btns=L.b;c.save();
   c.fillStyle='rgba(5,5,6,'+(.55*L.p)+')';c.fillRect(0,0,W_,H_);
-  c.shadowColor='rgba(0,0,0,.6)';c.shadowBlur=u*.6;const g=c.createLinearGradient(0,L.y,0,L.y+L.h);g.addColorStop(0,'#2a2b2e');g.addColorStop(1,'#18191b');c.fillStyle=g;rr(c,L.x,L.y,L.w,L.h,u*.32);c.fill();c.shadowBlur=0;
+  holoPanel(c,L.x,L.y,L.w,L.h,u*.32,.62);
   c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,L.x+.5,L.y+.5,L.w-1,L.h-1,u*.32);c.stroke();
   /* the trip computer: PAUSED types itself out */
   const Lc=L.lcd;dLcdBox(c,Lc.x,Lc.y,Lc.w,Lc.h,u*.12);const chars=Math.max(0,Math.min(6,Math.floor((performance.now()-DASH.pT0-300)/70)));
@@ -3647,7 +3665,7 @@ function upgLayout(W_,H_,u){const b=[],m=u*.3,pw=Math.min(W_*.5,u*8.8),px=W_-pw-
 function upgTap(k){const d=CAR_ROSTER[MENU.i];if(!carOwned(MENU.i)){safeToast('BUY THIS CAR FIRST',2);return}const r=upgBuy(d.id,k);const D=UPG_DEF.find(q=>q.k==k);
   if(r=='OK')safeToast(D.name+'  STAGE '+upgLv(d.id,k),2.2);else if(r=='MAX')safeToast(D.name+'  FULLY UPGRADED',2);else safeToast(r+'  (YOU HAVE '+evMoney(ECON.money)+')',2.4)}
 function upgDraw(c,W_,H_,u){const L=upgLayout(W_,H_,u),d=CAR_ROSTER[MENU.i],own=carOwned(MENU.i);MENU.btns=L.b;
-  c.save();{const g=c.createLinearGradient(0,L.py,0,L.py+L.ph);g.addColorStop(0,'rgba(42,43,46,.96)');g.addColorStop(1,'rgba(24,25,27,.96)');c.fillStyle=g}rr(c,L.px,L.py,L.pw,L.ph,u*.24);c.fill();
+  c.save();holoPanel(c,L.px,L.py,L.pw,L.ph,u*.24,.62);
   c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,L.px+.5,L.py+.5,L.pw-1,L.ph-1,u*.24);c.stroke();
   if(MENU.garage){c.font=dLcd(u*.3);const gt=MENU.garage.toUpperCase(),gw=c.measureText(gt).width+u*.6;dLcdBox(c,u*.3,u*.3,gw,u*.55,u*.08);dLcdText(c,gt,u*.6,u*.3+u*.39,u*.3);
     c.font=dLcd(u*.26);const mt=evMoney(ECON.money),mw=c.measureText(mt).width+u*.5;dLcdBox(c,u*.3,u*.95,mw,u*.46,u*.07);dLcdText(c,mt,u*.55,u*.95+u*.33,u*.26)}   /* (batch 21: your money under the garage name) */
@@ -3684,12 +3702,12 @@ const fmtMass=kg=>UNITS.imp?Math.round(kg*2.20462)+' lb':Math.round(kg)+' kg';
 
 /* ---------------- the map: what each icon is ---------------- */
 const MAPKEY=[['GARAGE (YOURS)','#3cf08c','dot'],['GARAGE (FOR SALE)','#8d97a3','dot'],['REPAIR SHOP','#2a6be0','cross'],['TIME TRIAL','#ffb000','flag'],['RACE','#2a9be0','flag'],['DEATH RACE','#e04a2a','flag'],
-  ['TAKEDOWN','#a050e0','flag'],['ESCAPE','#e03030','flag'],['SPEED TRAP','rgb(76,153,255)','dot'],['JUMP','rgb(76,255,115)','dot'],['DRIFT ZONE','rgb(204,89,255)','dot'],['STREET RACER','#ffd23a','dot']];
+  ['TAKEDOWN','#a050e0','flag'],['ESCAPE','#e03030','flag'],['SPEED TRAP','rgb(76,153,255)','dot'],['JUMP','rgb(76,255,115)','dot'],['STREET RACER','#ffd23a','dot']];
 function mapKeyIcon(c,x,y,r,col,shape){c.fillStyle=col;c.beginPath();c.arc(x,y,r,0,TAU);c.fill();if(shape=='flag'){c.fillStyle='#111';c.fillRect(x-r*.45,y-r*.45,r*.45,r*.45);c.fillRect(x,y,r*.45,r*.45)}
   else if(shape=='cross'){c.fillStyle='#fff';c.fillRect(x-r*.62,y-r*.18,r*1.24,r*.36);c.fillRect(x-r*.18,y-r*.62,r*.36,r*1.24)}}
 function mapLegend(c,W_,H_,u){const fs=u*.17,row=u*.27,cols=2,rows=Math.ceil(MAPKEY.length/cols),cw=u*2.15,pw=cw*cols+u*.3,ph=rows*row+u*.5,x=u*.3,y=H_-ph-u*.3;
-  c.save();c.fillStyle='rgba(20,21,23,.86)';rr(c,x,y,pw,ph,u*.14);c.fill();c.strokeStyle='rgba(255,255,255,.08)';c.lineWidth=1;c.stroke();
-  c.font=dLcd(u*.18);dLcdText(c,'MAP KEY',x+u*.18,y+u*.27,u*.18);
+  c.save();holoPanel(c,x,y,pw,ph,u*.14,.45);
+  c.font=dLcd(u*.18);dLcdText(c,'MAP KEY'+(typeof TOKENS!='undefined'&&TOKENS.list.length?'   TOKENS '+Object.keys(TOKENS.got).filter(k=>TOKENS.list.some(t=>t.id==k)).length+'/'+TOKENS.list.length:''),x+u*.18,y+u*.27,u*.18);
   MAPKEY.forEach(([t,col,sh],i)=>{const cx=x+u*.28+Math.floor(i/rows)*cw,cy=y+u*.5+(i%rows)*row;mapKeyIcon(c,cx,cy,u*.075,col,sh);c.fillStyle='rgba(233,230,220,.88)';c.font=dFont(fs,600);c.textAlign='left';c.fillText(t,cx+u*.16,cy+fs*.35)});
   c.restore()}
 /* every icon on the map as {x,z,title,lines} (built each time the map is drawn) */
@@ -3711,7 +3729,7 @@ function mapPopDraw(c,W_,H_,u,btns){const b=MAPV.pop;if(!b)return;const S=UI.map
   c.save();c.font=dFont(u*.2,600);let tw=0;for(const l of b.lines)tw=Math.max(tw,c.measureText(l).width);c.font=dFont(u*.32,700);tw=Math.max(tw,c.measureText(b.title).width+u*1.6);
   const pw=Math.min(W_*.62,tw+u*.6),ph=u*(1.0+b.lines.length*.3+.7);let px=sx+u*.35,py=sy-ph/2;if(px+pw>W_-u*.2)px=sx-u*.35-pw;py=Math.max(u*.2,Math.min(H_-ph-u*.2,py));
   c.strokeStyle='rgba(255,255,255,.5)';c.lineWidth=1.5;c.beginPath();c.moveTo(sx,sy);c.lineTo(px<sx?px+pw:px,py+ph/2);c.stroke();
-  {const g=c.createLinearGradient(0,py,0,py+ph);g.addColorStop(0,'rgba(42,43,46,.97)');g.addColorStop(1,'rgba(24,25,27,.97)');c.fillStyle=g}rr(c,px,py,pw,ph,u*.18);c.fill();c.strokeStyle='rgba(255,255,255,.08)';c.lineWidth=1;c.stroke();
+  holoPanel(c,px,py,pw,ph,u*.18,.6);
   c.fillStyle=b.col;c.fillRect(px,py+u*.2,u*.07,ph-u*.4);
   c.textAlign='left';c.fillStyle='#fff';c.font=dFont(u*.32,700);c.fillText(b.title,px+u*.3,py+u*.48);if(b.tag){c.font=dLcd(u*.17);dLcdText(c,b.tag,px+pw-u*.25,py+u*.44,u*.17,'right')}
   c.font=dFont(u*.2,600);c.fillStyle='rgba(233,230,220,.85)';b.lines.forEach((l,i)=>c.fillText(l,px+u*.3,py+u*.82+i*u*.3));
@@ -3860,6 +3878,72 @@ function railWreck(c){if(!RAILSEG.length)return;const i=railHit(c.x,c.z,c.y,(c.h
   const vn=c.vx*nx+c.vz*nz;if(vn<0){c.vx-=1.2*vn*nx;c.vz-=1.2*vn*nz;c.vx*=.9;c.vz*=.9;c.om=(c.om||0)*.7+(Math.random()-.5)*Math.min(2,-vn*.1);if(-vn>4&&typeof sparkAt=='function')sparkAt(c.x-nx,c.y+.5,c.z-nz,nx,nz,8,6)}}
 
 'use strict';
+/* (batch 54) THINGS TO DO IN TOWN, and out east.
+   RAMPS: two or three striped steel kickers on straight streets of every city and town, and a few on the open desert highways of the east: drive up one fast and you fly
+   (they are part of the ground: groundAt adds their height, so your car, the racers and the traffic all ride them; the lip drops away, and your car's take-off rule does the rest).
+   Each is a JUMP spot (your longest jump off it is kept and paid, as on the jump hills).
+   HIDDEN TOKENS: two glowing tokens tucked into the side streets of every town (36 in all), not on the map until found: each pays, a few are easter eggs with a story,
+   and finding them all pays a big bonus. Found tokens are kept between games. */
+const RAMPS=[],RAMPG=new Map(),RAMP_CELL=64,TOKENS={list:[],got:{},key:'racer.tokens'};
+const rampKey=(gx,gz)=>(gx+512)*4096+(gz+512);
+/* the height a ramp adds at (x,z) (0 where there is none) */
+function rampAt(x,z){if(!RAMPS.length)return 0;const L=RAMPG.get(rampKey(Math.floor(x/RAMP_CELL),Math.floor(z/RAMP_CELL)));if(!L)return 0;let h=0;
+  for(const p of L){const dx=x-p.x,dz=z-p.z,u=dx*p.fx+dz*p.fz,v=dx*p.rx+dz*p.rz;if(u<0||u>p.L||Math.abs(v)>p.W/2)continue;
+    const k=Math.min(1,(p.W/2-Math.abs(v))/p.side),y=p.H*Math.pow(u/p.L,1.25)*k;if(y>h)h=y}
+  return h}
+function rampAdd(x,z,fx,fz,o){const p=Object.assign({x,z,fx,fz,rx:-fz,rz:fx,L:13,H:2.3,W:6.2,side:1.4},o||{});RAMPS.push(p);
+  const c0x=Math.floor((x-20)/RAMP_CELL),c1x=Math.floor((x+20)/RAMP_CELL),c0z=Math.floor((z-20)/RAMP_CELL),c1z=Math.floor((z+20)/RAMP_CELL);
+  for(let a=c0x;a<=c1x;a++)for(let b=c0z;b<=c1z;b++){const k=rampKey(a,b);let L=RAMPG.get(k);if(!L){L=[];RAMPG.set(k,L)}L.push(p)}return p}
+/* a straight, junction-free stretch of road around sample i (no bridge, flat enough) */
+function cityStraight(r,i,half){if(i<half+2||i>r.n-half-3)return false;const h=k=>{const t=_tan(r,k);return Math.atan2(t[0],t[1])};
+  if(Math.abs(angd(h(i-half),h(i)))>.08||Math.abs(angd(h(i+half),h(i)))>.08)return false;for(let k=i-half;k<=i+half;k++)if(r.br&&r.br[k])return false;
+  if(Math.abs(r.Y[i+half]-r.Y[i-half])>3)return false;const x=r.X[i],z=r.Z[i];if(JUNC.some(J=>Math.hypot(J.x-x,J.z-z)<45))return false;return true}
+const inPlace=(p,x,z)=>{const b=p.box;return x>b.x0&&x<b.x1&&z>b.z0&&z<b.z1};
+/* where they go (deterministic: the same in every game) */
+function cityInit(){RAMPS.length=0;RAMPG.clear();TOKENS.list.length=0;const rnd=mulberry(77731);
+  for(const P of PLACES){const roads=ROADS.filter(r=>{for(let i=0;i<r.n;i+=3)if(inPlace(P,r.X[i],r.Z[i]))return true;return false});
+    /* ramps: on the longer straight streets of the town, at least 120 m apart */
+    let nr=0;const want=P.name=='Downtown'||P.name=='Las Vegas'||P.name=='The Valley'?3:2;
+    for(const r of roads.sort((a,b)=>b.hw-a.hw)){if(nr>=want)break;const st=Math.max(1,Math.round(25/r.ds));for(let tries=0;tries<12&&nr<want;tries++){const i=st+2+Math.floor(rnd()*(r.n-2*st-4));
+      if(!inPlace(P,r.X[i],r.Z[i])||!cityStraight(r,i,st))continue;const x=r.X[i],z=r.Z[i];if(RAMPS.some(q=>Math.hypot(q.x-x,q.z-z)<120))continue;
+      const t=_tan(r,i),l=Math.hypot(t[0],t[1])||1,sg=rnd()<.5?1:-1,fx=t[0]/l*sg,fz=t[1]/l*sg;rampAdd(x-fx*6.5,z-fz*6.5,fx,fz,{W:Math.min(6.2,r.hw*1.2),town:P.name});nr++}}
+    /* tokens: on the narrower streets, off to one side */
+    let nt=0;for(let tries=0;tries<60&&nt<2;tries++){const r=roads[Math.floor(rnd()*roads.length)];if(!r)break;const i=2+Math.floor(rnd()*(r.n-4));const x0=r.X[i],z0=r.Z[i];if(!inPlace(P,x0,z0))continue;
+      const t=_tan(r,i),l=Math.hypot(t[0],t[1])||1,sd=rnd()<.5?1:-1,o=r.hw*.6,x=x0-t[1]/l*o*sd,z=z0+t[0]/l*o*sd;if(TOKENS.list.some(q=>Math.hypot(q.x-x,q.z-z)<150))continue;
+      TOKENS.list.push({id:'tk_'+P.name.replace(/\W/g,'')+'_'+nt,town:P.name,x,z,y:r.Y[i]+1.3,egg:null});nt++}}
+  /* desert kickers on the straight highways of the east */
+  let nk=0;for(const r of ROADS){if(r.city||nk>=8)continue;const st=Math.round(40/r.ds);for(let i=st+2;i<r.n-st-3&&nk<8;i+=Math.round(260/r.ds)){const x=r.X[i],z=r.Z[i];if(x<2300)continue;
+      if(!cityStraight(r,i,st)||RAMPS.some(q=>Math.hypot(q.x-x,q.z-z)<500))continue;const t=_tan(r,i),l=Math.hypot(t[0],t[1])||1,fx=t[0]/l,fz=t[1]/l,lane=r.hw*.45;
+      rampAdd(x-fx*7+(-fz)*lane,z-fz*7+fx*lane,fx,fz,{L:15,H:2.6,W:5.4,desert:1});nk++}}
+  /* the easter eggs (each a token with its own message and prize) */
+  const EGG={'Las Vegas':['JACKPOT! The slot machine in the trunk paid out',25000],'Big Pines':['A large hairy figure waved at you from the trees',5000],'Harbor':['A message in a bottle: "the finish line is a state of mind"',5000],
+    'Mojave Works':['You found the test track lunchbox. Still warm.',7500],'Tahoe':['Someone left a snowboard in July',5000],'Downtown':['A cable car ticket from 1962',5000],'Bishop':['The mountain says: brake later',5000],'Barstow':['A pie from the diner, still on the windowsill',5000]};
+  for(const tk of TOKENS.list)if(EGG[tk.town]&&tk.id.endsWith('_0'))tk.egg=EGG[tk.town];
+  try{TOKENS.got=JSON.parse(localStorage.getItem(TOKENS.key)||'{}')||{}}catch(e){TOKENS.got={}}
+}
+/* the ramps are jump spots (from the end of spotInit, which builds the spot list) */
+function citySpots(){for(const p of RAMPS)SPOTS.list.push({type:'jump',id:'sp_ramp_'+Math.round(p.x)+'_'+Math.round(p.z),name:p.desert?'Desert kicker':'Ramp',x:p.x+p.fx*p.L,z:p.z+p.fz*p.L,y:groundAt(p.x,p.z,99),r:22})}
+/* the ramp meshes (from buildFurniture): a striped steel deck, side cheeks and a dark lip face */
+function cityBuild(){for(const p of RAMPS){const m=pmb(p.x,p.z,0,120),g=k=>groundAt(p.x+p.fx*k,p.z+p.fz*k,99),y0=g(0),N=8;
+    const pt=(u,v,h)=>[p.x+p.fx*u+p.rx*v,y0+(g(u)-y0)*0+h+.02,p.z+p.fz*u+p.rz*v];
+    const hu=u=>p.H*Math.pow(u/p.L,1.25);
+    for(let k=0;k<N;k++){const u0=p.L*k/N,u1=p.L*(k+1)/N,h0=hu(u0),h1=hu(u1),yel=(k&1)==0,c=yel?[235,190,40]:[40,40,44],w=p.W/2-p.side*.15;
+      const a=pt(u0,-w,h0),b=pt(u0,w,h0),cc=pt(u1,w,h1),d=pt(u1,-w,h1),n=[0,1,0];
+      const v=q=>m.v(q[0],q[1],q[2],-p.fx*.2,.98,-p.fz*.2,c[0],c[1],c[2],.03,.03,0);m.q(v(a),v(b),v(cc),v(d));
+      for(const sd of[-1,1]){const o=pt(u0,sd*p.W/2,0),i0=pt(u0,sd*w,h0),i1=pt(u1,sd*w,h1),o1=pt(u1,sd*p.W/2,0),vv=q=>m.v(q[0],q[1],q[2],p.rx*sd,.5,p.rz*sd,90,92,96,.03,.03,0);if(sd<0)m.q(vv(o),vv(i0),vv(i1),vv(o1));else m.q(vv(o1),vv(i1),vv(i0),vv(o))}}
+    {const w=p.W/2-p.side*.15,a=pt(p.L,-w,p.H),b=pt(p.L,w,p.H),c2=pt(p.L,w,0),d=pt(p.L,-w,0),v=q=>m.v(q[0],q[1],q[2],p.fx,0,p.fz,30,30,34,.03,.03,0);m.q(v(a),v(b),v(c2),v(d))}}}
+/* picking tokens up (every frame) */
+function cityTick(dt){if(GAME.state||TUM.on||!TOKENS.list.length)return;for(const t of TOKENS.list){if(TOKENS.got[t.id])continue;if(Math.abs(C.x-t.x)>5||Math.abs(C.z-t.z)>5||Math.abs(C.y+.8-t.y)>3)continue;
+    TOKENS.got[t.id]=1;try{localStorage.setItem(TOKENS.key,JSON.stringify(TOKENS.got))}catch(e){}const n=Object.keys(TOKENS.got).length,N=TOKENS.list.length;
+    const pay=t.egg?t.egg[1]:1500;ECON.add(pay);if(typeof evBeep=='function')evBeep(1200,.12);
+    safeToast((t.egg?t.egg[0]:'HIDDEN TOKEN')+'  +'+evMoney(pay)+'   ('+n+' / '+N+')',3.2,1);
+    if(n==N){ECON.add(100000);setTimeout(()=>safeToast('EVERY TOKEN FOUND  +$100,000',4,1),3300)}}}
+/* the tokens glow and spin (from the effects pass) */
+function cityFx(sprite,quad,time){for(const t of TOKENS.list){if(TOKENS.got[t.id])continue;const d=Math.hypot(t.x-C.x,t.z-C.z);if(d>260)continue;const al=Math.min(1,(260-d)/80),bob=Math.sin(time*2+t.x)*.25;
+    sprite(t.x,t.y+bob,t.z,1.6,.3,1,.9,.75*al);sprite(t.x,t.y+bob,t.z,.6,1,1,1,.9*al);
+    const a=time*2.4+t.z,c=Math.cos(a)*.9,s=Math.sin(a)*.9,y=t.y+bob;quad(t.x-c,y-.9,t.z-s,t.x+c,y-.9,t.z+s,t.x+c,y+.9,t.z+s,t.x-c,y+.9,t.z-s,.4,1,.95,.55*al)}}
+
+'use strict';
 /* ===== traffic: cars that follow the lane graph (23_lanes.js) ===== */
 /* A car drives on a path: a lane EDGE (index u) or a turn LINK (index lu). Every tick it builds a HORIZON (12 points, 6 to 10 m apart, 66 to 110 m ahead, following the turn it has chosen at the next junction),
    then thinks: IDM car following (a 'leader' is anything inside its corridor), a speed profile from the lane speed limits (curves, turns, hills), and a yield test against the horizons of the cars around it
@@ -3903,7 +3987,7 @@ const _pt={x:0,z:0,y:0,v:0,tx:0,tz:0};
 /* point, speed limit and tangent at an index of an edge/link */
 function trPt(o,i){const n=o.n;let j=Math.floor(i),f=i-j;if(o.closed){j=((j%n)+n)%n}else{if(j>=n-1){j=n-2;f=1}if(j<0){j=0;f=0}}
   const k=(j+1<n)?j+1:(o.closed?0:j),X=o.X,Z=o.Z,Y=o.Y;_pt.x=X[j]+(X[k]-X[j])*f;_pt.z=Z[j]+(Z[k]-Z[j])*f;_pt.y=Y[j]+(Y[k]-Y[j])*f;_pt.v=Math.min(o.V[j],o.V[k]);
-  const dx=X[k]-X[j],dz=Z[k]-Z[j],l=Math.hypot(dx,dz)||1;_pt.tx=dx/l;_pt.tz=dz/l}
+  const dx=X[k]-X[j],dz=Z[k]-Z[j],l=Math.hypot(dx,dz)||1;_pt.tx=dx/l;_pt.tz=dz/l;if(RAMPS.length)_pt.y+=rampAt(_pt.x,_pt.z)}   /* (batch 54) traffic rides over the ramps in town */
 /* link weights for the turn a car picks at a junction (the pick is a stateless hash of the car's seed and the junction, so it never changes while the car is deciding) */
 function trLW(l,g){const k=l.kind;if(l.to.road&&l.to.road.style==5)return 0;   /* (batch 30) traffic never turns onto a dirt trail */if(k==3)return g.through?.07:2;return(k==1?1.5:k==2?1.2:1.2)*(l.to.cls>=l.from.cls?1.15:.8)}
 function trPick(c,g,e){if(c.cm===1)return copPick(c,g,e);const L=g.links;let own=false;
@@ -4305,7 +4389,7 @@ function trTick(dt){
   copTick(dt);
   if(TR.prof){const ms=performance.now()-t0;TR.ms+=(ms-TR.ms)*.03;TR.stat.msSum+=ms;TR.stat.ticks++;if(ms>TR.stat.msMax)TR.stat.msMax=ms}}
 /* the fixed-step world: the player at 120 Hz (collisions with traffic included), traffic at 60 Hz */
-function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);crashTick(dt);boostTick(dt);slipTick(dt);if(TR.on&&TR.nAlive&&!(C.shield>0))trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);evTick(dt);spotTick(dt);racerTick(dt);if(!(++TR.sub&1))trTick(dt*2)}
+function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);crashTick(dt);boostTick(dt);slipTick(dt);if(TR.on&&TR.nAlive&&!(C.shield>0))trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);evTick(dt);spotTick(dt);cityTick(dt);racerTick(dt);if(!(++TR.sub&1))trTick(dt*2)}
 
 'use strict';
 /* ===== traffic rendering: four low-poly body types built in code (about 200 triangles each), drawn instanced (one draw per type; if the GPU has no instancing, one draw per car) ===== */
@@ -4900,7 +4984,7 @@ function navPolyline(chain){
   const P=[];const addEdge=(e,a,b)=>{if(b>=a){for(let i=a;i<=b;i++)P.push(e.X[i],e.Y[i],e.Z[i])}else{for(let i=a;i<e.n;i++)P.push(e.X[i],e.Y[i],e.Z[i]);for(let i=0;i<=b;i++)P.push(e.X[i],e.Y[i],e.Z[i])}};
   for(let k=0;k<chain.length-1;k++){const s=chain[k],nx=chain[k+1];if(nx.link){addEdge(nx.link.from,s.u,nx.link.fu);const l=nx.link;for(let j=1;j<l.n;j++)P.push(l.X[j],l.Y[j],l.Z[j])}else addEdge(s.e,s.u,nx.u)}
   const n=P.length/3,pts=new Float32Array(P),S=new Float32Array(n);for(let i=1;i<n;i++)S[i]=S[i-1]+Math.hypot(pts[i*3]-pts[i*3-3],pts[i*3+2]-pts[i*3-1]);
-  /* (batch 54) the guide lines are painted at the real road height (the road between two route points bulges over a straight line on crests, which hid patches of the guide) */for(let i=0;i<n;i++){const y=pts[i*3+1],g=groundAt(pts[i*3],pts[i*3+2],y+1.2);if(g>y&&g<y+1.2)pts[i*3+1]=g}
+  /* (batch 54) the guide lines are painted at the real road height (the road between two route points bulges over a straight line on crests, which hid patches of the guide) */if(typeof groundAt=='function')for(let i=0;i<n;i++){const y=pts[i*3+1],g=groundAt(pts[i*3],pts[i*3+2],y+1.2);if(g>y&&g<y+1.2)pts[i*3+1]=g}
   return{pts,n,S,len:S[n-1]||0}}
 /* the turn links of a chain, in order */
 const navLinksOf=chain=>{const L=[];for(const s of chain)if(s.link)L.push(s.link);return L};
@@ -5046,7 +5130,7 @@ function drawWorldMap(c,W_,H_,u){
   add('CLEAR WAYPOINT','rgba(255,90,70,.7)',()=>{navClear()},!!NAV.wp);
   add('SET WAYPOINT','#ff7a1a',()=>{if(!NAV.pend)return;const r=navSet(NAV.pend.x,NAV.pend.z);if(r.ok){UI.mapOpen=false;MAPV.g.clear();safeToast('WAYPOINT SET  ·  '+fmtLen(r.len),3)}else NAV.pendMsg=r.msg},!!NAV.pend);
   mapLegend(c,W_,H_,u);mapPopDraw(c,W_,H_,u,b);
-  MAPV.btns=b;for(const q of b){if(q.own)continue;c.fillStyle=q.col;rr(c,q.x,q.y,q.w,q.h,u*.14);c.fill();c.fillStyle=q.col=='#ff7a1a'?'#111':'#fff';c.textAlign='center';c.font='800 '+Math.round(u*.25)+'px '+UIF;c.fillText(q.label,q.x+q.w/2,q.y+q.h*.66)}
+  MAPV.btns=b;for(const q of b){if(q.own)continue;if(q.col.startsWith('rgba(255,255,255'))holoPanel(c,q.x,q.y,q.w,q.h,u*.14,.4);else{c.fillStyle=q.col;rr(c,q.x,q.y,q.w,q.h,u*.14);c.fill()}c.fillStyle=q.col=='#ff7a1a'?'#111':'#fff';c.textAlign='center';c.font='800 '+Math.round(u*.25)+'px '+UIF;c.fillText(q.label,q.x+q.w/2,q.y+q.h*.66)}
   if(NAV.pend){const d=Math.hypot(NAV.pend.x-C.x,NAV.pend.z-C.z);c.textAlign='center';c.fillStyle='#ffd24a';c.font='800 '+Math.round(u*.26)+'px '+UIF;c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('Pin: '+fmtLen(d)+' away (straight line) - tap SET WAYPOINT',W_*.5-u*1.2,H_-u*.4);c.shadowBlur=0}
   else if(NAV.wp&&NAV.route){c.textAlign='center';c.fillStyle='#7fe3ff';c.font='800 '+Math.round(u*.26)+'px '+UIF;c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('Route: '+fmtLen(NAV.remain)+' to go',W_*.5-u*1.2,H_-u*.4);c.shadowBlur=0}}
 
@@ -5266,6 +5350,48 @@ const EV_DEF=[
  {id:'x_north',diff:1,type:'race',name:'Northern Race',from:['nt1',.12],to:['nt2',.94],n:4,prize:8000},
  {id:'d_ring',diff:3,type:'death',name:'Death Race: The Ring',from:['ring',.36],to:['ring',.66],n:5,prize:12000,goals:[1000,2000,3200]},
  {id:'d_south',diff:2,type:'death',name:'Death Race: Southern Cross',from:['sh',.18],to:['sh',.9],n:5,prize:10000,goals:[1000,2000,3200]}];
+/* (batch 54) MORE EVENTS, in every city and town and all over the east side: each starts in a town (on its main street) and runs to another */
+{const P=n=>(PLACES.find(q=>q.name==n)||{}).road,UZ={},FR=[.5,.22,.78,.36,.64,.1,.9],E=(id,type,name,diff,a,b,x)=>{const k=UZ[a]=(UZ[a]||0)+1;EV_DEF.push(Object.assign({id,type,name,diff,from:[P(a),FR[(k-1)%FR.length]],to:b?[P(b),.5]:undefined},x||{}))};   /* several events in one town start at different points along its main street */
+  const RC={n:4},DR={n:5,goals:[1000,2000,3200]},TK=(secs)=>({secs,goals:[2,4,6],n:6});
+  /* races */
+  E('x_vegas','race','Vegas Strip Sprint',2,'Las Vegas','Barstow',Object.assign({prize:9000},RC));
+  E('x_mojave','race','Mojave Run',1,'Mojave Works','Indio',Object.assign({prize:6000},RC));
+  E('x_hesp','race','Hesperia Dash',2,'Hesperia','Palm Springs',Object.assign({prize:8500},RC));
+  E('x_bishop','race','Bishop Descent',3,'Bishop','Tahoe',Object.assign({prize:12000},RC));
+  E('x_down','race','Downtown Grand Prix',2,'Downtown','San Jose',Object.assign({prize:9000},RC));
+  E('x_harbor','race','Harbor Rush',1,'Harbor','The Valley',Object.assign({prize:6000},RC));
+  E('x_fresno','race','Fresno Express',1,'Fresno','Big Pines',Object.assign({prize:6000},RC));
+  E('x_pacif','race','Pacifica Coast Run',2,'Pacifica','Gilroy',Object.assign({prize:8000},RC));
+  E('x_sacra','race','Sacramento Night Run',3,'Sacramento','Hesperia',Object.assign({prize:13000},RC));
+  E('x_palm','race','Palm Springs Loop',1,'Palm Springs','Harbor',Object.assign({prize:6000},RC));
+  /* death races */
+  E('d_vegas','death','Death Race: Vegas',3,'Las Vegas','Mojave Works',Object.assign({prize:14000},DR));
+  E('d_barst','death','Death Race: Barstow',2,'Barstow','Hesperia',Object.assign({prize:11000},DR));
+  E('d_down','death','Death Race: Downtown',1,'Downtown','Pacifica',Object.assign({prize:8000},DR));
+  E('d_indio','death','Death Race: Indio',2,'Indio','Harbor',Object.assign({prize:11000},DR));
+  E('d_sanj','death','Death Race: San Jose',3,'San Jose','Fresno',Object.assign({prize:14000},DR));
+  /* takedowns */
+  E('k_vegas','rage','Takedown: Las Vegas',2,'Las Vegas','Indio',Object.assign({prize:8000},TK(150)));
+  E('k_barst','rage','Takedown: Barstow',1,'Barstow','Mojave Works',Object.assign({prize:6000},TK(150)));
+  E('k_sanj','rage','Takedown: San Jose',2,'San Jose','Sacramento',Object.assign({prize:8000},TK(150)));
+  E('k_gilroy','rage','Takedown: Gilroy',1,'Gilroy','Santa Cruz',Object.assign({prize:6000},TK(150)));
+  E('k_tahoe','rage','Takedown: Tahoe',3,'Tahoe','Bishop',Object.assign({prize:10000},TK(160)));
+  E('k_valley','rage','Takedown: The Valley',2,'The Valley','Palm Springs',Object.assign({prize:8000},TK(150)));
+  /* time trials */
+  E('t_strip','trial','Desert Loop',2,'Barstow','Las Vegas');
+  E('t_valley','trial','Valley Sprint',1,'The Valley','Downtown');
+  E('t_scruz','trial','Santa Cruz Climb',1,'Santa Cruz','Gilroy');
+  E('t_bishop','trial','Bishop Pass',3,'Bishop','Sacramento');
+  E('t_indio','trial','Indio Dash',1,'Indio','Hesperia');
+  E('t_hesp','trial','Hesperia Hills',2,'Hesperia','Barstow');
+  E('t_harbor','trial','Harbor Line',2,'Harbor','Mojave Works');
+  /* escapes */
+  E('e_vegas','escape','Vegas Heat',3,'Las Vegas',null,{stars:4,secs:240});
+  E('e_barst','escape','Barstow Bust',2,'Barstow',null,{stars:3,secs:210});
+  E('e_harbor','escape','Harbor Chase',1,'Harbor',null,{stars:2,secs:180});
+  E('e_fresno','escape','Fresno Fugitive',2,'Fresno',null,{stars:3,secs:210});
+  E('e_tahoe','escape','Tahoe Run',1,'Tahoe',null,{stars:2,secs:180});
+  E('e_mojave','escape','Mojave Manhunt',3,'Mojave Works',null,{stars:5,secs:280});}
 const EV_FXC={trial:[1,.75,.2],rage:[.7,.3,1],race:[.2,.6,1],death:[1,.3,.15],escape:[1,.2,.2]},EV_ESC_PAY=[0,0,4000,8000,15000,25000],EV_MEDAL=['','BRONZE','SILVER','GOLD'],EV_MCOL=['#aaa','#d08a4a','#cfd6e0','#ffd23a'];
 function evLoad(){try{EV.rec=JSON.parse(localStorage.getItem(EV.key)||'{}')||{}}catch(e){EV.rec={}}}
 function evSave(){try{localStorage.setItem(EV.key,JSON.stringify(EV.rec))}catch(e){}}
@@ -5421,11 +5547,11 @@ function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF
     else{const left=ev.secs-Math.max(0,r.t);c.fillStyle=left<20?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(EV_DIFF[evDiff(ev)]+'  ·  '+ev.name+'  ·  lose the police before the clock runs out',W_/2,u*1.7)}
     c.shadowBlur=0}   /* (batch 27) QUIT EVENT lives in the pause console now */
   const k=EV.card;if(k&&!GAME.state){const nc=k.cols||2,cw=Math.min(W_*(nc>2?.86:.62),u*(nc>2?13:9.5)),nb=k.btns.length,rows=k.grid?Math.ceil(nb/nc):1,rh=nc>2?.5:.62,ch=u*(1.35+k.lines.length*.42+(k.grid?rows*rh:.8)),cx=W_/2-cw/2,cy=Math.max(u*.6,H_*.5-ch/2);
-    {const g=c.createLinearGradient(0,cy,0,cy+ch);g.addColorStop(0,'rgba(42,43,46,.97)');g.addColorStop(1,'rgba(24,25,27,.97)');c.fillStyle=g}rr(c,cx,cy,cw,ch,u*.24);c.fill();c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,cx+.5,cy+.5,cw-1,ch-1,u*.24);c.stroke();c.textAlign='left';
+    holoPanel(c,cx,cy,cw,ch,u*.24,.62);c.textAlign='left';
     c.font=dLcd(u*.24);{const tw=c.measureText(k.title).width+u*.4;dLcdBox(c,cx+u*.25,cy+u*.17,tw,u*.4,u*.06);dLcdText(c,k.title,cx+u*.45,cy+u*.45,u*.24)}c.fillStyle='#fff';c.font=fs(.42,900);c.fillText(k.sub,cx+u*.35,cy+u*.95);
     let y=cy+u*1.38;for(const [t,col] of k.lines){c.fillStyle=col;c.font=fs(.24,700);c.fillText(t,cx+u*.35,y);y+=u*.42}y+=u*.05;
     if(k.grid){const bw=(cw-u*.7-u*.2*(nc-1))/nc,bh=u*(nc>2?.4:.5);k.btns.forEach((b,i)=>{const bx=cx+u*.35+(i%nc)*(bw+u*.2),by=y+Math.floor(i/nc)*u*rh;dKey(c,bx,by,bw,bh,u*.1);c.fillStyle=b.col;c.fillRect(bx+u*.12,by+bh*.25,u*.07,bh*.5);c.fillStyle=DASH.ink;c.font=fs(.2,700);c.textAlign='center';c.fillText(b.label,bx+bw/2+u*.05,by+bh*.66);c.textAlign='left';EV.btns.push({x:bx,y:by,w:bw,h:bh,act:b.act})})}
-    else{const bw=(cw-u*.9-u*.2*(nb-1))/nb,bh=u*.55;k.btns.forEach((b,i)=>{const bx=cx+u*.35+i*(bw+u*.2),hot=i==0;dKey(c,bx,y,bw,bh,u*.12,false,hot?'#ffb83a':'#3a3c41',hot?'#d98a10':'#202226');c.fillStyle=hot?'#1b1406':DASH.ink;c.font=fs(.24,800);c.textAlign='center';c.fillText(b.label,bx+bw/2,y+bh*.66);c.textAlign='left';EV.btns.push({x:bx,y,w:bw,h:bh,act:b.act})})}}
+    else{const bw=(cw-u*.9-u*.2*(nb-1))/nb,bh=u*.55;k.btns.forEach((b,i)=>{const bx=cx+u*.35+i*(bw+u*.2),hot=i==0;dKey(c,bx,y,bw,bh,u*.12,false,hot?'#ffb83a':undefined,hot?'#d98a10':undefined);c.fillStyle=hot?'#1b1406':DASH.ink;c.font=fs(.24,800);c.textAlign='center';c.fillText(b.label,bx+bw/2,y+bh*.66);c.textAlign='left';EV.btns.push({x:bx,y,w:bw,h:bh,act:b.act})})}}
   c.restore()}
 function evTap(x,y){for(const b of EV.btns)if(x>=b.x-6&&x<=b.x+b.w+6&&y>=b.y-6&&y<=b.y+b.h+6){b.act();return true}return false}
 /* ---- in the world: the start markers (a glowing ring and a tall beam), the checkpoint gates ---- */
@@ -5617,10 +5743,8 @@ function spotInit(){SPOTS.list.length=0;
       SPOTS.list.push({type:'trap',id:'sp_trap_'+SPOTS.list.length,name:'Speed trap',x,z,y:r.Y[i],ri:ROADS.indexOf(r),i,hw:r.hw,t:_tan(r,i)});if(SPOTS.list.filter(s=>s.type=='trap').length>=10)break}}
   /* jump spots: the humps */
   for(const j of JUMPZ){const sn=navSnap(j[0],j[1],40);SPOTS.list.push({type:'jump',id:'sp_jump_'+Math.round(j[0])+'_'+Math.round(j[1]),name:'Jump',x:j[0],z:j[1],y:sn?ROADS[sn.ri].Y[sn.i]:terrainH(j[0],j[1]),r:j[2]})}
-  /* drift zones: the twistiest 500 m of some mountain roads */
-  for(const id of['mh','mp','cyr','nh2','th1','nt2','sc3','fr2','lombard']){const r=ROADS.find(q=>q.id==id);if(!r||r.n*r.ds<600)continue;const w=Math.round(500/r.ds);let best=-1,bi=0;
-    for(let i=4;i<r.n-w-4;i+=4){let t=0;for(let k=i;k<i+w;k+=2){const a=_tan(r,k),b=_tan(r,k+2);t+=Math.abs(angd(Math.atan2(a[0],a[1]),Math.atan2(b[0],b[1])))}if(t>best){best=t;bi=i}}
-    SPOTS.list.push({type:'drift',id:'sp_drift_'+id,name:'Drift zone',ri:ROADS.indexOf(r),i0:bi,i1:bi+w,x:r.X[bi],z:r.Z[bi],y:r.Y[bi],x1:r.X[bi+w],z1:r.Z[bi+w],y1:r.Y[bi+w]})}}
+  /* (batch 54) the drift zones are gone (they were not fun) */
+  if(typeof citySpots=='function')citySpots()}
 function spotRecord(s,val,unit,better){const rec=EV.rec[s.id]||(EV.rec[s.id]={});const prev=rec.v;let pay=0;
   if(prev==null||better(val,prev)){pay=prev==null?500:Math.round((250+Math.abs(val-prev)*(unit=='pts'?.05:unit=='m'?20:10))/50)*50;rec.v=val;evSave();ECON.add(pay)}
   return{prev,pay}}

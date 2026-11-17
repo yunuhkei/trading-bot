@@ -142,6 +142,22 @@ function hudDraw(){
 }
 const MAPLBL=[['DOWNTOWN',-860,330,1],['RUSSIAN HILL',-1090,-190,1],['TWIN PEAKS',-640,940,1],['GOLDEN GATE PARK',-1440,400,1,'r'],['THE VALLEY',640,880,1],['SANTA CRUZ',-325,2650,1],['PALM SPRINGS',1620,1660,1],['MULHOLLAND',1000,-330,1],['ORBITAL RING',-150,-1120,1],['MOUNTAIN PASS',1850,-1800,1],['NORTH COUNTRY',-350,-2610,1],['PACIFICA',-1640,1330,1],['FRESNO',-1500,-2330,1],['BARSTOW',3680,1190,1],['BIG PINES',-190,-3330,1],['HARBOR',1200,2520,1],['MOJAVE WORKS',3375,2090,1],['THE CANYON',3750,-1100,1],['NORTHERN RANGE',600,-4200,1],['MOJAVE DESERT',3900,1900,1],['FARMLAND',-1000,-1750,1],['PACIFIC COAST',-1850,1720,1],['SOUTHERN PLAINS',1200,2290,1],['EAST LINK',2200,1450,1],['OCEAN',-2640,-500,0]];
 function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+/* (batch 54) HOLO PANELS: every pop-up card, the map's cards and key, the garage, the upgrade shop and the pause console are see-through digital glass now,
+   not solid grey: a thin dark-blue body, scanlines with a slow bright scan band, now and then a glitch (a slice of the panel jumps sideways in cyan and magenta),
+   a split pink/cyan edge like a misaligned screen, and corner brackets. a = how solid the body is. */
+function holoPanel(c,x,y,w,h,r,a){const t=performance.now()/1000;a=a==null?.5:a;c.save();
+  rr(c,x,y,w,h,r);c.fillStyle='rgba(5,14,24,'+a+')';c.fill();
+  c.save();rr(c,x,y,w,h,r);c.clip();
+  {const g=c.createLinearGradient(x,y,x+w*.4,y+h);g.addColorStop(0,'rgba(70,210,255,.13)');g.addColorStop(.6,'rgba(70,120,255,.04)');g.addColorStop(1,'rgba(190,70,255,.09)');c.fillStyle=g;c.fillRect(x,y,w,h)}
+  c.fillStyle='rgba(140,230,255,.05)';const sp=3;for(let yy=y+((t*14)%(sp*2));yy<y+h;yy+=sp*2)c.fillRect(x,yy,w,1);
+  {const by=y+((t*.28)%1)*(h+60)-30,bg=c.createLinearGradient(0,by-24,0,by+24);bg.addColorStop(0,'rgba(120,235,255,0)');bg.addColorStop(.5,'rgba(120,235,255,.10)');bg.addColorStop(1,'rgba(120,235,255,0)');c.fillStyle=bg;c.fillRect(x,by-24,w,48)}
+  {const f=Math.floor(t*9),q=n=>{const v=Math.sin(f*12.9898+n*78.233+x*.01)*43758.5453;return v-Math.floor(v)};if(q(1)<.22){for(let k=0;k<2;k++){const gy=y+q(2+k)*h,gh=2+q(4+k)*h*.05,off=(q(6+k)-.5)*w*.05;
+      c.fillStyle='rgba(0,240,255,.16)';c.fillRect(x+off,gy,w,gh);c.fillStyle='rgba(255,40,170,.12)';c.fillRect(x-off*.7,gy+gh*.4,w,gh*.6)}}}
+  c.restore();
+  const lw=Math.max(1,Math.round(r*.07));c.lineWidth=lw;c.strokeStyle='rgba(255,50,160,.45)';rr(c,x-1.5,y+.5,w,h,r);c.stroke();c.strokeStyle='rgba(60,235,255,.75)';rr(c,x+1,y-.5,w,h,r);c.stroke();
+  {const L=Math.min(w,h)*.12,o=lw*2;c.strokeStyle='rgba(170,245,255,.95)';c.lineWidth=lw*2;c.beginPath();
+    c.moveTo(x-o,y+L);c.lineTo(x-o,y-o);c.lineTo(x+L,y-o);c.moveTo(x+w-L,y-o);c.lineTo(x+w+o,y-o);c.lineTo(x+w+o,y+L);c.moveTo(x+w+o,y+h-L);c.lineTo(x+w+o,y+h+o);c.lineTo(x+w-L,y+h+o);c.moveTo(x+L,y+h+o);c.lineTo(x-o,y+h+o);c.lineTo(x-o,y+h-L);c.stroke()}
+  c.restore()}
 /* ---------- audio: synthesised engine, wind, tyres ---------- */
 const AU={ctx:null,eng:null,eng2:null,gain:null,wind:null,tire:null,ready:false};
 function audioStart(){if(AU.ctx||window.__noAudio)return;try{const A=window.AudioContext||window.webkitAudioContext;if(!A)return;const x=AU.ctx=new A();

@@ -185,6 +185,7 @@ const COLC=[],COLR=[],COLO=[];
 const LAMPS=[],NEONS=[],LPOST=[],LPOSTC=[];let PROP_TAG=0;   /* batch 6: street lamp posts that can be knocked down: LPOST[lamp] = [x, z, base y, circle], LPOSTC[circle] = lamp; the post's vertices carry 10000 + lamp in u (PROP_TAG while it is built) */
 /* colliders: circles [x,z,r], rects [x0,z0,x1,z1,top], rotated rects [cx,z,hx,hz,cos,sin,top] */
 function buildFurniture(){
+  if(typeof cityInit=='function'){cityInit();cityBuild()}   /* (batch 54) ramps and tokens in town */
   if(typeof sigProps==='function')BOOT.sigHeads=sigProps();if(typeof trStopProps==='function')BOOT.busStops=trStopProps();
   const cc=[170,166,158];
   for(const r of ROADS){const n=r.n,cnt=r.closed?n:n-1;
@@ -839,4 +840,5 @@ const RQS={soft:0};
 function groundAt(x,z,yh){const ty=terrainH(x,z);RQ.on=0;RQ.cb=0;if(roadAt(x,z,yh)){const over=Math.abs(RQ.lat)-RQ.hw;let y=RQ.y;
     if(over>0){const r=ROADS[RQ.ri];if(r.sw&&swOn(r,RQ.lat>0?1:0,RQ.ds)&&!(RQS.soft&&otherAsphalt(x,z,r,y,.2))){y+=CURB_H*Math.min(1,over/(RQS.soft?1:.04));RQ.cb=1}else y-=Math.min(over,RSH)/RSH*.12}
     if(RQ.mm>.001){const dm=MEDW-Math.abs(RQ.lat);if(dm>0){y+=CURB_H*RQ.mm*Math.min(1,dm/(RQS.soft?1.25:.05));if(RQ.mm>.5)RQ.cb=1}}   /* (batch 33) the raised median: a gentle 1.25 m ramp for the wheels (RQS.soft; a curb's is 1 m, the median gets more because the car crosses two of them in a row), a rumble like a curb */
+    y+=rampAt(x,z);   /* (batch 54) the ramps in town (58_city.js) */
     if(y>ty-2.2){RQ.on=1;return y}}return ty}

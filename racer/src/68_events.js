@@ -33,6 +33,48 @@ const EV_DEF=[
  {id:'x_north',diff:1,type:'race',name:'Northern Race',from:['nt1',.12],to:['nt2',.94],n:4,prize:8000},
  {id:'d_ring',diff:3,type:'death',name:'Death Race: The Ring',from:['ring',.36],to:['ring',.66],n:5,prize:12000,goals:[1000,2000,3200]},
  {id:'d_south',diff:2,type:'death',name:'Death Race: Southern Cross',from:['sh',.18],to:['sh',.9],n:5,prize:10000,goals:[1000,2000,3200]}];
+/* (batch 54) MORE EVENTS, in every city and town and all over the east side: each starts in a town (on its main street) and runs to another */
+{const P=n=>(PLACES.find(q=>q.name==n)||{}).road,UZ={},FR=[.5,.22,.78,.36,.64,.1,.9],E=(id,type,name,diff,a,b,x)=>{const k=UZ[a]=(UZ[a]||0)+1;EV_DEF.push(Object.assign({id,type,name,diff,from:[P(a),FR[(k-1)%FR.length]],to:b?[P(b),.5]:undefined},x||{}))};   /* several events in one town start at different points along its main street */
+  const RC={n:4},DR={n:5,goals:[1000,2000,3200]},TK=(secs)=>({secs,goals:[2,4,6],n:6});
+  /* races */
+  E('x_vegas','race','Vegas Strip Sprint',2,'Las Vegas','Barstow',Object.assign({prize:9000},RC));
+  E('x_mojave','race','Mojave Run',1,'Mojave Works','Indio',Object.assign({prize:6000},RC));
+  E('x_hesp','race','Hesperia Dash',2,'Hesperia','Palm Springs',Object.assign({prize:8500},RC));
+  E('x_bishop','race','Bishop Descent',3,'Bishop','Tahoe',Object.assign({prize:12000},RC));
+  E('x_down','race','Downtown Grand Prix',2,'Downtown','San Jose',Object.assign({prize:9000},RC));
+  E('x_harbor','race','Harbor Rush',1,'Harbor','The Valley',Object.assign({prize:6000},RC));
+  E('x_fresno','race','Fresno Express',1,'Fresno','Big Pines',Object.assign({prize:6000},RC));
+  E('x_pacif','race','Pacifica Coast Run',2,'Pacifica','Gilroy',Object.assign({prize:8000},RC));
+  E('x_sacra','race','Sacramento Night Run',3,'Sacramento','Hesperia',Object.assign({prize:13000},RC));
+  E('x_palm','race','Palm Springs Loop',1,'Palm Springs','Harbor',Object.assign({prize:6000},RC));
+  /* death races */
+  E('d_vegas','death','Death Race: Vegas',3,'Las Vegas','Mojave Works',Object.assign({prize:14000},DR));
+  E('d_barst','death','Death Race: Barstow',2,'Barstow','Hesperia',Object.assign({prize:11000},DR));
+  E('d_down','death','Death Race: Downtown',1,'Downtown','Pacifica',Object.assign({prize:8000},DR));
+  E('d_indio','death','Death Race: Indio',2,'Indio','Harbor',Object.assign({prize:11000},DR));
+  E('d_sanj','death','Death Race: San Jose',3,'San Jose','Fresno',Object.assign({prize:14000},DR));
+  /* takedowns */
+  E('k_vegas','rage','Takedown: Las Vegas',2,'Las Vegas','Indio',Object.assign({prize:8000},TK(150)));
+  E('k_barst','rage','Takedown: Barstow',1,'Barstow','Mojave Works',Object.assign({prize:6000},TK(150)));
+  E('k_sanj','rage','Takedown: San Jose',2,'San Jose','Sacramento',Object.assign({prize:8000},TK(150)));
+  E('k_gilroy','rage','Takedown: Gilroy',1,'Gilroy','Santa Cruz',Object.assign({prize:6000},TK(150)));
+  E('k_tahoe','rage','Takedown: Tahoe',3,'Tahoe','Bishop',Object.assign({prize:10000},TK(160)));
+  E('k_valley','rage','Takedown: The Valley',2,'The Valley','Palm Springs',Object.assign({prize:8000},TK(150)));
+  /* time trials */
+  E('t_strip','trial','Desert Loop',2,'Barstow','Las Vegas');
+  E('t_valley','trial','Valley Sprint',1,'The Valley','Downtown');
+  E('t_scruz','trial','Santa Cruz Climb',1,'Santa Cruz','Gilroy');
+  E('t_bishop','trial','Bishop Pass',3,'Bishop','Sacramento');
+  E('t_indio','trial','Indio Dash',1,'Indio','Hesperia');
+  E('t_hesp','trial','Hesperia Hills',2,'Hesperia','Barstow');
+  E('t_harbor','trial','Harbor Line',2,'Harbor','Mojave Works');
+  /* escapes */
+  E('e_vegas','escape','Vegas Heat',3,'Las Vegas',null,{stars:4,secs:240});
+  E('e_barst','escape','Barstow Bust',2,'Barstow',null,{stars:3,secs:210});
+  E('e_harbor','escape','Harbor Chase',1,'Harbor',null,{stars:2,secs:180});
+  E('e_fresno','escape','Fresno Fugitive',2,'Fresno',null,{stars:3,secs:210});
+  E('e_tahoe','escape','Tahoe Run',1,'Tahoe',null,{stars:2,secs:180});
+  E('e_mojave','escape','Mojave Manhunt',3,'Mojave Works',null,{stars:5,secs:280});}
 const EV_FXC={trial:[1,.75,.2],rage:[.7,.3,1],race:[.2,.6,1],death:[1,.3,.15],escape:[1,.2,.2]},EV_ESC_PAY=[0,0,4000,8000,15000,25000],EV_MEDAL=['','BRONZE','SILVER','GOLD'],EV_MCOL=['#aaa','#d08a4a','#cfd6e0','#ffd23a'];
 function evLoad(){try{EV.rec=JSON.parse(localStorage.getItem(EV.key)||'{}')||{}}catch(e){EV.rec={}}}
 function evSave(){try{localStorage.setItem(EV.key,JSON.stringify(EV.rec))}catch(e){}}
@@ -188,11 +230,11 @@ function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF
     else{const left=ev.secs-Math.max(0,r.t);c.fillStyle=left<20?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(EV_DIFF[evDiff(ev)]+'  ·  '+ev.name+'  ·  lose the police before the clock runs out',W_/2,u*1.7)}
     c.shadowBlur=0}   /* (batch 27) QUIT EVENT lives in the pause console now */
   const k=EV.card;if(k&&!GAME.state){const nc=k.cols||2,cw=Math.min(W_*(nc>2?.86:.62),u*(nc>2?13:9.5)),nb=k.btns.length,rows=k.grid?Math.ceil(nb/nc):1,rh=nc>2?.5:.62,ch=u*(1.35+k.lines.length*.42+(k.grid?rows*rh:.8)),cx=W_/2-cw/2,cy=Math.max(u*.6,H_*.5-ch/2);
-    {const g=c.createLinearGradient(0,cy,0,cy+ch);g.addColorStop(0,'rgba(42,43,46,.97)');g.addColorStop(1,'rgba(24,25,27,.97)');c.fillStyle=g}rr(c,cx,cy,cw,ch,u*.24);c.fill();c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,cx+.5,cy+.5,cw-1,ch-1,u*.24);c.stroke();c.textAlign='left';
+    holoPanel(c,cx,cy,cw,ch,u*.24,.62);c.textAlign='left';
     c.font=dLcd(u*.24);{const tw=c.measureText(k.title).width+u*.4;dLcdBox(c,cx+u*.25,cy+u*.17,tw,u*.4,u*.06);dLcdText(c,k.title,cx+u*.45,cy+u*.45,u*.24)}c.fillStyle='#fff';c.font=fs(.42,900);c.fillText(k.sub,cx+u*.35,cy+u*.95);
     let y=cy+u*1.38;for(const [t,col] of k.lines){c.fillStyle=col;c.font=fs(.24,700);c.fillText(t,cx+u*.35,y);y+=u*.42}y+=u*.05;
     if(k.grid){const bw=(cw-u*.7-u*.2*(nc-1))/nc,bh=u*(nc>2?.4:.5);k.btns.forEach((b,i)=>{const bx=cx+u*.35+(i%nc)*(bw+u*.2),by=y+Math.floor(i/nc)*u*rh;dKey(c,bx,by,bw,bh,u*.1);c.fillStyle=b.col;c.fillRect(bx+u*.12,by+bh*.25,u*.07,bh*.5);c.fillStyle=DASH.ink;c.font=fs(.2,700);c.textAlign='center';c.fillText(b.label,bx+bw/2+u*.05,by+bh*.66);c.textAlign='left';EV.btns.push({x:bx,y:by,w:bw,h:bh,act:b.act})})}
-    else{const bw=(cw-u*.9-u*.2*(nb-1))/nb,bh=u*.55;k.btns.forEach((b,i)=>{const bx=cx+u*.35+i*(bw+u*.2),hot=i==0;dKey(c,bx,y,bw,bh,u*.12,false,hot?'#ffb83a':'#3a3c41',hot?'#d98a10':'#202226');c.fillStyle=hot?'#1b1406':DASH.ink;c.font=fs(.24,800);c.textAlign='center';c.fillText(b.label,bx+bw/2,y+bh*.66);c.textAlign='left';EV.btns.push({x:bx,y,w:bw,h:bh,act:b.act})})}}
+    else{const bw=(cw-u*.9-u*.2*(nb-1))/nb,bh=u*.55;k.btns.forEach((b,i)=>{const bx=cx+u*.35+i*(bw+u*.2),hot=i==0;dKey(c,bx,y,bw,bh,u*.12,false,hot?'#ffb83a':undefined,hot?'#d98a10':undefined);c.fillStyle=hot?'#1b1406':DASH.ink;c.font=fs(.24,800);c.textAlign='center';c.fillText(b.label,bx+bw/2,y+bh*.66);c.textAlign='left';EV.btns.push({x:bx,y,w:bw,h:bh,act:b.act})})}}
   c.restore()}
 function evTap(x,y){for(const b of EV.btns)if(x>=b.x-6&&x<=b.x+b.w+6&&y>=b.y-6&&y<=b.y+b.h+6){b.act();return true}return false}
 /* ---- in the world: the start markers (a glowing ring and a tall beam), the checkpoint gates ---- */

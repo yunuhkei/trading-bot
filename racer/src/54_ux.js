@@ -17,12 +17,12 @@ const fmtMass=kg=>UNITS.imp?Math.round(kg*2.20462)+' lb':Math.round(kg)+' kg';
 
 /* ---------------- the map: what each icon is ---------------- */
 const MAPKEY=[['GARAGE (YOURS)','#3cf08c','dot'],['GARAGE (FOR SALE)','#8d97a3','dot'],['REPAIR SHOP','#2a6be0','cross'],['TIME TRIAL','#ffb000','flag'],['RACE','#2a9be0','flag'],['DEATH RACE','#e04a2a','flag'],
-  ['TAKEDOWN','#a050e0','flag'],['ESCAPE','#e03030','flag'],['SPEED TRAP','rgb(76,153,255)','dot'],['JUMP','rgb(76,255,115)','dot'],['DRIFT ZONE','rgb(204,89,255)','dot'],['STREET RACER','#ffd23a','dot']];
+  ['TAKEDOWN','#a050e0','flag'],['ESCAPE','#e03030','flag'],['SPEED TRAP','rgb(76,153,255)','dot'],['JUMP','rgb(76,255,115)','dot'],['STREET RACER','#ffd23a','dot']];
 function mapKeyIcon(c,x,y,r,col,shape){c.fillStyle=col;c.beginPath();c.arc(x,y,r,0,TAU);c.fill();if(shape=='flag'){c.fillStyle='#111';c.fillRect(x-r*.45,y-r*.45,r*.45,r*.45);c.fillRect(x,y,r*.45,r*.45)}
   else if(shape=='cross'){c.fillStyle='#fff';c.fillRect(x-r*.62,y-r*.18,r*1.24,r*.36);c.fillRect(x-r*.18,y-r*.62,r*.36,r*1.24)}}
 function mapLegend(c,W_,H_,u){const fs=u*.17,row=u*.27,cols=2,rows=Math.ceil(MAPKEY.length/cols),cw=u*2.15,pw=cw*cols+u*.3,ph=rows*row+u*.5,x=u*.3,y=H_-ph-u*.3;
-  c.save();c.fillStyle='rgba(20,21,23,.86)';rr(c,x,y,pw,ph,u*.14);c.fill();c.strokeStyle='rgba(255,255,255,.08)';c.lineWidth=1;c.stroke();
-  c.font=dLcd(u*.18);dLcdText(c,'MAP KEY',x+u*.18,y+u*.27,u*.18);
+  c.save();holoPanel(c,x,y,pw,ph,u*.14,.45);
+  c.font=dLcd(u*.18);dLcdText(c,'MAP KEY'+(typeof TOKENS!='undefined'&&TOKENS.list.length?'   TOKENS '+Object.keys(TOKENS.got).filter(k=>TOKENS.list.some(t=>t.id==k)).length+'/'+TOKENS.list.length:''),x+u*.18,y+u*.27,u*.18);
   MAPKEY.forEach(([t,col,sh],i)=>{const cx=x+u*.28+Math.floor(i/rows)*cw,cy=y+u*.5+(i%rows)*row;mapKeyIcon(c,cx,cy,u*.075,col,sh);c.fillStyle='rgba(233,230,220,.88)';c.font=dFont(fs,600);c.textAlign='left';c.fillText(t,cx+u*.16,cy+fs*.35)});
   c.restore()}
 /* every icon on the map as {x,z,title,lines} (built each time the map is drawn) */
@@ -44,7 +44,7 @@ function mapPopDraw(c,W_,H_,u,btns){const b=MAPV.pop;if(!b)return;const S=UI.map
   c.save();c.font=dFont(u*.2,600);let tw=0;for(const l of b.lines)tw=Math.max(tw,c.measureText(l).width);c.font=dFont(u*.32,700);tw=Math.max(tw,c.measureText(b.title).width+u*1.6);
   const pw=Math.min(W_*.62,tw+u*.6),ph=u*(1.0+b.lines.length*.3+.7);let px=sx+u*.35,py=sy-ph/2;if(px+pw>W_-u*.2)px=sx-u*.35-pw;py=Math.max(u*.2,Math.min(H_-ph-u*.2,py));
   c.strokeStyle='rgba(255,255,255,.5)';c.lineWidth=1.5;c.beginPath();c.moveTo(sx,sy);c.lineTo(px<sx?px+pw:px,py+ph/2);c.stroke();
-  {const g=c.createLinearGradient(0,py,0,py+ph);g.addColorStop(0,'rgba(42,43,46,.97)');g.addColorStop(1,'rgba(24,25,27,.97)');c.fillStyle=g}rr(c,px,py,pw,ph,u*.18);c.fill();c.strokeStyle='rgba(255,255,255,.08)';c.lineWidth=1;c.stroke();
+  holoPanel(c,px,py,pw,ph,u*.18,.6);
   c.fillStyle=b.col;c.fillRect(px,py+u*.2,u*.07,ph-u*.4);
   c.textAlign='left';c.fillStyle='#fff';c.font=dFont(u*.32,700);c.fillText(b.title,px+u*.3,py+u*.48);if(b.tag){c.font=dLcd(u*.17);dLcdText(c,b.tag,px+pw-u*.25,py+u*.44,u*.17,'right')}
   c.font=dFont(u*.2,600);c.fillStyle='rgba(233,230,220,.85)';b.lines.forEach((l,i)=>c.fillText(l,px+u*.3,py+u*.82+i*u*.3));

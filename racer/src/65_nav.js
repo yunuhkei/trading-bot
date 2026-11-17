@@ -36,7 +36,7 @@ function navPolyline(chain){
   const P=[];const addEdge=(e,a,b)=>{if(b>=a){for(let i=a;i<=b;i++)P.push(e.X[i],e.Y[i],e.Z[i])}else{for(let i=a;i<e.n;i++)P.push(e.X[i],e.Y[i],e.Z[i]);for(let i=0;i<=b;i++)P.push(e.X[i],e.Y[i],e.Z[i])}};
   for(let k=0;k<chain.length-1;k++){const s=chain[k],nx=chain[k+1];if(nx.link){addEdge(nx.link.from,s.u,nx.link.fu);const l=nx.link;for(let j=1;j<l.n;j++)P.push(l.X[j],l.Y[j],l.Z[j])}else addEdge(s.e,s.u,nx.u)}
   const n=P.length/3,pts=new Float32Array(P),S=new Float32Array(n);for(let i=1;i<n;i++)S[i]=S[i-1]+Math.hypot(pts[i*3]-pts[i*3-3],pts[i*3+2]-pts[i*3-1]);
-  /* (batch 54) the guide lines are painted at the real road height (the road between two route points bulges over a straight line on crests, which hid patches of the guide) */for(let i=0;i<n;i++){const y=pts[i*3+1],g=groundAt(pts[i*3],pts[i*3+2],y+1.2);if(g>y&&g<y+1.2)pts[i*3+1]=g}
+  /* (batch 54) the guide lines are painted at the real road height (the road between two route points bulges over a straight line on crests, which hid patches of the guide) */if(typeof groundAt=='function')for(let i=0;i<n;i++){const y=pts[i*3+1],g=groundAt(pts[i*3],pts[i*3+2],y+1.2);if(g>y&&g<y+1.2)pts[i*3+1]=g}
   return{pts,n,S,len:S[n-1]||0}}
 /* the turn links of a chain, in order */
 const navLinksOf=chain=>{const L=[];for(const s of chain)if(s.link)L.push(s.link);return L};
@@ -182,6 +182,6 @@ function drawWorldMap(c,W_,H_,u){
   add('CLEAR WAYPOINT','rgba(255,90,70,.7)',()=>{navClear()},!!NAV.wp);
   add('SET WAYPOINT','#ff7a1a',()=>{if(!NAV.pend)return;const r=navSet(NAV.pend.x,NAV.pend.z);if(r.ok){UI.mapOpen=false;MAPV.g.clear();safeToast('WAYPOINT SET  ·  '+fmtLen(r.len),3)}else NAV.pendMsg=r.msg},!!NAV.pend);
   mapLegend(c,W_,H_,u);mapPopDraw(c,W_,H_,u,b);
-  MAPV.btns=b;for(const q of b){if(q.own)continue;c.fillStyle=q.col;rr(c,q.x,q.y,q.w,q.h,u*.14);c.fill();c.fillStyle=q.col=='#ff7a1a'?'#111':'#fff';c.textAlign='center';c.font='800 '+Math.round(u*.25)+'px '+UIF;c.fillText(q.label,q.x+q.w/2,q.y+q.h*.66)}
+  MAPV.btns=b;for(const q of b){if(q.own)continue;if(q.col.startsWith('rgba(255,255,255'))holoPanel(c,q.x,q.y,q.w,q.h,u*.14,.4);else{c.fillStyle=q.col;rr(c,q.x,q.y,q.w,q.h,u*.14);c.fill()}c.fillStyle=q.col=='#ff7a1a'?'#111':'#fff';c.textAlign='center';c.font='800 '+Math.round(u*.25)+'px '+UIF;c.fillText(q.label,q.x+q.w/2,q.y+q.h*.66)}
   if(NAV.pend){const d=Math.hypot(NAV.pend.x-C.x,NAV.pend.z-C.z);c.textAlign='center';c.fillStyle='#ffd24a';c.font='800 '+Math.round(u*.26)+'px '+UIF;c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('Pin: '+fmtLen(d)+' away (straight line) - tap SET WAYPOINT',W_*.5-u*1.2,H_-u*.4);c.shadowBlur=0}
   else if(NAV.wp&&NAV.route){c.textAlign='center';c.fillStyle='#7fe3ff';c.font='800 '+Math.round(u*.26)+'px '+UIF;c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=5;c.fillText('Route: '+fmtLen(NAV.remain)+' to go',W_*.5-u*1.2,H_-u*.4);c.shadowBlur=0}}
