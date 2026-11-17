@@ -1,6 +1,6 @@
 {
  "strategy": "rsi_revert",
- "tuned_at": "2026-11-16 10:59 UTC",
+ "tuned_at": "2026-11-17 10:36 UTC",
  "params": {
   "low": 15,
   "high": 45

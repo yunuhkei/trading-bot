@@ -1,6 +1,6 @@
 {
  "strategy": "rsi_revert",
- "trained_at": "2026-11-16 10:59 UTC",
+ "trained_at": "2026-11-17 10:36 UTC",
  "features": [
   "mom_5",
   "mom_20",
