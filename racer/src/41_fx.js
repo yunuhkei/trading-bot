@@ -25,7 +25,8 @@ function fxUpdate(dt){
   /* sparks from the rims of burst tyres */
   if(C.flatT>0&&C.speed>4&&C.grounded&&Math.random()<.6){const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),w=Math.random()<.5?-1:1,f=Math.random()<.5?1.3:-1.3;sparkAt(C.x+fx*f+rx*w*.8,C.y+.1,C.z+fz*f+rz*w*.8,-fx,-fz,1,3+C.speed*.1)}
   /* a stream of sparks while the car scrapes a guard rail */
-  if(C.railT>0&&C.railP&&C.speed>3){const k=Math.min(3,1+C.speed/25)*q;for(let i=0;i<Math.round(k+Math.random()*.7);i++){const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw);sparkAt(C.railP[0]+fx*(Math.random()-.3)*2,C.y+.35,C.railP[1]+fz*(Math.random()-.3)*2,C.railP[2]-C.vx*.03,C.railP[3]-C.vz*.03,1,3+C.speed*.12)}}
+  /* (batch 54) a much fiercer stream: up to 9 sparks a frame, flung faster and higher, half of them thrown back along the car's path */
+  if(C.railT>0&&C.railP&&C.speed>3){const k=Math.min(9,2.5+C.speed/9)*q;for(let i=0;i<Math.round(k+Math.random()*.7);i++){const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),back=Math.random()<.5;sparkAt(C.railP[0]+fx*(Math.random()-.4)*2.4,C.y+.25+Math.random()*.35,C.railP[1]+fz*(Math.random()-.4)*2.4,(back?-fx*.8:0)+C.railP[2]*.6-C.vx*.03,(back?-fz*.8:0)+C.railP[3]*.6-C.vz*.03,1,4+C.speed*.2)}}
   /* sparks from every new impact (walls, poles, other cars) */
   if(IMP.n!==_spCur){const k=Math.min(IMP.n-_spCur,IMP.q.length);for(let i=IMP.q.length-k;i<IMP.q.length;i++){const r=IMP.q[i];if(r.src==2||r.E<1500)continue;
       const n=Math.min(26,4+Math.round(Math.sqrt(r.E)/40));sparkAt(r.src==3?(r.x+C.x)/2:C.x-r.nx*1.2,C.y+.45,r.src==3?(r.z+C.z)/2:C.z-r.nz*1.2,r.nx||0,r.nz||0,Math.round(n*q),Math.min(14,2+r.vn*.7))}_spCur=IMP.n}
@@ -91,7 +92,7 @@ function fxDraw(){
   /* neon */
   for(let i=0;i<NEONS.length&&ng<gMax+24;i+=7){const nx=NEONS[i]-gcx,nz=NEONS[i+2]-gcz,d2=nx*nx+nz*nz;if(d2>56000)continue;if(nx*R.fw[0]+nz*R.fw[2]<-3)continue;const d=Math.sqrt(d2),fl=.82+.18*Math.sin(R.time*(3+(i%5))+i),al=Math.min(.95,1.15-d/240)*fl;
     sprite(NEONS[i],NEONS[i+1],NEONS[i+2],NEONS[i+6]*(.6+d*.006),NEONS[i+3],NEONS[i+4],NEONS[i+5],al*(.35+.65*dayK));ng++}
-  navBeacon(sprite);spikeFx(sprite,SRN);crashFx(sprite);evFx(quad,flat,sprite,4);spotFx(flat,sprite,4);racerFx(sprite);
+  navBeacon(sprite);spikeFx(sprite,SRN);crashFx(sprite);if(C.railT>0&&C.railP&&C.speed>3){/* (batch 54) the contact point glows white-hot */const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),k=Math.min(1,C.speed/40);for(let i=0;i<3;i++){const o=(i-1)*.7+(Math.random()-.5)*.4;sprite(C.railP[0]+fx*o,C.y+.4,C.railP[1]+fz*o,.5+k*.7+Math.random()*.3,1,.8,.45,.55+.35*Math.random())}};evFx(quad,flat,sprite,4);spotFx(flat,sprite,4);racerFx(sprite);
   /* the car's own lights */
   /* batch 6: the glows sit ON the lamps: model points put through the very matrix the car was drawn with (so they pitch, roll and tumble with it and are never a physics step behind), moved with the dents */
   if(!crashBlink()){const M=CARM.mf,D=DMG.lampD,P=(bx,by,bz)=>{_lp[0]=M[0]*bx+M[4]*by+M[8]*bz+M[12];_lp[1]=M[1]*bx+M[5]*by+M[9]*bz+M[13];_lp[2]=M[2]*bx+M[6]*by+M[10]*bz+M[14];return _lp};

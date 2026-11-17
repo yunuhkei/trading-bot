@@ -65,7 +65,7 @@ function deflect(nx,nz,vn,e,mu){
   return vn}
 
 /* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
-const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:14,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5,engBrk0:.15,engBrk1:.012};
+const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5,engBrk0:.15,engBrk1:.012};
 function carPlace(x,z,yaw,yh){IN.nitro=0;C.boostK=0;C.boosting=0;C.jr=C.jrv=C.jp=C.jpv=0;TUM.on=0;   /* (batch 54) a restart or a retry switches the boost off: it used to stay latched through the countdown and burn the whole tank */
   C.shield=0;CC.on=0;CC.scale=1;CC.fadeIn=0;TUM.rightT=0;C.flatT=0;C.orbY=C.orbP=0;C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6;C.flatT=0}
 function respawn(){TUM.on=0;TUM.rightT=0;IN.nitro=0;C.boostK=0;C.boosting=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1;C.dActive=0;C.dLast=null;C.grounded=1;C.air=0;C.liftT=0;C.kv=0;C.drift=0;C.slideT=0;C.tapN=0;C.tapT=0;C.dbK=0}
@@ -258,14 +258,14 @@ function camStep(dt,snap){if(CC.on){crashCam();return}if(typeof KC!='undefined'&
   /* a critically damped spring (not a plain low-pass): the camera's turning speed starts from zero, so a sudden slide never makes it jerk */
   if(snap){C.camYaw=want;C.camYV=0}else{const w=5.2+sp*2.2,d=Math.min(dt,.05),acc=w*w*angd(want,C.camYaw)-2*w*C.camYV;C.camYV+=acc*d;C.camYaw+=C.camYV*d}
   /* the take-off: on a nitro tap the lens widens and the camera drops back fast, overshoots a little and settles (springs, so it is quick but never a jump); when it ends it snaps back the same way */
-  const dTarget=5.4+sp*1.3+C.boostK*2.0,h=1.65+sp*.5;if(snap){C.camDist=dTarget;C.distV=0}else{const w=9,d=Math.min(dt,.05),acc=w*w*(dTarget-C.camDist)-2*.7*w*C.distV;C.distV+=acc*d;C.camDist+=C.distV*d}const dist=C.camDist;
+  const dTarget=4.75+sp*1.05+C.boostK*1.7,h=1.5+sp*.42;   /* (batch 54) closer: the car fills more of the screen (it was 5.4-6.7 m back, 1.65-2.15 m up) */if(snap){C.camDist=dTarget;C.distV=0}else{const w=9,d=Math.min(dt,.05),acc=w*w*(dTarget-C.camDist)-2*.7*w*C.distV;C.distV+=acc*d;C.camDist+=C.distV*d}const dist=C.camDist;
   /* the look-around orbit (batch 5): o = how far the camera has been swung away from behind the car; it orbits the car's middle, further out and higher with the drag */
   const oY=C.orbY||0,oP=C.orbP||0,ow=Math.min(1,(Math.abs(oY)+Math.abs(oP))*5),cyw=C.camYaw+oY,el=Math.atan2(h,dist)+oP,dd=dist*(1+.15*ow);
   const hd=lerp(dist,dd*Math.cos(el),ow);let x=px-Math.sin(cyw)*hd,z=pz+Math.cos(cyw)*hd,y=lerp(py+h,py+.5+dd*Math.sin(el),ow);   /* with no orbit (ow 0) this is exactly the chase camera as it was */
   const gh=groundAt(x,z,py)+1.3*(1-ow)+.35*ow;if(y<gh)y=gh;
   const k=snap?1:1-Math.exp(-dt*(10));C.camY+=(y-C.camY)*k;if(snap)C.camY=y;
   CAM.x=x;CAM.y=C.camY;CAM.z=z;
-  const la=(8.5+sp*7)*(1-ow);CAM.tx=px+Math.sin(cyw)*la;CAM.tz=pz-Math.cos(cyw)*la;CAM.ty=lerp(py-.15+(C.camY-(py+h))*.2+C.vy*.02,py+.55,ow);
+  const la=(8.5+sp*7)*(1-ow);CAM.tx=px+Math.sin(cyw)*la;CAM.tz=pz-Math.cos(cyw)*la;CAM.ty=lerp(py-.62+(C.camY-(py+h))*.2+C.vy*.02,py+.55,ow);   /* (batch 54) aimed a little lower, so the closer camera keeps the whole car (tyres included) in the picture */
   const shk=C.shake*.12;if(shk>.002){CAM.x+=(Math.random()-.5)*shk;CAM.y+=(Math.random()-.5)*shk;CAM.z+=(Math.random()-.5)*shk}
   const tf=.9+sp*.22+C.boostK*.26+(C.tow||0)*.09;if(snap){C.fov=tf;C.fovV=0}else{const w=13,d=Math.min(dt,.05),acc=w*w*(tf-C.fov)-2*.52*w*C.fovV;C.fovV+=acc*d;C.fov+=C.fovV*d}CAM.fov=C.fov}
 /* (the effects - shadow blob, skid marks, smoke, spray, sparks, light glows and beams - are in 41_fx.js) */

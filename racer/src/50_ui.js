@@ -60,9 +60,9 @@ function uiInputs(dt){
   /* steering response: eases in so small thumb movements are gentle */
   /* (batch 54) SMOOTHER STEERING: buttons and keys (on/off) ease in over about a third of a second instead of snapping to full lock, the stick a little faster;
      at speed, outside a drift, the full lock asked for shrinks (to 60 % at 170 mph) so a flick of the thumb does not throw the car about; in a drift you keep the full stick for the slide angle */
-  const digital=!tstick,spdK=(C.drift>.3||IN.hand)?1:lerp(1,.6,sstep(25,75,C.speed||0));
+  const digital=!tstick,spdK=(C.drift>.3||IN.hand)?1:lerp(1,.85,sstep(40,80,C.speed||0));
   const target=clamp(st,-1,1)*spdK,sh=Math.sign(target)*Math.pow(Math.abs(target),1.25),grow=Math.abs(sh)>Math.abs(C.steer)&&Math.sign(sh||1)==Math.sign(C.steer||sh||1);
-  C.steer+=(sh-C.steer)*Math.min(1,dt*(grow?(digital?6:14):(digital?12:18)));
+  C.steer+=(sh-C.steer)*Math.min(1,dt*(grow?(digital?13:22):(digital?20:26)));   /* (batch 54) sensitivity back up: buttons reach full lock in ~0.15 s, the stick at once (the smoothing pass had slowed them to ~0.3 s) */
   if(K.Space)IN.hand=1;else if(!UI.bn.drift.on)IN.hand=0;
     if(brk)IN.brk=1;else if(!UI.bn.brake.on)IN.brk=0;
   IN.thr=(gas||UI.bn.gas.on)?1:0;
