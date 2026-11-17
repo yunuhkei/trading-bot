@@ -119,13 +119,13 @@ function carStep(dt){
   const nitroOn=IN.nitro?1:0;C.boosting=nitroOn;if(nitroOn){C.nos=Math.max(0,C.nos-dt*.30*UPG.nosDrain);thr=1}
   /* the boost fades in and out (about 0.15 s in, 0.3 s out) instead of switching: the push, the top speed and the camera all follow this one number */
   C.boostK+=((nitroOn?1:0)-C.boostK)*(1-Math.exp(-dt*(nitroOn?13:6)));
-  const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*UPG.boost*C.boostK)*(1+.08*(C.tow||0))*DMG.spd,surf=C.onRoad?1:HND.grass;
+  const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*UPG.boost*C.boostK)*(1+.1*(C.tow||0))*DMG.spd,surf=C.onRoad?1:HND.grass;
   /* ---- longitudinal: weighty launch, strong but not instant braking ---- */
   if(gr){
     let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(PHYS.classic?(f<14?1:0):1-sstep(9,19,f)))*(1+.9*UPG.boost*C.boostK)*DMG.acc}
     if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8*(PHYS.classic?1:clamp(1+f/PHYS.revMax,0,1))}   /* brake, then reverse (up to PHYS.revMax m/s) */
-    a-=Math.sign(f)*(.35+af*af*.0004*(1-.6*(C.tow||0)));   /* rolling + air drag ((batch 54) the drag drops by up to 60 % in a slipstream) */
-    if(C.tow>0&&thr>0&&f>15)a+=2.6*C.tow;   /* and the tow pulls you on */
+    a-=Math.sign(f)*(.35+af*af*.0004*(1-.7*(C.tow||0)));   /* rolling + air drag ((batch 54) the drag drops by up to 60 % in a slipstream) */
+    if(C.tow>0&&thr>0&&f>15)a+=4.5*C.tow;   /* and the tow pulls you on */
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */
     a-=GRAV*slope/m2;                                  /* hills: gravity along the ground (climbing turns speed into height, descending turns height into speed) */
     s-=GRAV*mr/m2*dt;                                  /* and sideways down a camber */
@@ -267,5 +267,5 @@ function camStep(dt,snap){if(CC.on){crashCam();return}if(typeof KC!='undefined'&
   CAM.x=x;CAM.y=C.camY;CAM.z=z;
   const la=(8.5+sp*7)*(1-ow);CAM.tx=px+Math.sin(cyw)*la;CAM.tz=pz-Math.cos(cyw)*la;CAM.ty=lerp(py-.15+(C.camY-(py+h))*.2+C.vy*.02,py+.55,ow);
   const shk=C.shake*.12;if(shk>.002){CAM.x+=(Math.random()-.5)*shk;CAM.y+=(Math.random()-.5)*shk;CAM.z+=(Math.random()-.5)*shk}
-  const tf=.9+sp*.22+C.boostK*.26;if(snap){C.fov=tf;C.fovV=0}else{const w=13,d=Math.min(dt,.05),acc=w*w*(tf-C.fov)-2*.52*w*C.fovV;C.fovV+=acc*d;C.fov+=C.fovV*d}CAM.fov=C.fov}
+  const tf=.9+sp*.22+C.boostK*.26+(C.tow||0)*.09;if(snap){C.fov=tf;C.fovV=0}else{const w=13,d=Math.min(dt,.05),acc=w*w*(tf-C.fov)-2*.52*w*C.fovV;C.fovV+=acc*d;C.fov+=C.fovV*d}CAM.fov=C.fov}
 /* (the effects - shadow blob, skid marks, smoke, spray, sparks, light glows and beams - are in 41_fx.js) */

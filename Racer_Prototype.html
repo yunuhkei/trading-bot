@@ -2712,13 +2712,13 @@ function carStep(dt){
   const nitroOn=IN.nitro?1:0;C.boosting=nitroOn;if(nitroOn){C.nos=Math.max(0,C.nos-dt*.30*UPG.nosDrain);thr=1}
   /* the boost fades in and out (about 0.15 s in, 0.3 s out) instead of switching: the push, the top speed and the camera all follow this one number */
   C.boostK+=((nitroOn?1:0)-C.boostK)*(1-Math.exp(-dt*(nitroOn?13:6)));
-  const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*UPG.boost*C.boostK)*(1+.08*(C.tow||0))*DMG.spd,surf=C.onRoad?1:HND.grass;
+  const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*UPG.boost*C.boostK)*(1+.1*(C.tow||0))*DMG.spd,surf=C.onRoad?1:HND.grass;
   /* ---- longitudinal: weighty launch, strong but not instant braking ---- */
   if(gr){
     let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(PHYS.classic?(f<14?1:0):1-sstep(9,19,f)))*(1+.9*UPG.boost*C.boostK)*DMG.acc}
     if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8*(PHYS.classic?1:clamp(1+f/PHYS.revMax,0,1))}   /* brake, then reverse (up to PHYS.revMax m/s) */
-    a-=Math.sign(f)*(.35+af*af*.0004*(1-.6*(C.tow||0)));   /* rolling + air drag ((batch 54) the drag drops by up to 60 % in a slipstream) */
-    if(C.tow>0&&thr>0&&f>15)a+=2.6*C.tow;   /* and the tow pulls you on */
+    a-=Math.sign(f)*(.35+af*af*.0004*(1-.7*(C.tow||0)));   /* rolling + air drag ((batch 54) the drag drops by up to 60 % in a slipstream) */
+    if(C.tow>0&&thr>0&&f>15)a+=4.5*C.tow;   /* and the tow pulls you on */
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */
     a-=GRAV*slope/m2;                                  /* hills: gravity along the ground (climbing turns speed into height, descending turns height into speed) */
     s-=GRAV*mr/m2*dt;                                  /* and sideways down a camber */
@@ -2860,7 +2860,7 @@ function camStep(dt,snap){if(CC.on){crashCam();return}if(typeof KC!='undefined'&
   CAM.x=x;CAM.y=C.camY;CAM.z=z;
   const la=(8.5+sp*7)*(1-ow);CAM.tx=px+Math.sin(cyw)*la;CAM.tz=pz-Math.cos(cyw)*la;CAM.ty=lerp(py-.15+(C.camY-(py+h))*.2+C.vy*.02,py+.55,ow);
   const shk=C.shake*.12;if(shk>.002){CAM.x+=(Math.random()-.5)*shk;CAM.y+=(Math.random()-.5)*shk;CAM.z+=(Math.random()-.5)*shk}
-  const tf=.9+sp*.22+C.boostK*.26;if(snap){C.fov=tf;C.fovV=0}else{const w=13,d=Math.min(dt,.05),acc=w*w*(tf-C.fov)-2*.52*w*C.fovV;C.fovV+=acc*d;C.fov+=C.fovV*d}CAM.fov=C.fov}
+  const tf=.9+sp*.22+C.boostK*.26+(C.tow||0)*.09;if(snap){C.fov=tf;C.fovV=0}else{const w=13,d=Math.min(dt,.05),acc=w*w*(tf-C.fov)-2*.52*w*C.fovV;C.fovV+=acc*d;C.fov+=C.fovV*d}CAM.fov=C.fov}
 /* (the effects - shadow blob, skid marks, smoke, spray, sparks, light glows and beams - are in 41_fx.js) */
 
 'use strict';
@@ -3138,7 +3138,7 @@ function crashHistory(){if(TUM.on||CC.on||C.shield>0)return;const H=CC.hist;
 /* is this crash wild enough for the cinematic? */
 function crashWild(){if(!TUM.on||TUM.rightT>0)return false;const w=Math.hypot(TUM.w[0],TUM.w[1]*.4,TUM.w[2]),g=groundAt(TUM.p[0],TUM.p[2],TUM.p[1]+.5);
   return TUM.t>.25&&CC.tv>58&&(TUM.maxTilt>1.5||w>4||TUM.p[1]-g>3.5)}   /* (batch 25: only very big crashes: a roll past 86 degrees, a violent spin or a throw 3.5 m up, starting above 25 m/s; the rest right themselves as before) */
-function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.slow=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;CC.tdn=!!(EV.run&&C.t-(C.hitByT??-9)<2.5);   /* (batch 54) decided once, when the crash starts: the banner no longer flips from TAKEN DOWN! to CRASH! as the movie plays */
+function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.slow=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;CC.tdn=!!(EV.run&&C.t-(C.hitByT??-9)<2.5);if(EV.run&&typeof evCrashMark=='function')evCrashMark(EV.run);   /* (batch 54) decided once, when the crash starts: the banner no longer flips from TAKEN DOWN! to CRASH! as the movie plays */
   /* the camera: a fixed spot beside the crash, a little ahead of where it is going, looking back at it */
   let dx=C.vx,dz=C.vz,l=Math.hypot(dx,dz);if(l<2){dx=Math.sin(C.yaw);dz=-Math.cos(C.yaw);l=1}dx/=l;dz/=l;const sd=(CC.n&1)?1:-1,sx=-dz*sd,sz=dx*sd,ahead=Math.min(14,4+C.speed*.25);
   const x=C.x+dx*ahead+sx*9,z=C.z+dz*ahead+sz*9,g=groundAt(x,z,C.y+3);CC.cam[0]=x;CC.cam[2]=z;CC.cam[1]=Math.max(g+1.6,C.y+2.2);C.shake=0}
@@ -3164,7 +3164,8 @@ function crashImpact(E,src){if(CC.enabled&&!CC.on&&E>(src==3?1.6e6:2.7e6)&&C.shi
 function crashFrame(sec){if(CC.fadeIn>0)CC.fadeIn=Math.max(0,CC.fadeIn-sec*2.4);if(!CC.on)CC.scale=1}
 /* back on the road, where the car was about 1.5 s before the crash */
 function crashReset(){CC.on=0;CC.scale=1;CC.fade=0;CC.fadeIn=1;const H=CC.hist;let e=null;
-  for(let i=H.length-1;i>=0;i--)if(H[i].t<=CC.crashT-1.4){e=H[i];break}if(!e&&H.length)e=H[0];
+  /* (batch 54) in an event: back on the route about 5 m before where you crashed (not 1.5 s back, which at speed was 100 m) */if(EV.run&&EV.run.ev.R&&EV.run.crashPs!=null){const r=EV.run;TUM.on=0;TUM.rightT=0;evPlaceAt(r,r.crashPs-5,18);CC.fadeIn=1;C.flash=0;C.flatT=0;CC.hist.length=0;dmgSoften();C.shield=3;camStep(0,true);evPullRacers(r);return}
+  for(let i=H.length-1;i>=0;i--)if(H[i].t<=CC.crashT-.5){e=H[i];break}if(!e&&H.length)e=H[0];   /* (batch 54) half a second before the crash, a few metres back (it was 1.4 s) */
   if(e){C.safeX=e.x;C.safeZ=e.z;C.safeY=e.y;C.safeYaw=e.yaw}
   TUM.on=0;TUM.rightT=0;respawn();const v=e?clamp(e.v*.8,8,34):12;C.vx=Math.sin(C.yaw)*v;C.vz=-Math.cos(C.yaw)*v;C.speed=v;C.flash=0;C.camYaw=C.yaw;C.flatT=0;
   /* the history after that point is the crash itself */
@@ -3351,7 +3352,7 @@ function audioBang(k){if(!AU.ready)return;k=k==null?1:Math.max(.15,Math.min(1,k)
 function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.state=='suspended')x.resume();
   const sp=Math.min(1,C.speed/80),gear=Math.min(5,Math.floor(C.speed/16)),gp=(C.speed-gear*16)/16,rpm=.22+(Math.min(1,gp*.9+.1)*.55)+(IN.thr||IN.auto?.12:0)+(C.boosting?.1:0)+(C.grounded?0:.16);
   const f=38+rpm*150;AU.eng.frequency.setTargetAtTime(f,t,.04);AU.eng2.frequency.setTargetAtTime(f*.503,t,.04);AU.lp.frequency.setTargetAtTime(500+rpm*1400,t,.05);
-  AU.gain.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:.07+.07*rpm+(C.boosting?.05:0),t,.05);AU.windG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:sp*sp*.22,t,.1);AU.tireG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:(C.grounded&&(C.drift>.3||C.dActive)?.12*Math.max(C.drift,Math.min(1,C.slip*3)):0)+(C.hit>3?.05:0),t,.05);
+  AU.gain.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:.07+.07*rpm+(C.boosting?.05:0),t,.05);AU.windG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:sp*sp*.22*(1+1.6*(C.tow||0)),t,.1);AU.tireG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:(C.grounded&&(C.drift>.3||C.dActive)?.12*Math.max(C.drift,Math.min(1,C.slip*3)):0)+(C.hit>3?.05:0),t,.05);
   if(AU.heliG)AU.heliG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:Math.max(0,1-HELI.near/350)*.9,t,.2);
   if(AU.scrG){const on=C.railT>0&&!UI.paused&&!UI.mapOpen;AU.scrG.gain.setTargetAtTime(on?.1+.14*Math.min(1,C.speed/45):0,t,on?.015:.06);AU.scrF.frequency.setTargetAtTime(2400+C.speed*30+Math.random()*600,t,.03)}
   /* the siren: a two-tone wail, louder the nearer the nearest chasing cop */
@@ -3761,38 +3762,41 @@ function boostHud(c,W_,H_,u){killCamHud(c,W_,H_,u);const G=UI.gg;if(!G||!BOOST.p
   c.restore()}
 
 /* (batch 54) SLIPSTREAM: tucked in behind a moving car (a racer, a cop or traffic going your way), 3-30 m back and within about a car's width of its line, above 50 mph, the air it pushes aside
-   tows you: up to 60 % less drag, a pull of 2.6 m/s2 and 8 % more top speed, and your nitro fills (a tank in about 14 s). It builds over half a second and fades over a second when you pull out.
+   tows you (3-40 m back): up to 70 % less drag, a pull of 4.5 m/s2 and 10 % more top speed, and your nitro fills (a tank in about 8 s). It builds over half a second and fades over a second when you pull out.
    Wind streaks stream past the car and SLIPSTREAM shows with a bar. Racers get it too, behind you or each other (up to +6 % speed). */
 const SLIP={k:0,src:null,t:0};
 function slipTick(dt){let best=0,src=null;
   if(C.speed>22&&!TUM.on&&!CC.on&&TR.on){const fx=C.vx/C.speed,fz=C.vz/C.speed;
-    for(const c of TR.cars){if(!c.alive||c.state==1)continue;const dx=c.x-C.x,dz=c.z-C.z,f=dx*fx+dz*fz;if(f<3||f>30)continue;const lat=Math.abs(dx*-fz+dz*fx);if(lat>1.9)continue;
+    for(const c of TR.cars){if(!c.alive||c.state==1)continue;const dx=c.x-C.x,dz=c.z-C.z,f=dx*fx+dz*fz;if(f<3||f>40)continue;const lat=Math.abs(dx*-fz+dz*fx);if(lat>2.3)continue;
       const cv=c.state==0?c.v:Math.hypot(c.vx||0,c.vz||0);if(cv<16)continue;const hx=c.state==0?Math.sin(c.yaw):(c.vx||0)/cv,hz=c.state==0?-Math.cos(c.yaw):(c.vz||0)/cv;if(hx*fx+hz*fz<.92)continue;
-      const k=(1-lat/1.9)*(f<8?1:1-(f-8)/22);if(k>best){best=k;src=c}}}
-  const want=Math.min(1,best*1.25);SLIP.k+=(want-SLIP.k)*(1-Math.exp(-dt*(want>SLIP.k?2.2:1.1)));if(SLIP.k<.01)SLIP.k=0;C.tow=SLIP.k;SLIP.src=src;
-  if(SLIP.k>.15){C.nos=Math.min(1,C.nos+dt*.07*SLIP.k);SLIP.t+=dt}else SLIP.t=0}
+      const k=Math.min(1,(1.15-lat/2.3))*(f<10?1:1-(f-10)/30);if(k>best){best=k;src=c}}}
+  const want=Math.min(1,best*1.4);SLIP.k+=(want-SLIP.k)*(1-Math.exp(-dt*(want>SLIP.k?2.2:1.1)));if(SLIP.k<.01)SLIP.k=0;C.tow=SLIP.k;SLIP.src=src;
+  if(SLIP.k>.15){C.nos=Math.min(1,C.nos+dt*.12*SLIP.k);SLIP.t+=dt}else SLIP.t=0}
 /* a racer in someone's tow: a factor on its target speed */
 function slipRacer(c){const v=c.v;if(v<22)return 1;const fx=Math.sin(c.yaw),fz=-Math.cos(c.yaw);let best=0;
   const test=(x,z,vx,vz)=>{const dx=x-c.x,dz=z-c.z,f=dx*fx+dz*fz;if(f<3||f>30)return;const lat=Math.abs(dx*-fz+dz*fx);if(lat>1.9)return;const ov=Math.hypot(vx,vz);if(ov<16||(vx*fx+vz*fz)/ov<.92)return;const k=(1-lat/1.9)*(f<8?1:1-(f-8)/22);if(k>best)best=k};
   test(C.x,C.z,C.vx,C.vz);for(const o of(EV.run&&EV.run.racers||[]))if(o!==c&&o.alive&&o.state==3)test(o.x,o.z,o.vx||0,o.vz||0);
   c.slip=(c.slip||0)+(best-(c.slip||0))*.05;return 1+.06*c.slip}
 /* wind streaks past the car (from the effects pass) */
-function slipFx(quad,time){if(!(SLIP.k>.08))return;const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),n=Math.round(10*SLIP.k);
-  for(let i=0;i<n;i++){const h=(i*0.618+.13)%1,side=(h<.5?-1:1),ph=((time*2.2+h*7)%1),along=4-ph*12,lat=side*(1.1+((h*13)%1)*1.4),y=C.y+.35+((h*29)%1)*1.1,L=2.4+((h*7)%1)*2,w=.03;
-    const x0=C.x+fx*along+rx*lat,z0=C.z+fz*along+rz*lat,x1=x0-fx*L,z1=z0-fz*L,al=.55*SLIP.k*Math.sin(ph*Math.PI);
-    quad(x0,y-w,z0,x0,y+w,z0,x1,y+w,z1,x1,y-w,z1,1,1,1,al)}}
-function slipHud(c,W_,H_,u){if(!(SLIP.k>.15)||EV.card||GAME.state||CC.on)return;const a=Math.min(1,(SLIP.k-.15)*3);c.save();c.globalAlpha=a;
-  fxText(c,'SLIPSTREAM',W_/2,H_*.17,u*.3,'#bfe8ff','center','rgba(90,180,255,.7)');
-  const bw=u*2.2,bh=u*.07,x=W_/2-bw/2,y=H_*.17+u*.1;c.fillStyle='rgba(0,0,0,.45)';c.fillRect(x,y,bw,bh);c.fillStyle='#7fd0ff';c.fillRect(x,y,bw*SLIP.k,bh);c.restore()}
+function slipFx(quad,time){if(!(SLIP.k>.05))return;const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),n=Math.round(22*SLIP.k);
+  for(let i=0;i<n;i++){const h=(i*0.618+.13)%1,side=(h<.5?-1:1),ph=((time*2.8+h*7)%1),along=7-ph*18,lat=side*(.9+((h*13)%1)*2.2),y=C.y+.25+((h*29)%1)*1.6,L=3.5+((h*7)%1)*3.5,w=.045;
+    const x0=C.x+fx*along+rx*lat,z0=C.z+fz*along+rz*lat,x1=x0-fx*L,z1=z0-fz*L,al=.85*SLIP.k*Math.sin(ph*Math.PI);
+    quad(x0,y-w,z0,x0,y+w,z0,x1,y+w,z1,x1,y-w,z1,.85,.95,1,al)}}
+function slipHud(c,W_,H_,u){if(!(SLIP.k>.05)||EV.card||GAME.state||CC.on)return;c.save();
+  /* speed lines down both edges of the screen while you are in the tow */{const n=Math.round(14*SLIP.k),t=performance.now()/1000;c.strokeStyle='rgba(220,240,255,'+(.35*SLIP.k)+')';c.lineWidth=Math.max(1,u*.025);c.beginPath();
+    for(let i=0;i<n;i++){const h=(i*.618+.31)%1,side=h<.5?0:1,ph=(t*1.8+h*5)%1,x=side?W_*(.86+((h*7)%1)*.13):W_*(.01+((h*7)%1)*.13),y=H_*(ph*1.2-.1),L=H_*(.08+.1*((h*13)%1));c.moveTo(x,y);c.lineTo(x+(side?1:-1)*L*.12,y+L)}c.stroke()}
+  if(SLIP.k>.15){const a=Math.min(1,(SLIP.k-.15)*3);c.globalAlpha=a;fxText(c,'SLIPSTREAM',W_/2,H_*.2,u*.38,'#d6f1ff','center','rgba(90,180,255,.85)');
+    const bw=u*2.6,bh=u*.09,x=W_/2-bw/2,y=H_*.2+u*.13;c.fillStyle='rgba(0,0,0,.5)';c.fillRect(x,y,bw,bh);c.fillStyle='#7fd0ff';c.fillRect(x,y,bw*SLIP.k,bh)}
+  c.restore()}
 
 /* (batch 54) GUARD RAILS as real, breakable barriers.
    Every rail section (one road sample, about 4 m, one side of the road) is a line segment in a grid. Your car and the racers collide with it from EITHER side (it used to be a check against
    the nearest road only: racers ignored rails completely, and you could pass through where the nearest road was another one, e.g. the far side of a divided highway).
-   A glancing hit scrapes and slides along it (as before). A hard hit (more than ~38 mph straight into it) BREAKS the section: it vanishes with sparks and a bang and the car goes through
-   (off the bridge or the cliff it was guarding, which is how a rail still kills you); above ~58 mph into it the next section goes too.
+   A glancing hit scrapes and slides along it (as before). A really hard hit (more than ~67 mph straight into it) BREAKS the section: it vanishes with sparks and a bang and the car goes through
+   (off the bridge or the cliff it was guarding, which is how a rail still kills you); above ~89 mph into it the next section goes too; breaking through always wrecks your car (a tumble and the crash movie).
    A racer that hits a rail hard is wrecked (and if you touched it in the last 4 s it is your takedown). Broken sections come back after 90 s once you are well away.
    The section's vertices (beam and post) are collapsed in the GPU buffer to hide it, from a small CPU copy kept for each section. */
-const railNow=()=>performance.now()/1000,RAILSEG=[],RAILG=new Map(),RAIL_CELL=24,RAIL_BRK=17,RAIL_BRK2=26;
+const railNow=()=>performance.now()/1000,RAILSEG=[],RAILG=new Map(),RAIL_CELL=24,RAIL_BRK=30,RAIL_BRK2=40;
 let _railRec=null;   /* the section being built (buildFurniture) */
 function railKey(cx,cz){return (cx+4096)*8192+(cz+4096)}
 function railBegin(ax,az,ay,bx,bz,by,side,road,i){_railRec={ax,az,ay,bx,bz,by,side,broken:0,t:0,pieces:[],road,ri:i,bit:side<0?1:2}}
@@ -3824,7 +3828,7 @@ function railCollide(dt){if(C.railT>0)C.railT-=dt;if(C.railCd>0)C.railCd-=dt;if(
     const vn=-(C.vx*nx+C.vz*nz);
     if(vn>RAIL_BRK){/* BREAK THROUGH: the rail takes a big bite of the speed into it and some of the rest, then lets the car through */
       railBreak(i,vn,cx,cz);C.vx+=nx*vn*.45;C.vz+=nz*vn*.45;C.vx*=.86;C.vz*=.86;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+.5);C.bob=-.08;
-      if(typeof audioBang=='function')audioBang(1);if(!PHYS.classic){const rl=nx*Math.cos(C.yaw)+nz*Math.sin(C.yaw);if(Math.abs(rl)>.6)tumbleTrip(-rl*vn,'guard rail')}
+      if(typeof audioBang=='function')audioBang(1);if(!PHYS.classic&&!TUM.on){/* (batch 54) it kills you: through the rail is always a crash, whatever the speed */TUM.preV=99;if(!tumbleFromStatic(nx,nz,Math.max(vn,30),false)){const rl=nx*Math.cos(C.yaw)+nz*Math.sin(C.yaw);tumbleTrip((rl>=0?-1:1)*Math.max(vn,20),'guard rail')}TUM.preV=0}
       impactAdd(4,vn,.5*(HND.mass||1400)*vn*vn*.6,0,cx,cz,nx,nz);C.jrv=(C.jrv||0)+(Math.random()<.5?-2.5:2.5);continue}
     C.x+=nx*_rl.pen;C.z+=nz*_rl.pen;
     if(vn>0){if(vn>16&&!PHYS.classic){const rl=nx*Math.cos(C.yaw)+nz*Math.sin(C.yaw);if(Math.abs(rl)>.6)tumbleTrip(-rl*vn,'guard rail')}deflect(nx,nz,vn,PHYS.railE,PHYS.railMu);C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.035);C.railVn=Math.max(C.railVn||0,vn);if(vn>3&&typeof audioBang=='function'&&(C.railCd||0)<=0)audioBang(.2+vn/30)}
@@ -5291,18 +5295,29 @@ function evRejoin(r){const R=r.ev.R,p=R.pts,S=Math.max(5,(r.ps||0)-15);let j=0;w
   if(typeof CC!='undefined'){CC.on=0;CC.scale=1;CC.fade=0;CC.fadeIn=1}carPlace(p[j*3],p[j*3+2],yaw,p[j*3+1]+.5);C.camYaw=yaw;const v=14;C.vx=Math.sin(yaw)*v;C.vz=-Math.cos(yaw)*v;camStep(0,true);
   IN.thr=IN.brk=IN.hand=IN.nitro=0;dmgReset();GAME.state=0;GAME.lock=0;GAME.t=0;C.shield=2.5;C.flash=1;r.fi=j;r.ps=R.S[j];evPullRacers(r);safeToast('BACK IN THE RACE',1.6,1)}
 /* (batch 53) after you crash in an event with racers, the ones that got away are brought back to within 60 m ahead of you; crash again before you have caught up and the gap doubles (120 m, 240 m ... at most 480 m) */
+/* (batch 54) put the car on the event route at distance S, facing along it, at speed v */
+function evPlaceAt(r,S,v){const R=r.ev.R,p=R.pts;S=Math.max(5,S);let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,yaw=Math.atan2(dx/l,-dz/l);
+  for(const c of TR.cars)if(c.alive&&c.kind==0&&Math.hypot(c.x-p[j*3],c.z-p[j*3+2])<40)trKill(c,0);
+  const t0=C.t,n0=C.nos;carPlace(p[j*3],p[j*3+2],yaw,p[j*3+1]+.5);C.t=t0;C.nos=n0;C.camYaw=yaw;C.vx=Math.sin(yaw)*v;C.vz=-Math.cos(yaw)*v;C.speed=v;r.fi=j;r.ps=R.S[j]}   /* (the clock and the nitro carry on) */
+/* (batch 54) when you crash in an event: where you were along the route and where every racer was, relative to you (from crashStart) */
+function evCrashMark(r){if(!r||!r.ev.R)return;r.crashPs=r.ps;r.crashGaps=new Map();for(const c of(r.racers||[]))if(c.alive&&c.race&&c.state==3)r.crashGaps.set(c,c.race.s-r.ps)}
+/* (batch 54) after a crash the racers are put back round you IN THE ORDER THEY HAD when you crashed: the ones that were ahead are 30-80 m ahead (spread out, at least 22 m apart),
+   the ones that were behind are 30-80 m behind (it used to put every racer ahead of you); crash again before you have caught up and the 80 m doubles (160, 320, at most 480) */
 function evPullRacers(r){if(!r||!r.racers||!r.racers.length||!r.ev.R)return;const R=r.ev.R,p=R.pts;
-  {let bi=0,bd=1e18;for(let k=0;k<R.n;k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
-  r.crashN=(r.crashN||0)+1;const D=Math.min(480,60*Math.pow(2,r.crashN-1));let k=0;
-  const ahead=r.racers.filter(c=>c.alive&&c.race&&c.state==3&&c.race.done<0&&c.race.s>r.ps+D).sort((a,b)=>a.race.s-b.race.s);
-  for(const c of ahead){const S=Math.min(R.len-40,r.ps+D+k*22),lat=(k&1)?-3.2:3.2;k++;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;
-    c.x=c.px=x;c.z=c.pz=z;c.y=c.py=groundAt(x,z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=Math.max(15,C.speed);c.vx=ux*c.v;c.vz=uz*c.v;c.om=0;c.rev=0;c.stk=0;c.kx=c.kz=c.ks=0;c.loose=0;c.air=0;c.vy=0;c.spinT=0;c.race.fi=j;c.race.s=R.S[j];c.race.off=c.race.offT=lat;c.race.still=0}}
+  if(r.crashPs==null){let bi=0,bd=1e18;for(let k=0;k<R.n;k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
+  r.crashN=(r.crashN||0)+1;const D=Math.min(480,80*Math.pow(2,r.crashN-1)),G=r.crashGaps||new Map();
+  const list=r.racers.filter(c=>c.alive&&c.race&&c.state==3&&c.race.done<0).map(c=>{const g0=G.has(c)?G.get(c):c.race.s-r.ps;return{c,g:g0>=0?Math.max(30,Math.min(D,g0)):Math.min(-30,Math.max(-D,g0))}});
+  const ah=list.filter(q=>q.g>=0).sort((a,b)=>a.g-b.g),bh=list.filter(q=>q.g<0).sort((a,b)=>b.g-a.g);
+  for(let k=1;k<ah.length;k++)ah[k].g=Math.max(ah[k].g,ah[k-1].g+22);for(let k=1;k<bh.length;k++)bh[k].g=Math.min(bh[k].g,bh[k-1].g-22);
+  let k=0;for(const q of ah.concat(bh)){const c=q.c,S=Math.max(10,Math.min(R.len-40,r.ps+q.g)),lat=(k&1)?-3.2:3.2;k++;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;
+    c.x=c.px=x;c.z=c.pz=z;c.y=c.py=groundAt(x,z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=Math.max(15,C.speed);c.vx=ux*c.v;c.vz=uz*c.v;c.om=0;c.rev=0;c.stk=0;c.kx=c.kz=c.ks=0;c.loose=0;c.air=0;c.vy=0;c.spinT=0;c.race.fi=j;c.race.s=R.S[j];c.race.off=c.race.offT=lat;c.race.still=0}
+  r.crashPs=null;r.crashGaps=null}
 function evQuit(){const r=EV.run;if(!r)return;COP.on=r.copsWas;navClear();EV.run=null;racerClear();safeToast('EVENT ABANDONED',2)}
 function evTick(dt){EV.t+=dt;const r=EV.run;
   if(!r){if(EV.pending&&!GAME.state){EV.card=EV.pending;EV.pending=null}evMarkers();return}
   /* (batch 53) WRECKED in an event (not busted, not an escape): after the wreck screen you are put back on the route where you crashed, repaired, and the event goes on (it used to end it and send you to a garage) */
-  if(GAME.state==1&&r.ev.type!='escape'&&r.ev.R){if(GAME.t>2.2)evRejoin(r);return}
-  if(GAME.state){/* busted or wrecked: the event is lost */COP.on=r.copsWas;navClear();EV.run=null;racerClear();EV.pending=evResultCard(r.ev,false,GAME.state==2?'BUSTED':'WRECKED');return}
+  /* (batch 54) wrecked completely (no health left): the event is over, you do not carry on (it used to put you back in the race) */
+  if(GAME.state){/* busted or wrecked: the event is lost */COP.on=r.copsWas;navClear();EV.run=null;racerClear();EV.pending=evResultCard(r.ev,false,GAME.state==2?'BUSTED':(GAME.msg||'WRECKED'));return}
   const ev=r.ev;
   if(r.t<0){r.t+=dt;C.vx=C.vz=0;C.x=C.px=ev.s.x;C.z=C.pz=ev.s.z;C.yaw=C.pyaw=ev.s.yaw;C.wyaw=0;const k=Math.ceil(-r.t);if(k<r.lastBeep&&k>0){r.lastBeep=k;evBeep(440,.12)}
     if(r.t>=0){evBeep(880,.25);for(const c of r.racers)if(c.race)c.race.go=true;if(ev.type=='escape'){const t=COP.D.thr,L=ev.stars;COP.w=t[L]+(L<5?(t[L+1]-t[L])*.3:20);COP.heat=L;COP.heatT=0;COP.sightT=0;copCall();(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:'event',level:L})}}return}
@@ -5364,12 +5379,12 @@ function evInfo(ev){const rec=EV.rec[ev.id]||{};if(ev.type=='trial')return[fmtLe
   if(ev.type=='death')return[fmtLen(ev.len)+', '+ev.n+' racers who ram you  ·  500 a wreck  ·  gold '+ev.goals[2]+' pts  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' pts'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not raced yet'];
   if(ev.type=='rage')return['wreck the '+ev.n+' racers before they get away  ·  '+Math.round(ev.secs)+' s, +5 s a takedown  ·  bronze '+ev.goals[0]+' / silver '+ev.goals[1]+' / gold '+ev.goals[2]+'  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' takedowns'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not done yet'];
   return[ev.stars+' stars  ·  lose them within '+evFmt(ev.secs).replace(/\.00$/,'')+'  ·  prize '+evMoney(ev.prize),rec.done?'escaped '+rec.done+'x, best '+evFmt(rec.t):'not done yet']}
-function evOfferCard(ev,fromGarage){const inf=evInfo(ev);return{offer:1,title:{trial:'TIME TRIAL',rage:'TAKEDOWN',race:'RACE',death:'DEATH RACE'}[ev.type]||'ESCAPE THE COPS',sub:ev.name,lines:[[evDiffNote(ev),EV_DCOL[evDiff(ev)]],[inf[0],'#fff'],[inf[1],'#9cc8ff']],
+function evOfferCard(ev,fromGarage){const inf=evInfo(ev);return{offer:1,title:({trial:'TIME TRIAL',rage:'TAKEDOWN',race:'RACE',death:'DEATH RACE'}[ev.type]||'ESCAPE THE COPS')+'  ·  '+EV_DIFF[evDiff(ev)],titleCol:EV_DCOL[evDiff(ev)],sub:ev.name,lines:[[evDiffNote(ev),EV_DCOL[evDiff(ev)]],[inf[0],'#fff'],[inf[1],'#9cc8ff']],
   btns:[{label:'START',col:'#ff7a1a',act:()=>evStart(ev)},{label:fromGarage?'BACK':'NOT NOW',col:'#8a94a6',act:()=>{if(fromGarage)EV.card=evEventsCard();else{EV.card=null;EV.dismiss=ev}}}]}}
 /* the garage card (batch 19): go inside, the events, or drive on */
 function evListCard(){const nm=SAFE.at?SAFE.at.name.toUpperCase():'GARAGE';return{garage:1,title:nm,sub:'Repaired and saved',lines:[['Cars are changed inside the garage.','rgba(233,230,220,.75)']],
   btns:[{label:'ENTER GARAGE',col:'#ffad1f',act:()=>garageEnter()},{label:'EVENTS',col:'#8a94a6',act:()=>{EV.card=evEventsCard()}},{label:'DRIVE ON',col:'#8a94a6',act:()=>{EV.card=null;EV.dismiss=SAFE.at}}]}}
-function evEventsCard(){const b=EV.list.map(ev=>{const rec=EV.rec[ev.id]||{};return{label:['','E · ','M · ','H · '][evDiff(ev)]+ev.name.replace('Takedown: ','Takedown: ').replace('Death Race: ','Death: ')+(ev.type!='escape'?(rec.m?'  '+'★'.repeat(rec.m):''):'  '+ev.stars+'★'),col:{trial:'#d9a020',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#d04848',act:()=>{EV.card=Object.assign(evOfferCard(ev,true),{garage:1})},small:1}});
+function evEventsCard(){const b=EV.list.map(ev=>{const rec=EV.rec[ev.id]||{};return{label:EV_DIFF[evDiff(ev)]+'  ·  '+ev.name.replace('Takedown: ','Takedown: ').replace('Death Race: ','Death: ')+(ev.type!='escape'?(rec.m?'  '+'★'.repeat(rec.m):''):'  '+ev.stars+'★'),col:{trial:'#d9a020',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#d04848',act:()=>{EV.card=Object.assign(evOfferCard(ev,true),{garage:1})},small:1}});
   b.push({label:'BACK',col:'#8a94a6',act:()=>{EV.card=evListCard()},small:1});return{garage:1,cols:3,title:'EVENTS',sub:'your money: '+evMoney(ECON.money),lines:[],btns:b,grid:1}}
 /* ---- the card and the event HUD ---- */
 function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF;c.save();
@@ -5388,11 +5403,11 @@ function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF
     else if(r.t<.8){fxText(c,'GO!',W_/2,H_*.42,u*1.4,'#7dffb0','center','rgba(80,255,160,.6)')}
     c.font=fs(.55,800);c.fillStyle='#fff';
     if(ev.type=='race'||ev.type=='death'){c.fillText(evFmt(Math.max(0,r.t)),W_/2,u*1.35);const pos=1+r.racers.filter(q=>q.race&&(q.race.done>=0||q.race.s>r.ps)).length,n=r.racers.filter(q=>q.race).length+1;
-      c.font=fs(.42,900);c.fillStyle=pos==1?'#ffd23a':'#fff';c.fillText('POS '+pos+' / '+n,W_/2,u*1.82);c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(ev.type=='death'?'  ·  wrecked '+r.wrecks:''),W_/2,u*2.1)}
-    else if(ev.type=='trial'){c.fillText(evFmt(Math.max(0,r.t)),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(r.best?'  ·  best '+evFmt(r.best):''),W_/2,u*1.7);
+      c.font=fs(.42,900);c.fillStyle=pos==1?'#ffd23a':'#fff';c.fillText('POS '+pos+' / '+n,W_/2,u*1.82);c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(EV_DIFF[evDiff(ev)]+'  ·  '+ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(ev.type=='death'?'  ·  wrecked '+r.wrecks:''),W_/2,u*2.1)}
+    else if(ev.type=='trial'){c.fillText(evFmt(Math.max(0,r.t)),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(EV_DIFF[evDiff(ev)]+'  ·  '+ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(r.best?'  ·  best '+evFmt(r.best):''),W_/2,u*1.7);
       const m=evMedal(ev,Math.max(0,r.t));c.fillStyle=EV_MCOL[m];c.fillText(m?EV_MEDAL[m]+' PACE':'NO MEDAL PACE',W_/2,u*2.0)}
     else if(ev.type=='rage'){const left=ev.secs+r.bonus-Math.max(0,r.t);c.fillStyle=left<10?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.36,900);c.fillStyle='#ffb04a';c.fillText('TAKEDOWNS '+r.wrecks+' / '+ev.n,W_/2,u*1.8);{const away=r.racers.filter(q=>q.race&&q.race.done>=0).length;if(away){c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.75)';c.fillText(away+' GOT AWAY',W_/2,u*2.12)}}if(r.pop>0){r.pop-=1/60;c.font=fs(.45,900);c.fillStyle='#7dffb0';c.globalAlpha=Math.min(1,r.pop);c.fillText('+5 s',W_/2+u*2.4,u*1.35);c.globalAlpha=1}}
-    else{const left=ev.secs-Math.max(0,r.t);c.fillStyle=left<20?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  lose the police before the clock runs out',W_/2,u*1.7)}
+    else{const left=ev.secs-Math.max(0,r.t);c.fillStyle=left<20?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(EV_DIFF[evDiff(ev)]+'  ·  '+ev.name+'  ·  lose the police before the clock runs out',W_/2,u*1.7)}
     c.shadowBlur=0}   /* (batch 27) QUIT EVENT lives in the pause console now */
   const k=EV.card;if(k&&!GAME.state){const nc=k.cols||2,cw=Math.min(W_*(nc>2?.86:.62),u*(nc>2?13:9.5)),nb=k.btns.length,rows=k.grid?Math.ceil(nb/nc):1,rh=nc>2?.5:.62,ch=u*(1.35+k.lines.length*.42+(k.grid?rows*rh:.8)),cx=W_/2-cw/2,cy=Math.max(u*.6,H_*.5-ch/2);
     {const g=c.createLinearGradient(0,cy,0,cy+ch);g.addColorStop(0,'rgba(42,43,46,.97)');g.addColorStop(1,'rgba(24,25,27,.97)');c.fillStyle=g}rr(c,cx,cy,cw,ch,u*.24);c.fill();c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,cx+.5,cy+.5,cw-1,ch-1,u*.24);c.stroke();c.textAlign='left';

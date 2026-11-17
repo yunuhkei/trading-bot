@@ -1,11 +1,11 @@
 /* (batch 54) GUARD RAILS as real, breakable barriers.
    Every rail section (one road sample, about 4 m, one side of the road) is a line segment in a grid. Your car and the racers collide with it from EITHER side (it used to be a check against
    the nearest road only: racers ignored rails completely, and you could pass through where the nearest road was another one, e.g. the far side of a divided highway).
-   A glancing hit scrapes and slides along it (as before). A hard hit (more than ~38 mph straight into it) BREAKS the section: it vanishes with sparks and a bang and the car goes through
-   (off the bridge or the cliff it was guarding, which is how a rail still kills you); above ~58 mph into it the next section goes too.
+   A glancing hit scrapes and slides along it (as before). A really hard hit (more than ~67 mph straight into it) BREAKS the section: it vanishes with sparks and a bang and the car goes through
+   (off the bridge or the cliff it was guarding, which is how a rail still kills you); above ~89 mph into it the next section goes too; breaking through always wrecks your car (a tumble and the crash movie).
    A racer that hits a rail hard is wrecked (and if you touched it in the last 4 s it is your takedown). Broken sections come back after 90 s once you are well away.
    The section's vertices (beam and post) are collapsed in the GPU buffer to hide it, from a small CPU copy kept for each section. */
-const railNow=()=>performance.now()/1000,RAILSEG=[],RAILG=new Map(),RAIL_CELL=24,RAIL_BRK=17,RAIL_BRK2=26;
+const railNow=()=>performance.now()/1000,RAILSEG=[],RAILG=new Map(),RAIL_CELL=24,RAIL_BRK=30,RAIL_BRK2=40;
 let _railRec=null;   /* the section being built (buildFurniture) */
 function railKey(cx,cz){return (cx+4096)*8192+(cz+4096)}
 function railBegin(ax,az,ay,bx,bz,by,side,road,i){_railRec={ax,az,ay,bx,bz,by,side,broken:0,t:0,pieces:[],road,ri:i,bit:side<0?1:2}}
@@ -37,7 +37,7 @@ function railCollide(dt){if(C.railT>0)C.railT-=dt;if(C.railCd>0)C.railCd-=dt;if(
     const vn=-(C.vx*nx+C.vz*nz);
     if(vn>RAIL_BRK){/* BREAK THROUGH: the rail takes a big bite of the speed into it and some of the rest, then lets the car through */
       railBreak(i,vn,cx,cz);C.vx+=nx*vn*.45;C.vz+=nz*vn*.45;C.vx*=.86;C.vz*=.86;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+.5);C.bob=-.08;
-      if(typeof audioBang=='function')audioBang(1);if(!PHYS.classic){const rl=nx*Math.cos(C.yaw)+nz*Math.sin(C.yaw);if(Math.abs(rl)>.6)tumbleTrip(-rl*vn,'guard rail')}
+      if(typeof audioBang=='function')audioBang(1);if(!PHYS.classic&&!TUM.on){/* (batch 54) it kills you: through the rail is always a crash, whatever the speed */TUM.preV=99;if(!tumbleFromStatic(nx,nz,Math.max(vn,30),false)){const rl=nx*Math.cos(C.yaw)+nz*Math.sin(C.yaw);tumbleTrip((rl>=0?-1:1)*Math.max(vn,20),'guard rail')}TUM.preV=0}
       impactAdd(4,vn,.5*(HND.mass||1400)*vn*vn*.6,0,cx,cz,nx,nz);C.jrv=(C.jrv||0)+(Math.random()<.5?-2.5:2.5);continue}
     C.x+=nx*_rl.pen;C.z+=nz*_rl.pen;
     if(vn>0){if(vn>16&&!PHYS.classic){const rl=nx*Math.cos(C.yaw)+nz*Math.sin(C.yaw);if(Math.abs(rl)>.6)tumbleTrip(-rl*vn,'guard rail')}deflect(nx,nz,vn,PHYS.railE,PHYS.railMu);C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.035);C.railVn=Math.max(C.railVn||0,vn);if(vn>3&&typeof audioBang=='function'&&(C.railCd||0)<=0)audioBang(.2+vn/30)}

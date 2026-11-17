@@ -16,7 +16,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(A.n==20&&A.tr.length==8&&A.es==4&&A.rg==3&&A.tr.every(t=>t[1]>1000&&t[2]>=4)&&A.onRoad,'1 20 events: 8 time trials ('+A.tr.map(t=>t[0]+' '+(t[1]/1000).toFixed(1)+' km').join(', ')+') 4 escapes, 3 takedowns, 3 races and 2 death races, every start on a road');
   /* 2 the marker card */
   const B=await T.ev(()=>{const ev=EV.list[0];RACER.carPlace(ev.s.x,ev.s.z,ev.s.yaw,ev.s.y+.5);for(let s=0;s<30;s++)RACER.worldStep(1/120);const o={title:EV.card&&EV.card.title,sub:EV.card&&EV.card.sub};EV.card.btns[1].act();for(let s=0;s<30;s++)RACER.worldStep(1/120);o.after=!!EV.card;return o});
-  ok(B.title=='TIME TRIAL'&&B.sub=='Ring Sprint'&&!B.after,'2 stopping on a marker offers the event ("'+B.title+': '+B.sub+'"); NOT NOW puts it away');
+  ok(/^TIME TRIAL  ·  (EASY|MEDIUM|HARD)$/.test(B.title)&&B.sub=='Ring Sprint'&&!B.after,'2 stopping on a marker offers the event ("'+B.title+': '+B.sub+'"); NOT NOW puts it away');
   /* 3 a time trial driven by the bot */
   const id=process.env.EV||'t_ring';
   const C3=await T.ev((id)=>{const ev=EV.list.find(e=>e.id==id);const m0=ECON.money;evStart(ev);const Rt=evRoute(ev.s,ev.cps[ev.cps.length-1].x,ev.cps[ev.cps.length-1].z);window.__fi=0;let cpMax=0,t=0;

@@ -14,7 +14,7 @@ function crashHistory(){if(TUM.on||CC.on||C.shield>0)return;const H=CC.hist;
 /* is this crash wild enough for the cinematic? */
 function crashWild(){if(!TUM.on||TUM.rightT>0)return false;const w=Math.hypot(TUM.w[0],TUM.w[1]*.4,TUM.w[2]),g=groundAt(TUM.p[0],TUM.p[2],TUM.p[1]+.5);
   return TUM.t>.25&&CC.tv>58&&(TUM.maxTilt>1.5||w>4||TUM.p[1]-g>3.5)}   /* (batch 25: only very big crashes: a roll past 86 degrees, a violent spin or a throw 3.5 m up, starting above 25 m/s; the rest right themselves as before) */
-function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.slow=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;CC.tdn=!!(EV.run&&C.t-(C.hitByT??-9)<2.5);   /* (batch 54) decided once, when the crash starts: the banner no longer flips from TAKEN DOWN! to CRASH! as the movie plays */
+function crashStart(why){if(!CC.enabled||CC.on||GAME.state)return;CC.on=1;CC.t=0;CC.fade=0;CC.scale=.3;CC.still=0;CC.slow=0;CC.endT=null;CC.why=why;CC.crashT=C.t;CC.n++;CC.tdn=!!(EV.run&&C.t-(C.hitByT??-9)<2.5);if(EV.run&&typeof evCrashMark=='function')evCrashMark(EV.run);   /* (batch 54) decided once, when the crash starts: the banner no longer flips from TAKEN DOWN! to CRASH! as the movie plays */
   /* the camera: a fixed spot beside the crash, a little ahead of where it is going, looking back at it */
   let dx=C.vx,dz=C.vz,l=Math.hypot(dx,dz);if(l<2){dx=Math.sin(C.yaw);dz=-Math.cos(C.yaw);l=1}dx/=l;dz/=l;const sd=(CC.n&1)?1:-1,sx=-dz*sd,sz=dx*sd,ahead=Math.min(14,4+C.speed*.25);
   const x=C.x+dx*ahead+sx*9,z=C.z+dz*ahead+sz*9,g=groundAt(x,z,C.y+3);CC.cam[0]=x;CC.cam[2]=z;CC.cam[1]=Math.max(g+1.6,C.y+2.2);C.shake=0}
@@ -40,7 +40,8 @@ function crashImpact(E,src){if(CC.enabled&&!CC.on&&E>(src==3?1.6e6:2.7e6)&&C.shi
 function crashFrame(sec){if(CC.fadeIn>0)CC.fadeIn=Math.max(0,CC.fadeIn-sec*2.4);if(!CC.on)CC.scale=1}
 /* back on the road, where the car was about 1.5 s before the crash */
 function crashReset(){CC.on=0;CC.scale=1;CC.fade=0;CC.fadeIn=1;const H=CC.hist;let e=null;
-  for(let i=H.length-1;i>=0;i--)if(H[i].t<=CC.crashT-1.4){e=H[i];break}if(!e&&H.length)e=H[0];
+  /* (batch 54) in an event: back on the route about 5 m before where you crashed (not 1.5 s back, which at speed was 100 m) */if(EV.run&&EV.run.ev.R&&EV.run.crashPs!=null){const r=EV.run;TUM.on=0;TUM.rightT=0;evPlaceAt(r,r.crashPs-5,18);CC.fadeIn=1;C.flash=0;C.flatT=0;CC.hist.length=0;dmgSoften();C.shield=3;camStep(0,true);evPullRacers(r);return}
+  for(let i=H.length-1;i>=0;i--)if(H[i].t<=CC.crashT-.5){e=H[i];break}if(!e&&H.length)e=H[0];   /* (batch 54) half a second before the crash, a few metres back (it was 1.4 s) */
   if(e){C.safeX=e.x;C.safeZ=e.z;C.safeY=e.y;C.safeYaw=e.yaw}
   TUM.on=0;TUM.rightT=0;respawn();const v=e?clamp(e.v*.8,8,34):12;C.vx=Math.sin(C.yaw)*v;C.vz=-Math.cos(C.yaw)*v;C.speed=v;C.flash=0;C.camYaw=C.yaw;C.flatT=0;
   /* the history after that point is the crash itself */

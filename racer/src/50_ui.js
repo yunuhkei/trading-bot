@@ -160,7 +160,7 @@ function audioBang(k){if(!AU.ready)return;k=k==null?1:Math.max(.15,Math.min(1,k)
 function audioUpdate(){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime;if(x.state=='suspended')x.resume();
   const sp=Math.min(1,C.speed/80),gear=Math.min(5,Math.floor(C.speed/16)),gp=(C.speed-gear*16)/16,rpm=.22+(Math.min(1,gp*.9+.1)*.55)+(IN.thr||IN.auto?.12:0)+(C.boosting?.1:0)+(C.grounded?0:.16);
   const f=38+rpm*150;AU.eng.frequency.setTargetAtTime(f,t,.04);AU.eng2.frequency.setTargetAtTime(f*.503,t,.04);AU.lp.frequency.setTargetAtTime(500+rpm*1400,t,.05);
-  AU.gain.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:.07+.07*rpm+(C.boosting?.05:0),t,.05);AU.windG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:sp*sp*.22,t,.1);AU.tireG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:(C.grounded&&(C.drift>.3||C.dActive)?.12*Math.max(C.drift,Math.min(1,C.slip*3)):0)+(C.hit>3?.05:0),t,.05);
+  AU.gain.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:.07+.07*rpm+(C.boosting?.05:0),t,.05);AU.windG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:sp*sp*.22*(1+1.6*(C.tow||0)),t,.1);AU.tireG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:(C.grounded&&(C.drift>.3||C.dActive)?.12*Math.max(C.drift,Math.min(1,C.slip*3)):0)+(C.hit>3?.05:0),t,.05);
   if(AU.heliG)AU.heliG.gain.setTargetAtTime((UI.paused||UI.mapOpen)?0:Math.max(0,1-HELI.near/350)*.9,t,.2);
   if(AU.scrG){const on=C.railT>0&&!UI.paused&&!UI.mapOpen;AU.scrG.gain.setTargetAtTime(on?.1+.14*Math.min(1,C.speed/45):0,t,on?.015:.06);AU.scrF.frequency.setTargetAtTime(2400+C.speed*30+Math.random()*600,t,.03)}
   /* the siren: a two-tone wail, louder the nearer the nearest chasing cop */

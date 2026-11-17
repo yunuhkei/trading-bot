@@ -73,18 +73,29 @@ function evRejoin(r){const R=r.ev.R,p=R.pts,S=Math.max(5,(r.ps||0)-15);let j=0;w
   if(typeof CC!='undefined'){CC.on=0;CC.scale=1;CC.fade=0;CC.fadeIn=1}carPlace(p[j*3],p[j*3+2],yaw,p[j*3+1]+.5);C.camYaw=yaw;const v=14;C.vx=Math.sin(yaw)*v;C.vz=-Math.cos(yaw)*v;camStep(0,true);
   IN.thr=IN.brk=IN.hand=IN.nitro=0;dmgReset();GAME.state=0;GAME.lock=0;GAME.t=0;C.shield=2.5;C.flash=1;r.fi=j;r.ps=R.S[j];evPullRacers(r);safeToast('BACK IN THE RACE',1.6,1)}
 /* (batch 53) after you crash in an event with racers, the ones that got away are brought back to within 60 m ahead of you; crash again before you have caught up and the gap doubles (120 m, 240 m ... at most 480 m) */
+/* (batch 54) put the car on the event route at distance S, facing along it, at speed v */
+function evPlaceAt(r,S,v){const R=r.ev.R,p=R.pts;S=Math.max(5,S);let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,yaw=Math.atan2(dx/l,-dz/l);
+  for(const c of TR.cars)if(c.alive&&c.kind==0&&Math.hypot(c.x-p[j*3],c.z-p[j*3+2])<40)trKill(c,0);
+  const t0=C.t,n0=C.nos;carPlace(p[j*3],p[j*3+2],yaw,p[j*3+1]+.5);C.t=t0;C.nos=n0;C.camYaw=yaw;C.vx=Math.sin(yaw)*v;C.vz=-Math.cos(yaw)*v;C.speed=v;r.fi=j;r.ps=R.S[j]}   /* (the clock and the nitro carry on) */
+/* (batch 54) when you crash in an event: where you were along the route and where every racer was, relative to you (from crashStart) */
+function evCrashMark(r){if(!r||!r.ev.R)return;r.crashPs=r.ps;r.crashGaps=new Map();for(const c of(r.racers||[]))if(c.alive&&c.race&&c.state==3)r.crashGaps.set(c,c.race.s-r.ps)}
+/* (batch 54) after a crash the racers are put back round you IN THE ORDER THEY HAD when you crashed: the ones that were ahead are 30-80 m ahead (spread out, at least 22 m apart),
+   the ones that were behind are 30-80 m behind (it used to put every racer ahead of you); crash again before you have caught up and the 80 m doubles (160, 320, at most 480) */
 function evPullRacers(r){if(!r||!r.racers||!r.racers.length||!r.ev.R)return;const R=r.ev.R,p=R.pts;
-  {let bi=0,bd=1e18;for(let k=0;k<R.n;k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
-  r.crashN=(r.crashN||0)+1;const D=Math.min(480,60*Math.pow(2,r.crashN-1));let k=0;
-  const ahead=r.racers.filter(c=>c.alive&&c.race&&c.state==3&&c.race.done<0&&c.race.s>r.ps+D).sort((a,b)=>a.race.s-b.race.s);
-  for(const c of ahead){const S=Math.min(R.len-40,r.ps+D+k*22),lat=(k&1)?-3.2:3.2;k++;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;
-    c.x=c.px=x;c.z=c.pz=z;c.y=c.py=groundAt(x,z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=Math.max(15,C.speed);c.vx=ux*c.v;c.vz=uz*c.v;c.om=0;c.rev=0;c.stk=0;c.kx=c.kz=c.ks=0;c.loose=0;c.air=0;c.vy=0;c.spinT=0;c.race.fi=j;c.race.s=R.S[j];c.race.off=c.race.offT=lat;c.race.still=0}}
+  if(r.crashPs==null){let bi=0,bd=1e18;for(let k=0;k<R.n;k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
+  r.crashN=(r.crashN||0)+1;const D=Math.min(480,80*Math.pow(2,r.crashN-1)),G=r.crashGaps||new Map();
+  const list=r.racers.filter(c=>c.alive&&c.race&&c.state==3&&c.race.done<0).map(c=>{const g0=G.has(c)?G.get(c):c.race.s-r.ps;return{c,g:g0>=0?Math.max(30,Math.min(D,g0)):Math.min(-30,Math.max(-D,g0))}});
+  const ah=list.filter(q=>q.g>=0).sort((a,b)=>a.g-b.g),bh=list.filter(q=>q.g<0).sort((a,b)=>b.g-a.g);
+  for(let k=1;k<ah.length;k++)ah[k].g=Math.max(ah[k].g,ah[k-1].g+22);for(let k=1;k<bh.length;k++)bh[k].g=Math.min(bh[k].g,bh[k-1].g-22);
+  let k=0;for(const q of ah.concat(bh)){const c=q.c,S=Math.max(10,Math.min(R.len-40,r.ps+q.g)),lat=(k&1)?-3.2:3.2;k++;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;
+    c.x=c.px=x;c.z=c.pz=z;c.y=c.py=groundAt(x,z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=Math.max(15,C.speed);c.vx=ux*c.v;c.vz=uz*c.v;c.om=0;c.rev=0;c.stk=0;c.kx=c.kz=c.ks=0;c.loose=0;c.air=0;c.vy=0;c.spinT=0;c.race.fi=j;c.race.s=R.S[j];c.race.off=c.race.offT=lat;c.race.still=0}
+  r.crashPs=null;r.crashGaps=null}
 function evQuit(){const r=EV.run;if(!r)return;COP.on=r.copsWas;navClear();EV.run=null;racerClear();safeToast('EVENT ABANDONED',2)}
 function evTick(dt){EV.t+=dt;const r=EV.run;
   if(!r){if(EV.pending&&!GAME.state){EV.card=EV.pending;EV.pending=null}evMarkers();return}
   /* (batch 53) WRECKED in an event (not busted, not an escape): after the wreck screen you are put back on the route where you crashed, repaired, and the event goes on (it used to end it and send you to a garage) */
-  if(GAME.state==1&&r.ev.type!='escape'&&r.ev.R){if(GAME.t>2.2)evRejoin(r);return}
-  if(GAME.state){/* busted or wrecked: the event is lost */COP.on=r.copsWas;navClear();EV.run=null;racerClear();EV.pending=evResultCard(r.ev,false,GAME.state==2?'BUSTED':'WRECKED');return}
+  /* (batch 54) wrecked completely (no health left): the event is over, you do not carry on (it used to put you back in the race) */
+  if(GAME.state){/* busted or wrecked: the event is lost */COP.on=r.copsWas;navClear();EV.run=null;racerClear();EV.pending=evResultCard(r.ev,false,GAME.state==2?'BUSTED':(GAME.msg||'WRECKED'));return}
   const ev=r.ev;
   if(r.t<0){r.t+=dt;C.vx=C.vz=0;C.x=C.px=ev.s.x;C.z=C.pz=ev.s.z;C.yaw=C.pyaw=ev.s.yaw;C.wyaw=0;const k=Math.ceil(-r.t);if(k<r.lastBeep&&k>0){r.lastBeep=k;evBeep(440,.12)}
     if(r.t>=0){evBeep(880,.25);for(const c of r.racers)if(c.race)c.race.go=true;if(ev.type=='escape'){const t=COP.D.thr,L=ev.stars;COP.w=t[L]+(L<5?(t[L+1]-t[L])*.3:20);COP.heat=L;COP.heatT=0;COP.sightT=0;copCall();(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:'event',level:L})}}return}
@@ -146,12 +157,12 @@ function evInfo(ev){const rec=EV.rec[ev.id]||{};if(ev.type=='trial')return[fmtLe
   if(ev.type=='death')return[fmtLen(ev.len)+', '+ev.n+' racers who ram you  ·  500 a wreck  ·  gold '+ev.goals[2]+' pts  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' pts'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not raced yet'];
   if(ev.type=='rage')return['wreck the '+ev.n+' racers before they get away  ·  '+Math.round(ev.secs)+' s, +5 s a takedown  ·  bronze '+ev.goals[0]+' / silver '+ev.goals[1]+' / gold '+ev.goals[2]+'  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' takedowns'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not done yet'];
   return[ev.stars+' stars  ·  lose them within '+evFmt(ev.secs).replace(/\.00$/,'')+'  ·  prize '+evMoney(ev.prize),rec.done?'escaped '+rec.done+'x, best '+evFmt(rec.t):'not done yet']}
-function evOfferCard(ev,fromGarage){const inf=evInfo(ev);return{offer:1,title:{trial:'TIME TRIAL',rage:'TAKEDOWN',race:'RACE',death:'DEATH RACE'}[ev.type]||'ESCAPE THE COPS',sub:ev.name,lines:[[evDiffNote(ev),EV_DCOL[evDiff(ev)]],[inf[0],'#fff'],[inf[1],'#9cc8ff']],
+function evOfferCard(ev,fromGarage){const inf=evInfo(ev);return{offer:1,title:({trial:'TIME TRIAL',rage:'TAKEDOWN',race:'RACE',death:'DEATH RACE'}[ev.type]||'ESCAPE THE COPS')+'  ·  '+EV_DIFF[evDiff(ev)],titleCol:EV_DCOL[evDiff(ev)],sub:ev.name,lines:[[evDiffNote(ev),EV_DCOL[evDiff(ev)]],[inf[0],'#fff'],[inf[1],'#9cc8ff']],
   btns:[{label:'START',col:'#ff7a1a',act:()=>evStart(ev)},{label:fromGarage?'BACK':'NOT NOW',col:'#8a94a6',act:()=>{if(fromGarage)EV.card=evEventsCard();else{EV.card=null;EV.dismiss=ev}}}]}}
 /* the garage card (batch 19): go inside, the events, or drive on */
 function evListCard(){const nm=SAFE.at?SAFE.at.name.toUpperCase():'GARAGE';return{garage:1,title:nm,sub:'Repaired and saved',lines:[['Cars are changed inside the garage.','rgba(233,230,220,.75)']],
   btns:[{label:'ENTER GARAGE',col:'#ffad1f',act:()=>garageEnter()},{label:'EVENTS',col:'#8a94a6',act:()=>{EV.card=evEventsCard()}},{label:'DRIVE ON',col:'#8a94a6',act:()=>{EV.card=null;EV.dismiss=SAFE.at}}]}}
-function evEventsCard(){const b=EV.list.map(ev=>{const rec=EV.rec[ev.id]||{};return{label:['','E · ','M · ','H · '][evDiff(ev)]+ev.name.replace('Takedown: ','Takedown: ').replace('Death Race: ','Death: ')+(ev.type!='escape'?(rec.m?'  '+'★'.repeat(rec.m):''):'  '+ev.stars+'★'),col:{trial:'#d9a020',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#d04848',act:()=>{EV.card=Object.assign(evOfferCard(ev,true),{garage:1})},small:1}});
+function evEventsCard(){const b=EV.list.map(ev=>{const rec=EV.rec[ev.id]||{};return{label:EV_DIFF[evDiff(ev)]+'  ·  '+ev.name.replace('Takedown: ','Takedown: ').replace('Death Race: ','Death: ')+(ev.type!='escape'?(rec.m?'  '+'★'.repeat(rec.m):''):'  '+ev.stars+'★'),col:{trial:'#d9a020',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#d04848',act:()=>{EV.card=Object.assign(evOfferCard(ev,true),{garage:1})},small:1}});
   b.push({label:'BACK',col:'#8a94a6',act:()=>{EV.card=evListCard()},small:1});return{garage:1,cols:3,title:'EVENTS',sub:'your money: '+evMoney(ECON.money),lines:[],btns:b,grid:1}}
 /* ---- the card and the event HUD ---- */
 function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF;c.save();
@@ -170,11 +181,11 @@ function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF
     else if(r.t<.8){fxText(c,'GO!',W_/2,H_*.42,u*1.4,'#7dffb0','center','rgba(80,255,160,.6)')}
     c.font=fs(.55,800);c.fillStyle='#fff';
     if(ev.type=='race'||ev.type=='death'){c.fillText(evFmt(Math.max(0,r.t)),W_/2,u*1.35);const pos=1+r.racers.filter(q=>q.race&&(q.race.done>=0||q.race.s>r.ps)).length,n=r.racers.filter(q=>q.race).length+1;
-      c.font=fs(.42,900);c.fillStyle=pos==1?'#ffd23a':'#fff';c.fillText('POS '+pos+' / '+n,W_/2,u*1.82);c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(ev.type=='death'?'  ·  wrecked '+r.wrecks:''),W_/2,u*2.1)}
-    else if(ev.type=='trial'){c.fillText(evFmt(Math.max(0,r.t)),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(r.best?'  ·  best '+evFmt(r.best):''),W_/2,u*1.7);
+      c.font=fs(.42,900);c.fillStyle=pos==1?'#ffd23a':'#fff';c.fillText('POS '+pos+' / '+n,W_/2,u*1.82);c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(EV_DIFF[evDiff(ev)]+'  ·  '+ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(ev.type=='death'?'  ·  wrecked '+r.wrecks:''),W_/2,u*2.1)}
+    else if(ev.type=='trial'){c.fillText(evFmt(Math.max(0,r.t)),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(EV_DIFF[evDiff(ev)]+'  ·  '+ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(r.best?'  ·  best '+evFmt(r.best):''),W_/2,u*1.7);
       const m=evMedal(ev,Math.max(0,r.t));c.fillStyle=EV_MCOL[m];c.fillText(m?EV_MEDAL[m]+' PACE':'NO MEDAL PACE',W_/2,u*2.0)}
     else if(ev.type=='rage'){const left=ev.secs+r.bonus-Math.max(0,r.t);c.fillStyle=left<10?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.36,900);c.fillStyle='#ffb04a';c.fillText('TAKEDOWNS '+r.wrecks+' / '+ev.n,W_/2,u*1.8);{const away=r.racers.filter(q=>q.race&&q.race.done>=0).length;if(away){c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.75)';c.fillText(away+' GOT AWAY',W_/2,u*2.12)}}if(r.pop>0){r.pop-=1/60;c.font=fs(.45,900);c.fillStyle='#7dffb0';c.globalAlpha=Math.min(1,r.pop);c.fillText('+5 s',W_/2+u*2.4,u*1.35);c.globalAlpha=1}}
-    else{const left=ev.secs-Math.max(0,r.t);c.fillStyle=left<20?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(ev.name+'  ·  lose the police before the clock runs out',W_/2,u*1.7)}
+    else{const left=ev.secs-Math.max(0,r.t);c.fillStyle=left<20?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(EV_DIFF[evDiff(ev)]+'  ·  '+ev.name+'  ·  lose the police before the clock runs out',W_/2,u*1.7)}
     c.shadowBlur=0}   /* (batch 27) QUIT EVENT lives in the pause console now */
   const k=EV.card;if(k&&!GAME.state){const nc=k.cols||2,cw=Math.min(W_*(nc>2?.86:.62),u*(nc>2?13:9.5)),nb=k.btns.length,rows=k.grid?Math.ceil(nb/nc):1,rh=nc>2?.5:.62,ch=u*(1.35+k.lines.length*.42+(k.grid?rows*rh:.8)),cx=W_/2-cw/2,cy=Math.max(u*.6,H_*.5-ch/2);
     {const g=c.createLinearGradient(0,cy,0,cy+ch);g.addColorStop(0,'rgba(42,43,46,.97)');g.addColorStop(1,'rgba(24,25,27,.97)');c.fillStyle=g}rr(c,cx,cy,cw,ch,u*.24);c.fill();c.strokeStyle='rgba(255,255,255,.07)';c.lineWidth=1;rr(c,cx+.5,cy+.5,cw-1,ch-1,u*.24);c.stroke();c.textAlign='left';
