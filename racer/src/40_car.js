@@ -9,7 +9,7 @@ function carDraw(){
   if(!CARM.body||crashBlink())return;const gl=G.gl,P=G.P.car,a=R.alpha,q=CARS_RENDER;
   gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);carPaintU(P,CARM.paint,CARM.paint2,CARM.fin,CARM.seam);attrs(3);gl.disable(gl.CULL_FACE);
   /* the model is stored in 1/8192 m units */const S=1/8192;
-  const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a);
+  const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a)+(C.jp||0),rol=lerp(C.proll,C.roll,a)+(C.jr||0);
   gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);
   gl.uniform1f(P.u.uAlpha,1);gl.uniform3f(P.u.uWh,0,1,0);if(CARM.wheels.length>1){const na=CARM.def&&CARM.def.cc?0:1;gl.uniform4f(P.u.uArch,CARM.wheels[0].x,CARM.wheels[0].R*na,CARM.wheels[1].x,CARM.wheels[1].R*na)}   /* the shader's black arch circle is for the generated supercars; the Close Call bodies cut their own arches (the circle blackened their raised fenders) */gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
   const fdrop=C.flatT>0?.075*Math.min(1,C.flatT/.8):0;carPose(_mf,a,1,-fdrop);CARM.mf.set(_mf);if(CARM.body.pr)partsDrawCar(_mf,S,false);else{carPose(_mb,a,S,-fdrop);drawCarMesh(CARM.body,_mb,CARM.body.gf)}
@@ -23,7 +23,7 @@ function carDraw(){
 function carGlassDraw(){
   const B=CARM.body;if(!B||B.gf>=B.n||crashBlink())return;const gl=G.gl,P=G.P.car,a=R.alpha;
   gl.useProgram(P.p);setEnvU(P);gl.uniformMatrix4fv(P.u.uVP,false,R.VP);gl.uniform4fv(P.u.uMat,CARM.mat);gl.uniform1f(P.u.uGl,C.boosting?1:0);carPaintU(P,CARM.paint,CARM.paint2,CARM.fin,CARM.seam);attrs(3);gl.disable(gl.CULL_FACE);
-  const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a),S=1/8192;
+  const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a),z=lerp(C.pz,C.z,a),yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a)+(C.jp||0),rol=lerp(C.proll,C.roll,a)+(C.jr||0),S=1/8192;
   gl.uniform3f(P.u.uBr,C.braking?1:0,y,0);gl.uniform1f(P.u.uAlpha,.66);gl.uniform3f(P.u.uWh,0,1,0);gl.uniform4f(P.u.uDm,PDM.head[0],PDM.head[1],PDM.tail[0],PDM.tail[1]);gl.uniform4fv(P.u.uCr,PDM.cr);gl.uniform1f(P.u.uZc,CARM.zc||0);
   if(B.gpr){carPose(_mf,a,1,-(C.flatT>0?.075*Math.min(1,C.flatT/.8):0));partsDrawCar(_mf,S,true)}else{carPose(_mb,a,S,-(C.flatT>0?.075*Math.min(1,C.flatT/.8):0));drawCarMesh(B,_mb,B.n-B.gf,B.gf)}gl.uniform1f(P.u.uAlpha,1)}
 const CARS_RENDER=null;
@@ -66,7 +66,7 @@ function deflect(nx,nz,vn,e,mu){
 
 /* handling tuning (arcade, grip first: understeer by design; the handbrake starts a controlled drift) */
 const HND={grip:34,gripDrift:3.2,gripBrake:18,driftFric:9.5,driftFricV:.6,aBase:22,aAero:.0042,omLow:3.0,respond:18,respondDrift:26,betaSlow:3.0,betaFast:.55,driftBrake:24,handRamp:1.2,handBrake0:.35,tapAng:.6,tapFrac:.75,slideWin:.45,driftRelease:5,airDrag:.0002,landBottom:12,kBeta:7.5,omDrift:4.4,grass:.62,accel:11.5,accelLow:2.8,brake:23,scrub:.05,snap:.08,snapV:.003,leave:1,kvTau:.06,gsTau:.03,gfTau:.008,coast:4.5,engBrk0:.15,engBrk1:.012};
-function carPlace(x,z,yaw,yh){IN.nitro=0;C.boostK=0;C.boosting=0;TUM.on=0;   /* (batch 54) a restart or a retry switches the boost off: it used to stay latched through the countdown and burn the whole tank */
+function carPlace(x,z,yaw,yh){IN.nitro=0;C.boostK=0;C.boosting=0;C.jr=C.jrv=C.jp=C.jpv=0;TUM.on=0;   /* (batch 54) a restart or a retry switches the boost off: it used to stay latched through the countdown and burn the whole tank */
   C.shield=0;CC.on=0;CC.scale=1;CC.fadeIn=0;TUM.rightT=0;C.flatT=0;C.orbY=C.orbP=0;C.dActive=0;C.dLast=null;C.jump=null;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=yaw;C.vx=C.vz=C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,yh==null?terrainH(x,z)+1.2:yh);C.grounded=1;C.pitch=C.roll=C.ppitch=C.proll=0;C.camYaw=yaw;C.wyaw=0;C.safeX=x;C.safeZ=z;C.safeY=C.y;C.safeYaw=yaw;C.t=0;C.nos=.6;C.flatT=0}
 function respawn(){TUM.on=0;TUM.rightT=0;IN.nitro=0;C.boostK=0;C.boosting=0;const x=C.safeX,z=C.safeZ;C.x=C.px=x;C.z=C.pz=z;C.yaw=C.pyaw=C.safeYaw;C.vx=Math.sin(C.yaw)*12;C.vz=-Math.cos(C.yaw)*12;C.vy=0;C.y=C.py=C.gs=C.gsp=C.gf=groundAt(x,z,C.safeY)+.1;C.pitch=C.roll=0;C.flash=1;C.dActive=0;C.dLast=null;C.grounded=1;C.air=0;C.liftT=0;C.kv=0;C.drift=0;C.slideT=0;C.tapN=0;C.tapT=0;C.dbK=0}
 const gw=(x,z,y)=>{RQS.soft=1;const g=groundAt(x,z,y);RQS.soft=0;return g};
@@ -223,6 +223,7 @@ function carStep(dt){
   C.pitch+=((gr?tp+clamp(C.ax*.0034*(HND.rollK||1),-.09*(HND.rollK||1),.05*(HND.rollK||1)):Math.atan2(C.vy,Math.max(8,af))*.8)-C.pitch)*kk;C.roll+=((gr?tr+clamp(C.wyaw*f*.0042*(HND.rollK||1),-.09*(HND.rollK||1),.09*(HND.rollK||1)):0)-C.roll)*kk;
   /* body roll in corners and squat/dive */
   if(gr)C.bob*=Math.max(0,1-dt*8);
+  /* (batch 54) the body JOLT from a hit: a sprung roll and pitch (about 1.7 Hz, quickly damped) kicked by the impulse, so a bump visibly rocks the car */{const K=120,D=7.5;C.jrv=(C.jrv||0)+(-K*(C.jr||0)-D*(C.jrv||0))*dt;C.jr=Math.max(-.16,Math.min(.16,(C.jr||0)+C.jrv*dt));C.jpv=(C.jpv||0)+(-K*(C.jp||0)-D*(C.jpv||0))*dt;C.jp=Math.max(-.1,Math.min(.1,(C.jp||0)+C.jpv*dt))}
   C.spin+=f*dt/.34;C.steerVis+=((-steer*.5*(1-sp*.55))-C.steerVis)*Math.min(1,dt*14);
   C.speed=Math.hypot(C.vx,C.vz);C.ke=.5*(C.speed*C.speed+C.vy*C.vy);C.E=C.ke+GRAV*C.y;C.fwd=f;C.lat=s;C.kmh=C.speed*3.6;C.braking=brk>0&&f>1.5?1:0;C.t+=dt;C.distance+=C.speed*dt;C.shake*=Math.max(0,1-dt*5);C.flash*=Math.max(0,1-dt*3);C.hit*=Math.max(0,1-dt*6);
   /* last safe spot (on a road, moving, dry) for respawns */

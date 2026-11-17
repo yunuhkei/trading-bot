@@ -85,7 +85,8 @@ function racerStep(c,dt){
       if(c.landT>0)c.landT-=dt;else if(-c.kv*v*v>GRAV&&Math.abs(c.y-g)<.6){c.air=1;c.airT=0;c.vy=vG;c.y=g}}
     else c.kv=0;
     if(!c.air){c.y+=(g-c.y)*Math.min(1,dt*30);if(c.y<g)c.y=g}
-    const gf=groundAt(c.x+sy*1.6,c.z-cy*1.6,c.y+.5),gb=groundAt(c.x-sy*1.6,c.z+cy*1.6,c.y+.5);c.pitch+=(Math.atan2(gf-gb,3.2)-c.pitch)*Math.min(1,dt*10);c.roll*=.9}}
+    const gf=groundAt(c.x+sy*1.6,c.z-cy*1.6,c.y+.5),gb=groundAt(c.x-sy*1.6,c.z+cy*1.6,c.y+.5);c.pitch+=(Math.atan2(gf-gb,3.2)-c.pitch)*Math.min(1,dt*10);c.roll*=.9}
+  /* (batch 54) the body jolt from a hit (the same spring as yours) */{const K=120,D=7.5;c.jrv=(c.jrv||0)+(-K*(c.jr||0)-D*(c.jrv||0))*dt;c.jr=Math.max(-.16,Math.min(.16,(c.jr||0)+c.jrv*dt));c.jpv=(c.jpv||0)+(-K*(c.jp||0)-D*(c.jpv||0))*dt;c.jp=Math.max(-.1,Math.min(.1,(c.jp||0)+c.jpv*dt));if(Math.abs(c.jr)+Math.abs(c.jrv)>.001)c.roll=c.jr;if(Math.abs(c.jp)+Math.abs(c.jpv)>.001)c.pitch+=c.jp-(c.jpPrev||0);c.jpPrev=c.jp}}
 /* (batch 53) a racer is one of the playable cars: the pool car about as fast as yours (the lead racer 3 % faster), driven with that car's own figures: its grip, top speed, acceleration and braking, a little under what you can do with it (95-99 %) */
 let _rTier=null;   /* (batch 54) the event's car band (km/h), from its difficulty */
 function racerCarNear(want,used){let b=null;const T=_rTier;if(T)want=Math.max(T[0]+5,Math.min(T[1]-5,want));for(const p of RACER_POOL){if(used&&used.has(p.id))continue;if(T&&(p.top<T[0]||p.top>T[1]))continue;if(!b||Math.abs(p.top-want)<Math.abs(b.top-want))b=p}if(!b&&T){for(const p of RACER_POOL)if(p.top>=T[0]&&p.top<=T[1]&&(!b||Math.abs(p.top-want)<Math.abs(b.top-want)))b=p}b=b||RACER_POOL[0];if(used)used.add(b.id);return b}

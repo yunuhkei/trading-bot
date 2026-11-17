@@ -12,7 +12,7 @@ const TUM_COM=.55,TUM_H=1.22,GRAV_T=9.81;
 function carPose(o,a,sc,dy){
   const x=lerp(C.px,C.x,a),y=lerp(C.py,C.y,a)+C.bob+(dy||0),z=lerp(C.pz,C.z,a);
   if(TUM.on){const R=TUM.R;o[0]=R[0]*sc;o[1]=R[1]*sc;o[2]=R[2]*sc;o[3]=0;o[4]=R[3]*sc;o[5]=R[4]*sc;o[6]=R[5]*sc;o[7]=0;o[8]=R[6]*sc;o[9]=R[7]*sc;o[10]=R[8]*sc;o[11]=0;o[12]=x;o[13]=y;o[14]=z;o[15]=1;return o}
-  const yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a),rol=lerp(C.proll,C.roll,a);return M4.trs(o,x,y,z,-yaw,pit,rol,sc,sc,sc)}
+  const yaw=C.pyaw+angd(C.yaw,C.pyaw)*a,pit=lerp(C.ppitch,C.pitch,a)+(C.jp||0),rol=lerp(C.proll,C.roll,a)+(C.jr||0);return M4.trs(o,x,y,z,-yaw,pit,rol,sc,sc,sc)}
 /* R (column-major 3 x 3) times a body vector */
 const _tv=[0,0,0];
 function tumMul(R,x,y,z){_tv[0]=R[0]*x+R[3]*y+R[6]*z;_tv[1]=R[1]*x+R[4]*y+R[7]*z;_tv[2]=R[2]*x+R[5]*y+R[8]*z;return _tv}
