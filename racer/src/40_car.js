@@ -119,12 +119,13 @@ function carStep(dt){
   const nitroOn=IN.nitro?1:0;C.boosting=nitroOn;if(nitroOn){C.nos=Math.max(0,C.nos-dt*.30*UPG.nosDrain);thr=1}
   /* the boost fades in and out (about 0.15 s in, 0.3 s out) instead of switching: the push, the top speed and the camera all follow this one number */
   C.boostK+=((nitroOn?1:0)-C.boostK)*(1-Math.exp(-dt*(nitroOn?13:6)));
-  const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*UPG.boost*C.boostK)*DMG.spd,surf=C.onRoad?1:HND.grass;
+  const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*UPG.boost*C.boostK)*(1+.08*(C.tow||0))*DMG.spd,surf=C.onRoad?1:HND.grass;
   /* ---- longitudinal: weighty launch, strong but not instant braking ---- */
   if(gr){
     let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(PHYS.classic?(f<14?1:0):1-sstep(9,19,f)))*(1+.9*UPG.boost*C.boostK)*DMG.acc}
     if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8*(PHYS.classic?1:clamp(1+f/PHYS.revMax,0,1))}   /* brake, then reverse (up to PHYS.revMax m/s) */
-    a-=Math.sign(f)*(.35+af*af*.0004);                 /* rolling + air drag */
+    a-=Math.sign(f)*(.35+af*af*.0004*(1-.6*(C.tow||0)));   /* rolling + air drag ((batch 54) the drag drops by up to 60 % in a slipstream) */
+    if(C.tow>0&&thr>0&&f>15)a+=2.6*C.tow;   /* and the tow pulls you on */
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */
     a-=GRAV*slope/m2;                                  /* hills: gravity along the ground (climbing turns speed into height, descending turns height into speed) */
     s-=GRAV*mr/m2*dt;                                  /* and sideways down a camber */
@@ -207,14 +208,7 @@ function carStep(dt){
   /* GUARD RAILS: metal on metal. The car's corner nearest the rail is kept off its face (the car's own angle counts, so a nose-first hit stops at the nose); a hit bounces a little (e .12),
      scrapes (friction .06 of the hit) and, when it is glancing, turns the car along the rail so it slides on with most of its speed; rubbing along it costs 2 m/s2. The energy of the hit (the speed into the rail) is the damage,
      reported every quarter second (src 4: a scrape, so even a gentle one counts; the rubbing counts a fifth), with sparks and the scrape sound (C.railT, C.railP). */
-  if(C.railT>0)C.railT-=dt;
-  if(roadAt(C.x,C.z,C.y)&&RQ.rail){const sg=RQ.lat>0?1:-1;if(RQ.rail&(sg>0?2:1)){const rel=angd(C.yaw,Math.atan2(RQ.tx,-RQ.tz)),ext=Math.abs(Math.sin(rel))*TR.P.hl+Math.abs(Math.cos(rel))*TR.P.hw,out=Math.abs(RQ.lat)+ext-(RQ.hw+RAIL_IN);
-    if(out>0){const nx=-RQ.nx*sg,nz=-RQ.nz*sg,v0=Math.hypot(C.vx,C.vz);C.x+=nx*out;C.z+=nz*out;const vn=-(C.vx*nx+C.vz*nz);
-      if(vn>0){if(vn>16&&!PHYS.classic){const rl=nx*Math.cos(C.yaw)+nz*Math.sin(C.yaw);if(Math.abs(rl)>.6)tumbleTrip(-rl*vn,'guard rail')}deflect(nx,nz,vn,PHYS.railE,PHYS.railMu);C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.035);C.railVn=Math.max(C.railVn||0,vn)}
-      const vh=Math.hypot(C.vx,C.vz);{if(vh>.3){const k=Math.max(0,1-2*dt/vh);C.vx*=k;C.vz*=k}}
-      const v1=Math.hypot(C.vx,C.vz),ms=.5*(HND.mass||1400);C.railE=(C.railE||0)+(vn>0?ms*vn*vn*(1-PHYS.railE*PHYS.railE):0)+.2*ms*Math.max(0,vh*vh-v1*v1);   /* the energy of the hit (its part into the rail) in full, the rubbing a fifth (most of it is heat in the beam) */C.railT=.12;C.railP=[C.x-nx*(ext+.05),C.z-nz*(ext+.05),nx,nz];
-      if((C.railCd||0)<=0&&C.railE>0){impactAdd(4,Math.max(C.railVn,.5),C.railE,0,C.x,C.z,nx,nz);C.railE=0;C.railVn=0;C.railCd=.25}}}}
-  if(C.railCd>0)C.railCd-=dt;
+  railCollide(dt);   /* (batch 54) the rails are real segments now (57_rails.js): solid from both sides, for racers too, and breakable */
   /* ---- solid things: buildings, poles, trees ---- */
   collide(fx,fz);
   C.ax+=(((f-f0)/dt)-C.ax)*Math.min(1,dt*6);

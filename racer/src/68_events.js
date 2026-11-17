@@ -58,7 +58,7 @@ function evInit(){EV.list.length=0;evLoad();
     EV.list.push(ev)}}
 const evMedal=(ev,t)=>t<=ev.gold?3:t<=ev.silver?2:t<=ev.bronze?1:0;
 /* ---- start, run, finish ---- */
-function evStart(ev){IN.nitro=0;C.boostK=0;EV._starting=ev;EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=0;racerClear();
+function evStart(ev){if(typeof railReset=='function')railReset();IN.nitro=0;C.boostK=0;EV._starting=ev;EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=0;racerClear();
   const s=ev.s;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-s.x,c.z-s.z)<40&&c.kind!==1)trKill(c,0);copClear(true);for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);
   let sx=s.x,sz=s.z,sy=s.y,syaw=s.yaw;const racing=ev.type=='race'||ev.type=='death';
   if(racing){/* the grid: you on the front row, on the right, 24 m along the route */const R=ev.R;let j=0;while(j<R.n-2&&R.S[j+1]<24)j++;const dx=R.pts[j*3+3]-R.pts[j*3],dz=R.pts[j*3+5]-R.pts[j*3+2],l=Math.hypot(dx,dz)||1;syaw=Math.atan2(dx/l,-dz/l);sx=R.pts[j*3]+(-dz/l)*3.4;sz=R.pts[j*3+2]+(dx/l)*3.4;sy=R.pts[j*3+1];

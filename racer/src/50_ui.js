@@ -131,7 +131,7 @@ function hudDraw(){
   /* stats */
   if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px '+LCDF;c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'gfx '+GFX.cur.name+' ('+GFX.mode+')  work '+GFX.work.toFixed(1)+' ms  fxaa'+(GFX.cur.blur?' blur':'')+(GFX.cur.bloom?' bloom':'')+(GFX.shadowOn?' shadow'+GFX.cur.shadow:''),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
   if(PHYS.classic&&!window.__shot){c.save();c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px '+UIF;c.fillStyle='rgba(255,164,58,.9)';c.fillText('CLASSIC HANDLING',W_*.5,H_-u*.12);c.restore()}   /* the old handling is on (?hnd=classic or the switch in the car menu) */
-  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);evHud(c,W_,H_,u);boostHud(c,W_,H_,u);crashHud(c,W_,H_,u);
+  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);evHud(c,W_,H_,u);boostHud(c,W_,H_,u);slipHud(c,W_,H_,u);crashHud(c,W_,H_,u);
   if(UI.paused&&!window.__shot)pauseDraw(c,W_,H_,u);
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}
   if(UI.mapOpen)drawWorldMap(c,W_,H_,u);

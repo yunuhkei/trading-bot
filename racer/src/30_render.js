@@ -98,7 +98,7 @@ function renderInit(){
   R.skyB=mkBuf(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]));R.watB=mkBuf(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,1,1,-1,-1,1,1,-1,1]));
   /* roads */
   buildRoadHash();for(const p of buildRoadMeshes())R.roads.push({vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.n1,n2:p.I.length-p.n1,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad});
-  buildFurniture();R.stats=buildCity();R.props=finishProps().map(p=>({cat:p.cat,vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.I.length,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad}));PSET.clear();   /* the CPU copies are not needed any more (batch 45: they stayed alive for the whole session) */
+  buildFurniture();R.stats=buildCity();R.props=finishProps().map(p=>({cat:p.cat,vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.I.length,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad}));if(typeof railFinish=='function')railFinish();PSET.clear();   /* the CPU copies are not needed any more (batch 45: they stayed alive for the whole session) */
   buildQueries();
   /* dynamic effects buffer: quads of 9 floats/vertex */
   R.fxMax=2400;R.fxF=new Float32Array(R.fxMax*4*9);R.fx=mkBuf(gl.ARRAY_BUFFER,R.fxF.byteLength,gl.DYNAMIC_DRAW);

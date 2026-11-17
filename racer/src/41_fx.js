@@ -57,7 +57,7 @@ function fxDraw(){
   batch(2);heliFx(quad,flat,2);
   const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,al=.55*(1-age/40)*q[6];if(l>6)continue;
     quad(q[0]-nx,y,q[1]-nz,q[0]+nx,y,q[1]+nz,q[2]+nx,y,q[3]+nz,q[2]-nx,y,q[3]-nz,.02,.02,.02,al)}
-  navFx(quad,sprite,R.time);
+  navFx(quad,sprite,R.time);if(typeof slipFx=='function')slipFx(quad,R.time);
   batch(3);safePads(quad);
   batch(1);
   for(const s of SMOKE){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sz=s.sz+t*(s.k?1.3:s.dark?1.5:2.6),dc=Math.hypot(s.x-R.cx,s.y-R.cy,s.z-R.cz),al=s.a*(1-t)*(1-t)*(s.dark?sstep(4,14,dc):sstep(1.2,4,dc));if(al<.004)continue;const ux=R.up[0]*sz,uy=R.up[1]*sz,uz=R.up[2]*sz,hx=rx*sz,hz=rz*sz;

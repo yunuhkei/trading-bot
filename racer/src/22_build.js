@@ -195,9 +195,9 @@ function buildFurniture(){
         const P=(o,y,t)=>[(t?r.X[j]:r.X[i])+nx*sd*o,y+(t?yj:yi),(t?r.Z[j]:r.Z[i])+nz*sd*o];
         const face=(p0,p1,p2,p3,n3,sh)=>{const k0=m.v(p0[0],p0[1],p0[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k1=m.v(p1[0],p1[1],p1[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k2=m.v(p2[0],p2[1],p2[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k3=m.v(p3[0],p3[1],p3[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0);m.q(k0,k1,k2,k3)};
         /* inner face (towards the road), top, outer face */
-        const hb=H-.42;face(P(oi-w,0,0),P(oj-w,0,1),P(oj-w,hb*.5,1),P(oi-w,hb*.5,0),[-nx*sd,-.3,-nz*sd],.95);face(P(oi-w,hb*.5,0),P(oj-w,hb*.5,1),P(oj-w,hb,1),P(oi-w,hb,0),[-nx*sd,.35,-nz*sd],1.12);   /* the W profile: two faces that catch the light differently */
-        face(P(oi-w,hb,0),P(oj-w,hb,1),P(oj+w,hb,1),P(oi+w,hb,0),[0,1,0],.9);face(P(oi+w,hb,0),P(oj+w,hb,1),P(oj+w,0,1),P(oi+w,0,0),[nx*sd,0,nz*sd],.6);
-        {const px=r.X[i]+nx*sd*(oi+w+.08),pz=r.Z[i]+nz*sd*(oi+w+.08);pbox(0,px,r.Y[i]-.4,pz,.07,r.Y[i]+.72,.07,120,122,126,false,.8)}}}
+        const hb=H-.42;railBegin(r.X[i]+nx*sd*oi,r.Z[i]+nz*sd*oi,r.Y[i],r.X[j]+nx*sd*oj,r.Z[j]+nz*sd*oj,r.Y[j],sd,r,i);const _rn0=m.n;face(P(oi-w,0,0),P(oj-w,0,1),P(oj-w,hb*.5,1),P(oi-w,hb*.5,0),[-nx*sd,-.3,-nz*sd],.95);face(P(oi-w,hb*.5,0),P(oj-w,hb*.5,1),P(oj-w,hb,1),P(oi-w,hb,0),[-nx*sd,.35,-nz*sd],1.12);   /* the W profile: two faces that catch the light differently */
+        face(P(oi-w,hb,0),P(oj-w,hb,1),P(oj+w,hb,1),P(oi+w,hb,0),[0,1,0],.9);face(P(oi+w,hb,0),P(oj+w,hb,1),P(oj+w,0,1),P(oi+w,0,0),[nx*sd,0,nz*sd],.6);railPiece(m,_rn0,m.n);
+        {const px=r.X[i]+nx*sd*(oi+w+.08),pz=r.Z[i]+nz*sd*(oi+w+.08),pm=pmb(px,pz,0,24),_p0=pm.n;pbox(0,px,r.Y[i]-.4,pz,.07,r.Y[i]+.72,.07,120,122,126,false,.8);railPiece(pm,_p0,pm.n)}railEnd()}}
     /* bridge deck underside and piers */
     let lastPier=-99;
     for(let i=0;i<cnt;i++){const j=(i+1)%n;if(!(r.br[i]&&r.br[j]))continue;
@@ -793,7 +793,7 @@ function buildScenery(){
   return St}
 const reg2=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
 /* finalise prop meshes into plain arrays the GL side uploads */
-function finishProps(){const out=[];PSET.forEach((L,k)=>{const cat=k&7;for(const m of L){if(!m.n)continue;out.push({cat,V:m.f.subarray(0,m.n*7),I:m.ix.subarray(0,m.ni),cx:(m.x0+m.x1)/2,cy:(m.y0+m.y1)/2,cz:(m.z0+m.z1)/2,rad:Math.hypot(m.x1-m.x0,m.y1-m.y0,m.z1-m.z0)/2+1})}});return out}
+function finishProps(){const out=[];PSET.forEach((L,k)=>{const cat=k&7;for(const m of L){if(!m.n)continue;m.outIdx=out.length;out.push({cat,V:m.f.subarray(0,m.n*7),I:m.ix.subarray(0,m.ni),cx:(m.x0+m.x1)/2,cy:(m.y0+m.y1)/2,cz:(m.z0+m.z1)/2,rad:Math.hypot(m.x1-m.x0,m.y1-m.y0,m.z1-m.z0)/2+1})}});return out}
 /* ---------- spatial hash for road queries + colliders ---------- */
 const QH={cs:64,nc:0,st:null,li:null,segR:null,segI:null,cst:null,cli:null,ccs:32,cnc:0};
 function buildRoadHash(){

@@ -1386,9 +1386,9 @@ function buildFurniture(){
         const P=(o,y,t)=>[(t?r.X[j]:r.X[i])+nx*sd*o,y+(t?yj:yi),(t?r.Z[j]:r.Z[i])+nz*sd*o];
         const face=(p0,p1,p2,p3,n3,sh)=>{const k0=m.v(p0[0],p0[1],p0[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k1=m.v(p1[0],p1[1],p1[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k2=m.v(p2[0],p2[1],p2[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0),k3=m.v(p3[0],p3[1],p3[2],n3[0],n3[1],n3[2],cc[0]*sh,cc[1]*sh,cc[2]*sh,.03,.03,0);m.q(k0,k1,k2,k3)};
         /* inner face (towards the road), top, outer face */
-        const hb=H-.42;face(P(oi-w,0,0),P(oj-w,0,1),P(oj-w,hb*.5,1),P(oi-w,hb*.5,0),[-nx*sd,-.3,-nz*sd],.95);face(P(oi-w,hb*.5,0),P(oj-w,hb*.5,1),P(oj-w,hb,1),P(oi-w,hb,0),[-nx*sd,.35,-nz*sd],1.12);   /* the W profile: two faces that catch the light differently */
-        face(P(oi-w,hb,0),P(oj-w,hb,1),P(oj+w,hb,1),P(oi+w,hb,0),[0,1,0],.9);face(P(oi+w,hb,0),P(oj+w,hb,1),P(oj+w,0,1),P(oi+w,0,0),[nx*sd,0,nz*sd],.6);
-        {const px=r.X[i]+nx*sd*(oi+w+.08),pz=r.Z[i]+nz*sd*(oi+w+.08);pbox(0,px,r.Y[i]-.4,pz,.07,r.Y[i]+.72,.07,120,122,126,false,.8)}}}
+        const hb=H-.42;railBegin(r.X[i]+nx*sd*oi,r.Z[i]+nz*sd*oi,r.Y[i],r.X[j]+nx*sd*oj,r.Z[j]+nz*sd*oj,r.Y[j],sd,r,i);const _rn0=m.n;face(P(oi-w,0,0),P(oj-w,0,1),P(oj-w,hb*.5,1),P(oi-w,hb*.5,0),[-nx*sd,-.3,-nz*sd],.95);face(P(oi-w,hb*.5,0),P(oj-w,hb*.5,1),P(oj-w,hb,1),P(oi-w,hb,0),[-nx*sd,.35,-nz*sd],1.12);   /* the W profile: two faces that catch the light differently */
+        face(P(oi-w,hb,0),P(oj-w,hb,1),P(oj+w,hb,1),P(oi+w,hb,0),[0,1,0],.9);face(P(oi+w,hb,0),P(oj+w,hb,1),P(oj+w,0,1),P(oi+w,0,0),[nx*sd,0,nz*sd],.6);railPiece(m,_rn0,m.n);
+        {const px=r.X[i]+nx*sd*(oi+w+.08),pz=r.Z[i]+nz*sd*(oi+w+.08),pm=pmb(px,pz,0,24),_p0=pm.n;pbox(0,px,r.Y[i]-.4,pz,.07,r.Y[i]+.72,.07,120,122,126,false,.8);railPiece(pm,_p0,pm.n)}railEnd()}}
     /* bridge deck underside and piers */
     let lastPier=-99;
     for(let i=0;i<cnt;i++){const j=(i+1)%n;if(!(r.br[i]&&r.br[j]))continue;
@@ -1984,7 +1984,7 @@ function buildScenery(){
   return St}
 const reg2=(cx,cz,hx,hz,cs,sn,top)=>{COLO.push(cx,cz,hx,hz,cs,sn,top)};
 /* finalise prop meshes into plain arrays the GL side uploads */
-function finishProps(){const out=[];PSET.forEach((L,k)=>{const cat=k&7;for(const m of L){if(!m.n)continue;out.push({cat,V:m.f.subarray(0,m.n*7),I:m.ix.subarray(0,m.ni),cx:(m.x0+m.x1)/2,cy:(m.y0+m.y1)/2,cz:(m.z0+m.z1)/2,rad:Math.hypot(m.x1-m.x0,m.y1-m.y0,m.z1-m.z0)/2+1})}});return out}
+function finishProps(){const out=[];PSET.forEach((L,k)=>{const cat=k&7;for(const m of L){if(!m.n)continue;m.outIdx=out.length;out.push({cat,V:m.f.subarray(0,m.n*7),I:m.ix.subarray(0,m.ni),cx:(m.x0+m.x1)/2,cy:(m.y0+m.y1)/2,cz:(m.z0+m.z1)/2,rad:Math.hypot(m.x1-m.x0,m.y1-m.y0,m.z1-m.z0)/2+1})}});return out}
 /* ---------- spatial hash for road queries + colliders ---------- */
 const QH={cs:64,nc:0,st:null,li:null,segR:null,segI:null,cst:null,cli:null,ccs:32,cnc:0};
 function buildRoadHash(){
@@ -2326,7 +2326,7 @@ function renderInit(){
   R.skyB=mkBuf(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]));R.watB=mkBuf(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,1,1,-1,-1,1,1,-1,1]));
   /* roads */
   buildRoadHash();for(const p of buildRoadMeshes())R.roads.push({vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.n1,n2:p.I.length-p.n1,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad});
-  buildFurniture();R.stats=buildCity();R.props=finishProps().map(p=>({cat:p.cat,vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.I.length,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad}));PSET.clear();   /* the CPU copies are not needed any more (batch 45: they stayed alive for the whole session) */
+  buildFurniture();R.stats=buildCity();R.props=finishProps().map(p=>({cat:p.cat,vb:mkBuf(gl.ARRAY_BUFFER,p.V),ib:mkBuf(gl.ELEMENT_ARRAY_BUFFER,p.I),n:p.I.length,cx:p.cx,cy:p.cy,cz:p.cz,rad:p.rad}));if(typeof railFinish=='function')railFinish();PSET.clear();   /* the CPU copies are not needed any more (batch 45: they stayed alive for the whole session) */
   buildQueries();
   /* dynamic effects buffer: quads of 9 floats/vertex */
   R.fxMax=2400;R.fxF=new Float32Array(R.fxMax*4*9);R.fx=mkBuf(gl.ARRAY_BUFFER,R.fxF.byteLength,gl.DYNAMIC_DRAW);
@@ -2712,12 +2712,13 @@ function carStep(dt){
   const nitroOn=IN.nitro?1:0;C.boosting=nitroOn;if(nitroOn){C.nos=Math.max(0,C.nos-dt*.30*UPG.nosDrain);thr=1}
   /* the boost fades in and out (about 0.15 s in, 0.3 s out) instead of switching: the push, the top speed and the camera all follow this one number */
   C.boostK+=((nitroOn?1:0)-C.boostK)*(1-Math.exp(-dt*(nitroOn?13:6)));
-  const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*UPG.boost*C.boostK)*DMG.spd,surf=C.onRoad?1:HND.grass;
+  const vmax=(C.onRoad?HND.vmax:HND.vmaxG)*(1+.26*UPG.boost*C.boostK)*(1+.08*(C.tow||0))*DMG.spd,surf=C.onRoad?1:HND.grass;
   /* ---- longitudinal: weighty launch, strong but not instant braking ---- */
   if(gr){
     let a=0;if(thr>0){const r=Math.max(0,1-Math.pow(Math.max(f,0)/vmax,2.3));a=thr*(HND.accel*r+HND.accelLow*(PHYS.classic?(f<14?1:0):1-sstep(9,19,f)))*(1+.9*UPG.boost*C.boostK)*DMG.acc}
     if(brk>0){if(f>1.5)a-=brk*HND.brake*(.7+.3*surf);else a-=brk*8*(PHYS.classic?1:clamp(1+f/PHYS.revMax,0,1))}   /* brake, then reverse (up to PHYS.revMax m/s) */
-    a-=Math.sign(f)*(.35+af*af*.0004);                 /* rolling + air drag */
+    a-=Math.sign(f)*(.35+af*af*.0004*(1-.6*(C.tow||0)));   /* rolling + air drag ((batch 54) the drag drops by up to 60 % in a slipstream) */
+    if(C.tow>0&&thr>0&&f>15)a+=2.6*C.tow;   /* and the tow pulls you on */
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */
     a-=GRAV*slope/m2;                                  /* hills: gravity along the ground (climbing turns speed into height, descending turns height into speed) */
     s-=GRAV*mr/m2*dt;                                  /* and sideways down a camber */
@@ -2800,14 +2801,7 @@ function carStep(dt){
   /* GUARD RAILS: metal on metal. The car's corner nearest the rail is kept off its face (the car's own angle counts, so a nose-first hit stops at the nose); a hit bounces a little (e .12),
      scrapes (friction .06 of the hit) and, when it is glancing, turns the car along the rail so it slides on with most of its speed; rubbing along it costs 2 m/s2. The energy of the hit (the speed into the rail) is the damage,
      reported every quarter second (src 4: a scrape, so even a gentle one counts; the rubbing counts a fifth), with sparks and the scrape sound (C.railT, C.railP). */
-  if(C.railT>0)C.railT-=dt;
-  if(roadAt(C.x,C.z,C.y)&&RQ.rail){const sg=RQ.lat>0?1:-1;if(RQ.rail&(sg>0?2:1)){const rel=angd(C.yaw,Math.atan2(RQ.tx,-RQ.tz)),ext=Math.abs(Math.sin(rel))*TR.P.hl+Math.abs(Math.cos(rel))*TR.P.hw,out=Math.abs(RQ.lat)+ext-(RQ.hw+RAIL_IN);
-    if(out>0){const nx=-RQ.nx*sg,nz=-RQ.nz*sg,v0=Math.hypot(C.vx,C.vz);C.x+=nx*out;C.z+=nz*out;const vn=-(C.vx*nx+C.vz*nz);
-      if(vn>0){if(vn>16&&!PHYS.classic){const rl=nx*Math.cos(C.yaw)+nz*Math.sin(C.yaw);if(Math.abs(rl)>.6)tumbleTrip(-rl*vn,'guard rail')}deflect(nx,nz,vn,PHYS.railE,PHYS.railMu);C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.035);C.railVn=Math.max(C.railVn||0,vn)}
-      const vh=Math.hypot(C.vx,C.vz);{if(vh>.3){const k=Math.max(0,1-2*dt/vh);C.vx*=k;C.vz*=k}}
-      const v1=Math.hypot(C.vx,C.vz),ms=.5*(HND.mass||1400);C.railE=(C.railE||0)+(vn>0?ms*vn*vn*(1-PHYS.railE*PHYS.railE):0)+.2*ms*Math.max(0,vh*vh-v1*v1);   /* the energy of the hit (its part into the rail) in full, the rubbing a fifth (most of it is heat in the beam) */C.railT=.12;C.railP=[C.x-nx*(ext+.05),C.z-nz*(ext+.05),nx,nz];
-      if((C.railCd||0)<=0&&C.railE>0){impactAdd(4,Math.max(C.railVn,.5),C.railE,0,C.x,C.z,nx,nz);C.railE=0;C.railVn=0;C.railCd=.25}}}}
-  if(C.railCd>0)C.railCd-=dt;
+  railCollide(dt);   /* (batch 54) the rails are real segments now (57_rails.js): solid from both sides, for racers too, and breakable */
   /* ---- solid things: buildings, poles, trees ---- */
   collide(fx,fz);
   C.ax+=(((f-f0)/dt)-C.ax)*Math.min(1,dt*6);
@@ -2928,7 +2922,7 @@ function fxDraw(){
   batch(2);heliFx(quad,flat,2);
   const nsk=Math.min(skidHead,SKMAX);for(let i=0;i<nsk;i++){const q=SKID[i],age=C.t-q[5];if(age>40)continue;const dx=q[2]-q[0],dz=q[3]-q[1],l=Math.hypot(dx,dz)||1,nx=-dz/l*.14,nz=dx/l*.14,y=q[4]+.05,al=.55*(1-age/40)*q[6];if(l>6)continue;
     quad(q[0]-nx,y,q[1]-nz,q[0]+nx,y,q[1]+nz,q[2]+nx,y,q[3]+nz,q[2]-nx,y,q[3]-nz,.02,.02,.02,al)}
-  navFx(quad,sprite,R.time);
+  navFx(quad,sprite,R.time);if(typeof slipFx=='function')slipFx(quad,R.time);
   batch(3);safePads(quad);
   batch(1);
   for(const s of SMOKE){if(s.age>=s.life||n>=R.fxMax)continue;const t=s.age/s.life,sz=s.sz+t*(s.k?1.3:s.dark?1.5:2.6),dc=Math.hypot(s.x-R.cx,s.y-R.cy,s.z-R.cz),al=s.a*(1-t)*(1-t)*(s.dark?sstep(4,14,dc):sstep(1.2,4,dc));if(al<.004)continue;const ux=R.up[0]*sz,uy=R.up[1]*sz,uz=R.up[2]*sz,hx=rx*sz,hz=rz*sz;
@@ -3328,7 +3322,7 @@ function hudDraw(){
   /* stats */
   if(UI.showStats){const sx0=mm.cx+mm.r+10,sy0=u*.35;c.textAlign='left';c.font='600 11px '+LCDF;c.fillStyle='rgba(0,0,0,.6)';c.fillRect(sx0,sy0,230,92);c.fillStyle='#9dffb0';const l=[Math.round(1000/UI.ms)+' fps  '+UI.ms.toFixed(1)+' ms',R.draws+' draws  '+Math.round(R.tris/1000)+'k tris  cars '+TR.nAlive+(TR.ms?'  ai '+TR.ms.toFixed(2)+' ms':''),(UI.cw||0)+'x'+(UI.ch||0)+'  scale '+Q.scale.toFixed(2),'gfx '+GFX.cur.name+' ('+GFX.mode+')  work '+GFX.work.toFixed(1)+' ms  fxaa'+(GFX.cur.blur?' blur':'')+(GFX.cur.bloom?' bloom':'')+(GFX.shadowOn?' shadow'+GFX.cur.shadow:''),'x '+C.x.toFixed(0)+' z '+C.z.toFixed(0)+' y '+C.y.toFixed(1),'road '+(C.onRoad?'yes':'no')+'  air '+(C.grounded?'no':'yes')];l.forEach((t,i)=>c.fillText(t,sx0+6,sy0+14+i*14))}
   if(PHYS.classic&&!window.__shot){c.save();c.textAlign='center';c.font='700 '+Math.round(u*.2)+'px '+UIF;c.fillStyle='rgba(255,164,58,.9)';c.fillText('CLASSIC HANDLING',W_*.5,H_-u*.12);c.restore()}   /* the old handling is on (?hnd=classic or the switch in the car menu) */
-  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);evHud(c,W_,H_,u);boostHud(c,W_,H_,u);crashHud(c,W_,H_,u);
+  copHud(c,W_,H_,u);safeHud(c,W_,H_,u);navHud(c,W_,H_,u);evHud(c,W_,H_,u);boostHud(c,W_,H_,u);slipHud(c,W_,H_,u);crashHud(c,W_,H_,u);
   if(UI.paused&&!window.__shot)pauseDraw(c,W_,H_,u);
   if(C.flash>.02){c.fillStyle='rgba(255,255,255,'+C.flash*.5+')';c.fillRect(0,0,W_,H_)}
   if(UI.mapOpen)drawWorldMap(c,W_,H_,u);
@@ -3765,6 +3759,90 @@ function boostHud(c,W_,H_,u){killCamHud(c,W_,H_,u);const G=UI.gg;if(!G||!BOOST.p
   for(let i=BOOST.pops.length-1;i>=0;i--){const p=BOOST.pops[i],a=C.t-p.t;if(a>1.4||a<0)continue;const al=Math.min(1,a*6)*(1-sstep(1,1.4,a));c.globalAlpha=al;c.font='italic 800 '+Math.round(u*.24)+'px '+UIF;
     fxText(c,'+ '+p.l,G.x+G.w/2,G.y1-u*.25-k*u*.3-a*u*.2,u*.26,'#ffc23a','center');k++}
   c.restore()}
+
+/* (batch 54) SLIPSTREAM: tucked in behind a moving car (a racer, a cop or traffic going your way), 3-30 m back and within about a car's width of its line, above 50 mph, the air it pushes aside
+   tows you: up to 60 % less drag, a pull of 2.6 m/s2 and 8 % more top speed, and your nitro fills (a tank in about 14 s). It builds over half a second and fades over a second when you pull out.
+   Wind streaks stream past the car and SLIPSTREAM shows with a bar. Racers get it too, behind you or each other (up to +6 % speed). */
+const SLIP={k:0,src:null,t:0};
+function slipTick(dt){let best=0,src=null;
+  if(C.speed>22&&!TUM.on&&!CC.on&&TR.on){const fx=C.vx/C.speed,fz=C.vz/C.speed;
+    for(const c of TR.cars){if(!c.alive||c.state==1)continue;const dx=c.x-C.x,dz=c.z-C.z,f=dx*fx+dz*fz;if(f<3||f>30)continue;const lat=Math.abs(dx*-fz+dz*fx);if(lat>1.9)continue;
+      const cv=c.state==0?c.v:Math.hypot(c.vx||0,c.vz||0);if(cv<16)continue;const hx=c.state==0?Math.sin(c.yaw):(c.vx||0)/cv,hz=c.state==0?-Math.cos(c.yaw):(c.vz||0)/cv;if(hx*fx+hz*fz<.92)continue;
+      const k=(1-lat/1.9)*(f<8?1:1-(f-8)/22);if(k>best){best=k;src=c}}}
+  const want=Math.min(1,best*1.25);SLIP.k+=(want-SLIP.k)*(1-Math.exp(-dt*(want>SLIP.k?2.2:1.1)));if(SLIP.k<.01)SLIP.k=0;C.tow=SLIP.k;SLIP.src=src;
+  if(SLIP.k>.15){C.nos=Math.min(1,C.nos+dt*.07*SLIP.k);SLIP.t+=dt}else SLIP.t=0}
+/* a racer in someone's tow: a factor on its target speed */
+function slipRacer(c){const v=c.v;if(v<22)return 1;const fx=Math.sin(c.yaw),fz=-Math.cos(c.yaw);let best=0;
+  const test=(x,z,vx,vz)=>{const dx=x-c.x,dz=z-c.z,f=dx*fx+dz*fz;if(f<3||f>30)return;const lat=Math.abs(dx*-fz+dz*fx);if(lat>1.9)return;const ov=Math.hypot(vx,vz);if(ov<16||(vx*fx+vz*fz)/ov<.92)return;const k=(1-lat/1.9)*(f<8?1:1-(f-8)/22);if(k>best)best=k};
+  test(C.x,C.z,C.vx,C.vz);for(const o of(EV.run&&EV.run.racers||[]))if(o!==c&&o.alive&&o.state==3)test(o.x,o.z,o.vx||0,o.vz||0);
+  c.slip=(c.slip||0)+(best-(c.slip||0))*.05;return 1+.06*c.slip}
+/* wind streaks past the car (from the effects pass) */
+function slipFx(quad,time){if(!(SLIP.k>.08))return;const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),n=Math.round(10*SLIP.k);
+  for(let i=0;i<n;i++){const h=(i*0.618+.13)%1,side=(h<.5?-1:1),ph=((time*2.2+h*7)%1),along=4-ph*12,lat=side*(1.1+((h*13)%1)*1.4),y=C.y+.35+((h*29)%1)*1.1,L=2.4+((h*7)%1)*2,w=.03;
+    const x0=C.x+fx*along+rx*lat,z0=C.z+fz*along+rz*lat,x1=x0-fx*L,z1=z0-fz*L,al=.55*SLIP.k*Math.sin(ph*Math.PI);
+    quad(x0,y-w,z0,x0,y+w,z0,x1,y+w,z1,x1,y-w,z1,1,1,1,al)}}
+function slipHud(c,W_,H_,u){if(!(SLIP.k>.15)||EV.card||GAME.state||CC.on)return;const a=Math.min(1,(SLIP.k-.15)*3);c.save();c.globalAlpha=a;
+  fxText(c,'SLIPSTREAM',W_/2,H_*.17,u*.3,'#bfe8ff','center','rgba(90,180,255,.7)');
+  const bw=u*2.2,bh=u*.07,x=W_/2-bw/2,y=H_*.17+u*.1;c.fillStyle='rgba(0,0,0,.45)';c.fillRect(x,y,bw,bh);c.fillStyle='#7fd0ff';c.fillRect(x,y,bw*SLIP.k,bh);c.restore()}
+
+/* (batch 54) GUARD RAILS as real, breakable barriers.
+   Every rail section (one road sample, about 4 m, one side of the road) is a line segment in a grid. Your car and the racers collide with it from EITHER side (it used to be a check against
+   the nearest road only: racers ignored rails completely, and you could pass through where the nearest road was another one, e.g. the far side of a divided highway).
+   A glancing hit scrapes and slides along it (as before). A hard hit (more than ~38 mph straight into it) BREAKS the section: it vanishes with sparks and a bang and the car goes through
+   (off the bridge or the cliff it was guarding, which is how a rail still kills you); above ~58 mph into it the next section goes too.
+   A racer that hits a rail hard is wrecked (and if you touched it in the last 4 s it is your takedown). Broken sections come back after 90 s once you are well away.
+   The section's vertices (beam and post) are collapsed in the GPU buffer to hide it, from a small CPU copy kept for each section. */
+const railNow=()=>performance.now()/1000,RAILSEG=[],RAILG=new Map(),RAIL_CELL=24,RAIL_BRK=17,RAIL_BRK2=26;
+let _railRec=null;   /* the section being built (buildFurniture) */
+function railKey(cx,cz){return (cx+4096)*8192+(cz+4096)}
+function railBegin(ax,az,ay,bx,bz,by,side,road,i){_railRec={ax,az,ay,bx,bz,by,side,broken:0,t:0,pieces:[],road,ri:i,bit:side<0?1:2}}
+function railPiece(m,a,b){if(_railRec&&b>a)_railRec.pieces.push({m,a,b})}
+function railEnd(){const s=_railRec;_railRec=null;if(!s)return;const i=RAILSEG.length;RAILSEG.push(s);
+  const x0=Math.floor((Math.min(s.ax,s.bx)-2)/RAIL_CELL),x1=Math.floor((Math.max(s.ax,s.bx)+2)/RAIL_CELL),z0=Math.floor((Math.min(s.az,s.bz)-2)/RAIL_CELL),z1=Math.floor((Math.max(s.az,s.bz)+2)/RAIL_CELL);
+  for(let x=x0;x<=x1;x++)for(let z=z0;z<=z1;z++){const k=railKey(x,z);let L=RAILG.get(k);if(!L){L=[];RAILG.set(k,L)}L.push(i)}}
+/* after finishProps numbered the meshes: keep a copy of each section's vertices (to hide and restore it) */
+function railFinish(){for(const s of RAILSEG)for(const p of s.pieces){if(!p.m)continue;p.pi=p.m.outIdx;p.cpu=p.m.f.slice(p.a*7,p.b*7);p.m=null}}
+function railShow(s,on){const gl=G.gl;if(!gl||!R.props)return;for(const p of s.pieces){const P=R.props[p.pi];if(!P||!p.cpu)continue;let d=p.cpu;
+    if(!on){d=p.cpu.slice();const x=d[0],y=d[1]-3,z=d[2];for(let o=0;o<d.length;o+=7){d[o]=x;d[o+1]=y;d[o+2]=z}}
+    gl.bindBuffer(gl.ARRAY_BUFFER,P.vb);gl.bufferSubData(gl.ARRAY_BUFFER,p.a*28,d)}}
+function railBreak(i,vn,x,z){const s=RAILSEG[i];if(!s||s.broken)return;s.broken=1;s.t=railNow();railShow(s,false);
+  if(typeof sparkAt=='function'){sparkAt((s.ax+s.bx)/2,(s.ay+s.by)/2+.6,(s.az+s.bz)/2,0,0,24,Math.min(14,4+vn*.3))}
+  if(vn>RAIL_BRK2){/* the next section along goes too */for(const j of[i-1,i+1]){const o=RAILSEG[j];if(o&&!o.broken&&o.side===s.side&&Math.hypot(o.ax-s.bx,o.az-s.bz)+Math.hypot(o.bx-s.ax,o.bz-s.az)<12){o.broken=1;o.t=railNow();railShow(o,false)}}}}
+function railRepair(){if(!RAILSEG.length)return;for(const s of RAILSEG)if(s.broken&&railNow()-s.t>90&&Math.hypot((s.ax+s.bx)/2-C.x,(s.az+s.bz)/2-C.z)>300){s.broken=0;railShow(s,true)}}
+function railReset(){for(const s of RAILSEG)if(s.broken){s.broken=0;railShow(s,true)}}
+/* the nearest unbroken section a circle (cx,cz, radius r, at height y) is touching: returns its index and sets _rl (normal from the rail to the circle, penetration) */
+const _rl={nx:0,nz:0,pen:0,i:-1};
+function railHit(cx,cz,y,r){const gx=Math.floor(cx/RAIL_CELL),gz=Math.floor(cz/RAIL_CELL),L=RAILG.get(railKey(gx,gz));if(!L)return -1;let best=-1,bp=0;
+  for(const i of L){const s=RAILSEG[i];if(s.broken||(s.road&&!(s.road.rail[s.ri]&s.bit)))continue;const ex=s.bx-s.ax,ez=s.bz-s.az,l2=ex*ex+ez*ez||1;let t=((cx-s.ax)*ex+(cz-s.az)*ez)/l2;t=t<0?0:t>1?1:t;
+    const ry=s.ay+(s.by-s.ay)*t;if(y>ry+1.1||y<ry-2.2)continue;const px=s.ax+ex*t,pz=s.az+ez*t,dx=cx-px,dz=cz-pz,d=Math.hypot(dx,dz),pen=r+.1-d;if(pen<=0||pen<=bp)continue;
+    bp=pen;best=i;if(d>1e-4){_rl.nx=dx/d;_rl.nz=dz/d}else{const l=Math.sqrt(l2);_rl.nx=-ez/l*s.side;_rl.nz=ex/l*s.side}}
+  _rl.pen=bp;_rl.i=best;return best}
+/* YOUR CAR against the rails (from carStep, replacing the old nearest-road test) */
+function railCollide(dt){if(C.railT>0)C.railT-=dt;if(C.railCd>0)C.railCd-=dt;if(!RAILSEG.length)return;{const t=railNow();if(t-(railCollide.rt||0)>2){railCollide.rt=t;railRepair()}}
+  const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),r=(TR.P.hw||.95)+.06;
+  for(const off of[1.3,-1.3]){const cx=C.x+fx*off,cz=C.z+fz*off,i=railHit(cx,cz,C.y,r);if(i<0)continue;const nx=_rl.nx,nz=_rl.nz;
+    const vn=-(C.vx*nx+C.vz*nz);
+    if(vn>RAIL_BRK){/* BREAK THROUGH: the rail takes a big bite of the speed into it and some of the rest, then lets the car through */
+      railBreak(i,vn,cx,cz);C.vx+=nx*vn*.45;C.vz+=nz*vn*.45;C.vx*=.86;C.vz*=.86;C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+.5);C.bob=-.08;
+      if(typeof audioBang=='function')audioBang(1);if(!PHYS.classic){const rl=nx*Math.cos(C.yaw)+nz*Math.sin(C.yaw);if(Math.abs(rl)>.6)tumbleTrip(-rl*vn,'guard rail')}
+      impactAdd(4,vn,.5*(HND.mass||1400)*vn*vn*.6,0,cx,cz,nx,nz);C.jrv=(C.jrv||0)+(Math.random()<.5?-2.5:2.5);continue}
+    C.x+=nx*_rl.pen;C.z+=nz*_rl.pen;
+    if(vn>0){if(vn>16&&!PHYS.classic){const rl=nx*Math.cos(C.yaw)+nz*Math.sin(C.yaw);if(Math.abs(rl)>.6)tumbleTrip(-rl*vn,'guard rail')}deflect(nx,nz,vn,PHYS.railE,PHYS.railMu);C.hit=Math.max(C.hit,vn);C.shake=Math.min(1,C.shake+vn*.035);C.railVn=Math.max(C.railVn||0,vn);if(vn>3&&typeof audioBang=='function'&&(C.railCd||0)<=0)audioBang(.2+vn/30)}
+    const vh=Math.hypot(C.vx,C.vz);if(vh>.3){const k=Math.max(0,1-2*dt/vh);C.vx*=k;C.vz*=k}
+    const v1=Math.hypot(C.vx,C.vz),ms=.5*(HND.mass||1400);C.railE=(C.railE||0)+(vn>0?ms*vn*vn*(1-PHYS.railE*PHYS.railE):0)+.2*ms*Math.max(0,vh*vh-v1*v1);C.railT=.12;C.railP=[cx-nx*(r+.05),cz-nz*(r+.05),nx,nz];
+    if((C.railCd||0)<=0&&C.railE>0){impactAdd(4,Math.max(C.railVn,.5),C.railE,0,C.x,C.z,nx,nz);C.railE=0;C.railVn=0;C.railCd=.25}}}
+/* A RACER against the rails (from racerStep). Returns true when it was wrecked. */
+function railRacer(c){if(!RAILSEG.length)return false;const fx=Math.sin(c.yaw),fz=-Math.cos(c.yaw),r=c.hw+.05;
+  for(const off of[c.hl*.55,-c.hl*.55]){const cx=c.x+fx*off,cz=c.z+fz*off,i=railHit(cx,cz,c.y,r);if(i<0)continue;const nx=_rl.nx,nz=_rl.nz,vx=c.vx||fx*c.v,vz=c.vz||fz*c.v,vn=-(vx*nx+vz*nz);
+    const mine=C.t-(c.pHitT??-99)<4;
+    if(vn>(mine?8:16)){/* a hard hit: wrecked, through the rail if it was hard enough */if(vn>RAIL_BRK)railBreak(i,vn,cx,cz);else{c.x+=nx*_rl.pen;c.z+=nz*_rl.pen}
+      if(typeof sparkAt=='function')sparkAt(cx-nx*r,c.y+.5,cz-nz*r,nx,nz,16,8);
+      c.state=1;c.wt=0;TR.stat.wrecks++;c.vx=vx+nx*vn*.5;c.vz=vz+nz*vn*.5;trFlipKick(c,Math.max(3e5,c.m*vn*vn*.5));
+      if(mine){c.byP=1;if(typeof evTakedown=='function')evTakedown(c);if(typeof boostTakedown=='function')boostTakedown(c)}return true}
+    /* a scrape: kept off the rail, nudged back towards the road, a little speed lost */
+    c.x+=nx*_rl.pen;c.z+=nz*_rl.pen;if(vn>0){c.kx=(c.kx||0)+nx*Math.min(4,vn*.8);c.kz=(c.kz||0)+nz*Math.min(4,vn*.8);c.v*=.985}
+    if(typeof sparkAt=='function'&&Math.random()<.3)sparkAt(cx-nx*r,c.y+.45,cz-nz*r,nx,nz,3,5)}
+  return false}
 
 'use strict';
 /* ===== traffic: cars that follow the lane graph (23_lanes.js) ===== */
@@ -4212,7 +4290,7 @@ function trTick(dt){
   copTick(dt);
   if(TR.prof){const ms=performance.now()-t0;TR.ms+=(ms-TR.ms)*.03;TR.stat.msSum+=ms;TR.stat.ticks++;if(ms>TR.stat.msMax)TR.stat.msMax=ms}}
 /* the fixed-step world: the player at 120 Hz (collisions with traffic included), traffic at 60 Hz */
-function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);crashTick(dt);boostTick(dt);if(TR.on&&TR.nAlive&&!(C.shield>0))trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);evTick(dt);spotTick(dt);racerTick(dt);if(!(++TR.sub&1))trTick(dt*2)}
+function worldStep(dt){SIG.t+=dt;lampTick(dt);if(GAME.lock)gameLockInputs();carStep(dt);crashTick(dt);boostTick(dt);slipTick(dt);if(TR.on&&TR.nAlive&&!(C.shield>0))trPlayerCollide();dmgConsume();dmgDents(dt);partsStep(dt);safeStep(dt);gameStep(dt);evTick(dt);spotTick(dt);racerTick(dt);if(!(++TR.sub&1))trTick(dt*2)}
 
 'use strict';
 /* ===== traffic rendering: four low-poly body types built in code (about 200 triangles each), drawn instanced (one draw per type; if the GPU has no instancing, one draw per car) ===== */
@@ -5198,7 +5276,7 @@ function evInit(){EV.list.length=0;evLoad();
     EV.list.push(ev)}}
 const evMedal=(ev,t)=>t<=ev.gold?3:t<=ev.silver?2:t<=ev.bronze?1:0;
 /* ---- start, run, finish ---- */
-function evStart(ev){IN.nitro=0;C.boostK=0;EV._starting=ev;EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=0;racerClear();
+function evStart(ev){if(typeof railReset=='function')railReset();IN.nitro=0;C.boostK=0;EV._starting=ev;EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=0;racerClear();
   const s=ev.s;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-s.x,c.z-s.z)<40&&c.kind!==1)trKill(c,0);copClear(true);for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);
   let sx=s.x,sz=s.z,sy=s.y,syaw=s.yaw;const racing=ev.type=='race'||ev.type=='death';
   if(racing){/* the grid: you on the front row, on the right, 24 m along the route */const R=ev.R;let j=0;while(j<R.n-2&&R.S[j+1]<24)j++;const dx=R.pts[j*3+3]-R.pts[j*3],dz=R.pts[j*3+5]-R.pts[j*3+2],l=Math.hypot(dx,dz)||1;syaw=Math.atan2(dx/l,-dz/l);sx=R.pts[j*3]+(-dz/l)*3.4;sz=R.pts[j*3+2]+(dx/l)*3.4;sy=R.pts[j*3+1];
@@ -5390,7 +5468,7 @@ function racerStep(c,dt){
       const ar=Math.abs((bx-ax)*(cz-az)-(bz-az)*(cx-ax)),dd=Math.hypot(bx-ax,bz-az)*Math.hypot(cx-bx,cz-bz)*Math.hypot(cx-ax,cz-az),kc=dd>1e-3?2*ar/dd:0;if(kc>1e-4){const vb=Math.sqrt(sk.grip/kc),dist=Math.max(0,Rt.S[A]-R.s);vt=Math.min(vt,Math.sqrt(vb*vb+2*(sk.brk||9)*.72*dist))}}
     /* catch-up: a little faster when far behind you, a little slower when far ahead */
     const gap=(EV.run&&EV.run.ps!=null)?EV.run.ps-R.s:0;vt*=gap>300?1.3:gap>150?1.18:gap>60?1.08:gap<-320?.93:1;if(R.catchT>0){R.catchT-=dt;if(gap>20)vt*=1.12}
-    vt=Math.min(vt,vLim);   /* catch-up brings it up to its car's limit, never past it */
+    {const sf=slipRacer(c);vt=Math.min(vt*sf,vLim*sf)}   /* catch-up brings it up to its car's limit, never past it (a slipstream adds up to 6 %, as yours adds 8 %) */
     vt=Math.min(vt,cornerV);   /* (batch 54) the catch-up boost is for the straights only: it used to be applied after the corner limit, so a racer catching up took bends up to 46 % too fast and ran wide off the road */   /* (batch 53) it really comes back at you after you knock it out or leave it behind */   /* (batch 53) it chases harder when it is behind you, and eases off only when it is a long way ahead */
     /* traffic in the way: overtake on the free side */
     const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),look=Math.max(40,v*1.6),lat2=(o,dx,dz)=>{const ovx=Math.sin(o.yaw)*o.v,ovz=-Math.cos(o.yaw)*o.v,lt=dx*-cy+dz*sy,lv=ovx*-cy+ovz*sy;return[lt,lt+lv*.9]},   /* where it is across our path now and in 0.9 s (a car changing lanes) */
@@ -5422,11 +5500,12 @@ function racerStep(c,dt){
     if(c.spinT>0){c.spinT-=dt;c.v*=Math.exp(-dt*.75);c.ks=c.ks||0;if(c.spinT<=0){c.yaw=c.yaw;c.ks*=.3}}   /* spinning out: no steering, it slides on and loses speed */
     const err=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw),maxYr=Math.min(2.4,sk.grip*1.3/Math.max(v,4)),yr=(c.spinT>0||c.air)?0:Math.max(-maxYr,Math.min(maxYr,err*3))*(c.loose>0?Math.max(.2,1-c.loose*.9):1);c.om=yr;c.yaw+=yr*dt;
     {const ea=Math.abs(angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw));if(ea>.3&&!(c.spinT>0))vt=Math.min(vt,v*(ea>.6?.97:1))}   /* (batch 54) still turning in (pointing well away from where it is going): it does not put the power down yet */
-    R.cv=cornerV;R.vt=vt;const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?1.26:1))),1.6))*(R.nzT>0?1.5:1),a=Math.max(-(sk.brk||11),Math.min(accNow,(vt-v)*1.6));if(!(c.spinT>0)&&!c.air)c.v=Math.max(0,Math.min(vLim,v+a*dt));c.brake=a<-2.5?1:0;
+    R.cv=cornerV;R.vt=vt;const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?1.26:1))),1.6))*(R.nzT>0?1.5:1),a=Math.max(-(sk.brk||11),Math.min(accNow,(vt-v)*1.6));if(!(c.spinT>0)&&!c.air)c.v=Math.max(0,Math.min(vLim*(1+.06*(c.slip||0)),v+a*dt));c.brake=a<-2.5?1:0;
     if(c.v<1.5)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
   const mvy=c.spinT>0&&c.sdir!=null?c.sdir+angd(c.yaw,c.sdir)*Math.max(0,1-c.spinT/.45):c.yaw,sy=Math.sin(mvy),cy=Math.cos(mvy);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
   /* (batch 53) a knock: a sideways drift and a spin that die away in about half a second */if(c.kx||c.kz){c.x+=c.kx*dt;c.z+=c.kz*dt;c.vx+=c.kx;c.vz+=c.kz;const kl=Math.hypot(c.kx,c.kz),nk=Math.max(0,kl-dt*(c.loose>0?6.5:14)-kl*dt*.8);c.kx*=nk/kl;c.kz*=nk/kl;if(nk<.15)c.kx=c.kz=0}if(c.ks){c.yaw+=c.ks*dt;c.ks*=Math.exp(-dt*(c.spinT>0?.8:c.loose>0?1.6:4));if(Math.abs(c.ks)<.02)c.ks=0}   /* (batch 54) the sideways slide is scrubbed off by the tyres (a steady ~0.7 g while they are loose), so a shove carries it several metres across: off the road if you push it there */if(c.loose>0)c.loose-=dt;
   for(const o of[-1,1]){const px=c.x+sy*o*c.hl*.55,pz=c.z-cy*o*c.hl*.55;if(trStatic(px,pz,c.hw+.1,c.y)){const vh=Math.hypot(c.vx,c.vz);c.x+=_sx;c.z+=_sz;c.v*=.6;c.stk+=.2;if(c.state==3&&c.alive&&C.t-(c.pHitT??-99)<4&&vh>9){/* (batch 54) a racer you hit that goes into a wall or a pole within 4 s, at 20 mph or more, is taken down (and it is your takedown) */c.state=1;c.wt=0;c.byP=1;TR.stat.wrecks++;trFlipKick(c,9e5);evTakedown(c);boostTakedown(c);return}}}
+  if(c.state==3&&railRacer(c))return;   /* (batch 54) the guard rails stop racers too (they used to drive through them) */
   /* (batch 54) JUMPS, with your car's rule: it follows the road only while the road pushes up on it; over a crest or off a ramp lip, where the ground falls away faster than gravity (24 m/s2, as yours) can pull it down,
      it leaves the road with the road's own vertical speed and flies a ballistic arc (no steering, no power) until it lands. It used to be glued to the ground. */
   if(c.air){c.vy-=GRAV*dt;c.y+=c.vy*dt;c.airT=(c.airT||0)+dt;const g=gw(c.x,c.z,c.y+.5);if(c.y<=g&&c.vy<=0){c.y=g;c.air=0;c.vy=0;c.gs=c.gsp=g;c.landT=.3;c.kv=0}
