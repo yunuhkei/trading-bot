@@ -1,7 +1,7 @@
 'use strict';
 /* ===== boot: generate the county, upload it, then run the loop ===== */
 const BOOT={};
-function loadMsg(p,t){const b=$('lb');if(b)b.style.width=Math.round(p*100)+'%';const e=$('lt');if(e&&t)e.textContent=t}
+function loadMsg(p,t){const b=$('lb');if(b)b.style.width=Math.round(p*100)+'%';{const q=$('lp');if(q)q.textContent=Math.round(p*100)+'%'}const e=$('lt');if(e&&t)e.textContent=t}
 const QS=new URLSearchParams(location.search);
 async function boot(){
   try{

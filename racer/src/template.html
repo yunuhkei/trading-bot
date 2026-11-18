@@ -10,20 +10,76 @@
 html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;overscroll-behavior:none;font-family:"RUI",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#fff}
 #gl,#hud{position:fixed;left:0;top:0;width:100%;height:100%;display:block}
 #hud{pointer-events:none}
-#load{position:fixed;inset:0;background:#0a0d14;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:5;transition:opacity .5s}
+/* Loading screens: four in-engine action shots crossfade with a slow push-in; slanted Barlow headline, LCD status line, holo corner brackets.
+   Pure CSS animation so it keeps moving while the world is being generated. */
+#load{--ink:#f4f1ea;--hud:#cfe9f5;--hot:#ff7a1a;--hot2:#ffc23d;--cop:#ff3b3b;--shade:#05070b;
+  position:fixed;inset:0;background:var(--shade);overflow:hidden;z-index:5;color:var(--ink);transition:opacity .5s;font-family:"RUI","Barlow Condensed","Arial Narrow",sans-serif}
 #load.off{opacity:0;pointer-events:none}
-#load h1{margin:0;font-size:22px;letter-spacing:.2em;font-weight:800;text-transform:uppercase}
-#load .bar{width:min(70vw,360px);height:6px;background:#1c2330;border-radius:3px;overflow:hidden}
-#load .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ff7a1a,#ffc23d);transition:width .15s}
-#load p{margin:0;font-size:13px;opacity:.7;min-height:1.2em}
-#go{display:none;margin-top:6px;padding:12px 34px;border-radius:26px;border:0;background:#ff7a1a;color:#111;font-weight:800;font-size:16px;letter-spacing:.12em}
+#load .sl{position:absolute;inset:0;opacity:0;animation:lsFade 20s infinite}
+#load .sl i{position:absolute;inset:-4%;background-size:cover;background-position:center;animation:lsPush 20s infinite}
+#load .sl:nth-child(2),#load .sl:nth-child(2) i{animation-delay:5s}
+#load .sl:nth-child(3),#load .sl:nth-child(3) i{animation-delay:10s}
+#load .sl:nth-child(4),#load .sl:nth-child(4) i{animation-delay:15s}
+@keyframes lsFade{0%{opacity:0}3%{opacity:1}25%{opacity:1}28%{opacity:0}100%{opacity:0}}
+@keyframes lsPush{0%{transform:scale(1.02) translateX(1%)}28%{transform:scale(1.13) translateX(-1.5%)}100%{transform:scale(1.13)}}
+/* the shade: dark at the bottom-left where the type sits, a slash of light across */
+#load .sh{position:absolute;inset:0;background:linear-gradient(77deg,rgba(5,7,11,.92) 0%,rgba(5,7,11,.55) 34%,rgba(5,7,11,0) 58%),linear-gradient(0deg,rgba(5,7,11,.85),rgba(5,7,11,0) 38%);pointer-events:none}
+#load .scan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px);mix-blend-mode:overlay;pointer-events:none}
+/* headlines: each lives with its slide */
+#load .hls{display:grid;margin-bottom:1.5vh}
+#load .hl{grid-area:1/1;max-width:min(62vw,640px);opacity:0;animation:lsText 20s infinite}
+#load .hl:nth-child(2){animation-delay:5s}#load .hl:nth-child(3){animation-delay:10s}#load .hl:nth-child(4){animation-delay:15s}
+@keyframes lsText{0%{opacity:0;transform:translateX(-6vw) skewX(-12deg)}4%{opacity:1;transform:translateX(0) skewX(-12deg)}24%{opacity:1;transform:translateX(0) skewX(-12deg)}27%{opacity:0;transform:translateX(3vw) skewX(-12deg)}100%{opacity:0}}
+#load .hl b{display:block;font-weight:800;font-style:italic;font-size:clamp(44px,12.5vh,112px);line-height:.86;letter-spacing:-.01em;text-transform:uppercase;
+  text-shadow:-3px 0 rgba(255,59,59,.55),3px 0 rgba(80,200,255,.5),0 6px 30px rgba(0,0,0,.6)}
+#load .hl b em{font-style:italic;color:var(--hot);-webkit-text-stroke:0}
+#load .hl span{display:block;margin-top:1.4vh;font-weight:600;font-size:clamp(14px,2.7vh,22px);letter-spacing:.01em;color:var(--hud);transform:skewX(12deg);transform-origin:left;max-width:46ch;text-wrap:balance}
+#load .kick{display:inline-block;margin-bottom:1.2vh;padding:.2em .55em;font:400 clamp(11px,1.9vh,15px) "RLCD","Share Tech Mono",monospace;letter-spacing:.14em;color:var(--shade);background:var(--hot);transform:skewX(12deg)}
+/* top bar: the name and the slide ticks */
+#load .top{position:absolute;top:calc(3.5vh + env(safe-area-inset-top,0px));left:max(5vw,env(safe-area-inset-left,0px) + 16px);right:max(5vw,env(safe-area-inset-right,0px) + 16px);display:flex;align-items:center;gap:16px}
+#load h1{margin:0;font-weight:800;font-style:italic;font-size:clamp(20px,4.4vh,36px);letter-spacing:.16em;text-transform:uppercase;transform:skewX(-8deg)}
+#load h1 i{font-style:italic;color:var(--hot)}
+#load .ticks{display:flex;gap:6px;margin-left:auto}
+#load .ticks u{display:block;width:clamp(18px,4vw,36px);height:4px;background:rgba(207,233,245,.22);overflow:hidden;position:relative;transform:skewX(-20deg)}
+#load .ticks u::after{content:"";position:absolute;inset:0;background:var(--hud);transform:translateX(-101%);animation:lsTick 20s infinite linear}
+#load .ticks u:nth-child(2)::after{animation-delay:5s}#load .ticks u:nth-child(3)::after{animation-delay:10s}#load .ticks u:nth-child(4)::after{animation-delay:15s}
+@keyframes lsTick{0%{transform:translateX(-101%)}25%{transform:translateX(0)}25.01%,100%{transform:translateX(101%)}}
+/* bottom: status line, the bar, the start button and the controls */
+#load .bot{position:absolute;left:max(5vw,env(safe-area-inset-left,0px) + 16px);right:max(5vw,env(safe-area-inset-right,0px) + 16px);bottom:calc(4vh + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:1.2vh}
+#load .row{display:flex;align-items:flex-end;gap:16px}
+#load #lt{margin:0;flex:1;min-width:0;font:400 clamp(12px,2.1vh,16px) "RLCD","Share Tech Mono",monospace;letter-spacing:.08em;color:var(--hud);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:1}
+#load #lt::before{content:"> ";color:var(--hot)}
+#load .pct{font:400 clamp(12px,2.1vh,16px) "RLCD","Share Tech Mono",monospace;color:var(--hot2);font-variant-numeric:tabular-nums}
+#load .bar{width:100%;height:6px;background:rgba(207,233,245,.14);border-radius:0;overflow:hidden;transform:skewX(-20deg)}
+#load .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--hot),var(--hot2));box-shadow:0 0 14px rgba(255,122,26,.8);transition:width .15s}
+#load #go{display:none;align-self:flex-start;margin:0;padding:.35em 1.3em;border:0;border-radius:0;background:var(--hot);color:var(--shade);font:800 italic clamp(20px,4.2vh,32px) "RUI","Barlow Condensed",sans-serif;letter-spacing:.1em;text-transform:uppercase;transform:skewX(-12deg);box-shadow:6px 6px 0 rgba(255,194,61,.35);cursor:pointer;animation:lsGo 1.2s ease-in-out infinite}
+#load #go:focus-visible{outline:3px solid var(--hud);outline-offset:3px}
+@keyframes lsGo{50%{box-shadow:6px 6px 0 rgba(255,194,61,.35),0 0 28px rgba(255,122,26,.9)}}
+#load #tips{font-size:clamp(11px,1.8vh,13px);line-height:1.45;color:rgba(207,233,245,.6);max-width:none;text-align:left}
+/* holo corner brackets */
+#load .br{position:absolute;width:5vh;height:5vh;border:2px solid rgba(207,233,245,.5);pointer-events:none}
+#load .br.a{top:calc(2vh + env(safe-area-inset-top,0px));left:calc(2vh + env(safe-area-inset-left,0px));border-right:0;border-bottom:0}
+#load .br.b{top:calc(2vh + env(safe-area-inset-top,0px));right:calc(2vh + env(safe-area-inset-right,0px));border-left:0;border-bottom:0}
+#load .br.c{bottom:calc(2vh + env(safe-area-inset-bottom,0px));left:calc(2vh + env(safe-area-inset-left,0px));border-right:0;border-top:0}
+#load .br.d{bottom:calc(2vh + env(safe-area-inset-bottom,0px));right:calc(2vh + env(safe-area-inset-right,0px));border-left:0;border-top:0}
+/* a glitch flicker on each cut */
+#load .gl{position:absolute;inset:0;background:linear-gradient(transparent 0 46%,rgba(80,200,255,.22) 46% 48%,transparent 48% 61%,rgba(255,59,59,.2) 61% 62.5%,transparent 62.5%);opacity:0;animation:lsGlitch 5s infinite;pointer-events:none;mix-blend-mode:screen}
+@keyframes lsGlitch{0%,1.5%{opacity:1;transform:translateX(-2%)}3%{opacity:0;transform:translateX(2%)}100%{opacity:0}}
+@media (orientation:portrait){#load .hl{max-width:88vw}#load .hl b{font-size:clamp(40px,12vw,84px)}#load .sl i{background-position:42% center}}
+@media (prefers-reduced-motion:reduce){#load .sl i,#load .gl,#load #go{animation:none}}
 #rot{display:none;position:fixed;inset:0;z-index:8;background:#0a0d14;color:#fff;align-items:center;justify-content:center;text-align:center;padding:30px;font-size:20px;font-weight:700}
 @media (orientation:portrait) and (max-width:700px){#rot{display:flex}}
-#tips{font-size:12px;line-height:1.5;opacity:.65;text-align:center;max-width:min(80vw,420px)}
 #err{position:fixed;left:8px;right:8px;top:8px;z-index:9;background:rgba(120,0,0,.9);padding:8px 10px;border-radius:8px;font:12px/1.35 monospace;white-space:pre-wrap;display:none;max-height:45vh;overflow:auto;pointer-events:auto;-webkit-user-select:text;user-select:text}
 </style></head><body>
 <canvas id="gl"></canvas><canvas id="hud"></canvas>
-<div id="load"><h1>Racer prototype</h1><div class="bar"><i id="lb"></i></div><p id="lt">Starting…</p><button id="go">DRIVE</button><div id="tips">Left thumb: drag to steer &middot; Right: GAS and BRAKE pedals, DRIFT above brake, NITRO above gas (just tap it) &middot; Tap the minimap for the world map<br>Keyboard: arrows/WASD, Space drift, Shift/N nitro (tap), R reset, M map, G auto-gas, F fps, P pause</div></div>
+<div id="load">
+<div class="sl"><i style="background-image:url(LS1)"></i></div><div class="sl"><i style="background-image:url(LS2)"></i></div><div class="sl"><i style="background-image:url(LS3)"></i></div><div class="sl"><i style="background-image:url(LS4)"></i></div>
+<div class="sh"></div><div class="scan"></div><div class="gl"></div>
+<div class="top"><h1>Rac<i>e</i>r</h1><div class="ticks"><u></u><u></u><u></u><u></u></div></div>
+<div class="bot"><div class="hls"><div class="hl"><div class="kick">STUNT JUMPS</div><b>Send <em>it</em></b><span>Natural jumps and secret shortcuts hide off every highway. Find them all.</span></div><div class="hl"><div class="kick">NITRO + SLIPSTREAM</div><b>Burn it <em>all</em></b><span>Tap nitro on the straights. Tuck in behind a racer, then slingshot past.</span></div><div class="hl"><div class="kick">TAKEDOWNS</div><b>Wreck <em>'em</em></b><span>Hit first, hit hard. It only counts as a takedown when they crash.</span></div><div class="hl"><div class="kick">POLICE CHASES</div><b>Outrun the <em>law</em></b><span>Break line of sight. The cops head for the last place they saw you.</span></div></div><button id="go">Drive</button><div class="row"><p id="lt">Starting…</p><span class="pct" id="lp">0%</span></div><div class="bar"><i id="lb"></i></div>
+<div id="tips">Left thumb: drag to steer &middot; Right: GAS and BRAKE pedals, DRIFT above brake, NITRO above gas (just tap it) &middot; Tap the minimap for the world map<br>Keyboard: arrows/WASD, Space drift, Shift/N nitro (tap), R reset, M map, G auto-gas, F fps, P pause</div></div>
+<div class="br a"></div><div class="br b"></div><div class="br c"></div><div class="br d"></div>
+</div>
 <div id="rot">Turn your phone sideways (landscape) to drive</div>
 <div id="err"></div>
 <script>
