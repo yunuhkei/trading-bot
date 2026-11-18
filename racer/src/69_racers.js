@@ -35,6 +35,7 @@ function racerStep(c,dt){
     {const bk=(sk.brk||9)*.72,maxD=Math.max(90,v*3.2),hd=q=>{const a=_ra(Rt,bi,q),b=_ra(Rt,bi,q+10);return Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2]))};let h0=hd(R.s-8);
       for(let d=-2;d<maxD;d+=6){const h1=hd(R.s+d),kc=Math.abs(angd(h1,h0))/6;h0=h1;   /* (batch 54) from where it is now, every 6 m: the scan began 12 m ahead, so a car already in a tight turn stopped seeing it and accelerated out wide */if(kc>1e-3){const vc=Math.sqrt(sk.grip*1.05/kc);cornerV=Math.min(cornerV,Math.sqrt(vc*vc+2*bk*Math.max(0,d)))}}}
     /* nitro: the racers use it too, on a clear straight, for 2.5 s every 12-20 s */
+    if(!R.started){R.started=1;if(sk.nitro&&(c.seed%10)<8){R.nzT=1.4+(c.seed%7)*.12;R.nzCd=10}}   /* (batch 65) most racers fire their nitro off the line, as you do */
     R.nzCd=(R.nzCd||4)-dt;if(R.nzT>0)R.nzT-=dt;else if(sk.nitro&&R.nzCd<=0&&v>25&&!(R.launch>0)){R.nzT=2.5;R.nzCd=12+((c.seed|0)%8)}
     const vLim=(sk.vtop||sk.vmax)*(R.nzT>0?1.26:1);   /* (batch 54) the car's real top speed, +26 % while its nitro burns: exactly what your boost gives you (it was +8 % all the time and +20 % on nitro) */
     let vt=sk.vmax*(R.nzT>0?1.26:1);for(const L of[Math.max(40,v*1.4),Math.max(80,v*2.6)]){const A=_ra(Rt,bi,R.s+10),B=_ra(Rt,bi,R.s+10+L/2),Cc=_ra(Rt,bi,R.s+10+L);const ax=p[A*3],az=p[A*3+2],bx=p[B*3],bz=p[B*3+2],cx=p[Cc*3],cz=p[Cc*3+2];
@@ -51,15 +52,18 @@ function racerStep(c,dt){
     let block=null,bdist=1e9;for(const o of TR.cars){if(!o.alive||o===c)continue;const f=inLane(o,R.off);if(f>0&&f<bdist){bdist=f;block=o}}
     /* a car ahead that is turning or changing lanes (not going our way): be ready to stop behind it */
     for(const o of TR.cars){if(!o.alive||o===c||o.kind==2)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<3||f>look)continue;const lt=dx*-cy+dz*sy;if(Math.abs(lt)>7)continue;if(Math.abs(angd(o.yaw,c.yaw))>.12)vt=Math.min(vt,Math.max(o.v*Math.cos(angd(o.yaw,c.yaw)),0)+Math.max(0,f-12)*.5)}
+    if(block&&block.kind===2&&block.race){const gap=v*.38+7;if(bdist<gap)vt=Math.min(vt,block.v+(bdist-gap)*.6)}   /* (batch 65) a racer ahead in its lane: hang back a car length or two (at the same speed they used to drive bumper to bumper and keep touching) */
     if(block&&block.v<v-1){/* overtake on whichever side is clear; if neither is, slow down behind it in good time */
       let moved=false;for(const side of[R.off<=0?3.6:-3.6,R.off<=0?-3.6:3.6]){const off=Math.max(-6,Math.min(6,R.off+side));let clear=true;for(const o of TR.cars){if(!o.alive||o===c)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f>-8&&f<bdist+15){const L=lat2(o,dx,dz),q=off-R.off;if(Math.min(Math.abs(L[0]-q),Math.abs(L[1]-q))<2.9||(L[0]-q)*(L[1]-q)<0){clear=false;break}}}if(clear){R.offT=off;moved=true;break}}
       const closing=v-block.v,need=closing*closing/(2*7)+12;if(!moved||bdist<need)vt=Math.min(vt,block.v+Math.max(0,bdist-10)*.45)}   /* until it is actually beside it, it keeps a speed it can still stop from */
-    else if(!block){if(R.launch>0)R.launch-=dt;else R.offT*=Math.exp(-dt*.4);   /* for the first 4 s it holds its grid lane (they used to dive for the middle together and crash) */
+    else if(!block){if(R.pref==null)R.pref=Math.max(-3.2,Math.min(3.2,R.off*.85));if(R.launch>0)R.launch-=dt;else R.offT+=(R.pref-R.offT)*(1-Math.exp(-dt*.4));   /* (batch 65) back to a lane of its own (its grid side), not the middle: they all used to converge on the route's centre line and drive on top of each other */   /* for the first 4 s it holds its grid lane (they used to dive for the middle together and crash) */
       /* (batch 53) defending: a car right behind you in a race gets its nose across your line (a move every 1.2 s, never more than 4 m off the route) */
       if(EV.run&&EV.run.ev&&EV.run.t>=0&&!(c.spinT>0)){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;
         /* (batch 64) racing you for position (every racer event, takedowns too): with you close behind or alongside it floors it, lights its nitro when you draw level, and once its nose is ahead of yours it cuts across in front of you (a move every second, never more than 4.5 m off the route) */
         if(fd>-28&&fd<9&&Math.abs(lt)<10&&v>12){vt=Math.min(cornerV,vLim);if(fd>-6&&sk.nitro&&!(R.nzT>0)&&(R.nzCd||0)<6){R.nzT=2;R.nzCd=11}}
-        if(R.defT<=0&&fd<-1.5&&fd>-35&&Math.abs(lt)<7&&v>18){R.defT=1;R.offT=Math.max(-4.5,Math.min(4.5,R.off+Math.sign(lt||1)*Math.min(3,Math.abs(lt)+.8)))}}}
+        if(R.aggr>0&&R.defT<=0&&fd<-1.5&&fd>-35&&Math.abs(lt)<7&&v>18){R.defT=1;   /* (batch 65) clean racers (aggr 0) race you for position but never block */R.offT=Math.max(-4.5,Math.min(4.5,R.off+Math.sign(lt||1)*Math.min(3,Math.abs(lt)+.8)))}}}
+    /* (batch 65) a racer right beside it: move apart (they rubbed side by side for 20-50 s of every minute and got tangled) */
+    R.sepT=(R.sepT||0)-dt;if(R.sepT<=0){for(const o of TR.cars){if(!o.alive||o===c||o.kind!==2||!o.race||o.state!==3)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy,lt=dx*-cy+dz*sy;if(Math.abs(f)<6&&Math.abs(lt)<3.6){R.offT=Math.max(-4.5,Math.min(4.5,R.off+(lt>0?-1:1)*(3.8-Math.abs(lt))));if(f>0)vt=Math.min(vt,o.v-1.5);R.sepT=.35;break}}}   /* the one behind yields */
     R.off+=(R.offT-R.off)*Math.min(1,dt*2.6);
     let tx=p[ahead*3],tz=p[ahead*3+2];{const a2=Math.min(Rt.n-1,ahead+1),dx=p[a2*3]-tx,dz=p[a2*3+2]-tz,l=Math.hypot(dx,dz)||1;
       /* (batch 53) never aim off the asphalt: an offset that would put the car on the verge or into the barrier is pulled back towards the route */

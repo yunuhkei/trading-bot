@@ -130,7 +130,7 @@ function evCrashMark(r){if(!r||!r.ev.R)return;r.crashPs=r.ps;r.crashGaps=new Map
 function evPullRacers(r){if(!r||!r.racers||!r.racers.length||!r.ev.R)return;const R=r.ev.R,p=R.pts;
   if(r.crashPs==null){let bi=0,bd=1e18;for(let k=0;k<R.n;k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
   r.crashN=(r.crashN||0)+1;const D=Math.min(480,80*Math.pow(2,r.crashN-1)),G=r.crashGaps||new Map();
-  const list=r.racers.filter(c=>c.alive&&c.race&&c.state==3&&c.race.done<0).map(c=>{const g0=G.has(c)?G.get(c):c.race.s-r.ps;return{c,g:g0>=0?Math.max(30,Math.min(D,g0)):Math.min(-30,Math.max(-D,g0))}});
+  const list=r.racers.filter(c=>c.alive&&c.race&&c.state==3&&c.race.done<0).map(c=>{const g0=G.has(c)?G.get(c):c.race.s-r.ps;return{c,g:g0>=-45?Math.max(30,Math.min(D,Math.max(g0,30))):Math.min(-30,Math.max(-D,g0))}});   /* (batch 65) a racer that was close behind or beside you when you crashed (the one that took you down) got past while you were wrecked: it comes back ahead of you */
   const ah=list.filter(q=>q.g>=0).sort((a,b)=>a.g-b.g),bh=list.filter(q=>q.g<0).sort((a,b)=>b.g-a.g);
   for(let k=1;k<ah.length;k++)ah[k].g=Math.max(ah[k].g,ah[k-1].g+22);for(let k=1;k<bh.length;k++)bh[k].g=Math.min(bh[k].g,bh[k-1].g-22);
   let k=0;for(const q of ah.concat(bh)){const c=q.c,S=Math.max(10,Math.min(R.len-40,r.ps+q.g)),lat=(k&1)?-3.2:3.2;k++;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;

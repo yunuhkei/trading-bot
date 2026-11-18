@@ -7,7 +7,7 @@ const out=await T.ev(([LAT,VMAX])=>{const log=[];const W=n=>{for(let i=0;i<n;i++
   const skip=()=>{let k=0;while(STORY.dlg&&k++<50)storySceneEnd()};
   const drive=(maxS)=>{const r0=EV.run;if(!r0)return'norun';const ev=r0.ev,Rt=ev.R;let fi=0,t=0;
     while(EV.run&&t<maxS){skip();const r=EV.run;if(!r)break;if(Rt&&r.t>=0){const p=Rt.pts;let bd=1e18;for(let k=Math.max(0,fi-5);k<Math.min(Rt.n,fi+60);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;fi=k}}
-        let k=fi;while(k<Rt.n-1&&Rt.S[k]<Rt.S[fi]+Math.max(12,C.speed*.55))k++;C.steer=clamp(angd(Math.atan2(p[k*3]-C.x,-(p[k*3+2]-C.z)),C.yaw)*2.2,-1,1);
+        let k=fi;while(k<Rt.n-1&&Rt.S[k]<Rt.S[fi]+Math.max(12,C.speed*.55))k++;let tx=p[k*3],tz=p[k*3+2];{/* (batch 65) overtake: a car in the way ahead, aim 3.5 m to the side with more room */const hx=Math.sin(C.yaw),hz=-Math.cos(C.yaw);let blk=null,bd2=1e9;for(const o of TR.cars){if(!o.alive||o.state==1)continue;const dx=o.x-C.x,dz=o.z-C.z,f=dx*hx+dz*hz,lt=dx*-hz+dz*hx;if(f>2&&f<32&&Math.abs(lt)<2.6&&f<bd2){bd2=f;blk={lt}}}if(blk){const sd=blk.lt>0?-1:1;tx+=sd*Math.cos(C.yaw)*3.5;tz+=sd*Math.sin(C.yaw)*3.5}}C.steer=clamp(angd(Math.atan2(tx-C.x,-(tz-C.z)),C.yaw)*2.2,-1,1);
         /* speed the next 120 m of bends allow */let vt=VMAX;for(let d=6;d<Math.max(60,C.speed*3);d+=6){const a=_ra(Rt,fi,Rt.S[fi]+d),b=_ra(Rt,fi,Rt.S[fi]+d+8),c=_ra(Rt,fi,Rt.S[fi]+d+16);
           const h1=Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2])),h2=Math.atan2(p[c*3]-p[b*3],-(p[c*3+2]-p[b*3+2])),kc=Math.abs(angd(h2,h1))/8;if(kc>1e-3){const vc=Math.sqrt(LAT/kc);vt=Math.min(vt,Math.sqrt(vc*vc+2*7*d))}}
         IN.thr=C.speed<vt?1:0;IN.brk=C.speed>vt+3?1:0;IN.auto=false}
