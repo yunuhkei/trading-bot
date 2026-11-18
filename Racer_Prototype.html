@@ -2945,14 +2945,16 @@ function camStep(dt,snap){if(CC.on){crashCam();return}if(typeof KC!='undefined'&
   if(!isFinite(C.camYaw)||!isFinite(C.camYV))snap=true;   /* (batch 59) a camera that was never snapped (camYV unset) went NaN and the frame rendered white */
   if(snap){C.camYaw=want;C.camYV=0}else{const w=(5.2+sp*2.2)*(1-.3*Math.min(1,C.camDr)),d=Math.min(dt,.05),acc=w*w*angd(want,C.camYaw)-2*w*C.camYV;C.camYV+=acc*d;C.camYaw+=C.camYV*d}
   /* the take-off: on a nitro tap the lens widens and the camera drops back fast, overshoots a little and settles (springs, so it is quick but never a jump); when it ends it snaps back the same way */
-  const dTarget=4.75+sp*1.05+C.boostK*1.7,h=1.5+sp*.42;   /* (batch 54) closer: the car fills more of the screen (it was 5.4-6.7 m back, 1.65-2.15 m up) */if(snap){C.camDist=dTarget;C.distV=0}else{const w=9,d=Math.min(dt,.05),acc=w*w*(dTarget-C.camDist)-2*.7*w*C.distV;C.distV+=acc*d;C.camDist+=C.distV*d}const dist=C.camDist;
+  /* (batch 62) the camera fits the car: a tall SUV or a long GT gets it further back and higher (it was set for a 1.2 m supercar: the Warden's tailgate filled the screen) */
+  const tall=sstep(1.25,1.95,CARM.H||1.25),long=sstep(4.5,5.2,(CARM.hl||2.25)*2);
+  const dTarget=4.75+sp*1.05+C.boostK*1.7+1.9*tall+.7*long,h=1.5+sp*.42+.85*tall;   /* (batch 54) closer: the car fills more of the screen (it was 5.4-6.7 m back, 1.65-2.15 m up) */if(snap){C.camDist=dTarget;C.distV=0}else{const w=9,d=Math.min(dt,.05),acc=w*w*(dTarget-C.camDist)-2*.7*w*C.distV;C.distV+=acc*d;C.camDist+=C.distV*d}const dist=C.camDist;
   /* the look-around orbit (batch 5): o = how far the camera has been swung away from behind the car; it orbits the car's middle, further out and higher with the drag */
   const oY=C.orbY||0,oP=C.orbP||0,ow=Math.min(1,(Math.abs(oY)+Math.abs(oP))*5),cyw=C.camYaw+oY,el=Math.atan2(h,dist)+oP,dd=dist*(1+.15*ow);
   const hd=lerp(dist,dd*Math.cos(el),ow);let x=px-Math.sin(cyw)*hd,z=pz+Math.cos(cyw)*hd,y=lerp(py+h,py+.5+dd*Math.sin(el),ow);   /* with no orbit (ow 0) this is exactly the chase camera as it was */
   const gh=groundAt(x,z,py)+1.3*(1-ow)+.35*ow;if(y<gh)y=gh;
   const k=snap?1:1-Math.exp(-dt*(10));C.camY+=(y-C.camY)*k;if(snap)C.camY=y;
   CAM.x=x;CAM.y=C.camY;CAM.z=z;
-  const la=(8.5+sp*7)*(1-ow);CAM.tx=px+Math.sin(cyw)*la;CAM.tz=pz-Math.cos(cyw)*la;CAM.ty=lerp(py-.62+(C.camY-(py+h))*.2+C.vy*.02,py+.55,ow);   /* (batch 54) aimed a little lower, so the closer camera keeps the whole car (tyres included) in the picture */
+  const la=(8.5+sp*7)*(1-ow);CAM.tx=px+Math.sin(cyw)*la;CAM.tz=pz-Math.cos(cyw)*la;CAM.ty=lerp(py-.62+.45*tall+(C.camY-(py+h))*.2+C.vy*.02,py+.55,ow);   /* (batch 54) aimed a little lower, so the closer camera keeps the whole car (tyres included) in the picture */
   const shk=C.shake*.12;if(shk>.002){CAM.x+=(Math.random()-.5)*shk;CAM.y+=(Math.random()-.5)*shk;CAM.z+=(Math.random()-.5)*shk}
   const tf=.9+sp*.22+C.boostK*.26+(C.tow||0)*.09;if(snap){C.fov=tf;C.fovV=0}else{const w=13,d=Math.min(dt,.05),acc=w*w*(tf-C.fov)-2*.52*w*C.fovV;C.fovV+=acc*d;C.fov+=C.fovV*d}CAM.fov=C.fov}
 /* (the effects - shadow blob, skid marks, smoke, spray, sparks, light glows and beams - are in 41_fx.js) */
@@ -6406,7 +6408,7 @@ function carInstall(def,paint){
   /* the paint finish (0 solid, 1 metallic, 2 pearl, 3 matte) and its second colour; the shut lines the shader draws */
   const fin=paint?(paint.fin|0):(def.fin|0),p2=(paint&&paint.p2)||(!paint&&def.paint2)||pc.map(v=>Math.min(255,v*.55+70));CARM.fin=new Float32Array(CAR_FIN[fin]||CAR_FIN[0]);CARM.paint2=new Float32Array([Math.pow(p2[0]/255,2.2),Math.pow(p2[1]/255,2.2),Math.pow(p2[2]/255,2.2)]);
   CARM.seam=new Float32Array(def.cc||!S._seam?12:S._seam);
-  CARM.mf=CARM.mf||new Float32Array(16);CARM.def=def;CARM.hw=S.W/2;CARM.hl=S.L/2;CARM.R=[S.rf,S.rr];
+  CARM.mf=CARM.mf||new Float32Array(16);CARM.def=def;CARM.hw=S.W/2;CARM.hl=S.L/2;CARM.H=S.H||1.25;CARM.R=[S.rf,S.rr];
   const L=S._lights;CARL.hx=L.hx;CARL.hy=L.hy;CARL.hz=L.hz;CARL.tx=L.tx;CARL.ty=L.ty;CARL.tz=L.tz;
   const wk=(def.cc?S.wb:def.spec.wb)/2.45;CD.fo=1.38*wk;CD.ro=1.33*wk;CD.hw=.68*(S.tf/.775);
   CARM.parts=S._parts;CARM.zc=S.zs((S.cowl+S.roofR)/2);partsInit();dmgInit();dmgReset();return B}
