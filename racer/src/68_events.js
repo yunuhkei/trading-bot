@@ -90,15 +90,17 @@ function evRoute(s,gx,gz){const sn=navSnap(s.x,s.z,40);if(!sn)return null;const 
 function evRefTime(R,cap){cap=cap||72;const n=R.n,p=R.pts,v=new Float32Array(n);for(let i=0;i<n;i++){const a=Math.max(0,i-4),b=Math.min(n-1,i+4),c=Math.min(n-1,i+8);const h1=Math.atan2(p[b*3]-p[a*3],p[b*3+2]-p[a*3+2]),h2=Math.atan2(p[c*3]-p[b*3],p[c*3+2]-p[b*3+2]),ds=Math.max(1,R.S[c]-R.S[a]),k=Math.abs(angd(h2,h1))/ds;v[i]=Math.min(cap,k>1e-4?Math.sqrt(9.5/k):cap)}
   v[0]=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];v[i]=Math.min(v[i],Math.sqrt(v[i-1]*v[i-1]+2*6*ds))}for(let i=n-2;i>=0;i--){const ds=R.S[i+1]-R.S[i];v[i]=Math.min(v[i],Math.sqrt(v[i+1]*v[i+1]+2*11*ds))}
   let t=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];t+=ds/Math.max(2,(v[i]+v[i-1])/2)}return t}
-function evInit(){EV.list.length=0;evLoad();
-  for(const d of EV_DEF){let s=evAt(d.from[0],d.from[1]);{/* (batch 54) never on top of a garage pad or a repair shop (the marker used to hide the garage card): slide along the street */const busy=q=>q&&((SAFE.pads||[]).some(p=>Math.hypot(p.pad.x-q.x,p.pad.z-q.z)<70)||(typeof REPAIRS!='undefined'&&REPAIRS.some(p=>Math.hypot(p.x-q.x,p.z-q.z)<70))||EV.list.some(e=>Math.hypot(e.s.x-q.x,e.s.z-q.z)<40));
-      for(let k=1;k<12&&busy(s);k++){const f=d.from[1]+(k&1?1:-1)*Math.ceil(k/2)*.07;if(f<.03||f>.97)continue;const s2=evAt(d.from[0],f);if(s2)s=s2}}if(!s)continue;const ev=Object.assign({},d,{s});
-    if(d.type=='trial'||d.type=='race'||d.type=='death'||d.type=='rage'){const t=evAt(d.to[0],d.to[1]);if(!t)continue;let R=evRoute(s,t.x,t.z);{/* (batch 53) start facing whichever way along the road gives the shorter route: one event set off the wrong way and made a U-turn after 280 m */const s2=Object.assign({},s,{yaw:s.yaw+Math.PI}),R2=evRoute(s2,t.x,t.z);if(R2&&(!R||R2.len<R.len-30)){R=R2;s.yaw=s2.yaw;ev.s=s}}if(!R||R.len<500)continue;ev.len=R.len;ev.cps=[];
+/* (batch 58) one event built from its definition (the map events, and the story's own events) */
+function evBuild(d){let s=d.at?Object.assign({},d.at):evAt(d.from[0],d.from[1]);if(!d.at){/* (batch 54) never on top of a garage pad or a repair shop (the marker used to hide the garage card): slide along the street */const busy=q=>q&&((SAFE.pads||[]).some(p=>Math.hypot(p.pad.x-q.x,p.pad.z-q.z)<70)||(typeof REPAIRS!='undefined'&&REPAIRS.some(p=>Math.hypot(p.x-q.x,p.z-q.z)<70))||(!d.story&&EV.list.some(e=>Math.hypot(e.s.x-q.x,e.s.z-q.z)<40)));
+      for(let k=1;k<12&&busy(s);k++){const f=d.from[1]+(k&1?1:-1)*Math.ceil(k/2)*.07;if(f<.03||f>.97)continue;const s2=evAt(d.from[0],f);if(s2)s=s2}}if(!s)return null;const ev=Object.assign({},d,{s});
+    if(d.type=='trial'||d.type=='race'||d.type=='death'||d.type=='rage'){const t=evAt(d.to[0],d.to[1]);if(!t)return null;let R=evRoute(s,t.x,t.z);{/* (batch 53) start facing whichever way along the road gives the shorter route: one event set off the wrong way and made a U-turn after 280 m */const s2=Object.assign({},s,{yaw:s.yaw+Math.PI}),R2=evRoute(s2,t.x,t.z);if(R2&&(!R||R2.len<R.len-30)){R=R2;s.yaw=s2.yaw;ev.s=s}}if(!R||R.len<(d.minLen||500))return null;ev.len=R.len;ev.cps=[];
       const n=Math.max(2,Math.round(R.len/300));for(let k=1;k<=n;k++){const S=R.len*k/n;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const a=Math.min(R.n-2,j),x=R.pts[a*3],y=R.pts[a*3+1],z=R.pts[a*3+2],dx=R.pts[a*3+3]-x,dz=R.pts[a*3+5]-z,l=Math.hypot(dx,dz)||1;
         ev.cps.push({x,y,z,nx:-dz/l,nz:dx/l})}
       ev.ref=evRefTime(R,d.type=='trial'?EV_DCAP[evDiff(d)]:72);ev.gold=ev.ref*1.06+2;ev.silver=ev.ref*1.2+3;ev.bronze=ev.ref*1.4+4;ev.R=R;if(d.type=='trial')ev.prize=Math.max(1500,Math.round(ev.len/1000*2600/100)*100);ev.prize=Math.round(ev.prize*[1,.7,1,1.4][evDiff(d)]/100)*100}
     else if(d.type=='escape')ev.prize=EV_ESC_PAY[d.stars];
-    EV.list.push(ev)}}
+    return ev}
+function evInit(){EV.list.length=0;evLoad();
+  for(const d of EV_DEF){const ev=evBuild(d);if(ev)EV.list.push(ev)}}
 const evMedal=(ev,t)=>t<=ev.gold?3:t<=ev.silver?2:t<=ev.bronze?1:0;
 /* ---- start, run, finish ---- */
 function evStart(ev){if(typeof railReset=='function')railReset();IN.nitro=0;C.boostK=0;EV._starting=ev;EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=0;racerClear();
@@ -133,14 +135,14 @@ function evPullRacers(r){if(!r||!r.racers||!r.racers.length||!r.ev.R)return;cons
   let k=0;for(const q of ah.concat(bh)){const c=q.c,S=Math.max(10,Math.min(R.len-40,r.ps+q.g)),lat=(k&1)?-3.2:3.2;k++;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,x=p[j*3]-uz*lat,z=p[j*3+2]+ux*lat;
     c.x=c.px=x;c.z=c.pz=z;c.y=c.py=groundAt(x,z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=Math.max(15,C.speed);c.vx=ux*c.v;c.vz=uz*c.v;c.om=0;c.rev=0;c.stk=0;c.kx=c.kz=c.ks=0;c.loose=0;c.air=0;c.vy=0;c.spinT=0;c.race.fi=j;c.race.s=R.S[j];c.race.off=c.race.offT=lat;c.race.still=0}
   r.crashPs=null;r.crashGaps=null}
-function evQuit(){const r=EV.run;if(!r)return;COP.on=r.copsWas;navClear();EV.run=null;racerClear();safeToast('EVENT ABANDONED',2)}
+function evQuit(){const r=EV.run;if(!r)return;COP.on=r.copsWas;navClear();EV.run=null;racerClear();safeToast('EVENT ABANDONED',2);if(r.ev.story&&typeof storyEvDone=='function')storyEvDone(r.ev,false,{why:'QUIT'})}
 function evTick(dt){EV.t+=dt;const r=EV.run;
   if(!r){if(EV.pending&&!GAME.state){EV.card=EV.pending;EV.pending=null}evMarkers();return}
   /* (batch 53) WRECKED in an event (not busted, not an escape): after the wreck screen you are put back on the route where you crashed, repaired, and the event goes on (it used to end it and send you to a garage) */
   /* (batch 54) wrecked completely (no health left): the event is over, you do not carry on (it used to put you back in the race) */
-  if(GAME.state){/* busted or wrecked: the event is lost */COP.on=r.copsWas;navClear();EV.run=null;racerClear();EV.pending=evResultCard(r.ev,false,GAME.state==2?'BUSTED':(GAME.msg||'WRECKED'));return}
+  if(GAME.state){/* busted or wrecked: the event is lost */COP.on=r.copsWas;navClear();EV.run=null;racerClear();EV.pending=evResultCard(r.ev,false,GAME.state==2?'BUSTED':(GAME.msg||'WRECKED'));if(r.ev.story&&typeof storyEvDone=='function')storyEvDone(r.ev,false,{why:GAME.state==2?'BUSTED':'WRECKED'});return}
   const ev=r.ev;
-  if(r.t<0){r.t+=dt;C.vx=C.vz=0;C.x=C.px=ev.s.x;C.z=C.pz=ev.s.z;C.yaw=C.pyaw=ev.s.yaw;C.wyaw=0;const k=Math.ceil(-r.t);if(k<r.lastBeep&&k>0){r.lastBeep=k;evBeep(440,.12)}
+  if(r.t<0){if(!r.hold)r.t+=dt;C.vx=C.vz=0;C.x=C.px=ev.s.x;C.z=C.pz=ev.s.z;C.yaw=C.pyaw=ev.s.yaw;C.wyaw=0;const k=Math.ceil(-r.t);if(k<r.lastBeep&&k>0){r.lastBeep=k;evBeep(440,.12)}
     if(r.t>=0){evBeep(880,.25);for(const c of r.racers)if(c.race)c.race.go=true;if(ev.type=='escape'){const t=COP.D.thr,L=ev.stars;COP.w=t[L]+(L<5?(t[L+1]-t[L])*.3:20);COP.heat=L;COP.heatT=0;COP.sightT=0;copCall();(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:'event',level:L})}}return}
   r.t+=dt;
   if(r.crashN&&r.racers&&r.racers.some(c=>c.alive&&c.race&&c.state==3&&Math.abs(c.race.s-(r.ps||0))<25))r.crashN=0;   /* caught up with a racer: the next crash starts from 60 m again */
@@ -161,7 +163,7 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
   else{if(COP.heat==0&&r.t>1){evFinish(true);return}if(r.t>=ev.secs)evFinishFail('OUT OF TIME')}}
 /* a car you wrecked (from trPlayerCollide): in road rage it counts and adds 4 s */
 function evTakedown(c){const r=EV.run;if(!r||r.t<0||c.kind!==2)return;if(r.ev.type=='death'){r.wrecks++;r.pop=1.2;evBeep(900,.15);safeToast('RACER WRECKED  +500',1.5,1);return}if(r.ev.type!='rage')return;r.wrecks++;r.bonus+=5;r.pop=1.2;evBeep(700+r.wrecks*20,.1)}   /* (batch 27) only racers count: a takedown adds 5 s */
-function evFinishFail(why){const r=EV.run;COP.on=r.copsWas;navClear();EV.run=null;racerClear();copClear(true);EV.card=evResultCard(r.ev,false,why)}
+function evFinishFail(why){const r=EV.run;COP.on=r.copsWas;navClear();EV.run=null;racerClear();copClear(true);EV.card=evResultCard(r.ev,false,why);if(r.ev.story&&typeof storyEvDone=='function')storyEvDone(r.ev,false,{why})}
 function evPlace(r){return 1+r.racers.filter(c=>c.race&&c.race.done>=0).length}
 function evFinish(ok){const r=EV.run,ev=r.ev;COP.on=r.copsWas;navClear();EV.run=null;const place=r.racers&&r.racers.length?evPlace(r):0;racerClear();const rec=EV.rec[ev.id]||(EV.rec[ev.id]={});let pay=0,medal=0,best=false;
   if(ev.type=='trial'){medal=evMedal(ev,r.t);const was=rec.m|0,val=m=>m==3?ev.prize:m==2?ev.prize*.6:m==1?ev.prize*.35:0;pay=Math.round(Math.max(val(medal)-val(was),medal?val(medal)*.1:0)/50)*50;
@@ -173,7 +175,7 @@ function evFinish(ok){const r=EV.run,ev=r.ev;COP.on=r.copsWas;navClear();EV.run=
   else if(ev.type=='rage'){const w=r.wrecks,g=ev.goals;medal=w>=g[2]?3:w>=g[1]?2:w>=g[0]?1:0;const was=rec.m|0,val=m=>m==3?ev.prize:m==2?ev.prize*.6:m==1?ev.prize*.35:0;pay=Math.round(Math.max(val(medal)-val(was),medal?val(medal)*.1:0)/50)*50;
     if(!rec.w||w>rec.w){best=!!rec.w;rec.w=w}if(medal>was)rec.m=medal}
   else{medal=3;pay=rec.done?Math.round(ev.prize*.25/50)*50:ev.prize;rec.done=(rec.done|0)+1;if(!rec.t||r.t<rec.t){best=!!rec.t;rec.t=r.t}copClear(true)}
-  rec.n=(rec.n|0)+1;evSave();if(pay>0)ECON.add(pay);evBeep(990,.3);if(ev.street){delete EV.rec.street;evSave()}EV.card=evResultCard(ev,true,null,{t:r.t,medal,pay,best,w:r.wrecks,place,n:(r.racers||[]).length+1,score:r.score})}
+  rec.n=(rec.n|0)+1;evSave();if(pay>0)ECON.add(pay);evBeep(990,.3);if(ev.street){delete EV.rec.street;evSave()}EV.card=evResultCard(ev,true,null,{t:r.t,medal,pay,best,w:r.wrecks,place,n:(r.racers||[]).length+1,score:r.score});if(ev.story&&typeof storyEvDone=='function')storyEvDone(ev,true,{t:r.t,medal,place})}
 function evResultCard(ev,ok,why,o){const lines=[];o=o||{};
   if(ok&&ev.type=='trial'){lines.push(['TIME '+evFmt(o.t)+(o.best?'   NEW BEST':''),'#fff']);lines.push([o.medal?EV_MEDAL[o.medal]+' MEDAL':'NO MEDAL  (bronze '+evFmt(ev.bronze)+')',EV_MCOL[o.medal]])}
   else if(ok&&(ev.type=='race'||ev.type=='death')){const ord=['','1ST','2ND','3RD','4TH','5TH','6TH'];lines.push([ord[o.place]+' OF '+o.n+'   ·   '+evFmt(o.t),o.place==1?'#ffd23a':'#fff']);if(ev.type=='death')lines.push([o.w+' RACERS WRECKED  ·  '+o.score+' POINTS  ·  '+(o.medal?EV_MEDAL[o.medal]:'NO MEDAL'),EV_MCOL[o.medal]])}

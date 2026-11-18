@@ -29,6 +29,12 @@ if REC_AUDIO and os.path.isdir(sd):
   for fn in sorted(os.listdir(sd)):
     if fn.endswith('.wav') or fn.endswith('.mp3'):sfx.append("%s:'%s'"%(fn.rsplit('.',1)[0],base64.b64encode(open(os.path.join(sd,fn),'rb').read()).decode()))
 if '/*SFXB64*/' in js:js=js.replace('/*SFXB64*/',','.join(sfx))
+# (batch 58) story voices: assets/vox/<line id>.mp3 become VOXB64 (none yet; ids come from tools/story_lines.js)
+vd=os.path.join(here,'assets','vox');vox=[]
+if os.path.isdir(vd):
+  for fn in sorted(os.listdir(vd)):
+    if fn.endswith('.mp3'):vox.append("%s:'%s'"%(fn[:-4],base64.b64encode(open(os.path.join(vd,fn),'rb').read()).decode()))
+if '/*VOXB64*/' in js:js=js.replace('/*VOXB64*/',','.join(vox))
 # (batch 55) music (CC0, OpenGameArt; see assets/music/CREDITS.md): assets/music/*.mp3 become base64 strings in MUSB64 (played as streamed <audio>, not decoded)
 md=os.path.join(here,'assets','music');mus=[]
 if REC_AUDIO and os.path.isdir(md):

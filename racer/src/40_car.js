@@ -248,7 +248,7 @@ function collide(fx,fz){
         /* a glancing hit turns the nose along the wall */if(PHYS.classic){const tx=-nz,tz=nx,al=C.vx*tx+C.vz*tz,fa=Math.sin(C.yaw)*tx-Math.cos(C.yaw)*tz;C.wyaw+=(fa>0?-1:1)*Math.min(1.2,-vn*.05)*(ci?1:-1)*.3}}}}}}
 /* ---------- chase camera ---------- */
 const CAM={x:0,y:0,z:0,tx:0,ty:0,tz:0,fov:1.08};
-function camStep(dt,snap){if(CC.on){crashCam();return}if(typeof KC!='undefined'&&KC.t>0&&KC.c){killCam();return}   /* (batch 17: the crash cinematic) */
+function camStep(dt,snap){if(CC.on){crashCam();return}if(typeof KC!='undefined'&&KC.t>0&&KC.c){killCam();return}if(typeof STORY!='undefined'&&STORY.camOn){storyCam();return}   /* (batch 58) story scenes */   /* (batch 17: the crash cinematic) */
   /* the camera follows the car exactly as it is DRAWN (interpolated between the 120 Hz physics steps), otherwise the car jitters against the camera by up to one step of travel (0.7 m at 80 m/s) */
   const a=snap?1:R.alpha,px=lerp(C.px,C.x,a),py=lerp(C.py,C.y,a),pz=lerp(C.pz,C.z,a),pyaw=C.pyaw+angd(C.yaw,C.pyaw)*a;
   const sp=Math.min(1,C.speed/70),tgtYaw=Math.atan2(C.vx,-C.vz),vw=sstep(3,8,C.speed);   /* the direction of travel only means something once the car is moving: faded in, no jump */
