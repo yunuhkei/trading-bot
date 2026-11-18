@@ -261,7 +261,7 @@ function camStep(dt,snap){if(CC.on){crashCam();return}if(typeof KC!='undefined'&
   /* the take-off: on a nitro tap the lens widens and the camera drops back fast, overshoots a little and settles (springs, so it is quick but never a jump); when it ends it snaps back the same way */
   /* (batch 62) the camera fits the car: the distance scales with its size on screen (its width, or its height for a tall SUV), so every car fills about the same part of the
      picture, and it rises over a tall roof so the road ahead stays in view (it was set for a 1.2 m-tall supercar: the Warden's tailgate filled the screen) */
-  const cH=CARM.H||1.25,tall=Math.max(0,cH-1.25),cS=Math.max(.97,Math.max((CARM.hw||1)*2,cH*1.12)/1.86),long=sstep(4.6,5.2,(CARM.hl||2.25)*2);
+  const cH=CARM.H||1.25,tall=Math.max(0,cH-1.35),cS=Math.max(.97,Math.max((CARM.hw||1)*2,cH*1.12)/1.86),long=sstep(4.6,5.2,(CARM.hl||2.25)*2);
   const dTarget=(4.75+sp*1.05)*cS+C.boostK*1.7+.3*long,h=(1.5+sp*.42)*(.85+.15*cS)+.8*tall;   /* (batch 54) closer: the car fills more of the screen (it was 5.4-6.7 m back, 1.65-2.15 m up) */if(snap){C.camDist=dTarget;C.distV=0}else{const w=9,d=Math.min(dt,.05),acc=w*w*(dTarget-C.camDist)-2*.7*w*C.distV;C.distV+=acc*d;C.camDist+=C.distV*d}const dist=C.camDist;
   /* the look-around orbit (batch 5): o = how far the camera has been swung away from behind the car; it orbits the car's middle, further out and higher with the drag */
   const oY=C.orbY||0,oP=C.orbP||0,ow=Math.min(1,(Math.abs(oY)+Math.abs(oP))*5),cyw=C.camYaw+oY,el=Math.atan2(h,dist)+oP,dd=dist*(1+.15*ow);
