@@ -8,12 +8,12 @@
   const J = G.body.J;
   // [part, joint A, joint B, radius, damage multiplier, joint to push]
   const HITBOX = [
-    ['head', J.HEAD, J.HEAD, 0.135, 3.5, J.HEAD],
-    ['torso', J.PELVIS, J.NECK, 0.2, 1, J.NECK],
-    ['arm', J.SHL, J.ELL, 0.075, 0.55, J.ELL], ['arm', J.ELL, J.HAL, 0.065, 0.5, J.HAL],
-    ['arm', J.SHR, J.ELR, 0.075, 0.55, J.ELR], ['arm', J.ELR, J.HAR, 0.065, 0.5, J.HAR],
-    ['leg', J.HPL, J.KNL, 0.1, 0.65, J.KNL], ['leg', J.KNL, J.FTL, 0.075, 0.6, J.KNL],
-    ['leg', J.HPR, J.KNR, 0.1, 0.65, J.KNR], ['leg', J.KNR, J.FTR, 0.075, 0.6, J.KNR],
+    ['head', J.HEAD, J.HEAD, 0.135, 3.5, J.HEAD, 'head'],
+    ['torso', J.PELVIS, J.NECK, 0.2, 1, J.NECK, 'torso'],
+    ['arm', J.SHL, J.ELL, 0.075, 0.55, J.ELL, 'larm'], ['arm', J.ELL, J.HAL, 0.065, 0.5, J.HAL, 'lfore'],
+    ['arm', J.SHR, J.ELR, 0.075, 0.55, J.ELR, 'rarm'], ['arm', J.ELR, J.HAR, 0.065, 0.5, J.HAR, 'rfore'],
+    ['leg', J.HPL, J.KNL, 0.1, 0.65, J.KNL, 'lup'], ['leg', J.KNL, J.FTL, 0.075, 0.6, J.KNL, 'lleg'],
+    ['leg', J.HPR, J.KNR, 0.1, 0.65, J.KNR, 'rup'], ['leg', J.KNR, J.FTR, 0.075, 0.6, J.KNR, 'rleg'],
   ];
 
   // closest hit of a ray (o + d·t, |d| = 1) on anyone's body, alive or dead
@@ -28,6 +28,7 @@
       const qx = px - dx * along, qy = py - dy * along, qz = pz - dz * along;
       if (qx * qx + qy * qy + qz * qz > 4.5) continue;
       for (const hb of HITBOX) {
+        if (c.body.severed && G.gore.isOff(c, hb[6])) continue; // that part isn't there any more
         const a = hb[1] * 3, b = hb[2] * 3, r = hb[3];
         const ux = j[b] - j[a], uy = j[b + 1] - j[a + 1], uz = j[b + 2] - j[a + 2];
         const wx = ox - j[a], wy = oy - j[a + 1], wz = oz - j[a + 2];
@@ -42,7 +43,7 @@
         const d2 = ex * ex + ey * ey + ez * ez;
         if (d2 > r * r) continue;
         const t = sc - Math.sqrt(r * r - d2);
-        if (t < bt) { bt = Math.max(0, t); best = { c, t: bt, part: hb[0], mult: hb[4], joint: hb[5] }; }
+        if (t < bt) { bt = Math.max(0, t); best = { c, t: bt, part: hb[0], mult: hb[4], joint: hb[5], bone: hb[6] }; }
       }
     }
     return best;
@@ -122,8 +123,8 @@
   }
   function ejectCasing(c, m) {
     const i = casings.next; casings.next = (casings.next + 1) % casings.n;
-    const rx = -m.dz, rz = m.dx; // to the shooter's right
-    casings.p[i * 3] = m.x - m.dx * 0.15; casings.p[i * 3 + 1] = m.y; casings.p[i * 3 + 2] = m.z - m.dz * 0.15;
+    const rx = -(m.dz || 0), rz = m.dx || 0; // to the shooter's right
+    casings.p[i * 3] = m.x - (m.dx || 0) * 0.15; casings.p[i * 3 + 1] = m.y; casings.p[i * 3 + 2] = m.z - (m.dz || 0) * 0.15;
     casings.v[i * 3] = rx * G.R(1.5, 2.6) + G.R(-0.4, 0.4); casings.v[i * 3 + 1] = G.R(1.6, 2.8); casings.v[i * 3 + 2] = rz * G.R(1.5, 2.6) + G.R(-0.4, 0.4);
     casings.r[i * 3] = Math.random() * 6; casings.r[i * 3 + 1] = Math.random() * 6; casings.r[i * 3 + 2] = Math.random() * 6;
     casings.life[i] = 10; casings.hit[i] = 0;
@@ -174,7 +175,7 @@
     const m = opt.muzzle;
     let dx0 = opt.ax - m.x, dy0 = opt.ay - m.y, dz0 = opt.az - m.z;
     const l0 = Math.hypot(dx0, dy0, dz0) || 1; dx0 /= l0; dy0 /= l0; dz0 /= l0;
-    const hits = new Map();
+    const hits = new Map(), corpseHits = new Map();
     let anyHit = false, killed = false, head = false;
     for (let n = 0; n < w.pellets; n++) {
       let dx = dx0 + rand() * spread, dy = dy0 + rand() * spread * 0.7, dz = dz0 + rand() * spread;
@@ -186,14 +187,18 @@
         et = body.t;
         const px = m.x + dx * et, py = m.y + dy * et, pz = m.z + dz * et;
         if (body.c.alive) {
-          const h = hits.get(body.c) || { dmg: 0, dx: 0, dz: 0, part: body.part, joint: body.joint, n: 0, px, py, pz };
+          const h = hits.get(body.c) || { dmg: 0, dx: 0, dz: 0, part: body.part, joint: body.joint, n: 0, px, py, pz, bones: {}, t: et };
           h.dmg += G.R(w.dmg[0], w.dmg[1]) * body.mult; h.dx += dx; h.dz += dz; h.n++;
+          h.bones[body.bone] = (h.bones[body.bone] || 0) + 1;
           if (body.part === 'head') { h.part = 'head'; h.joint = body.joint; }
           hits.set(body.c, h);
         } else {
           G.body.push(body.c, body.joint, dx * w.power * 0.8, 1 + dy * 2, dz * w.power * 0.8, 0.1);
           G.blood.spray(px, py, pz, dx, dz, 0.6, body.part === 'head');
           G.body.addBlood(body.c, 0.1);
+          const ch = corpseHits.get(body.c) || { bones: {}, dx, dz, t: et, px, py, pz };
+          ch.bones[body.bone] = (ch.bones[body.bone] || 0) + 1;
+          corpseHits.set(body.c, ch);
         }
       } else if (wall.hit) {
         const px = m.x + dx * et, py = m.y + dy * et, pz = m.z + dz * et;
@@ -214,7 +219,10 @@
         if (h.part === 'arm') c.fireCD = Math.max(c.fireCD || 0, 0.7);
       }
       anyHit = true; killed = killed || !c.alive; head = head || isHead;
+      G.gore.onBulletHit(c, k, h.bones, h.t, h.dx / l, h.dz / l, h.px, h.py, h.pz);
+      killed = killed || !c.alive;
     }
+    for (const [c, ch] of corpseHits) G.gore.onBulletHit(c, k, ch.bones, ch.t, ch.dx, ch.dz, ch.px, ch.py, ch.pz);
     // flash, brass, sound
     flash.position.set(m.x + dx0 * 0.08, m.y + dy0 * 0.08, m.z + dz0 * 0.08);
     const fs = k === 'shotgun' || k === 'rifle' ? 0.75 : k === 'smg' ? 0.42 : 0.5;

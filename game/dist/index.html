@@ -393,6 +393,7 @@
     <h2>Paused</h2>
     <button class="item" id="resumeBtn">Resume</button>
     <button class="item" id="soundBtn">Sound: On</button>
+    <button class="item" id="goreBtn">Gore: On</button>
     <button class="item" id="qBtn">Graphics: High</button>
     <button class="item" id="codeBtn">Backup save code</button>
     <div class="codebox" id="codeBox" hidden>
@@ -8519,7 +8520,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
   A.click = () => burst(0.25, 3000, 1500, 0.05, 'highpass');
   A.boom = () => { burst(1, 2000, 60, 1.8); thump(1, 80, 20, 1.2); };
   A.tink = (vol) => { // a shell casing hitting concrete
-    if (!A.ctx || A.muted || vol < 0.05) return;
+    if (!A.ctx || A.muted || !(vol >= 0.05)) return;
     const ctx = A.ctx, t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
     o.type = 'sine'; o.frequency.setValueAtTime(G.R(3800, 5200), t);
     g.gain.setValueAtTime(0.05 * vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
@@ -8531,6 +8532,15 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
     o.type = 'square'; o.frequency.setValueAtTime(kill ? 1300 : 2100, t);
     g.gain.setValueAtTime(kill ? 0.08 : 0.05, t); g.gain.exponentialRampToValueAtTime(0.0001, t + (kill ? 0.12 : 0.05));
     o.connect(g).connect(A.master); o.start(t); o.stop(t + 0.13);
+  };
+  A.splat = (vol) => { // flesh tearing: a wet low thud and a squelch
+    if (!A.ctx || A.muted || vol < 0.05) return;
+    burst(0.7 * vol, 700, 90, 0.22);
+    const ctx = A.ctx, t = ctx.currentTime, s = ctx.createBufferSource(); s.buffer = A.noise;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 3;
+    f.frequency.setValueAtTime(380, t); f.frequency.exponentialRampToValueAtTime(1500, t + 0.12);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.5 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    s.connect(f).connect(g).connect(A.master); s.start(t, Math.random(), 0.25);
   };
   A.ric = (vol) => burst(0.25 * vol, 5000, 1800, 0.12, 'bandpass');
   A.whiz = (vol) => { // a bullet passing close
@@ -10060,7 +10070,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
   B.revive = function (c, soft) {
     const b = c.body;
     if (!b) return;
-    if (!soft) { b.rag = null; b.posed = false; b.bloody = 0; b.pooled = false; c.headshot = false; c.bigPool = false; if (b.skin) G.skin.revive(c); B.recolor(c); }
+    if (!soft) { b.rag = null; b.posed = false; b.bloody = 0; b.pooled = false; b.severed = null; c.headshot = false; c.bigPool = false; if (b.skin) G.skin.revive(c); B.recolor(c); }
     b.written = false;
   };
   B.setVisible = function (c, v) { if (c.body) { c.body.visible = v; c.body.written = false; if (c.body.skin) G.skin.setVisible(c, v); } };
@@ -10107,6 +10117,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
     for (const [mk, k, hex, soak] of partColors(b.o)) {
       const key = mk + k;
       b.vis[key] = !!hex && (!b.skin || !!SKIN_KEEP[key]);
+      if (b.severed && G.gore) G.gore.applyVis(c);
       if (!hex) continue;
       col.set(hex);
       if (soak && b.bloody > 0) col.lerp(BLOODC, Math.min(1, b.bloody) * soak);
@@ -10637,6 +10648,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
     mistLife[i] = G.R(0.15, 0.35);
   }
 
+  BL.drop = (x, y, z, vx, vy, vz) => addDrop(x, y, z, vx, vy, vz);
   BL.splat = function (x, y, z, nx, ny, nz, size, tone) {
     const i = splatI; splatI = (splatI + 1) % SPLATS;
     vn.set(nx, ny, nz);
@@ -10827,9 +10839,49 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
     for (const m of s.mats) m.dispose();
     s.mixer.stopAllAction();
   };
+  // a severed limb: a copy of the model posed like the victim, with that limb detached from the
+  // skeleton and everything else collapsed to nothing
+  S.gib = function (c, key) {
+    const s = c.body.skin;
+    const root = window.THREE_ADDONS.clone(template);
+    root.position.copy(s.root.position); root.quaternion.copy(s.root.quaternion); root.scale.copy(s.root.scale);
+    const src = [], dst = [];
+    s.root.traverse((o) => { if (o.isBone) src.push(o); });
+    root.traverse((o) => { if (o.isBone) dst.push(o); });
+    for (let i = 0; i < dst.length && i < src.length; i++) { dst[i].position.copy(src[i].position); dst[i].quaternion.copy(src[i].quaternion); dst[i].scale.copy(src[i].scale); }
+    const mats = [];
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      const m = o.material.clone(); m.color = s.mats[0].color.clone(); o.material = m; mats.push(m);
+    });
+    G.scene.add(root);
+    root.updateMatrixWorld(true);
+    const name = BONES[key];
+    let bone = null, hips = null;
+    root.traverse((o) => {
+      if (!o.isBone) return;
+      const n = o.name.replace(/^mixamorig[:]?/, '');
+      if (n === name) bone = o;
+      if (n === 'Hips') hips = o;
+    });
+    bone.scale.setScalar(1);
+    root.attach(bone);
+    hips.scale.setScalar(0.0001);
+    root.updateMatrixWorld(true);
+    return { root, bone, hips, mats };
+  };
+  // the victim loses the limb: collapse that bone (and everything below it) to a stump
+  S.cut = function (c, key) {
+    const s = c.body.skin;
+    s.cut = s.cut || {};
+    s.cut[key] = true;
+    s.bones[key].scale.setScalar(0.0001);
+    s.root.updateMatrixWorld(true);
+  };
   S.revive = function (c) {
     const s = c.body.skin;
     s.rag0 = null;
+    if (s.cut) { for (const k in s.cut) s.bones[k].scale.setScalar(1); s.cut = null; }
     for (const k in s.acts) { s.acts[k].reset(); s.acts[k].play(); }
     for (const m of s.mats) m.color.copy(m.userData.base);
   };
@@ -11009,12 +11061,13 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
     setWorldQuat(B.hips, qa);
     const P = (k) => new T.Vector3(p[k * 3], p[k * 3 + 1], p[k * 3 + 2]);
     // spine follows the torso; the neck points at the head
+    const cut = s.cut || {};
     aim(B.spine2, B.neck, P(K.NECK));
-    aim(B.neck, B.head, P(K.HEAD).addScaledVector(vc.subVectors(P(K.HEAD), P(K.NECK)).normalize(), -0.1));
-    aim(B.larm, B.lfore, P(K.ELL)); aim(B.lfore, B.lhand, P(K.HAL));
-    aim(B.rarm, B.rfore, P(K.ELR)); aim(B.rfore, B.rhand, P(K.HAR));
-    aim(B.lup, B.lleg, P(K.KNL)); aim(B.lleg, B.lfoot, P(K.FTL));
-    aim(B.rup, B.rleg, P(K.KNR)); aim(B.rleg, B.rfoot, P(K.FTR));
+    if (!cut.head) aim(B.neck, B.head, P(K.HEAD).addScaledVector(vc.subVectors(P(K.HEAD), P(K.NECK)).normalize(), -0.1));
+    if (!cut.larm) { aim(B.larm, B.lfore, P(K.ELL)); if (!cut.lfore) aim(B.lfore, B.lhand, P(K.HAL)); }
+    if (!cut.rarm) { aim(B.rarm, B.rfore, P(K.ELR)); if (!cut.rfore) aim(B.rfore, B.rhand, P(K.HAR)); }
+    if (!cut.lup) { aim(B.lup, B.lleg, P(K.KNL)); if (!cut.lleg) aim(B.lleg, B.lfoot, P(K.FTL)); }
+    if (!cut.rup) { aim(B.rup, B.rleg, P(K.KNR)); if (!cut.rleg) aim(B.rleg, B.rfoot, P(K.FTR)); }
   };
 })();
 
@@ -11610,6 +11663,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
         if (Math.abs(lx) < car.hw + 0.3 && Math.abs(lz) < car.hl + 0.3) {
           if (sp > 5) {
             G.damageChar(c, 30 + sp * 6, car.x - fx * 3, car.z - fz * 3, car.driver === G.player, { kind: 'car', vx, vz });
+            if (!c.alive) G.gore.runOver(c, vx, vz);
             G.audio.thud(0.7);
             car.speed *= 0.9;
           } else A.pushFromCars(c, 0.35);
@@ -11650,6 +11704,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
       if (d > 7) continue;
       const l = d || 1, dx = (c.x - car.x) / l, dz = (c.z - car.z) / l;
       if (c.alive) G.damageChar(c, 200 * (1 - d / 7) + 30, car.x, car.z, byPlayer, { kind: 'blast', dx, dz });
+      if (!c.alive) G.gore.blast(c, dx, dz, d);
       else if (c.body) for (let i = 0; i < 15; i++) G.body.pushJoint(c, i, dx * G.R(5, 9), G.R(4, 7), dz * G.R(5, 9));
     }
     const pl = G.player;
@@ -12238,12 +12293,12 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
   const J = G.body.J;
   // [part, joint A, joint B, radius, damage multiplier, joint to push]
   const HITBOX = [
-    ['head', J.HEAD, J.HEAD, 0.135, 3.5, J.HEAD],
-    ['torso', J.PELVIS, J.NECK, 0.2, 1, J.NECK],
-    ['arm', J.SHL, J.ELL, 0.075, 0.55, J.ELL], ['arm', J.ELL, J.HAL, 0.065, 0.5, J.HAL],
-    ['arm', J.SHR, J.ELR, 0.075, 0.55, J.ELR], ['arm', J.ELR, J.HAR, 0.065, 0.5, J.HAR],
-    ['leg', J.HPL, J.KNL, 0.1, 0.65, J.KNL], ['leg', J.KNL, J.FTL, 0.075, 0.6, J.KNL],
-    ['leg', J.HPR, J.KNR, 0.1, 0.65, J.KNR], ['leg', J.KNR, J.FTR, 0.075, 0.6, J.KNR],
+    ['head', J.HEAD, J.HEAD, 0.135, 3.5, J.HEAD, 'head'],
+    ['torso', J.PELVIS, J.NECK, 0.2, 1, J.NECK, 'torso'],
+    ['arm', J.SHL, J.ELL, 0.075, 0.55, J.ELL, 'larm'], ['arm', J.ELL, J.HAL, 0.065, 0.5, J.HAL, 'lfore'],
+    ['arm', J.SHR, J.ELR, 0.075, 0.55, J.ELR, 'rarm'], ['arm', J.ELR, J.HAR, 0.065, 0.5, J.HAR, 'rfore'],
+    ['leg', J.HPL, J.KNL, 0.1, 0.65, J.KNL, 'lup'], ['leg', J.KNL, J.FTL, 0.075, 0.6, J.KNL, 'lleg'],
+    ['leg', J.HPR, J.KNR, 0.1, 0.65, J.KNR, 'rup'], ['leg', J.KNR, J.FTR, 0.075, 0.6, J.KNR, 'rleg'],
   ];
 
   // closest hit of a ray (o + d·t, |d| = 1) on anyone's body, alive or dead
@@ -12258,6 +12313,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
       const qx = px - dx * along, qy = py - dy * along, qz = pz - dz * along;
       if (qx * qx + qy * qy + qz * qz > 4.5) continue;
       for (const hb of HITBOX) {
+        if (c.body.severed && G.gore.isOff(c, hb[6])) continue; // that part isn't there any more
         const a = hb[1] * 3, b = hb[2] * 3, r = hb[3];
         const ux = j[b] - j[a], uy = j[b + 1] - j[a + 1], uz = j[b + 2] - j[a + 2];
         const wx = ox - j[a], wy = oy - j[a + 1], wz = oz - j[a + 2];
@@ -12272,7 +12328,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
         const d2 = ex * ex + ey * ey + ez * ez;
         if (d2 > r * r) continue;
         const t = sc - Math.sqrt(r * r - d2);
-        if (t < bt) { bt = Math.max(0, t); best = { c, t: bt, part: hb[0], mult: hb[4], joint: hb[5] }; }
+        if (t < bt) { bt = Math.max(0, t); best = { c, t: bt, part: hb[0], mult: hb[4], joint: hb[5], bone: hb[6] }; }
       }
     }
     return best;
@@ -12352,8 +12408,8 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
   }
   function ejectCasing(c, m) {
     const i = casings.next; casings.next = (casings.next + 1) % casings.n;
-    const rx = -m.dz, rz = m.dx; // to the shooter's right
-    casings.p[i * 3] = m.x - m.dx * 0.15; casings.p[i * 3 + 1] = m.y; casings.p[i * 3 + 2] = m.z - m.dz * 0.15;
+    const rx = -(m.dz || 0), rz = m.dx || 0; // to the shooter's right
+    casings.p[i * 3] = m.x - (m.dx || 0) * 0.15; casings.p[i * 3 + 1] = m.y; casings.p[i * 3 + 2] = m.z - (m.dz || 0) * 0.15;
     casings.v[i * 3] = rx * G.R(1.5, 2.6) + G.R(-0.4, 0.4); casings.v[i * 3 + 1] = G.R(1.6, 2.8); casings.v[i * 3 + 2] = rz * G.R(1.5, 2.6) + G.R(-0.4, 0.4);
     casings.r[i * 3] = Math.random() * 6; casings.r[i * 3 + 1] = Math.random() * 6; casings.r[i * 3 + 2] = Math.random() * 6;
     casings.life[i] = 10; casings.hit[i] = 0;
@@ -12404,7 +12460,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
     const m = opt.muzzle;
     let dx0 = opt.ax - m.x, dy0 = opt.ay - m.y, dz0 = opt.az - m.z;
     const l0 = Math.hypot(dx0, dy0, dz0) || 1; dx0 /= l0; dy0 /= l0; dz0 /= l0;
-    const hits = new Map();
+    const hits = new Map(), corpseHits = new Map();
     let anyHit = false, killed = false, head = false;
     for (let n = 0; n < w.pellets; n++) {
       let dx = dx0 + rand() * spread, dy = dy0 + rand() * spread * 0.7, dz = dz0 + rand() * spread;
@@ -12416,14 +12472,18 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
         et = body.t;
         const px = m.x + dx * et, py = m.y + dy * et, pz = m.z + dz * et;
         if (body.c.alive) {
-          const h = hits.get(body.c) || { dmg: 0, dx: 0, dz: 0, part: body.part, joint: body.joint, n: 0, px, py, pz };
+          const h = hits.get(body.c) || { dmg: 0, dx: 0, dz: 0, part: body.part, joint: body.joint, n: 0, px, py, pz, bones: {}, t: et };
           h.dmg += G.R(w.dmg[0], w.dmg[1]) * body.mult; h.dx += dx; h.dz += dz; h.n++;
+          h.bones[body.bone] = (h.bones[body.bone] || 0) + 1;
           if (body.part === 'head') { h.part = 'head'; h.joint = body.joint; }
           hits.set(body.c, h);
         } else {
           G.body.push(body.c, body.joint, dx * w.power * 0.8, 1 + dy * 2, dz * w.power * 0.8, 0.1);
           G.blood.spray(px, py, pz, dx, dz, 0.6, body.part === 'head');
           G.body.addBlood(body.c, 0.1);
+          const ch = corpseHits.get(body.c) || { bones: {}, dx, dz, t: et, px, py, pz };
+          ch.bones[body.bone] = (ch.bones[body.bone] || 0) + 1;
+          corpseHits.set(body.c, ch);
         }
       } else if (wall.hit) {
         const px = m.x + dx * et, py = m.y + dy * et, pz = m.z + dz * et;
@@ -12444,7 +12504,10 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
         if (h.part === 'arm') c.fireCD = Math.max(c.fireCD || 0, 0.7);
       }
       anyHit = true; killed = killed || !c.alive; head = head || isHead;
+      G.gore.onBulletHit(c, k, h.bones, h.t, h.dx / l, h.dz / l, h.px, h.py, h.pz);
+      killed = killed || !c.alive;
     }
+    for (const [c, ch] of corpseHits) G.gore.onBulletHit(c, k, ch.bones, ch.t, ch.dx, ch.dz, ch.px, ch.py, ch.pz);
     // flash, brass, sound
     flash.position.set(m.x + dx0 * 0.08, m.y + dy0 * 0.08, m.z + dz0 * 0.08);
     const fs = k === 'shotgun' || k === 'rifle' ? 0.75 : k === 'smg' ? 0.42 : 0.5;
@@ -12505,6 +12568,310 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
   };
   GP.hudUpdate = function (dt) {
     if (hmT > 0) { hmT -= dt; if (hmT <= 0) document.getElementById('hitmark').hidden = true; }
+  };
+})();
+
+// ---- js/gore.js
+'use strict';
+// Gore: dismemberment, head bursts, gibs, bleeding stumps.
+// A limb comes off when a hit is strong enough (close shotgun, rifle, explosion, a fast car).
+// On rigged characters the severed piece is the model's real arm/leg/head: a copy of the model
+// with everything except that limb collapsed, flying under its own physics.
+(function () {
+  const T = THREE, W = G.world, J = G.body.J;
+  const GO = (G.gore = {});
+  GO.on = G.store.get('gore', true);
+  GO.setOn = (v) => { GO.on = v; G.store.set('gore', v); };
+
+  // each limb: the joint it comes off at, the joint at its far end, the hitbox joints it takes along
+  const LIMBS = {
+    head: { from: J.NECK, to: J.HEAD, color: 'skin' },
+    larm: { from: J.SHL, to: J.ELL, end: J.HAL, color: 'shirt' }, lfore: { from: J.ELL, to: J.HAL, color: 'shirt' },
+    rarm: { from: J.SHR, to: J.ELR, end: J.HAR, color: 'shirt' }, rfore: { from: J.ELR, to: J.HAR, color: 'shirt' },
+    lup: { from: J.HPL, to: J.KNL, end: J.FTL, color: 'pants' }, lleg: { from: J.KNL, to: J.FTL, color: 'pants' },
+    rup: { from: J.HPR, to: J.KNR, end: J.FTR, color: 'pants' }, rleg: { from: J.KNR, to: J.FTR, color: 'pants' },
+  };
+  const PARENT = { lfore: 'larm', rfore: 'rarm', lleg: 'lup', rleg: 'rup' };
+  GO.isOff = (c, key) => !!(c.body && c.body.severed && key && (c.body.severed[key] || c.body.severed[PARENT[key]]));
+
+  // parts of the procedural (non-rigged) body that go with each limb
+  const PARTS = {
+    head: ['head0', 'hair0', 'box0', 'box1', 'box2', 'box7', 'box8', 'ball12', 'ball13', 'ball14', 'ball15', 'ball16', 'ball17', 'ball18', 'ball19', 'halo0', 'limb8'],
+    larm: ['limb0', 'limb1', 'ball2', 'ball6', 'ball8'], lfore: ['limb1', 'ball6', 'ball8'],
+    rarm: ['limb2', 'limb3', 'ball3', 'ball7', 'ball9', 'box9', 'box10', 'box11', 'box12', 'barrel0', 'barrel1', 'barrel2'],
+    rfore: ['limb3', 'ball7', 'ball9', 'box9', 'box10', 'box11', 'box12', 'barrel0', 'barrel1', 'barrel2'],
+    lup: ['limb4', 'limb5', 'ball4', 'ball10', 'box5'], lleg: ['limb5', 'ball10', 'box5'],
+    rup: ['limb6', 'limb7', 'ball5', 'ball11', 'box6'], rleg: ['limb7', 'ball11', 'box6'],
+  };
+  const SKIN_HEAD_PARTS = ['halo0', 'box8', 'hair0', 'box7'];
+  const GUN_PARTS = ['box9', 'box10', 'box11', 'box12', 'barrel0', 'barrel1', 'barrel2'];
+  // called after body.js works out which parts are visible: severed ones stay hidden
+  GO.applyVis = function (c) {
+    const b = c.body;
+    if (!b.severed) return;
+    for (const k in b.severed) {
+      const list = b.skin ? (k === 'head' ? SKIN_HEAD_PARTS : k === 'rarm' || k === 'rfore' ? GUN_PARTS : []) : PARTS[k];
+      for (const p of list) b.vis[p] = false;
+    }
+  };
+
+  // ---------------------------------------------------------------- pieces in flight
+  const gibs = [];
+  let chunkMesh, chunks;
+  GO.init = function (scene) {
+    chunkMesh = new T.InstancedMesh(new T.IcosahedronGeometry(0.05, 0), new T.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 }), 160);
+    chunkMesh.instanceMatrix.setUsage(T.DynamicDrawUsage); chunkMesh.instanceMatrix.array.fill(0);
+    chunkMesh.setColorAt(0, new T.Color(0xffffff));
+    chunkMesh.frustumCulled = false; chunkMesh.castShadow = true;
+    scene.add(chunkMesh);
+    chunks = { n: 160, next: 0, p: new Float32Array(480), v: new Float32Array(480), r: new Float32Array(480), s: new Float32Array(160), life: new Float32Array(160), rest: new Uint8Array(160) };
+  };
+  const CHUNK_COLORS = [0x6a0a10, 0x8a1a1a, 0x4a0408, 0xb04a4a, 0xd8c8b0, 0x5a1010].map((h) => new T.Color(h));
+  function spawnChunks(x, y, z, dx, dz, n, force) {
+    for (let k = 0; k < n; k++) {
+      const i = chunks.next; chunks.next = (chunks.next + 1) % chunks.n;
+      chunks.p[i * 3] = x; chunks.p[i * 3 + 1] = y; chunks.p[i * 3 + 2] = z;
+      const sp = G.R(1.5, 6) * force;
+      chunks.v[i * 3] = dx * sp + G.R(-2.5, 2.5); chunks.v[i * 3 + 1] = G.R(1, 5); chunks.v[i * 3 + 2] = dz * sp + G.R(-2.5, 2.5);
+      chunks.r[i * 3] = Math.random() * 6; chunks.r[i * 3 + 1] = Math.random() * 6; chunks.r[i * 3 + 2] = Math.random() * 6;
+      chunks.s[i] = G.R(0.6, 1.8); chunks.life[i] = 30; chunks.rest[i] = 0;
+      chunkMesh.setColorAt(i, G.pick(CHUNK_COLORS));
+    }
+    chunkMesh.instanceColor.needsUpdate = true;
+  }
+
+  // a capsule-shaped limb for bodies that aren't rigged
+  const capGeo = new T.CylinderGeometry(0.06, 0.07, 1, 10), endGeo = new T.SphereGeometry(0.075, 10, 8);
+  const meatMat = new T.MeshStandardMaterial({ color: 0x7a0a10, roughness: 0.3 });
+  function capsuleGib(c, key, len) {
+    const o = c.body.o, g = new T.Group();
+    const col = key === 'head' ? o.skin : LIMBS[key].color === 'shirt' ? o.shirt : o.pants;
+    const mat = new T.MeshStandardMaterial({ color: col, roughness: 0.75 });
+    if (key === 'head') {
+      const h = new T.Mesh(new T.SphereGeometry(0.12, 14, 10), mat); h.scale.set(1, 1.15, 1.05); h.position.y = 0.12; g.add(h);
+      if (o.hair || o.hood || o.cap) { const hr = new T.Mesh(new T.SphereGeometry(0.125, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), new T.MeshStandardMaterial({ color: o.hood || o.cap || o.hair, roughness: 0.8 })); hr.position.y = 0.14; g.add(hr); }
+    } else {
+      const m = new T.Mesh(capGeo, mat); m.scale.set(1, len, 1); m.position.y = len / 2; g.add(m);
+    }
+    const stump = new T.Mesh(endGeo, meatMat); g.add(stump);
+    g.traverse((x) => { if (x.isMesh) x.castShadow = true; });
+    G.scene.add(g);
+    return { obj: g, mats: [mat] };
+  }
+
+  // ---------------------------------------------------------------- cutting
+  const v1 = new T.Vector3(), v2 = new T.Vector3(), qx = new T.Quaternion(), qy = new T.Quaternion();
+  const jp = (c, k) => { const j = c.body.j; return new T.Vector3(j[k * 3], j[k * 3 + 1], j[k * 3 + 2]); };
+  GO.sever = function (c, key, dx, dz, power) {
+    if (!GO.on || !c.body || GO.isOff(c, key)) return false;
+    const b = c.body, L = LIMBS[key];
+    if (!b.rag) G.body.startRag(c);
+    b.severed = b.severed || {};
+    const from = jp(c, L.from), to = jp(c, L.to);
+    const dir = v1.subVectors(to, from).normalize().clone();
+    // the flying piece
+    let gib;
+    if (b.skin) gib = G.skin.gib(c, key);
+    else {
+      const len = from.distanceTo(L.end !== undefined ? jp(c, L.end) : to) + 0.05;
+      gib = capsuleGib(c, key, len);
+      // point the capsule along the limb
+      gib.obj.position.copy(from);
+      gib.obj.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), dir);
+    }
+    b.severed[key] = true;
+    if (b.skin) G.skin.cut(c, key);
+    G.body.recolor(c);
+    const p = b.skin ? gib.bone.getWorldPosition(new T.Vector3()) : from.clone();
+    const q = b.skin ? gib.bone.getWorldQuaternion(new T.Quaternion()) : gib.obj.quaternion.clone();
+    const sp = power * G.R(0.6, 1.1);
+    if (b.skin) { const hp = gib.hips.parent; gib.hips.position.copy(hp.worldToLocal(gib.bone.getWorldPosition(new T.Vector3()))); gib.root.updateMatrixWorld(true); }
+    gibs.push({
+      gib, skin: !!b.skin, p, q,
+      v: new T.Vector3(dx * sp + dir.x * 2 + G.R(-1, 1), G.R(2, 4.5), dz * sp + dir.z * 2 + G.R(-1, 1)),
+      w: new T.Vector3(G.R(-12, 12), G.R(-12, 12), G.R(-12, 12)),
+      t: 0, sleep: false, landed: false, dripT: 0,
+    });
+    while (gibs.length > 14) removeGib(gibs.shift());
+    // the wound
+    G.blood.spray(from.x, from.y, from.z, dx, dz, 1.5, key === 'head');
+    G.blood.spray(from.x, from.y, from.z, -dir.x, -dir.z, 0.8, false);
+    G.body.addBlood(c, 0.35);
+    stumps.push({ c, from: L.from, to: L.to, t: G.R(3.5, 5.5), acc: 0 });
+    G.audio.splat(Math.max(0.15, 1 - Math.hypot(from.x - G.camera.position.x, from.z - G.camera.position.z) / 30));
+    return true;
+  };
+  // the head comes apart instead of coming off
+  GO.burstHead = function (c, dx, dz) {
+    if (!GO.on || !c.body || GO.isOff(c, 'head')) return false;
+    const b = c.body;
+    if (!b.rag) G.body.startRag(c);
+    b.severed = b.severed || {};
+    const h = jp(c, J.HEAD), n = jp(c, J.NECK);
+    b.severed.head = true;
+    if (b.skin) G.skin.cut(c, 'head');
+    G.body.recolor(c);
+    spawnChunks(h.x, h.y, h.z, dx, dz, 26, 1);
+    for (let k = 0; k < 3; k++) G.blood.spray(h.x, h.y, h.z, dx + G.R(-0.3, 0.3), dz + G.R(-0.3, 0.3), 2.2, true);
+    for (let k = 0; k < 6; k++) {
+      const a = Math.random() * 6.28, r = G.R(0.6, 2.4), x = h.x + dx * r + Math.cos(a) * 0.6, z = h.z + dz * r + Math.sin(a) * 0.6;
+      G.blood.splat(x, W.groundY(x, z) + 0.012, z, 0, 1, 0, G.R(0.3, 0.8));
+    }
+    G.body.addBlood(c, 0.5);
+    c.headshot = true; c.bigPool = true;
+    stumps.push({ c, from: J.NECK, to: J.HEAD, t: G.R(4, 6), acc: 0 });
+    G.audio.splat(Math.max(0.2, 1 - Math.hypot(n.x - G.camera.position.x, n.z - G.camera.position.z) / 30) * 1.3);
+    return true;
+  };
+  // a point-blank blast to the body: no limb, just a lot of mess
+  GO.gutShot = function (c, x, y, z, dx, dz) {
+    if (!GO.on) return;
+    spawnChunks(x, y, z, dx, dz, 10, 0.7);
+    G.blood.spray(x, y, z, dx, dz, 2, false);
+    G.body.addBlood(c, 0.4);
+    c.bigPool = true;
+  };
+  function removeGib(g) {
+    G.scene.remove(g.skin ? g.gib.root : g.gib.obj);
+    for (const m of g.gib.mats) m.dispose();
+  }
+
+  // ---------------------------------------------------------------- when to cut
+  const LIMB_KEYS = ['larm', 'rarm', 'lfore', 'rfore', 'lup', 'rup', 'lleg', 'rleg'];
+  // a weapon hit that killed (or landed on a corpse): bones = { boneKey: pellets that hit it }
+  function severing(weap, key, n, dist) {
+    if (key === 'torso') return false;
+    if (weap === 'shotgun') return n >= 3 && dist <= 9;
+    if (weap === 'rifle') return true;
+    return false;
+  }
+  GO.onBulletHit = function (c, weap, bones, dist, dx, dz, x, y, z) {
+    if (!GO.on || !c.body) return;
+    if (c.alive) {
+      // a hit hard enough to take a limb off is a fatal one
+      let fatal = false;
+      for (const key in bones) if (severing(weap, key, bones[key], dist)) fatal = true;
+      if (!fatal) return;
+      G.damageChar(c, 9999, x - dx * 2, z - dz * 2, true, { kind: 'bullet', dx, dz, power: 6, joint: G.body.J.NECK });
+      if (c.alive) return;
+    }
+    for (const key in bones) {
+      const n = bones[key];
+      if (key === 'torso') { if (weap === 'shotgun' && n >= 5 && dist < 4) GO.gutShot(c, x, y, z, dx, dz); continue; }
+      if (weap === 'shotgun') {
+        if (n < 3 || dist > 9) continue;
+        if (key === 'head') { if (dist < 6) GO.burstHead(c, dx, dz); else GO.sever(c, 'head', dx, dz, 5); }
+        else GO.sever(c, key, dx, dz, 6);
+      } else if (weap === 'rifle') {
+        if (key === 'head') { if (Math.random() < 0.55) GO.burstHead(c, dx, dz); else GO.sever(c, 'head', dx, dz, 6); }
+        else GO.sever(c, key, dx, dz, 5);
+      } else if ((weap === 'smg' || weap === 'pistol') && key === 'head' && dist < 3 && Math.random() < 0.25) {
+        GO.burstHead(c, dx, dz);
+      }
+    }
+  };
+  // explosions take people apart
+  GO.blast = function (c, dx, dz, dist) {
+    if (!GO.on || !c.body || dist > 5) return;
+    const n = dist < 2.5 ? 3 : dist < 4 ? 2 : 1;
+    const keys = LIMB_KEYS.slice().sort(() => Math.random() - 0.5);
+    for (let k = 0; k < n; k++) GO.sever(c, keys[k], dx + G.R(-0.5, 0.5), dz + G.R(-0.5, 0.5), 9);
+    if (dist < 2.5 && Math.random() < 0.4) GO.burstHead(c, dx, dz);
+    spawnChunks(c.x, 1, c.z, dx, dz, 8, 1.2);
+  };
+  // hit by a car going very fast
+  GO.runOver = function (c, vx, vz) {
+    const sp = Math.hypot(vx, vz);
+    if (!GO.on || sp < 18 || Math.random() > 0.5) return;
+    GO.sever(c, G.pick(LIMB_KEYS), vx / sp, vz / sp, sp * 0.5);
+  };
+
+  // ---------------------------------------------------------------- per frame
+  const stumps = [];
+  const tmpP = { x: 0, z: 0 }, e3 = new T.Euler(), mtx = new T.Matrix4(), vp = new T.Vector3(), vs = new T.Vector3(), qq = new T.Quaternion();
+  GO.update = function (dt) {
+    // flying pieces
+    for (const g of gibs) {
+      if (g.sleep) continue;
+      g.t += dt;
+      g.v.y -= 9.8 * dt;
+      g.p.addScaledVector(g.v, dt);
+      const wl = g.w.length();
+      if (wl > 1e-3) { qx.setFromAxisAngle(v2.copy(g.w).divideScalar(wl), wl * dt); g.q.premultiply(qx); }
+      tmpP.x = g.p.x; tmpP.z = g.p.z;
+      if (W.collide(tmpP, 0.1)) { g.p.x = tmpP.x; g.p.z = tmpP.z; g.v.x *= -0.3; g.v.z *= -0.3; }
+      const gy = W.groundY(g.p.x, g.p.z) + 0.07;
+      if (g.p.y < gy) {
+        g.p.y = gy;
+        if (!g.landed || Math.abs(g.v.y) > 2) {
+          G.blood.splat(g.p.x, gy - 0.058, g.p.z, 0, 1, 0, G.R(0.25, 0.55));
+          if (!g.landed) G.audio.thud(Math.max(0, 0.5 - Math.hypot(g.p.x - G.camera.position.x, g.p.z - G.camera.position.z) / 40));
+          g.landed = true;
+        }
+        g.v.y *= -0.28; g.v.x *= 0.55; g.v.z *= 0.55; g.w.multiplyScalar(0.55);
+        if (Math.abs(g.v.y) < 0.5 && Math.hypot(g.v.x, g.v.z) < 0.3) { g.sleep = true; G.blood.pool(g.p.x, gy - 0.07, g.p.z, G.R(0.35, 0.6)); }
+      }
+      // drips from the cut end while it flies
+      g.dripT -= dt;
+      if (g.dripT <= 0 && g.t < 2.5) { g.dripT = 0.05; G.blood.drop(g.p.x, g.p.y, g.p.z, G.R(-0.5, 0.5), G.R(-0.5, 0.5), G.R(-0.5, 0.5)); }
+      if (g.skin) {
+        const root = g.gib.root, bone = g.gib.bone;
+        bone.position.copy(root.worldToLocal(vp.copy(g.p)));
+        root.getWorldQuaternion(qq);
+        bone.quaternion.copy(qq.invert().multiply(g.q));
+        // the rest of this copy is collapsed to nothing; keep it at the cut so the skin closes there
+        // instead of stretching back to where the body was
+        root.updateMatrixWorld(true);
+        const hp = g.gib.hips.parent;
+        g.gib.hips.position.copy(hp.worldToLocal(vp.copy(g.p)));
+        g.gib.hips.updateMatrixWorld(true);
+      } else { g.gib.obj.position.copy(g.p); g.gib.obj.quaternion.copy(g.q); }
+    }
+    // bleeding stumps
+    for (let k = stumps.length - 1; k >= 0; k--) {
+      const s = stumps[k];
+      s.t -= dt;
+      if (s.t <= 0 || !s.c.body) { stumps.splice(k, 1); continue; }
+      s.acc += dt;
+      const rate = 0.04 + (1 - Math.min(1, s.t / 5)) * 0.08;
+      while (s.acc > rate) {
+        s.acc -= rate;
+        const j = s.c.body.j;
+        let ux = j[s.to * 3] - j[s.from * 3], uy = j[s.to * 3 + 1] - j[s.from * 3 + 1], uz = j[s.to * 3 + 2] - j[s.from * 3 + 2];
+        const l = Math.hypot(ux, uy, uz) || 1; ux /= l; uy /= l; uz /= l;
+        // pulses: the heart is still going for a moment
+        const pulse = 0.5 + 0.5 * Math.max(0, Math.sin(G.time * 8));
+        const f = Math.min(1, s.t / 3) * (1.2 + pulse * 2.2);
+        G.blood.drop(j[s.from * 3], j[s.from * 3 + 1], j[s.from * 3 + 2], ux * f + G.R(-0.3, 0.3), uy * f + G.R(0, 0.8), uz * f + G.R(-0.3, 0.3));
+      }
+    }
+    // meat
+    let any = false;
+    for (let i = 0; i < chunks.n; i++) {
+      if (chunks.life[i] <= 0) continue;
+      any = true;
+      chunks.life[i] -= dt;
+      const o = i * 3;
+      if (!chunks.rest[i]) {
+        chunks.v[o + 1] -= 9.8 * dt;
+        chunks.p[o] += chunks.v[o] * dt; chunks.p[o + 1] += chunks.v[o + 1] * dt; chunks.p[o + 2] += chunks.v[o + 2] * dt;
+        chunks.r[o] += dt * 9; chunks.r[o + 1] += dt * 7;
+        const gy = W.groundY(chunks.p[o], chunks.p[o + 2]) + 0.03;
+        if (chunks.p[o + 1] < gy) {
+          chunks.p[o + 1] = gy; chunks.v[o + 1] *= -0.25; chunks.v[o] *= 0.4; chunks.v[o + 2] *= 0.4;
+          if (Math.abs(chunks.v[o + 1]) < 0.4) { chunks.rest[i] = 1; if (Math.random() < 0.5) G.blood.splat(chunks.p[o], gy - 0.018, chunks.p[o + 2], 0, 1, 0, G.R(0.1, 0.25)); }
+        }
+      }
+      const sc = chunks.s[i] * Math.min(1, chunks.life[i] / 3);
+      mtx.compose(vp.set(chunks.p[o], chunks.p[o + 1], chunks.p[o + 2]), qq.setFromEuler(e3.set(chunks.r[o], chunks.r[o + 1], chunks.r[o + 2])), vs.set(sc, sc * 0.8, sc));
+      chunkMesh.setMatrixAt(i, mtx);
+    }
+    if (any || chunks.dirty) { chunkMesh.instanceMatrix.needsUpdate = true; chunks.dirty = any; }
+  };
+  GO.clear = function () {
+    while (gibs.length) removeGib(gibs.pop());
+    stumps.length = 0;
+    chunks.life.fill(0); chunkMesh.instanceMatrix.array.fill(0); chunkMesh.instanceMatrix.needsUpdate = true;
   };
 })();
 
@@ -12734,6 +13101,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
     }
   };
   R.respawn = function () {
+    G.gore.clear();
     for (let k = G.chars.length - 1; k >= 0; k--) G.actors.remove(G.chars[k]);
     G.loot.clear();
     G.setHeat(0);
@@ -13845,6 +14213,10 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
     G.bindHold(runBtn, (v) => { if (v) runBtn.classList.toggle('on', G.toggleRun()); });
     $('btnPause').addEventListener('click', () => setPaused(true));
     $('resumeBtn').addEventListener('click', () => setPaused(false));
+    const gb = $('goreBtn');
+    const syncGore = () => { gb.textContent = 'Gore: ' + (G.gore.on ? 'On' : 'Off'); };
+    syncGore();
+    gb.addEventListener('click', () => { G.gore.setOn(!G.gore.on); syncGore(); });
     const sb = $('soundBtn');
     const syncSound = () => { sb.textContent = 'Sound: ' + (G.audio.muted ? 'Off' : 'On'); };
     syncSound();
@@ -13938,6 +14310,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
     G.fx.update(dt);
     G.loot.update(dt);
     G.gun.update(dt);
+    G.gore.update(dt);
     G.gun.hudUpdate(dt);
     updateCrosshair(dt);
     let siren = 0;
@@ -13988,6 +14361,7 @@ window.__MODELS = { soldier: "Z2xURgIAAABU9yAA6F4FAEpTT057ImFjY2Vzc29ycyI6W3siYn
     G.fx.init(scene);
     G.body.init(scene);
     G.gun.init(scene);
+    G.gore.init(scene);
     makePlayer();
     drawBaseMap();
     bindUI();

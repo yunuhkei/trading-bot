@@ -107,7 +107,7 @@
   B.revive = function (c, soft) {
     const b = c.body;
     if (!b) return;
-    if (!soft) { b.rag = null; b.posed = false; b.bloody = 0; b.pooled = false; c.headshot = false; c.bigPool = false; if (b.skin) G.skin.revive(c); B.recolor(c); }
+    if (!soft) { b.rag = null; b.posed = false; b.bloody = 0; b.pooled = false; b.severed = null; c.headshot = false; c.bigPool = false; if (b.skin) G.skin.revive(c); B.recolor(c); }
     b.written = false;
   };
   B.setVisible = function (c, v) { if (c.body) { c.body.visible = v; c.body.written = false; if (c.body.skin) G.skin.setVisible(c, v); } };
@@ -154,6 +154,7 @@
     for (const [mk, k, hex, soak] of partColors(b.o)) {
       const key = mk + k;
       b.vis[key] = !!hex && (!b.skin || !!SKIN_KEEP[key]);
+      if (b.severed && G.gore) G.gore.applyVis(c);
       if (!hex) continue;
       col.set(hex);
       if (soak && b.bloody > 0) col.lerp(BLOODC, Math.min(1, b.bloody) * soak);
@@ -684,6 +685,7 @@
     mistLife[i] = G.R(0.15, 0.35);
   }
 
+  BL.drop = (x, y, z, vx, vy, vz) => addDrop(x, y, z, vx, vy, vz);
   BL.splat = function (x, y, z, nx, ny, nz, size, tone) {
     const i = splatI; splatI = (splatI + 1) % SPLATS;
     vn.set(nx, ny, nz);

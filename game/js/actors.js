@@ -589,6 +589,7 @@
         if (Math.abs(lx) < car.hw + 0.3 && Math.abs(lz) < car.hl + 0.3) {
           if (sp > 5) {
             G.damageChar(c, 30 + sp * 6, car.x - fx * 3, car.z - fz * 3, car.driver === G.player, { kind: 'car', vx, vz });
+            if (!c.alive) G.gore.runOver(c, vx, vz);
             G.audio.thud(0.7);
             car.speed *= 0.9;
           } else A.pushFromCars(c, 0.35);
@@ -629,6 +630,7 @@
       if (d > 7) continue;
       const l = d || 1, dx = (c.x - car.x) / l, dz = (c.z - car.z) / l;
       if (c.alive) G.damageChar(c, 200 * (1 - d / 7) + 30, car.x, car.z, byPlayer, { kind: 'blast', dx, dz });
+      if (!c.alive) G.gore.blast(c, dx, dz, d);
       else if (c.body) for (let i = 0; i < 15; i++) G.body.pushJoint(c, i, dx * G.R(5, 9), G.R(4, 7), dz * G.R(5, 9));
     }
     const pl = G.player;

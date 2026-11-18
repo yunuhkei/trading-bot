@@ -282,7 +282,7 @@
   A.click = () => burst(0.25, 3000, 1500, 0.05, 'highpass');
   A.boom = () => { burst(1, 2000, 60, 1.8); thump(1, 80, 20, 1.2); };
   A.tink = (vol) => { // a shell casing hitting concrete
-    if (!A.ctx || A.muted || vol < 0.05) return;
+    if (!A.ctx || A.muted || !(vol >= 0.05)) return;
     const ctx = A.ctx, t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
     o.type = 'sine'; o.frequency.setValueAtTime(G.R(3800, 5200), t);
     g.gain.setValueAtTime(0.05 * vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
@@ -294,6 +294,15 @@
     o.type = 'square'; o.frequency.setValueAtTime(kill ? 1300 : 2100, t);
     g.gain.setValueAtTime(kill ? 0.08 : 0.05, t); g.gain.exponentialRampToValueAtTime(0.0001, t + (kill ? 0.12 : 0.05));
     o.connect(g).connect(A.master); o.start(t); o.stop(t + 0.13);
+  };
+  A.splat = (vol) => { // flesh tearing: a wet low thud and a squelch
+    if (!A.ctx || A.muted || vol < 0.05) return;
+    burst(0.7 * vol, 700, 90, 0.22);
+    const ctx = A.ctx, t = ctx.currentTime, s = ctx.createBufferSource(); s.buffer = A.noise;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 3;
+    f.frequency.setValueAtTime(380, t); f.frequency.exponentialRampToValueAtTime(1500, t + 0.12);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.5 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    s.connect(f).connect(g).connect(A.master); s.start(t, Math.random(), 0.25);
   };
   A.ric = (vol) => burst(0.25 * vol, 5000, 1800, 0.12, 'bandpass');
   A.whiz = (vol) => { // a bullet passing close

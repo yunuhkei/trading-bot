@@ -97,9 +97,49 @@
     for (const m of s.mats) m.dispose();
     s.mixer.stopAllAction();
   };
+  // a severed limb: a copy of the model posed like the victim, with that limb detached from the
+  // skeleton and everything else collapsed to nothing
+  S.gib = function (c, key) {
+    const s = c.body.skin;
+    const root = window.THREE_ADDONS.clone(template);
+    root.position.copy(s.root.position); root.quaternion.copy(s.root.quaternion); root.scale.copy(s.root.scale);
+    const src = [], dst = [];
+    s.root.traverse((o) => { if (o.isBone) src.push(o); });
+    root.traverse((o) => { if (o.isBone) dst.push(o); });
+    for (let i = 0; i < dst.length && i < src.length; i++) { dst[i].position.copy(src[i].position); dst[i].quaternion.copy(src[i].quaternion); dst[i].scale.copy(src[i].scale); }
+    const mats = [];
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      const m = o.material.clone(); m.color = s.mats[0].color.clone(); o.material = m; mats.push(m);
+    });
+    G.scene.add(root);
+    root.updateMatrixWorld(true);
+    const name = BONES[key];
+    let bone = null, hips = null;
+    root.traverse((o) => {
+      if (!o.isBone) return;
+      const n = o.name.replace(/^mixamorig[:]?/, '');
+      if (n === name) bone = o;
+      if (n === 'Hips') hips = o;
+    });
+    bone.scale.setScalar(1);
+    root.attach(bone);
+    hips.scale.setScalar(0.0001);
+    root.updateMatrixWorld(true);
+    return { root, bone, hips, mats };
+  };
+  // the victim loses the limb: collapse that bone (and everything below it) to a stump
+  S.cut = function (c, key) {
+    const s = c.body.skin;
+    s.cut = s.cut || {};
+    s.cut[key] = true;
+    s.bones[key].scale.setScalar(0.0001);
+    s.root.updateMatrixWorld(true);
+  };
   S.revive = function (c) {
     const s = c.body.skin;
     s.rag0 = null;
+    if (s.cut) { for (const k in s.cut) s.bones[k].scale.setScalar(1); s.cut = null; }
     for (const k in s.acts) { s.acts[k].reset(); s.acts[k].play(); }
     for (const m of s.mats) m.color.copy(m.userData.base);
   };
@@ -279,11 +319,12 @@
     setWorldQuat(B.hips, qa);
     const P = (k) => new T.Vector3(p[k * 3], p[k * 3 + 1], p[k * 3 + 2]);
     // spine follows the torso; the neck points at the head
+    const cut = s.cut || {};
     aim(B.spine2, B.neck, P(K.NECK));
-    aim(B.neck, B.head, P(K.HEAD).addScaledVector(vc.subVectors(P(K.HEAD), P(K.NECK)).normalize(), -0.1));
-    aim(B.larm, B.lfore, P(K.ELL)); aim(B.lfore, B.lhand, P(K.HAL));
-    aim(B.rarm, B.rfore, P(K.ELR)); aim(B.rfore, B.rhand, P(K.HAR));
-    aim(B.lup, B.lleg, P(K.KNL)); aim(B.lleg, B.lfoot, P(K.FTL));
-    aim(B.rup, B.rleg, P(K.KNR)); aim(B.rleg, B.rfoot, P(K.FTR));
+    if (!cut.head) aim(B.neck, B.head, P(K.HEAD).addScaledVector(vc.subVectors(P(K.HEAD), P(K.NECK)).normalize(), -0.1));
+    if (!cut.larm) { aim(B.larm, B.lfore, P(K.ELL)); if (!cut.lfore) aim(B.lfore, B.lhand, P(K.HAL)); }
+    if (!cut.rarm) { aim(B.rarm, B.rfore, P(K.ELR)); if (!cut.rfore) aim(B.rfore, B.rhand, P(K.HAR)); }
+    if (!cut.lup) { aim(B.lup, B.lleg, P(K.KNL)); if (!cut.lleg) aim(B.lleg, B.lfoot, P(K.FTL)); }
+    if (!cut.rup) { aim(B.rup, B.rleg, P(K.KNR)); if (!cut.rleg) aim(B.rleg, B.rfoot, P(K.FTR)); }
   };
 })();

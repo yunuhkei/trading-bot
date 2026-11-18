@@ -860,6 +860,10 @@
     G.bindHold(runBtn, (v) => { if (v) runBtn.classList.toggle('on', G.toggleRun()); });
     $('btnPause').addEventListener('click', () => setPaused(true));
     $('resumeBtn').addEventListener('click', () => setPaused(false));
+    const gb = $('goreBtn');
+    const syncGore = () => { gb.textContent = 'Gore: ' + (G.gore.on ? 'On' : 'Off'); };
+    syncGore();
+    gb.addEventListener('click', () => { G.gore.setOn(!G.gore.on); syncGore(); });
     const sb = $('soundBtn');
     const syncSound = () => { sb.textContent = 'Sound: ' + (G.audio.muted ? 'Off' : 'On'); };
     syncSound();
@@ -953,6 +957,7 @@
     G.fx.update(dt);
     G.loot.update(dt);
     G.gun.update(dt);
+    G.gore.update(dt);
     G.gun.hudUpdate(dt);
     updateCrosshair(dt);
     let siren = 0;
@@ -1003,6 +1008,7 @@
     G.fx.init(scene);
     G.body.init(scene);
     G.gun.init(scene);
+    G.gore.init(scene);
     makePlayer();
     drawBaseMap();
     bindUI();

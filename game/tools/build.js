@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
-const order = ['core', 'world', 'body', 'skin', 'actors', 'traffic', 'arsenal', 'gunplay', 'range', 'story', 'main'];
+const order = ['core', 'world', 'body', 'skin', 'actors', 'traffic', 'arsenal', 'gunplay', 'gore', 'range', 'story', 'main'];
 let html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 // three.js addons (model loader, post-processing) and the character model, embedded so the page needs no other files
 const addons = fs.readFileSync(path.join(root, 'vendor', 'addons.js'), 'utf8');

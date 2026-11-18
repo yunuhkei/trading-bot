@@ -223,6 +223,7 @@
     }
   };
   R.respawn = function () {
+    G.gore.clear();
     for (let k = G.chars.length - 1; k >= 0; k--) G.actors.remove(G.chars[k]);
     G.loot.clear();
     G.setHeat(0);
