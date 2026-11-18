@@ -669,6 +669,12 @@ function buildCity(){LMK.clear();buildGarageRoom();
     const h=W.hm[gj*W.N+gi],dr=W.D8[gj*W.N+gi],sl=terrainSlope(px,pz);let p=0;
     if(forestAt(px,pz,h,sl,dr))p=.66;else if(dr>13&&dr<95&&h>6&&sl<.4&&!inUrban(px,pz,60))p=(.11+.3*sstep(1,2,fbm(px*.003,pz*.003,55,2)*2))*(1-.65*sstep(40,95,dr));
     if(h<5||tr()>p||nearRoadXZ(px,pz,9))continue;ptree(px,pz,tr,h);COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);nt++}
+  /* (batch 56) the new land beyond the old woods' box (the north-west peninsula, the west coast, the south-west headland, the southern point, the islands): the same rule, its own seed, so the old woods stay where they were */
+  {const t2=mulberry(5656);for(let x=-4400;x<3500;x+=21)for(let z=-4800;z<4700;z+=21){if(x>=-2400&&z<2900&&z>=-4700)continue;
+    const px=x+(t2()-.5)*16,pz=z+(t2()-.5)*16;if(coastD(px,pz)<20){t2();continue}const gi=Math.round((px+W.half)/W.T),gj=Math.round((pz+W.half)/W.T);if(gi<2||gj<2||gi>=W.N-2||gj>=W.N-2)continue;
+    const h=W.hm[gj*W.N+gi],dr=W.D8[gj*W.N+gi],sl=terrainSlope(px,pz);let p=0;
+    if(forestAt(px,pz,h,sl,dr))p=.66;else if(dr>13&&dr<95&&h>6&&sl<.4&&!inUrban(px,pz,60))p=(.11+.3*sstep(1,2,fbm(px*.003,pz*.003,55,2)*2))*(1-.65*sstep(40,95,dr));
+    if(h<5||t2()>p||nearRoadXZ(px,pz,9))continue;ptree(px,pz,t2,h);COLC.push(px,pz,.55,terrainH(px,pz)-.5,terrainH(px,pz)+12);nt++}}
   return{buildings:nb,houses:ns,trees:nt,scenery:buildScenery()}}
 /* ---------- scenery along the open roads: poles + wires, gantry signs, billboards, speed + curve signs, fences, groves, bushes, rocks, cacti, wind turbines, gas stations ---------- */
 function buildScenery(){

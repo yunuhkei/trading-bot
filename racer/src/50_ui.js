@@ -162,7 +162,7 @@ function holoPanel(c,x,y,w,h,r,a){const t=performance.now()/1000;a=a==null?.5:a;
 const AU={ctx:null,eng:null,eng2:null,gain:null,wind:null,tire:null,ready:false};
 function audioStart(){if(AU.ctx||window.__noAudio)return;try{const A=window.AudioContext||window.webkitAudioContext;if(!A)return;const x=AU.ctx=new A();
   const mkNoise=()=>{const b=x.createBuffer(1,x.sampleRate*2,x.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const s=x.createBufferSource();s.buffer=b;s.loop=true;return s};
-  const master=x.createGain();master.gain.value=.5;/* (batch 55) a compressor + make-up gain after the mix: the engine can sit louder and big crashes do not clip */{let out=x.destination;try{const k=x.createDynamicsCompressor();k.threshold.value=-18;k.knee.value=8;k.ratio.value=4;k.attack.value=.004;k.release.value=.22;const mk=x.createGain();mk.gain.value=1.7;master.connect(k);k.connect(mk);mk.connect(out)}catch(e){master.connect(out)}}
+  const master=x.createGain();master.gain.value=.5;master.connect(x.destination);
   AU.eng=x.createOscillator();AU.eng.type='sawtooth';AU.eng2=x.createOscillator();AU.eng2.type='square';const lp=x.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;AU.lp=lp;
   AU.gain=x.createGain();AU.gain.gain.value=0;AU.eng.connect(lp);AU.eng2.connect(lp);lp.connect(AU.gain);AU.gain.connect(master);AU.eng.start();AU.eng2.start();
   const wn=mkNoise(),wf=x.createBiquadFilter();wf.type='lowpass';wf.frequency.value=700;AU.windG=x.createGain();AU.windG.gain.value=0;wn.connect(wf);wf.connect(AU.windG);AU.windG.connect(master);wn.start();

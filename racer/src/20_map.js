@@ -15,7 +15,9 @@ const LAKES=[[-1235,412,22,-3],[4100,650,420,-3],[-1950,-2500,200,-3]];   /* Gol
 const RIDGES=[[1580,-250,560,-70,74,130]];              /* the Mulholland ridge: x0,z0,x1,z1,height,half-width */
 const PEAKS=[[1950,-1950,330,900],[2550,-1000,200,600],
   /* the northern range (snow above about 360 m) and the north-east mountains */
-  [-300,-4150,440,700],[1000,-4200,490,720],[2300,-3950,430,700],[3500,-3700,390,700],[-1500,-3950,330,700],[600,-3750,300,500],[4300,-2700,370,750]];
+  [-300,-4150,440,700],[1000,-4200,490,720],[2300,-3950,430,700],[3500,-3700,390,700],[-1500,-3950,330,700],[600,-3750,300,500],[4300,-2700,370,750],
+  /* (batch 56) hills on the new north-west peninsula, the south-west headland and the west island */
+  [-3150,-1900,150,480],[-2750,2350,90,380],[-3500,350,70,260]];
 /* the mesa and its canyon in the north-east desert: a plateau with a winding trench cut through it (the canyon road follows the trench) */
 const MESA={x0:2900,z0:-3100,x1:4700,z1:300,h:75};
 const CANYON=[[3000,350],[3250,-100],[3500,-350],[3550,-800],[3800,-1200],[4000,-1700],[3900,-2300],[3600,-2700]];
@@ -53,6 +55,15 @@ setPoly(CITY,[[-1180,-170],[-900,-202],[-640,-170],[-470,-60],[-470,430],[-520,7
 setPoly(VALLEY,[[420,520],[860,520],[1050,680],[1050,1000],[905,1290],[400,1290],[230,1150],[205,925],[230,700]]);
 setPoly(BEACH,[[-450,2540],[-200,2540],[-130,2602],[-130,2780],[-520,2780],[-520,2618]]);
 setPoly(RESORT,[[1525,1420],[1765,1420],[1860,1515],[1860,1775],[1752,1900],[1500,1900],[1380,1810],[1380,1565]]);
+/* (batch 56) the coastline: the shore's distance from the middle of the land (1250, -900) every half degree (in 5 m units), designed so that every road, town and
+   garage keeps at least 260 m of land round it and the beach town and the harbour stay on the shore: a peninsula to the north-west, a cove on the west coast,
+   a headland to the south-west, a long point to the south, bays in the east, a fjord and a bay in the north, the corners rounded off. Plus three islands. */
+const COAST_C=[1250,-900],COAST_R=[879,888,898,906,915,922,928,934,939,944,947,951,954,957,959,962,964,966,967,968,970,972,973,975,978,982,985,988,992,995,997,999,1002,1004,1007,1009,1010,1011,1011,1010,1008,1006,1002,996,990,983,975,963,945,921,898,882,884,896,903,899,891,882,873,864,856,848,841,835,829,824,819,815,811,807,804,801,799,796,794,792,791,789,788,787,787,788,790,790,791,792,794,796,795,792,787,783,779,776,772,768,763,756,749,743,739,738,740,744,749,756,764,773,783,795,808,819,830,839,848,855,862,869,874,877,878,877,874,869,863,857,850,842,835,827,820,814,808,804,798,793,789,784,778,773,767,760,753,746,738,729,720,709,698,687,674,662,650,640,629,619,610,603,598,595,591,589,590,592,595,599,604,610,615,620,626,633,641,649,657,665,673,679,684,688,690,691,692,694,694,694,694,694,694,694,694,694,694,694,693,690,686,683,680,677,673,669,665,660,656,651,646,642,638,634,631,630,630,630,631,633,637,642,647,653,659,667,676,686,695,705,714,723,731,739,746,753,758,761,763,765,766,768,769,768,767,766,765,762,759,757,756,755,753,752,751,751,750,750,750,752,755,761,767,773,778,783,788,792,797,800,804,808,814,821,829,837,842,842,838,831,821,809,799,791,784,776,770,765,763,762,761,758,757,755,754,753,751,748,744,738,731,724,717,711,706,702,698,696,695,695,696,699,702,706,709,711,714,718,721,724,726,728,730,732,732,733,733,733,733,732,730,729,728,726,723,720,716,712,708,704,699,693,687,681,674,667,660,654,647,640,634,630,627,624,622,620,618,616,616,616,616,618,619,622,625,629,632,636,639,642,644,645,647,648,650,651,651,651,651,652,653,653,653,653,654,654,655,656,657,658,660,662,663,666,668,670,673,677,680,683,686,690,692,693,691,687,681,676,670,665,659,654,647,634,615,603,616,651,684,703,715,725,730,735,741,747,750,753,755,758,760,762,765,768,770,776,801,852,858,864,870,876,882,888,894,900,908,914,920,928,936,942,950,960,968,974,972,968,963,956,948,941,934,927,920,913,907,900,894,888,882,878,876,877,882,887,893,901,909,917,926,936,946,954,961,969,978,986,994,1001,1008,1014,1020,1024,1027,1028,1029,1030,1030,1029,1026,1024,1021,1018,1013,1005,997,990,981,971,959,946,932,918,902,885,868,851,834,818,802,787,773,763,756,751,749,748,747,747,747,748,748,746,744,744,744,744,744,744,744,744,746,748,747,748,748,748,748,747,748,748,748,748,748,750,752,752,752,752,754,756,756,757,760,762,764,766,768,769,770,771,772,773,774,776,777,779,781,784,786,788,790,792,791,792,796,798,802,808,812,814,816,820,824,828,832,834,836,840,844,848,852,856,861,866,870,874,879,884,891,898,906,914,923,933,945,957,971,985,1001,1018,1037,1055,1074,1093,1111,1127,1140,1149,1154,1157,1157,1156,1153,1147,1140,1131,1122,1112,1103,1093,1082,1070,1057,1042,1026,1010,992,974,956,939,922,905,888,873,860,850,841,833,827,822,817,812,804,798,792,786,780,772,751,739,736,735,733,732,730,729,727,725,722,721,718,716,714,712,709,706,704,702,700,698,696,694,693,692,691,689,687,686,686,687,690,695,700,704,709,714,719,725,732,741,750,760,770,780,790,801,812,823,835,846,857,868];
+const ISLES=[[-3500,350,460],[-2750,3500,260],[800,4150,360]];
+function coastD(x,z){const dx=x-COAST_C[0],dz=z-COAST_C[1],r=Math.hypot(dx,dz),a=(Math.atan2(dz,dx)+Math.PI)/(2*Math.PI)*720,k=Math.floor(a),f=a-k,n=COAST_R.length;
+  let d=(COAST_R[((k%n)+n)%n]*(1-f)+COAST_R[(k+1)%n]*f)*5-r;
+  for(const q of ISLES){const ex=x-q[0],ez=z-q[1],ri=Math.hypot(ex,ez);if(ri<q[2]*1.6){const t=Math.atan2(ez,ex);d=Math.max(d,q[2]*(1+.25*Math.sin(3*t+q[0])+.12*Math.sin(5*t+q[1]))-ri)}}
+  return d+(fbm(x*.0035,z*.0035,29,3)-.5)*110}
 function baseH(x,z){
   let h=9+(fbm(x*.0011,z*.0011,3,4)-.5)*15;
   const hm=sstep(-300,1500,x)*sstep(500,-1000,z)+.2*sstep(-1800,-800,z);
@@ -61,14 +72,10 @@ function baseH(x,z){
   /* the city hills: the street grid is laid over them like San Francisco's */
   for(let i=0;i<HILLS.length;i++){const q=HILLS[i],dx=x-q[0],dz=z-q[1],r2=(dx*dx+dz*dz)/(q[3]*q[3]);if(r2<6)h+=q[2]*Math.exp(-r2*1.2)}
   for(let i=0;i<RIDGES.length;i++){const q=RIDGES[i],ex=q[2]-q[0],ez=q[3]-q[1],l2=ex*ex+ez*ez;let t=((x-q[0])*ex+(z-q[1])*ez)/l2;t=t<0?0:t>1?1:t;const d=Math.hypot(x-(q[0]+ex*t),z-(q[1]+ez*t)),w=d/q[5];if(w<3)h+=q[4]*Math.exp(-w*w)*(.55+.9*fbm(x*.004,z*.004,41,3))*sstep(0,.4,t)*(1-sstep(.6,1,t))}
-  /* coast to the west: beach slope from the waterline, then sea */
-  const cx=-2150+(fbm(z*.0008,2.3,13,3)-.5)*560,dc=x-cx;
-  h=dc<-700?-40:(dc<0?lerp(-40,0,sstep(-700,0,dc)):(dc<300?lerp(0,h,sstep(0,300,dc)*.85+.15*sstep(0,300,dc)):h));
-  /* (batch 53) the north (-z) and east (+x) edges were straight cuts: now a ragged coast of their own (bays and headlands up to 1.4 km deep in the north, up to 1.1 km in the east, kept shallow beside Las Vegas, whose roads are 611 m from the edge), and the north-east corner is rounded off, so the land is not a square */
-  {const dE=W.half-x,dN=W.half+z;if(dE<1500||dN<1800){
-    const cE=300+800*fbm(z*.0007,7.7,17,3)*sstep(700,1500,Math.abs(z-2080)),cN=300+1500*fbm(x*.0005,3.1,19,3),R=1800,rc=(dE<R&&dN<R)?R-Math.hypot(R-dE,R-dN):1e9;
-    const dc=Math.min(dE-cE,dN-cN,rc);
-    if(dc<200){if(dc<0){const t=sstep(-600,0,dc);h=lerp(-40,Math.min(h,2),t*t)}else h=lerp(Math.min(h,2),h,sstep(0,200,dc))}}}
+  /* (batch 56) THE COAST: one natural outline all round instead of the old straight cuts (the land was a square): coastD gives the distance inland from the shore;
+     a sandy slope where the shore is gentle, a short steep drop (cliffs) where cliffNoise says so, then the sea bed */
+  {const dc=coastD(x,z);if(dc<340){const cl=sstep(.52,.66,fbm(x*.0016+11,z*.0016,23,3)),bw=lerp(170,55,cl),lo=Math.min(h,1.6);
+    if(dc>=0)h=lerp(lo,h,sstep(0,bw,dc));else{const t=sstep(-600,0,dc);h=lerp(-40,lo,t*t)}}}
   for(let i=0;i<TERRACES.length;i++){const q=TERRACES[i],d=Math.hypot(x-q[0],z-q[1]);if(d<q[2])h=lerp(h,q[3],1-sstep(q[2]*.55,q[2],d))}
   /* lakes: a bowl dipping below sea level (the water plane then shows) */
   for(let i=0;i<LAKES.length;i++){const q=LAKES[i],d=Math.hypot(x-q[0],z-q[1]);if(d<q[2])h=lerp(h,q[3],1-sstep(q[2]*.55,q[2],d))}
@@ -76,7 +83,6 @@ function baseH(x,z){
   {const m=sstep(MESA.x0-250,MESA.x0+150,x)*(1-sstep(MESA.x1-150,MESA.x1+250,x))*sstep(MESA.z0-250,MESA.z0+150,z)*(1-sstep(MESA.z1-150,MESA.z1+250,z));
    if(m>0){const d=canyonDist(x,z);h+=m*MESA.h*(.85+.3*fbm(x*.003,z*.003,61,3))*sstep(38,98,d)}}
   /* the land ends in sea: the west coast is above, the south coast here, cliffs on the east coast, a beach to the north */
-  h-=Math.max(sstep(2760,3062,z),sstep(4650,4760,x),sstep(4650,4950,-z))*(h+45);
   return h}
 /* ---------- roads ---------- */
 const ROADS=[];            /* built roads: {id,n,X,Z,Y,S,HW,mk,rail,br,st,lanes,len,closed,lift} */

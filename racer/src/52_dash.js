@@ -101,7 +101,7 @@ function pauseLayout(W_,H_,u){const m=u*.3,cw=Math.min(W_*.9,u*13.4),ch=Math.min
   L.lcd={x:x+pad,y:y+pad,w:cw-pad*2,h:u*.72};const top=L.lcd.y+L.lcd.h+u*.32,bot=y+ch-pad,lw=(cw-pad*3)*.54;L.left={x:x+pad,y:top,w:lw,h:bot-top};L.right={x:x+pad*2+lw,y:top,w:cw-pad*3-lw,h:bot-top};
   const add=(id,x,y,w,h,act,ex)=>{const o=Object.assign({id,x,y,w,h,act},ex||{});L.b.push(o);return o};
   const dr=Math.min(L.left.h*.36,u*1.05);add('drive',L.left.x,L.left.y+u*.05,dr*2,dr*2,()=>pauseClose(),{round:dr});
-  const rx0=L.left.x+dr*2+u*.2,rw=(L.left.x+L.left.w-rx0)/6;['fps','assist','lane','arrows','units','music'].forEach((id,i)=>add(id,rx0+i*rw+rw/2-u*.27,L.left.y+u*.1,u*.54,u*.86,()=>{if(id=='fps')UI.showStats=!UI.showStats;else if(id=='music')musSet(!MUS.on);else if(id=='units')unitsSet(!UNITS.imp);else if(id=='lane')laneSet((IN.laneLv+1)%4);else if(id=='arrows')arrowsSet(!IN.arrows);else IN.auto=!IN.auto},{rocker:1,lw:rw}));   /* (batch 22: 'assist' is the auto gas; LANE is lane assist) */
+  const rx0=L.left.x+dr*2+u*.2,RK=['fps','assist','lane','arrows','units'].concat(MUSB64.length?['music']:[]),rw=(L.left.x+L.left.w-rx0)/RK.length;RK.forEach((id,i)=>add(id,rx0+i*rw+rw/2-u*.27,L.left.y+u*.1,u*.54,u*.86,()=>{if(id=='fps')UI.showStats=!UI.showStats;else if(id=='music')musSet(!MUS.on);else if(id=='units')unitsSet(!UNITS.imp);else if(id=='lane')laneSet((IN.laneLv+1)%4);else if(id=='arrows')arrowsSet(!IN.arrows);else IN.auto=!IN.auto},{rocker:1,lw:rw}));   /* (batch 22: 'assist' is the auto gas; LANE is lane assist) */
   const ky=L.left.y+L.left.h-u*.62,kw=(L.left.w-u*.3*2)/3;(EV.run?['quit','map','reset']:['garage','map','reset']).forEach((id,i)=>add(id,L.left.x+i*(kw+u*.3),ky,kw,u*.6,()=>pauseKey(id),{key:1}));
   const kr=Math.min(L.right.w*.2,L.right.h*.27,u*.75);[['gfx',GFX_LBL],['sky',['DAY','OVERCAST','SUNSET']]].forEach(([id,lb],i)=>{const cx=L.right.x+L.right.w*(i?.77:.23),cy=L.right.y+L.right.h*.5;
     const kb=add(id,cx-kr,cy-kr,kr*2,kr*2,()=>pauseKnob(id,(PAUSE.k[id]+1)%lb.length),{knob:kr,cx,cy,labels:lb});
@@ -118,7 +118,7 @@ function pauseDraw(c,W_,H_,u){pauseSync();const L=pauseLayout(W_,H_,u),dt=dashDt
   /* the trip computer: PAUSED types itself out */
   const Lc=L.lcd;dLcdBox(c,Lc.x,Lc.y,Lc.w,Lc.h,u*.12);const chars=Math.max(0,Math.min(6,Math.floor((performance.now()-DASH.pT0-300)/70)));
   dLcdText(c,'PAUSED'.slice(0,chars)+(chars<6&&((performance.now()/300)|0)%2?'_':''),Lc.x+u*.3,Lc.y+Lc.h*.7,u*.44);
-  /* (batch 54/55) sound and music credits (all CC0; credited anyway) */c.save();c.globalAlpha=.55*L.p;c.fillStyle='#cfe9f5';c.font='600 '+Math.round(u*.14)+'px '+UIF;c.textAlign='center';c.fillText('Sounds: BigSoundBank + OpenGameArt (CC0) · Music: mintodog, congusbongus, joth, Zane Little (CC0)',L.x+L.w/2,L.y+L.h-u*.12);c.restore();
+  /* (batch 54/55) sound and music credits (all CC0; credited anyway) */if(MUSB64.length||Object.keys(SFXB64).length){c.save();c.globalAlpha=.55*L.p;c.fillStyle='#cfe9f5';c.font='600 '+Math.round(u*.14)+'px '+UIF;c.textAlign='center';c.fillText('Sounds: BigSoundBank + OpenGameArt (CC0) · Music: mintodog, congusbongus, joth, Zane Little (CC0)',L.x+L.w/2,L.y+L.h-u*.12);c.restore()}
   dLcdText(c,((regionName()||'COUNTY').toUpperCase())+'  ·  '+evMoney(ECON.money),Lc.x+Lc.w-u*.3,Lc.y+Lc.h*.68,u*.26,'right');
   const pr=id=>DASH.press[id]&&performance.now()-DASH.press[id]<160;
   for(const b of L.b){
