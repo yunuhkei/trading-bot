@@ -43,8 +43,8 @@ if REC_AUDIO and os.path.isdir(md):
 if '/*MUSB64*/' in js:js=js.replace('/*MUSB64*/',','.join(mus))
 assert '/*TEXB64*/' in js
 js=js.replace('/*TEXB64*/',','.join(tex))
-# (batch 57) the loading screens: assets/load/ls1-4.jpg (in-engine action shots) go into the template as data URIs
-for k in range(1,5):
+# (batch 57/60) the loading screens: assets/load/ls1-20.jpg (in-engine action shots) go into the template as data URIs
+for k in range(1,41):
   f=os.path.join(here,'assets','load','ls%d.jpg'%k)
   if os.path.exists(f):tpl=tpl.replace('url(LS%d)'%k,"url('data:image/jpeg;base64,%s')"%base64.b64encode(open(f,'rb').read()).decode())
 assert '/*FONTS*/' in tpl
