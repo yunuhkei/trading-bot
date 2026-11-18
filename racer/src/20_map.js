@@ -400,7 +400,7 @@ function defineRoads(){
   buildCurvy({id:'pss',hw:9,lanes:1,style:0,to:'sh',yFrom:'psp',lift:.1,minR:50,wig:{a1:40,l1:320,a2:10,l2:130,seed:47,fade:140},pts:[[1620,RESORT.z1],[1612,2060],[1630,2250]].concat(tIn(sh,1630,2250))});
   defineWorld(ring,sh,{ramp,rampIn,tIn,tOut,at});
   outskirts('sfo',CITY,'city',sfp);outskirts('lao',VALLEY,'la',lap);outskirts('bto',BEACH,'coast',ROADS.find(q=>q.id=='btp'));outskirts('pso',RESORT,'desert',ROADS.find(q=>q.id=='psp'));
-  TRAILS=addTrails();
+  TRAILS=addTrails();TRAILS=TRAILS.concat(addCapeTrails());   /* (batch 61) dirt loops out to the new capes */
   const fixed=fixCrossings();findJunctions();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;findJumps();
   return GRIDS}
 let BRIDGES_ADDED=[],TRAILS=[];

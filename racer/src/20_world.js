@@ -127,6 +127,28 @@ function defineWorld(ring,sh,H){
 /* (batch 30) DIRT TRAILS through the woods: from the country highways longer than 1.5 km, every 1.1-1.6 km, a narrow dirt road (style 5, 3.4 m half width) leaves the highway, winds 150-300 m out into the
    country and comes back to the same highway 0.7-1 km further on. A way off the highway when the police are on you (they can follow: trails are in the lane graph, but carry no traffic).
    Only where the whole trail is on dry land, away from towns, garages and every other road. */
+/* (batch 61) CAPE TRAILS: the new land of batch 56 (the north-west peninsula, the south-west headland, the southern point) gets a dirt loop each: it leaves the
+   nearest country highway, runs out over the hill to a lookout near the tip and comes back further along the highway. Checked like the other trails (dry land, clear of
+   other roads and towns); a cape whose loop does not fit gets none. */
+const CAPES=[{name:'North-west point',tip:[-3260,-1880]},{name:'South-west headland',tip:[-2700,2360]},{name:'Southern point',tip:[2650,3350]}];
+const CAPE_DBG=[];function addCapeTrails(){const out=[];CAPE_DBG.length=0;
+  const clear=(x,z,m)=>{for(const o of ROADS){if(o.style==5&&o.id.startsWith('cape'))continue;for(let i=0;i<o.n;i+=3){const dx=o.X[i]-x,dz=o.Z[i]-z,l=o.hw+m;if(dx*dx+dz*dz<l*l)return false}}return true};
+  for(const cp of CAPES){/* the lookout: the highest dry ground within 900 m of the cape, well back from the shore */let T=cp.tip,th=-1e9;for(let dx=-900;dx<=900;dx+=50)for(let dz=-900;dz<=900;dz+=50){const x=cp.tip[0]+dx,z=cp.tip[1]+dz;if(dx*dx+dz*dz>810000||coastD(x,z)<220)continue;const h=baseH(x,z);if(h>th){th=h;T=[x,z]}}
+    /* the parent: the nearest country highway point with a clear run to the lookout (no other road, town or garage in between) */let best=null;
+    for(const r of ROADS){if(r.city||!(r.style==0||r.style==1)||r.def.flat||r.n*r.ds<900||r.id=='mp')continue;   /* not the mountain pass: its switchbacks lie side by side */const mg=Math.round(340/r.ds)+12;for(let i=mg;i<r.n-mg;i+=4){const d=Math.hypot(r.X[i]-T[0],r.Z[i]-T[1]);if(d>2600||(best&&d>=best.d))continue;
+        let okL=true;const n=Math.ceil(d/25);for(let k=3;k<n&&okL;k++){const x=r.X[i]+(T[0]-r.X[i])*k/n,z=r.Z[i]+(T[1]-r.Z[i])*k/n;if(!clear(x,z,25)||baseH(x,z)<3||DISTRICT_BOXES.some(Bx=>inBox(x,z,Bx,90)))okL=false}if(okL)best={r,i,d}}}
+    if(!best||best.d>2600){CAPE_DBG.push([cp.name,'no road',best&&best.d|0]);continue}const par=best.r;CAPE_DBG.push([cp.name,'parent',par.id,best.d|0]);let built=false;
+    for(const wf of[1,.4])for(const span of[500,380,640])for(const wob of[1,-1]){if(built)break;const half=Math.round(span/2/par.ds),i0=best.i-half,i1=best.i+half;if(i0<10||i1>par.n-10)continue;
+      const A=[par.X[i0],par.Z[i0]],B=[par.X[i1],par.Z[i1]],t0=_tan(par,i0),t1=_tan(par,i1),side=((T[0]-par.X[best.i])*-t0[1]+(T[1]-par.Z[best.i])*t0[0])>0?1:-1;
+      const out0=[A[0]-t0[1]*side*(par.hw+30),A[1]+t0[0]*side*(par.hw+30)],out1=[B[0]-t1[1]*side*(par.hw+30),B[1]+t1[0]*side*(par.hw+30)];
+      /* out towards the tip along one side, round the lookout, back along the other */const dx=T[0]-(A[0]+B[0])/2,dz=T[1]-(A[1]+B[1])/2,L=Math.hypot(dx,dz)||1,ux=dx/L,uz=dz/L,px=-uz*wob,pz=ux*wob,w=Math.min(150,L*.18)*wf;
+      const pts=[A,out0];for(const f of[.3,.6,.85]){const c=[out0[0]+(T[0]-out0[0])*f,out0[1]+(T[1]-out0[1])*f];pts.push([c[0]+px*w*(1-f*.6),c[1]+pz*w*(1-f*.6)])}
+      pts.push([T[0]+ux*40+px*30,T[1]+uz*40+pz*30],[T[0]+ux*40-px*30,T[1]+uz*40-pz*30]);for(const f of[.85,.6,.3]){const c=[out1[0]+(T[0]-out1[0])*f,out1[1]+(T[1]-out1[1])*f];pts.push([c[0]-px*w*(1-f*.6),c[1]-pz*w*(1-f*.6)])}pts.push(out1,B);
+      const def={id:'cape'+out.length,hw:3.4,lanes:1,style:5,lift:.03,smooth:40,grade:.16,from:par.id,to:par.id,pts},R=buildRoad(def,true);let ok=true;
+      let why='';for(let i=0;i<R.n&&ok;i+=3){const x=R.X[i],z=R.Z[i],end=Math.min(i,R.n-1-i)*R.ds;if(baseH(x,z)<3.5){ok=false;why='low '+(x|0)+','+(z|0)}else if(DISTRICT_BOXES.some(Bx=>inBox(x,z,Bx,100))){ok=false;why='town'}else if(SAFEHOUSES.some(h=>Math.hypot(h.x-x,h.z-z)<90)){ok=false;why='garage'}else if(end>par.hw+36&&!clear(x,z,end<80?12:30)){ok=false;why='road '+(x|0)+','+(z|0)}}
+      /* and it does not cross itself */if(ok){for(let i=0;i<R.n&&ok;i+=6)for(let j=i+30;j<R.n;j+=6){if(Math.hypot(R.X[i]-R.X[j],R.Z[i]-R.Z[j])<12){ok=false;break}}}
+      if(!ok){CAPE_DBG.push([cp.name,span,wob,why||'self-cross']);continue}const rr=buildRoad(def);rr.cape=cp.name;out.push(rr);built=true}}
+  return out}
 function addTrails(){const out=[],rng=mulberry(4242),boxes=ROADS.map(r=>{let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(let i=0;i<r.n;i+=4){x0=Math.min(x0,r.X[i]);x1=Math.max(x1,r.X[i]);z0=Math.min(z0,r.Z[i]);z1=Math.max(z1,r.Z[i])}return[x0,x1,z0,z1]});
   const clear=(x,z,self,m)=>{for(let q=0;q<ROADS.length;q++){const o=ROADS[q],b=boxes[q];if(!b||o===self||x<b[0]-60||x>b[1]+60||z<b[2]-60||z>b[3]+60)continue;for(let i=0;i<o.n;i+=2){const dx=o.X[i]-x,dz=o.Z[i]-z,l=o.hw+m;if(dx*dx+dz*dz<l*l)return false}}return true};
   const cand=ROADS.filter(r=>!r.city&&(r.style==0||r.style==1)&&r.n*r.ds>1500&&!r.def.flat);let k=0;

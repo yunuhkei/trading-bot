@@ -6,9 +6,9 @@ const L=require('./rlib.js');
   await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:180000});
   let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
   const G=await T.ev(()=>{const rows=[];for(const def of RACER.CAR_ROSTER.filter(d=>!d.cc2)){const B=RACER.cgBuild(def.spec),b=B.body;let c={};for(let v=0;v<b.nv;v++)c[b.M[v]]=(c[b.M[v]]||0)+1;
-      rows.push({n:def.name,tris:b.I.length/3,grille:c[CGM.grille]||0,amber:c[CGM.amber]||0,plate:c[CGM.plate]||0,carbon:c[CGM.carbon]||0,head:c[CGM.head]||0,tail:c[CGM.tail]||0,chrome:c[CGM.chrome]||0})}return rows});
+      rows.push({n:def.name,tris:b.I.length/3,grille:c[CGM.grille]||0,amber:c[CGM.amber]||0,plate:c[CGM.plate]||0,carbon:c[CGM.carbon]||0,ink:c[CGM.ink]||0,head:c[CGM.head]||0,tail:c[CGM.tail]||0,chrome:c[CGM.chrome]||0})}return rows});
   ok(G.every(r=>r.grille>0&&r.amber>0&&r.plate>0&&r.head>0&&r.tail>0),'1 all '+G.length+' player cars have a mesh grille, amber indicators, a number plate, head lights and tail lights');
-  ok(G.every(r=>r.carbon>150),'1 and characters on the plates (dark quads: fewest '+Math.min(...G.map(r=>r.carbon))+' vertices)');
+  ok(G.every(r=>r.ink>150),'1 and characters on the plates (ink quads: fewest '+Math.min(...G.map(r=>r.ink))+' vertices)');   /* (batch 61) the letters have their own ink material since batch 4; carbon was a stale stand-in (the Veyra has few carbon parts) */
   ok(G.every(r=>r.tris>9000&&r.tris<40000),'1 triangle counts stay sane (batch 50: up to 40k, the mesh limit is 65,535 vertices): '+Math.min(...G.map(r=>r.tris))+'-'+Math.max(...G.map(r=>r.tris)));
   const Tr=await T.ev(()=>{const out=[];for(let i=0;i<5;i++){const m=trGenType(i);let c={};for(let v=0;v<m.M.length;v++){const id=m.M[v]&15;c[id]=(c[id]||0)+1}out.push({i,tris:m.I.length/3,white:c[12]||0,amber:c[13]||0,tail:c[4]||0,head:c[3]||0,chrome:c[5]||0,glass:c[1]||0,pm:m.pm})}return out});
   ok(Tr.every(t=>t.tris>3500&&t.tris<16000),'2 traffic bodies (sedan, hatch, SUV, van, police) are '+Tr.map(t=>Math.round(t.tris)).join(', ')+' triangles each');

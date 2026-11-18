@@ -834,7 +834,7 @@ function defineRoads(){
   buildCurvy({id:'pss',hw:9,lanes:1,style:0,to:'sh',yFrom:'psp',lift:.1,minR:50,wig:{a1:40,l1:320,a2:10,l2:130,seed:47,fade:140},pts:[[1620,RESORT.z1],[1612,2060],[1630,2250]].concat(tIn(sh,1630,2250))});
   defineWorld(ring,sh,{ramp,rampIn,tIn,tOut,at});
   outskirts('sfo',CITY,'city',sfp);outskirts('lao',VALLEY,'la',lap);outskirts('bto',BEACH,'coast',ROADS.find(q=>q.id=='btp'));outskirts('pso',RESORT,'desert',ROADS.find(q=>q.id=='psp'));
-  TRAILS=addTrails();
+  TRAILS=addTrails();TRAILS=TRAILS.concat(addCapeTrails());   /* (batch 61) dirt loops out to the new capes */
   const fixed=fixCrossings();findJunctions();if(typeof console!=='undefined'&&fixed.length&&window.__dbg)console.log('bridges added:',fixed.join('; '));BRIDGES_ADDED=fixed;findJumps();
   return GRIDS}
 let BRIDGES_ADDED=[],TRAILS=[];
@@ -1127,6 +1127,28 @@ function defineWorld(ring,sh,H){
 /* (batch 30) DIRT TRAILS through the woods: from the country highways longer than 1.5 km, every 1.1-1.6 km, a narrow dirt road (style 5, 3.4 m half width) leaves the highway, winds 150-300 m out into the
    country and comes back to the same highway 0.7-1 km further on. A way off the highway when the police are on you (they can follow: trails are in the lane graph, but carry no traffic).
    Only where the whole trail is on dry land, away from towns, garages and every other road. */
+/* (batch 61) CAPE TRAILS: the new land of batch 56 (the north-west peninsula, the south-west headland, the southern point) gets a dirt loop each: it leaves the
+   nearest country highway, runs out over the hill to a lookout near the tip and comes back further along the highway. Checked like the other trails (dry land, clear of
+   other roads and towns); a cape whose loop does not fit gets none. */
+const CAPES=[{name:'North-west point',tip:[-3260,-1880]},{name:'South-west headland',tip:[-2700,2360]},{name:'Southern point',tip:[2650,3350]}];
+const CAPE_DBG=[];function addCapeTrails(){const out=[];CAPE_DBG.length=0;
+  const clear=(x,z,m)=>{for(const o of ROADS){if(o.style==5&&o.id.startsWith('cape'))continue;for(let i=0;i<o.n;i+=3){const dx=o.X[i]-x,dz=o.Z[i]-z,l=o.hw+m;if(dx*dx+dz*dz<l*l)return false}}return true};
+  for(const cp of CAPES){/* the lookout: the highest dry ground within 900 m of the cape, well back from the shore */let T=cp.tip,th=-1e9;for(let dx=-900;dx<=900;dx+=50)for(let dz=-900;dz<=900;dz+=50){const x=cp.tip[0]+dx,z=cp.tip[1]+dz;if(dx*dx+dz*dz>810000||coastD(x,z)<220)continue;const h=baseH(x,z);if(h>th){th=h;T=[x,z]}}
+    /* the parent: the nearest country highway point with a clear run to the lookout (no other road, town or garage in between) */let best=null;
+    for(const r of ROADS){if(r.city||!(r.style==0||r.style==1)||r.def.flat||r.n*r.ds<900||r.id=='mp')continue;   /* not the mountain pass: its switchbacks lie side by side */const mg=Math.round(340/r.ds)+12;for(let i=mg;i<r.n-mg;i+=4){const d=Math.hypot(r.X[i]-T[0],r.Z[i]-T[1]);if(d>2600||(best&&d>=best.d))continue;
+        let okL=true;const n=Math.ceil(d/25);for(let k=3;k<n&&okL;k++){const x=r.X[i]+(T[0]-r.X[i])*k/n,z=r.Z[i]+(T[1]-r.Z[i])*k/n;if(!clear(x,z,25)||baseH(x,z)<3||DISTRICT_BOXES.some(Bx=>inBox(x,z,Bx,90)))okL=false}if(okL)best={r,i,d}}}
+    if(!best||best.d>2600){CAPE_DBG.push([cp.name,'no road',best&&best.d|0]);continue}const par=best.r;CAPE_DBG.push([cp.name,'parent',par.id,best.d|0]);let built=false;
+    for(const wf of[1,.4])for(const span of[500,380,640])for(const wob of[1,-1]){if(built)break;const half=Math.round(span/2/par.ds),i0=best.i-half,i1=best.i+half;if(i0<10||i1>par.n-10)continue;
+      const A=[par.X[i0],par.Z[i0]],B=[par.X[i1],par.Z[i1]],t0=_tan(par,i0),t1=_tan(par,i1),side=((T[0]-par.X[best.i])*-t0[1]+(T[1]-par.Z[best.i])*t0[0])>0?1:-1;
+      const out0=[A[0]-t0[1]*side*(par.hw+30),A[1]+t0[0]*side*(par.hw+30)],out1=[B[0]-t1[1]*side*(par.hw+30),B[1]+t1[0]*side*(par.hw+30)];
+      /* out towards the tip along one side, round the lookout, back along the other */const dx=T[0]-(A[0]+B[0])/2,dz=T[1]-(A[1]+B[1])/2,L=Math.hypot(dx,dz)||1,ux=dx/L,uz=dz/L,px=-uz*wob,pz=ux*wob,w=Math.min(150,L*.18)*wf;
+      const pts=[A,out0];for(const f of[.3,.6,.85]){const c=[out0[0]+(T[0]-out0[0])*f,out0[1]+(T[1]-out0[1])*f];pts.push([c[0]+px*w*(1-f*.6),c[1]+pz*w*(1-f*.6)])}
+      pts.push([T[0]+ux*40+px*30,T[1]+uz*40+pz*30],[T[0]+ux*40-px*30,T[1]+uz*40-pz*30]);for(const f of[.85,.6,.3]){const c=[out1[0]+(T[0]-out1[0])*f,out1[1]+(T[1]-out1[1])*f];pts.push([c[0]-px*w*(1-f*.6),c[1]-pz*w*(1-f*.6)])}pts.push(out1,B);
+      const def={id:'cape'+out.length,hw:3.4,lanes:1,style:5,lift:.03,smooth:40,grade:.16,from:par.id,to:par.id,pts},R=buildRoad(def,true);let ok=true;
+      let why='';for(let i=0;i<R.n&&ok;i+=3){const x=R.X[i],z=R.Z[i],end=Math.min(i,R.n-1-i)*R.ds;if(baseH(x,z)<3.5){ok=false;why='low '+(x|0)+','+(z|0)}else if(DISTRICT_BOXES.some(Bx=>inBox(x,z,Bx,100))){ok=false;why='town'}else if(SAFEHOUSES.some(h=>Math.hypot(h.x-x,h.z-z)<90)){ok=false;why='garage'}else if(end>par.hw+36&&!clear(x,z,end<80?12:30)){ok=false;why='road '+(x|0)+','+(z|0)}}
+      /* and it does not cross itself */if(ok){for(let i=0;i<R.n&&ok;i+=6)for(let j=i+30;j<R.n;j+=6){if(Math.hypot(R.X[i]-R.X[j],R.Z[i]-R.Z[j])<12){ok=false;break}}}
+      if(!ok){CAPE_DBG.push([cp.name,span,wob,why||'self-cross']);continue}const rr=buildRoad(def);rr.cape=cp.name;out.push(rr);built=true}}
+  return out}
 function addTrails(){const out=[],rng=mulberry(4242),boxes=ROADS.map(r=>{let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(let i=0;i<r.n;i+=4){x0=Math.min(x0,r.X[i]);x1=Math.max(x1,r.X[i]);z0=Math.min(z0,r.Z[i]);z1=Math.max(z1,r.Z[i])}return[x0,x1,z0,z1]});
   const clear=(x,z,self,m)=>{for(let q=0;q<ROADS.length;q++){const o=ROADS[q],b=boxes[q];if(!b||o===self||x<b[0]-60||x>b[1]+60||z<b[2]-60||z>b[3]+60)continue;for(let i=0;i<o.n;i+=2){const dx=o.X[i]-x,dz=o.Z[i]-z,l=o.hw+m;if(dx*dx+dz*dz<l*l)return false}}return true};
   const cand=ROADS.filter(r=>!r.city&&(r.style==0||r.style==1)&&r.n*r.ds>1500&&!r.def.flat);let k=0;
@@ -1186,7 +1208,7 @@ function flattenGarages(){const N=W.N,T=W.T,half=W.half,hm=W.hm;
 /* DRIVE-THROUGH REPAIR SHOPS (batch 7): a roofed bay open at both ends, beside a main road out of town, parallel to it: leave the road, drive through, and the car is fixed.
    Picked here (the terrain and the roads are known): every 600 m along the wide roads outside the towns, on whichever side the ground is level with the road for the whole bay and its two
    approaches, away from junctions (120 m), garages (150 m), water, bridges and other asphalt; at least 1.1 km apart. */
-function pickRepairs(){REPAIRS.length=0;const L=17,W2=7.5;
+function pickRepairs(){REPAIRS.length=0;const L=17,W2=8.6;   /* (batch 61) 8.6 m wide (was 7.5): coming off a bend you can enter a little crooked without scraping the wall */
   const far=(x,z,d)=>REPAIRS.every(p=>Math.hypot(p.x-x,p.z-z)>d)&&SAFEHOUSES.every(s=>Math.hypot(s.x-x,s.z-z)>150)&&JUNC.every(J=>Math.hypot(J.x-x,J.z-z)>120);
   const built=(x,z)=>inBox(x,z,CITY,80)||inBox(x,z,VALLEY,80)||inBox(x,z,BEACH,80)||inBox(x,z,RESORT,80)||ZONES.some(zn=>inZone(x,z,zn,80))||FIELDS.some(f=>inBox(x,z,f.b,20));
   for(const r of ROADS){if(r.city||r.hw<7||r.n*r.ds<900)continue;const st=Math.round(600/r.ds),m=Math.round(60/r.ds);
@@ -1863,7 +1885,7 @@ function buildCity(){LMK.clear();buildGarageRoom();
     s.gy=gy}
   /* drive-through repair shops (batch 7): two long walls and a roof over a bay you drive straight through, a blue and white striped front, a big glowing white cross on a blue sign, a dark floor */
   for(const p of REPAIRS){const cs=p.cs,sn=p.sn,nx=-sn,nz=cs,hl=p.L/2,hw=p.W/2,Wd=(a,b)=>[p.x+cs*a+nx*b,p.z+sn*a+nz*b];let gy=1e9;for(const a of[-hl,0,hl])for(const b of[-hw,hw]){const q=Wd(a,b);gy=Math.min(gy,terrainH(q[0],q[1]))}
-    for(const sd of[-1,1]){const q=Wd(0,sd*(hw+.25));pboxR(1,q[0],q[1],hl,.25,cs,sn,gy-1.5,gy+4.6,226,230,236,false,.7);COLO.push(q[0],q[1],hl,.3,cs,sn,gy+4.6);
+    for(const sd of[-1,1]){const q=Wd(0,sd*(hw+.25));pboxR(1,q[0],q[1],hl,.25,cs,sn,gy-1.5,gy+4.6,226,230,236,false,.7);COLO.push(q[0],q[1],hl-.45,.3,cs,sn,gy+4.6);   /* (batch 61) the solid part stops 45 cm short of each opening, so lining up a little late scrapes past the corner instead of hitting it */
       for(let k=-2;k<=2;k++){const s2=Wd(k*hl*.4,sd*(hw+.52));pboxR(1,s2[0],s2[1],hl*.16,.03,cs,sn,gy+1.2,gy+2.0,30,90,220,false,1)}}         /* blue bands on the walls */
     pboxR(1,p.x,p.z,hl+.4,hw+.6,cs,sn,gy+4.6,gy+5.1,40,90,210,false,1);                                                                   /* the roof, blue */
     for(const e of[-1,1]){const q=Wd(e*(hl+.3),0);pboxR(1,q[0],q[1],.15,hw+.6,cs,sn,gy+4.0,gy+4.6,250,250,252,false,1);                   /* a white lintel over each opening */
@@ -2919,9 +2941,9 @@ function camStep(dt,snap){if(CC.on){crashCam();return}if(typeof KC!='undefined'&
   /* look a little towards where the car points and a little towards where it is going, so drifts are visible */
   C.camDr=snap?C.drift:C.camDr+(C.drift-C.camDr)*(1-Math.exp(-dt*3));   /* the drift look-ahead eases in and out over about a third of a second */
   const want=pyaw+clamp(angd(tgtYaw,pyaw),-.8,.8)*vw*(.12+.5*Math.min(1,C.camDr*1.2));
-  /* a critically damped spring (not a plain low-pass): the camera's turning speed starts from zero, so a sudden slide never makes it jerk */
+  /* a critically damped spring (not a plain low-pass): the camera's turning speed starts from zero, so a sudden slide never makes it jerk; (batch 61) a little softer while drifting, so the swinging tail does not rock the picture */
   if(!isFinite(C.camYaw)||!isFinite(C.camYV))snap=true;   /* (batch 59) a camera that was never snapped (camYV unset) went NaN and the frame rendered white */
-  if(snap){C.camYaw=want;C.camYV=0}else{const w=5.2+sp*2.2,d=Math.min(dt,.05),acc=w*w*angd(want,C.camYaw)-2*w*C.camYV;C.camYV+=acc*d;C.camYaw+=C.camYV*d}
+  if(snap){C.camYaw=want;C.camYV=0}else{const w=(5.2+sp*2.2)*(1-.3*Math.min(1,C.camDr)),d=Math.min(dt,.05),acc=w*w*angd(want,C.camYaw)-2*w*C.camYV;C.camYV+=acc*d;C.camYaw+=C.camYV*d}
   /* the take-off: on a nitro tap the lens widens and the camera drops back fast, overshoots a little and settles (springs, so it is quick but never a jump); when it ends it snaps back the same way */
   const dTarget=4.75+sp*1.05+C.boostK*1.7,h=1.5+sp*.42;   /* (batch 54) closer: the car fills more of the screen (it was 5.4-6.7 m back, 1.65-2.15 m up) */if(snap){C.camDist=dTarget;C.distV=0}else{const w=9,d=Math.min(dt,.05),acc=w*w*(dTarget-C.camDist)-2*.7*w*C.distV;C.distV+=acc*d;C.camDist+=C.distV*d}const dist=C.camDist;
   /* the look-around orbit (batch 5): o = how far the camera has been swung away from behind the car; it orbits the car's middle, further out and higher with the drag */
@@ -3685,14 +3707,14 @@ function pauseLayout(W_,H_,u){const m=u*.3,cw=Math.min(W_*.9,u*13.4),ch=Math.min
   const add=(id,x,y,w,h,act,ex)=>{const o=Object.assign({id,x,y,w,h,act},ex||{});L.b.push(o);return o};
   const dr=Math.min(L.left.h*.36,u*1.05);add('drive',L.left.x,L.left.y+u*.05,dr*2,dr*2,()=>pauseClose(),{round:dr});
   const rx0=L.left.x+dr*2+u*.2,RK=['fps','assist','lane','arrows','units'].concat(MUSB64.length?['music']:[]),rw=(L.left.x+L.left.w-rx0)/RK.length;RK.forEach((id,i)=>add(id,rx0+i*rw+rw/2-u*.27,L.left.y+u*.1,u*.54,u*.86,()=>{if(id=='fps')UI.showStats=!UI.showStats;else if(id=='music')musSet(!MUS.on);else if(id=='units')unitsSet(!UNITS.imp);else if(id=='lane')laneSet((IN.laneLv+1)%4);else if(id=='arrows')arrowsSet(!IN.arrows);else IN.auto=!IN.auto},{rocker:1,lw:rw}));   /* (batch 22: 'assist' is the auto gas; LANE is lane assist) */
-  const ky=L.left.y+L.left.h-u*.62,kw=(L.left.w-u*.3*2)/3;(EV.run?['quit','map','reset']:['garage','map','reset']).forEach((id,i)=>add(id,L.left.x+i*(kw+u*.3),ky,kw,u*.6,()=>pauseKey(id),{key:1}));
+  const ky=L.left.y+L.left.h-u*.62,kw=(L.left.w-u*.24*3)/4;(EV.run?['quit','map','reset','mode']:['garage','map','reset','mode']).forEach((id,i)=>add(id,L.left.x+i*(kw+u*.24),ky,kw,u*.6,()=>pauseKey(id),{key:1}));   /* (batch 61) MODE: story <-> free roam */
   const kr=Math.min(L.right.w*.2,L.right.h*.27,u*.75);[['gfx',GFX_LBL],['sky',['DAY','OVERCAST','SUNSET']]].forEach(([id,lb],i)=>{const cx=L.right.x+L.right.w*(i?.77:.23),cy=L.right.y+L.right.h*.5;
     const kb=add(id,cx-kr,cy-kr,kr*2,kr*2,()=>pauseKnob(id,(PAUSE.k[id]+1)%lb.length),{knob:kr,cx,cy,labels:lb});
     lb.forEach((t,j)=>{const a=pauseKnobAng(j,lb.length),lx=cx+Math.sin(a)*kr*1.5,ly=cy-Math.cos(a)*kr*1.5;add(id+'_'+j,lx-u*.45,ly-u*.2,u*.9,u*.4,()=>pauseKnob(id,j),{klabel:t,kid:id,kj:j})})});
   return L}
 const pauseKnobAng=(j,n)=>n==3?[-.95,0,.95][j]:-1.1+j*2.2/(n-1);
 function pauseKnob(id,j){PAUSE.k[id]=j;if(id=='gfx'){gfxSetMode(GFX_OPTS[j]);safeToast('GRAPHICS '+GFX_LBL[j]+(j==0?'  (NOW '+GFX.cur.name.toUpperCase()+')':''),1.8)}else{envApply(ENV_NAMES[j]);try{localStorage.setItem('racer.env',ENV_NAMES[j])}catch(e){}}}
-function pauseKey(id){if(id=='quit'){pauseClose();evQuit()}else if(id=='reset'){pauseClose();IN.respawn=1}else if(id=='map'){pauseClose();mapOpenNow()}else if(id=='garage'){pauseClose();garageGo()}}
+function pauseKey(id){if(id=='mode'){pauseClose();if(STORY.on)storyLeave();else storyBegin(false);return}if(id=='quit'){pauseClose();evQuit()}else if(id=='reset'){pauseClose();IN.respawn=1}else if(id=='map'){pauseClose();mapOpenNow()}else if(id=='garage'){pauseClose();garageGo()}}
 function pauseSync(){PAUSE.k.gfx=Math.max(0,GFX_OPTS.indexOf(GFX.mode));PAUSE.k.sky=Math.max(0,ENV_NAMES.indexOf(ENV.name))}
 function pauseDraw(c,W_,H_,u){pauseSync();const L=pauseLayout(W_,H_,u),dt=dashDt();PAUSE.btns=L.b;c.save();
   c.fillStyle='rgba(5,5,6,'+(.55*L.p)+')';c.fillRect(0,0,W_,H_);
@@ -3713,7 +3735,7 @@ function pauseDraw(c,W_,H_,u){pauseSync();const L=pauseLayout(W_,H_,u),dt=dashDt
       const ix=b.x+b.w*.12,iy=b.y+b.h*.08,iw=b.w*.76,ih=b.h*.84,hi=on?iy+ih*.5:iy,lo=on?iy:iy+ih*.5;c.fillStyle='#2a2c30';rr(c,ix,iy,iw,ih,u*.07);c.fill();c.fillStyle='#3d3f44';rr(c,ix,lo,iw,ih*.5,u*.07);c.fill();
       c.fillStyle=on?'#5dff7a':'#24342a';if(on){c.shadowColor='#5dff7a';c.shadowBlur=u*.25}c.beginPath();c.arc(b.x+b.w/2,b.y+b.h*.24,u*.06,0,TAU);c.fill();c.shadowBlur=0;
       c.fillStyle='#b5b2a8';const tx=b.id=='fps'?'FPS':b.id=='music'?'MUSIC':b.id=='units'?(UNITS.imp?'MPH':'KM/H'):b.id=='lane'?'LANE '+LANE_LBL[IN.laneLv]:b.id=='arrows'?'ARROWS':'AUTO';let fs=u*.17;c.font=dFont(fs,600);const tw=c.measureText(tx).width,mw=(b.lw||u)*.92;if(tw>mw){fs*=mw/tw;c.font=dFont(fs,600)}c.textAlign='center';c.fillText(tx,b.x+b.w/2,b.y+b.h+u*.24)}   /* (batch 55) labels shrink to fit their slot (six switches now) */
-    else if(b.key){const d=dKey(c,b.x,b.y,b.w,b.h,u*.1,pr(b.id));c.fillStyle=b.id=='reset'||b.id=='quit'?'#ff8a70':DASH.ink;c.font=dFont(u*.19,700);c.textAlign='center';c.fillText(b.id=='reset'?'RESET CAR':b.id=='quit'?'QUIT EVENT':b.id.toUpperCase(),b.x+b.w/2,b.y+b.h*.64+d)}
+    else if(b.key){const d=dKey(c,b.x,b.y,b.w,b.h,u*.1,pr(b.id));c.fillStyle=b.id=='reset'||b.id=='quit'?'#ff8a70':DASH.ink;c.font=dFont(u*.19,700);c.textAlign='center';{const tx=b.id=='reset'?'RESET CAR':b.id=='quit'?'QUIT EVENT':b.id=='mode'?(STORY.on?'FREE ROAM':'STORY'):b.id.toUpperCase();let fs=u*.19;c.font=dFont(fs,700);const mw=b.w*.9,tw=c.measureText(tx).width;if(tw>mw)c.font=dFont(fs*mw/tw,700);c.fillText(tx,b.x+b.w/2,b.y+b.h*.64+d)}}
     else if(b.knob){const r=b.knob,j=PAUSE.k[b.id],tg=pauseKnobAng(j,b.labels.length);PAUSE.ka[b.id]+=(tg-PAUSE.ka[b.id])*Math.min(1,dt*16);
       c.fillStyle='rgba(0,0,0,.5)';c.beginPath();c.arc(b.cx,b.cy+r*.08,r*1.04,0,TAU);c.fill();c.fillStyle='#0e0f10';c.beginPath();c.arc(b.cx,b.cy,r*1.02,0,TAU);c.fill();
       c.save();c.translate(b.cx,b.cy);c.rotate(PAUSE.ka[b.id]);for(let k=0;k<30;k++){c.fillStyle=k%2?'#2a2c30':'#3b3d41';c.beginPath();c.moveTo(0,0);c.arc(0,0,r*.95,k*TAU/30,(k+1)*TAU/30);c.closePath();c.fill()}
@@ -6832,10 +6854,13 @@ function storyGas(){/* Margo's: the gas station on the coast road just south of 
   /* on the forecourt, between the pumps and the road */const px=s.x+(rp.r.X[rp.i]-s.x)*.42,pz=s.z+(rp.r.Z[rp.i]-s.z)*.42;return{x:px,z:pz,y:terrainH(px,pz),yaw}}
 function storyPlace(p){carPlace(p.x,p.z,p.yaw,p.y+.5);C.vx=C.vz=0;C.camYaw=p.yaw;camStep(0,true)}
 /* ---- begin / continue ---- */
-function storyBegin(fresh){storyLoad();if(fresh)storyReset();STORY.on=true;STORY.radio=[];STORY.rcur=null;STORY.dlg=null;STORY.st={};
+function storyBegin(fresh){storyLoad();if(fresh)storyReset();if(!STORY.on)STORY.freeCar=CARSEL.cur;STORY.on=true;STORY.radio=[];STORY.rcur=null;STORY.dlg=null;STORY.st={};
   const i=CAR_ROSTER.findIndex(d=>d.id==STORY.car);if(i>=0)carSelect(i);
   if(STORY.step==0||!STORY.pos)storyPlace(storyGas());else storyPlace(STORY.pos);
   STORY.title=3.2;COP.on=true}
+/* (batch 61) back to free roam from the pause menu: the story is saved where it is; your free-roam car comes back */
+function storyLeave(){if(!STORY.on)return;if(EV.run&&EV.run.ev.story)evQuit();if(STORY.dlg){STORY.dlg=null;STORY.camOn=false;storyActorKill();voxStop()}STORY.radio=[];STORY.rcur=null;STORY.curEv=null;
+  if(EV.card&&EV.card.story)EV.card=null;STORY.pos={x:C.x,z:C.z,y:C.y,yaw:C.yaw};storySave();STORY.on=false;navClear();if(STORY.freeCar!=null)carSelect(STORY.freeCar);safeToast('FREE ROAM  ·  story saved',2.5)}
 function storyAdvance(){STORY.step++;STORY.st={};STORY.pos={x:C.x,z:C.z,y:C.y,yaw:C.yaw};storySave()}
 /* ---- the radio: lines over your driving ---- */
 function storyRadio(lines){if(!lines)return;for(const l of lines)STORY.radio.push(l)}

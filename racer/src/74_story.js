@@ -95,10 +95,13 @@ function storyGas(){/* Margo's: the gas station on the coast road just south of 
   /* on the forecourt, between the pumps and the road */const px=s.x+(rp.r.X[rp.i]-s.x)*.42,pz=s.z+(rp.r.Z[rp.i]-s.z)*.42;return{x:px,z:pz,y:terrainH(px,pz),yaw}}
 function storyPlace(p){carPlace(p.x,p.z,p.yaw,p.y+.5);C.vx=C.vz=0;C.camYaw=p.yaw;camStep(0,true)}
 /* ---- begin / continue ---- */
-function storyBegin(fresh){storyLoad();if(fresh)storyReset();STORY.on=true;STORY.radio=[];STORY.rcur=null;STORY.dlg=null;STORY.st={};
+function storyBegin(fresh){storyLoad();if(fresh)storyReset();if(!STORY.on)STORY.freeCar=CARSEL.cur;STORY.on=true;STORY.radio=[];STORY.rcur=null;STORY.dlg=null;STORY.st={};
   const i=CAR_ROSTER.findIndex(d=>d.id==STORY.car);if(i>=0)carSelect(i);
   if(STORY.step==0||!STORY.pos)storyPlace(storyGas());else storyPlace(STORY.pos);
   STORY.title=3.2;COP.on=true}
+/* (batch 61) back to free roam from the pause menu: the story is saved where it is; your free-roam car comes back */
+function storyLeave(){if(!STORY.on)return;if(EV.run&&EV.run.ev.story)evQuit();if(STORY.dlg){STORY.dlg=null;STORY.camOn=false;storyActorKill();voxStop()}STORY.radio=[];STORY.rcur=null;STORY.curEv=null;
+  if(EV.card&&EV.card.story)EV.card=null;STORY.pos={x:C.x,z:C.z,y:C.y,yaw:C.yaw};storySave();STORY.on=false;navClear();if(STORY.freeCar!=null)carSelect(STORY.freeCar);safeToast('FREE ROAM  ·  story saved',2.5)}
 function storyAdvance(){STORY.step++;STORY.st={};STORY.pos={x:C.x,z:C.z,y:C.y,yaw:C.yaw};storySave()}
 /* ---- the radio: lines over your driving ---- */
 function storyRadio(lines){if(!lines)return;for(const l of lines)STORY.radio.push(l)}

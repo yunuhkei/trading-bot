@@ -609,7 +609,7 @@ function buildCity(){LMK.clear();buildGarageRoom();
     s.gy=gy}
   /* drive-through repair shops (batch 7): two long walls and a roof over a bay you drive straight through, a blue and white striped front, a big glowing white cross on a blue sign, a dark floor */
   for(const p of REPAIRS){const cs=p.cs,sn=p.sn,nx=-sn,nz=cs,hl=p.L/2,hw=p.W/2,Wd=(a,b)=>[p.x+cs*a+nx*b,p.z+sn*a+nz*b];let gy=1e9;for(const a of[-hl,0,hl])for(const b of[-hw,hw]){const q=Wd(a,b);gy=Math.min(gy,terrainH(q[0],q[1]))}
-    for(const sd of[-1,1]){const q=Wd(0,sd*(hw+.25));pboxR(1,q[0],q[1],hl,.25,cs,sn,gy-1.5,gy+4.6,226,230,236,false,.7);COLO.push(q[0],q[1],hl,.3,cs,sn,gy+4.6);
+    for(const sd of[-1,1]){const q=Wd(0,sd*(hw+.25));pboxR(1,q[0],q[1],hl,.25,cs,sn,gy-1.5,gy+4.6,226,230,236,false,.7);COLO.push(q[0],q[1],hl-.45,.3,cs,sn,gy+4.6);   /* (batch 61) the solid part stops 45 cm short of each opening, so lining up a little late scrapes past the corner instead of hitting it */
       for(let k=-2;k<=2;k++){const s2=Wd(k*hl*.4,sd*(hw+.52));pboxR(1,s2[0],s2[1],hl*.16,.03,cs,sn,gy+1.2,gy+2.0,30,90,220,false,1)}}         /* blue bands on the walls */
     pboxR(1,p.x,p.z,hl+.4,hw+.6,cs,sn,gy+4.6,gy+5.1,40,90,210,false,1);                                                                   /* the roof, blue */
     for(const e of[-1,1]){const q=Wd(e*(hl+.3),0);pboxR(1,q[0],q[1],.15,hw+.6,cs,sn,gy+4.0,gy+4.6,250,250,252,false,1);                   /* a white lintel over each opening */

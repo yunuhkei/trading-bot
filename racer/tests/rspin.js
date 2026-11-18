@@ -14,8 +14,8 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
       const x=C.x,z=C.z;c.px=c.x=x;c.pz=c.z=z;c.py=c.y=rd.Y[i];c.yaw=c.pyaw=a;c.pitch=c.roll=c.ppitch=c.proll=0;
       const d=Math.max(7,TTYPES[t].hl*2.6),ca=a-.2*Math.PI;CAM.x=x+Math.sin(ca)*d;CAM.z=z-Math.cos(ca)*d;CAM.y=rd.Y[i]+1.3;CAM.tx=x;CAM.ty=rd.Y[i]+.6;CAM.tz=z;CAM.fov=.62;R.alpha=1;
       const keepx=C.x,keepz=C.z;C.x=C.px=x+900;C.z=C.pz=z+900;
-      const set=w=>{c.wr=w;c.wt1=R.time};set(0);const p0=grab();set(0.9);const p1=grab();set(6.2831853-1e-4);const p2=grab();set(0);const p3=grab();
-      out.push({t,name:TTYPES[t].name||TTYPES[t].box||'',spin:diff(p0,p1),turn:diff(p0,p2),again:diff(p0,p3)});C.x=C.px=keepx;C.z=C.pz=keepz}
+      const set=w=>{c.wr=w;c.wt1=R.time};set(0);const p0=grab();set(0.9);const p1=grab();set(0.37);const p1b=grab();set(6.2831853-1e-4);const p2=grab();set(0);const p3=grab();
+      /* (batch 61) two angles: 0.9 rad is almost exactly one spoke pitch of a 7-spoke rim (0.898), which looks unchanged */out.push({t,name:TTYPES[t].name||TTYPES[t].box||'',spin:Math.max(diff(p0,p1),diff(p0,p1b)),turn:diff(p0,p2),again:diff(p0,p3)});C.x=C.px=keepx;C.z=C.pz=keepz}
     return out});
   for(const r of R)console.log(('type '+r.t+(r.name?' '+r.name:'')).padEnd(22),'changed by 0.9 rad:',String(r.spin).padStart(5),'px | a full turn:',String(r.turn).padStart(3),'px | same angle again:',r.again);
   ok(R.length>=20&&R.every(r=>r.spin>14&&r.spin>1.5*r.turn),'1 the wheels of all '+R.length+' vehicle types change with the angle (fewest changed pixels '+Math.min(...R.map(r=>r.spin))+')');

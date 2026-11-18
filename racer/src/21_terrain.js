@@ -43,7 +43,7 @@ function flattenGarages(){const N=W.N,T=W.T,half=W.half,hm=W.hm;
 /* DRIVE-THROUGH REPAIR SHOPS (batch 7): a roofed bay open at both ends, beside a main road out of town, parallel to it: leave the road, drive through, and the car is fixed.
    Picked here (the terrain and the roads are known): every 600 m along the wide roads outside the towns, on whichever side the ground is level with the road for the whole bay and its two
    approaches, away from junctions (120 m), garages (150 m), water, bridges and other asphalt; at least 1.1 km apart. */
-function pickRepairs(){REPAIRS.length=0;const L=17,W2=7.5;
+function pickRepairs(){REPAIRS.length=0;const L=17,W2=8.6;   /* (batch 61) 8.6 m wide (was 7.5): coming off a bend you can enter a little crooked without scraping the wall */
   const far=(x,z,d)=>REPAIRS.every(p=>Math.hypot(p.x-x,p.z-z)>d)&&SAFEHOUSES.every(s=>Math.hypot(s.x-x,s.z-z)>150)&&JUNC.every(J=>Math.hypot(J.x-x,J.z-z)>120);
   const built=(x,z)=>inBox(x,z,CITY,80)||inBox(x,z,VALLEY,80)||inBox(x,z,BEACH,80)||inBox(x,z,RESORT,80)||ZONES.some(zn=>inZone(x,z,zn,80))||FIELDS.some(f=>inBox(x,z,f.b,20));
   for(const r of ROADS){if(r.city||r.hw<7||r.n*r.ds<900)continue;const st=Math.round(600/r.ds),m=Math.round(60/r.ds);

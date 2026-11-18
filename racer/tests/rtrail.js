@@ -20,7 +20,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     o.spawns=total;o.ahead=ahead;o.worstCos=+(-worst).toFixed(2);
     /* off the road: parked 140 m out in a field with two stars; the cops come across the grass */
     copClear(true);TR.cars.forEach(c=>{if(c.alive)trKill(c,0)});const k=Math.round(R.n*.45),t=_tan(R,k),nx=-t[1],nz=t[0];let fx=0,fz=0;for(const sd of[1,-1])for(let dd=120;dd<=220&&!fx;dd+=20){const x=R.X[k]+nx*dd*sd,z=R.Z[k]+nz*dd*sd;if(terrainH(x,z)>4&&!roadAt(x,z,terrainH(x,z)+1)&&!nearRoadXZ(x,z,25)&&!trStatic(x,z,2,terrainH(x,z))){fx=x;fz=z}}
-    RACER.carPlace(fx,fz,0,terrainH(fx,fz)+.5);o.offRoad=!C.onRoad;o.fieldD=Math.round(Math.hypot(fx-R.X[k],fz-R.Z[k]));copTrigger(2,'event');let near=1e9,tNear=-1;
+    RACER.carPlace(fx,fz,0,terrainH(fx,fz)+.5);C.vx=C.vz=0;RACER.worldStep(1/120);o.offRoad=!C.onRoad;   /* (batch 61) one step first: onRoad still held the highway's value */o.fieldD=Math.round(Math.hypot(fx-R.X[k],fz-R.Z[k]));copTrigger(2,'event');let near=1e9,tNear=-1;
     for(let s=0;s<120*60;s++){C.vx=C.vz=0;COP.bust=0;RACER.worldStep(1/120);for(const c of TR.cars)if(c.alive&&c.kind==1&&c.cm>=1&&c.state!==1){const d=Math.hypot(c.x-C.x,c.z-C.z);if(d<near)near=d}if(near<25&&tNear<0)tNear=s/120}
     o.near=Math.round(near);o.tNear=tNear;return o});
   console.log(JSON.stringify(r));

@@ -255,9 +255,9 @@ function camStep(dt,snap){if(CC.on){crashCam();return}if(typeof KC!='undefined'&
   /* look a little towards where the car points and a little towards where it is going, so drifts are visible */
   C.camDr=snap?C.drift:C.camDr+(C.drift-C.camDr)*(1-Math.exp(-dt*3));   /* the drift look-ahead eases in and out over about a third of a second */
   const want=pyaw+clamp(angd(tgtYaw,pyaw),-.8,.8)*vw*(.12+.5*Math.min(1,C.camDr*1.2));
-  /* a critically damped spring (not a plain low-pass): the camera's turning speed starts from zero, so a sudden slide never makes it jerk */
+  /* a critically damped spring (not a plain low-pass): the camera's turning speed starts from zero, so a sudden slide never makes it jerk; (batch 61) a little softer while drifting, so the swinging tail does not rock the picture */
   if(!isFinite(C.camYaw)||!isFinite(C.camYV))snap=true;   /* (batch 59) a camera that was never snapped (camYV unset) went NaN and the frame rendered white */
-  if(snap){C.camYaw=want;C.camYV=0}else{const w=5.2+sp*2.2,d=Math.min(dt,.05),acc=w*w*angd(want,C.camYaw)-2*w*C.camYV;C.camYV+=acc*d;C.camYaw+=C.camYV*d}
+  if(snap){C.camYaw=want;C.camYV=0}else{const w=(5.2+sp*2.2)*(1-.3*Math.min(1,C.camDr)),d=Math.min(dt,.05),acc=w*w*angd(want,C.camYaw)-2*w*C.camYV;C.camYV+=acc*d;C.camYaw+=C.camYV*d}
   /* the take-off: on a nitro tap the lens widens and the camera drops back fast, overshoots a little and settles (springs, so it is quick but never a jump); when it ends it snaps back the same way */
   const dTarget=4.75+sp*1.05+C.boostK*1.7,h=1.5+sp*.42;   /* (batch 54) closer: the car fills more of the screen (it was 5.4-6.7 m back, 1.65-2.15 m up) */if(snap){C.camDist=dTarget;C.distV=0}else{const w=9,d=Math.min(dt,.05),acc=w*w*(dTarget-C.camDist)-2*.7*w*C.distV;C.distV+=acc*d;C.camDist+=C.distV*d}const dist=C.camDist;
   /* the look-around orbit (batch 5): o = how far the camera has been swung away from behind the car; it orbits the car's middle, further out and higher with the drag */
