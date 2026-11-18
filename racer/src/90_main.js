@@ -23,11 +23,12 @@ async function boot(){
     if(!QS.has('start')&&!QS.has('fixed')){const q=randomStart();if(q){sx=q.x;sz=q.z;a=q.yaw;sy=q.y}}   /* (batch 21: a random start, until there is a story for where you begin) */
     carPlace(sx,sz,a,sy);camStep(0,true);
     TR.on=!(window.__noTraffic||QS.get('traffic')=='0');if(QS.has('tmax'))TR.base=TR.max=Math.min(TRN-4,parseInt(QS.get('tmax'))||0);trInit();safeInit();ECON.load();upgLoad();carHandling(CAR_ROSTER[CARSEL.cur]);evInit();spotInit();
+    diffLoad();   /* (batch 63) */
     if(QS.has('cops')){const q=QS.get('cops');if(q=='off')COP.on=false;else copSetDiff(q)}if(QS.get('safe')=='all')for(const k in SAFE.owned)SAFE.owned[k]=true;
     if(QS.get('cars')=='all')CAROWN.all=true;if(QS.has('car')){const n=parseInt(QS.get('car'));if(n>=0&&n<CAR_ROSTER.length){CAROWN.all=true;carSelect(n)}}
     BOOT.genMs=performance.now()-t0;
     loadMsg(1,'Ready  ('+Math.round(BOOT.genMs/100)/10+' s, '+R.stats.buildings+' buildings, '+R.stats.trees+' trees)');
-    if(QS.has('go')||window.__autoGo){if(QS.has('story')){storyBegin(QS.get('story')=='new')}startRun()}else{/* (batch 58) STORY (continue where you left off) or FREE ROAM */const go=$('go'),g2=$('go2');go.textContent=storyLabel();go.style.display='block';g2.style.display='block';go.onclick=()=>{audioStart();storyBegin(false);startRun()};g2.onclick=()=>{audioStart();startRun()}}
+    if(QS.has('go')||window.__autoGo){if(QS.has('story')){storyBegin(QS.get('story')=='new')}startRun()}else{/* (batch 58) STORY (continue where you left off) or FREE ROAM */const go=$('go');go.textContent=storyLabel();go.style.display='block';go.onclick=()=>{audioStart();storyBegin(false);startRun()}}
     window.RACER={SIG,sigState,sigBuild,PHYS,physSetClassic,deflect,ENV,ENVP,envApply,envCycle,PP,DEB,PDM,partDetach,partsHit,partsStep,partsReset,partHinge,NAV,MAPV,navSet,navClear,navSnap,navAStar,navLane,navPolyline,mapOpenNow,mapDown,mapMove,mapUp,mapWheel,copTrigger,COP,trGenType,trDent,TTYPES,MENU,CAROWN,menuOpen,menuClose,menuPreview,menuChoose,carUnlock,carSelect,CAR_ROSTER,CARSEL,HND,HND0,CARM,CD,cgBuild,GFX,GFXT,GOV,SHD,SMOKE,SPARK,LAMPS,NEONS,CARL,gfxGovern,gfxSetTier,gfxSetMode,C,IN,R,Q,W,ROADS,UI,CAM,G,TR,LG,IMP,TRM,DMG,SAFE,COP,COPD,GAME,ECON,worldStep,trTick,trPlace,trInit,groundAt,roadAt,terrainH,carStep,camStep,frame,renderOnce,respawn,carPlace,startRun,BOOT,ENV};
   }catch(e){showErr('Startup failed: '+(e&&e.message||e));console.error(e)}}
 let last=0,acc=0,running=false;const DT=1/120;

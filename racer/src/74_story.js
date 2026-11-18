@@ -7,7 +7,7 @@
    Between steps the RADIO talks over your driving (a panel at the top, never stops the game). Progress is saved after every step (localStorage 'racer.story').
    VOICES: every line has an id (c1_prologue_03 ...); a recorded line in VOXB64 (racer/assets/vox/<id>.mp3, embedded by build.py) is played with it, radio lines through a radio filter;
    without one the text alone shows, timed by its length. tools/story_lines.js lists every line for recording (racer/story/lines.csv). */
-const STORY={on:false,ch:1,step:0,car:'cc_h_warden',cars:{cc_h_warden:1},pos:null,key:'racer.story',
+const STORY={on:false,open:false,prevCar:null,ch:1,step:0,car:'cc_h_warden',cars:{cc_h_warden:1},pos:null,key:'racer.story',
   dlg:null,radio:[],rcur:null,camOn:false,shot:'front',shotT:0,actor:null,st:{},curEv:null,title:0,done:false,vox:{},voxSrc:null};
 const VOXB64={/*VOXB64*/};
 const STORY_WHO={STATIC:{n:'DJ STATIC',c:'#ff8a2a',radio:1},MARGO:{n:'MARGO',c:'#5fd4c4'},JULES:{n:'JULES',c:'#ff5a6a'},DEACON:{n:'DEACON',c:'#ffc23d'},YOU:{n:'YOU',c:'#e8eef2'},FENNEC:{n:'FENNEC BOYS',c:'#9be070'},'':{n:'',c:'#cfe9f5'}};
@@ -34,7 +34,7 @@ const STORY_CH={1:{name:'THE COAST',steps:[
   ['STATIC',"Every loss? I play you on the air louder. Let's ride."]]},
  {k:'ev',id:'fennec',obj:'Race the Fennec boys to Santa Cruz',need:'win',
   def:{type:'race',name:'Fennec Run',diff:1,from:['cr',.42],to:['btp',.5],prize:3000,
-   lineup:[{car:'cc_n_courier',name:'TY',sk:.72},{car:'cc_n_courier',name:'DUKE',sk:.7},{car:'cc_n_courier',name:'SKIP',sk:.68},{car:'k1',name:'JULES',who:'JULES',sk:.58}]},
+   lineup:[{car:'cc_n_courier',name:'TY',sk:.78,aggr:0},{car:'cc_n_courier',name:'DUKE',sk:.76,aggr:0},{car:'cc_n_courier',name:'SKIP',sk:.74,aggr:0},{car:'k1',name:'JULES',who:'JULES',sk:.62}]},
   drive:[['STATIC',"The coast belongs to the Surfboard Mafia. Deacon's crew."],
    ['STATIC',"Their little brothers, the Fennec boys, race the 1 every morning. Start there."],
    ['STATIC',"Oh, and Jules signed up too. That Kestrel's held together with zip ties. But Jules can drive."]],
@@ -44,8 +44,11 @@ const STORY_CH={1:{name:'THE COAST',steps:[
    ['MARGO',"Heard you beat the Fennec boys. Don't let it go to your head. They drive hatchbacks.",{r:1}],
    ['STATIC',"First W on the board! In a Warden, county. Write that down.",{s:'high'}]]},
   lose:[['STATIC',"Ooh. That one's going on the air all week. Run it back, Nobody."]]},
+ {k:'open',id:'open',lines:[['STATIC',"Okay, Nobody. The county's yours now. Story jobs show up gold on your map."],
+   ['STATIC',"Everything else out there? Races, time trials, cops. Go get paid."],
+   ['MARGO',"And buy yourself a real car when you can afford one, kid.",{r:1}]]},
  {k:'ev',id:'test',obj:"Beat Deacon's time up the coast",need:'medal',
-  def:{type:'trial',name:"Deacon's Test",diff:1,from:['cr',.95],to:['cr',.3],medalK:1.1},
+  def:{type:'trial',name:"Deacon's Test",diff:1,from:['cr',.95],to:['cr',.3]},
   drive:[['DEACON',"Yo Static, put me on.",{r:1}],
    ['STATIC',"Live on the air, it's Deacon! Runs the Surfboard Mafia. Talks like a tide chart."],
    ['DEACON',"Hey, Warden. You wanna race the Mafia? Cool. Run the 1 back up to Pacifica under my time first. Brah.",{r:1}]],
@@ -61,7 +64,7 @@ const STORY_CH={1:{name:'THE COAST',steps:[
   lose:[['STATIC',"Busted. In a Warden. That's a new low for this county. Try again."]]},
  {k:'ev',id:'deacon',obj:'Beat Deacon',need:'win',
   def:{type:'race',name:"Deacon's Run",diff:1,from:['cr',.5],to:['sh',.15],prize:8000,
-   lineup:[{car:'cc_n_magnet',name:'DEACON',who:'DEACON',sk:.72},{car:'cc_n_drifter',name:'LOOSE',sk:.68},{car:'cc_coupe',name:'KAHUNA',sk:.66}]},
+   lineup:[{car:'cc_n_magnet',name:'DEACON',who:'DEACON',sk:.79},{car:'cc_n_drifter',name:'LOOSE',sk:.75},{car:'cc_coupe',name:'KAHUNA',sk:.73}]},
   drive:[['MARGO',"Deacon's been racing the 1 since before you had a license. He'll lean on you in the corners.",{r:1}],
    ['MARGO',"Lean back.",{r:1}]],
   pre:[['DEACON',"You came up the 1 in a Warden? That's not a car, that's a mailbox.",{s:'grid',r:1}],
@@ -79,12 +82,12 @@ const STORY_CH={1:{name:'THE COAST',steps:[
 for(const ch in STORY_CH)for(const s of STORY_CH[ch].steps){const tag=(k,L)=>{if(L)L.forEach((l,i)=>{l[2]=l[2]||{};l[2].id='c'+ch+'_'+(s.id||s.k)+'_'+k+'_'+String(i+1).padStart(2,'0')})};
   tag('l',s.lines);tag('drive',s.drive);tag('pre',s.pre);tag('win',s.win);tag('lose',s.lose);if(s.winScene)tag('ws',s.winScene.lines)}
 /* ---- saving ---- */
-function storyLoad(){try{const j=JSON.parse(localStorage.getItem(STORY.key)||'null');if(j){STORY.ch=j.ch||1;STORY.step=j.step|0;STORY.car=j.car||'cc_h_warden';STORY.cars=j.cars||{cc_h_warden:1};STORY.pos=j.pos||null;STORY.done=!!j.done}}catch(e){}}
-function storySave(){try{localStorage.setItem(STORY.key,JSON.stringify({ch:STORY.ch,step:STORY.step,car:STORY.car,cars:STORY.cars,pos:STORY.pos,done:STORY.done}))}catch(e){}}
-function storyReset(){STORY.ch=1;STORY.step=0;STORY.car='cc_h_warden';STORY.cars={cc_h_warden:1};STORY.pos=null;STORY.done=false;storySave()}
+function storyLoad(){try{const j=JSON.parse(localStorage.getItem(STORY.key)||'null');if(j){STORY.ch=j.ch||1;STORY.step=j.step|0;STORY.car=j.car||'cc_h_warden';STORY.cars=j.cars||{cc_h_warden:1};STORY.pos=j.pos||null;STORY.done=!!j.done;STORY.open=!!j.open}}catch(e){}}
+function storySave(){try{localStorage.setItem(STORY.key,JSON.stringify({ch:STORY.ch,step:STORY.step,car:STORY.car,cars:STORY.cars,pos:STORY.pos,done:STORY.done,open:STORY.open}))}catch(e){}}
+function storyReset(){STORY.ch=1;STORY.step=0;STORY.car='cc_h_warden';STORY.cars={cc_h_warden:1};STORY.pos=null;STORY.done=false;STORY.open=false;storySave()}
 const storyStep=()=>{const ch=STORY_CH[STORY.ch];return ch&&ch.steps[STORY.step]};
 function storyLabel(){storyLoad();const ch=STORY_CH[STORY.ch];if(!ch)return'STORY';const n=ch.steps.filter(s=>s.k=='ev').length,d=ch.steps.slice(0,STORY.step).filter(s=>s.k=='ev').length;
-  return STORY.step==0?'Story':(STORY.done?'Story  ·  Ch '+STORY.ch+' done':'Continue  ·  Ch '+STORY.ch+'  '+d+'/'+n)}
+  return STORY.step==0?'Drive':'Continue'}
 /* ---- places ---- */
 function storyRoadPt(x,z){/* the nearest point of a drivable road, and its direction */let best=null,bd=1e18;for(const r of ROADS){if(r.style==2||r.style==5)continue;for(let i=1;i<r.n-1;i+=2){const d=(r.X[i]-x)**2+(r.Z[i]-z)**2;if(d<bd){bd=d;best={r,i}}}}return best}
 function storyAlong(rp,dist,dir){/* a point dist metres along the road from rp, in direction dir (+1 / -1 in sample order) */const r=rp.r,ds=r.ds||(r.len/r.n),i=Math.max(1,Math.min(r.n-2,Math.round(rp.i+dir*dist/ds))),t=_tan(r,i);
@@ -96,7 +99,7 @@ function storyGas(){/* Margo's: the gas station on the coast road just south of 
 function storyPlace(p){carPlace(p.x,p.z,p.yaw,p.y+.5);C.vx=C.vz=0;C.camYaw=p.yaw;camStep(0,true)}
 /* ---- begin / continue ---- */
 function storyBegin(fresh){storyLoad();if(fresh)storyReset();if(!STORY.on)STORY.freeCar=CARSEL.cur;STORY.on=true;STORY.radio=[];STORY.rcur=null;STORY.dlg=null;STORY.st={};
-  const i=CAR_ROSTER.findIndex(d=>d.id==STORY.car);if(i>=0)carSelect(i);
+  if(!STORY.open){const i=CAR_ROSTER.findIndex(d=>d.id==STORY.car);if(i>=0)carSelect(i)}
   if(STORY.step==0||!STORY.pos)storyPlace(storyGas());else storyPlace(STORY.pos);
   STORY.title=3.2;COP.on=true}
 /* (batch 61) back to free roam from the pause menu: the story is saved where it is; your free-roam car comes back */
@@ -140,10 +143,10 @@ function voxPlay(l){voxStop();const id=l[2]&&l[2].id;if(!id||!VOXB64[id]||!AU.re
   const v=STORY.vox[id];if(v&&v.buf){go(v.buf);return}try{const bin=atob(VOXB64[id]),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);x.decodeAudioData(u.buffer,b=>{STORY.vox[id]={buf:b,duration:b.duration};go(b)},()=>{})}catch(e){}}
 function voxStop(){if(STORY.voxSrc){try{STORY.voxSrc.stop()}catch(e){}STORY.voxSrc=null}}
 /* ---- events ---- */
-function storyStartEv(step,retry){const d=Object.assign({id:'story_c'+STORY.ch+'_'+step.id,story:1,minLen:300},step.def);if(step.here)d.at={x:C.x,z:C.z,y:C.y,yaw:C.yaw};
-  const ev=evBuild(d);if(!ev){safeToast('ROUTE NOT FOUND',2);return}if(d.medalK){ev.gold*=d.medalK;ev.silver*=d.medalK;ev.bronze*=d.medalK}STORY.curEv=ev;EV.card=null;evStart(ev);
+function storyStartEv(step,retry){const d=Object.assign({id:'story_c'+STORY.ch+'_'+step.id,story:1,minLen:300},step.def);if(step.here)d.at={x:C.x,z:C.z,y:C.y,yaw:C.yaw};if(typeof DIFF!='undefined'&&d.type=='escape')d.stars=Math.min(5,d.stars+(DIFF.lv==2?1:0));
+  const ev=evBuild(d);if(!ev){safeToast('ROUTE NOT FOUND',2);return}{const si=CAR_ROSTER.findIndex(q=>q.id==STORY.car);if(si>=0&&si!=CARSEL.cur){if(STORY.prevCar==null)STORY.prevCar=CARSEL.cur;carSelect(si)}}   /* (batch 63) story jobs are driven in your story car */if(d.medalK){ev.gold*=d.medalK;ev.silver*=d.medalK;ev.bronze*=d.medalK}STORY.curEv=ev;EV.card=null;evStart(ev);
   if(step.pre&&!retry&&EV.run){EV.run.hold=true;storyScene({lines:step.pre},()=>{if(EV.run)EV.run.hold=false})}}
-function storyEvDone(ev,ok,o){const step=storyStep();if(!STORY.on||!step||step.k!='ev'||ev!==STORY.curEv)return;STORY.curEv=null;const card=EV.card||EV.pending;
+function storyEvDone(ev,ok,o){const step=storyStep();if(!STORY.on||!step||step.k!='ev'||ev!==STORY.curEv)return;STORY.curEv=null;if(STORY.prevCar!=null&&STORY.open){carSelect(STORY.prevCar);STORY.prevCar=null}const card=EV.card||EV.pending;
   const pass=ok&&(step.need=='win'?o.place==1:step.need=='medal'?o.medal>=1:true);
   if(pass){storyAdvance();if(card){card.title=step.need=='escape'?'ESCAPED':'YOU WON';card.btns=[{label:'CONTINUE',col:'#ff7a1a',act:()=>{EV.card=null;storyAfterWin(step)}}]}else storyAfterWin(step)}
   else{if(card){if(ok)card.lines.unshift([step.need=='win'?'WIN THE RACE TO MOVE ON':'GET A MEDAL TO MOVE ON','#ffc23d']);card.title='TRY AGAIN';
@@ -159,12 +162,13 @@ function storyTick(dt){if(!STORY.on)return;if(STORY.title>0)STORY.title-=dt;
     if(D.i>=0&&D.t>storyDur(D.lines[D.i]))storyLine(D.i+1);return}
   if(EV.run||GAME.state||MENU.open)return;if(EV.card&&!EV.card.offer&&!EV.card.garage)return;   /* a result card is open: wait for CONTINUE */const step=storyStep();if(!step)return;const st=STORY.st;
   if(step.k=='scene'){if(!st.started){st.started=1;if(step.at=='gas')storyPlace(storyGas());storyScene(step,()=>storyAdvance())}return}
-  if(step.k=='unlock'){STORY.cars[step.car]=1;STORY.car=step.car;const i=CAR_ROSTER.findIndex(d=>d.id==step.car);if(i>=0)carSelect(i);safeToast('NEW CAR  ·  '+step.name,3.5);storyAdvance();return}
+  if(step.k=='open'){STORY.open=true;storySave();storyRadio(step.lines);safeToast('FREE ROAM OPEN  ·  story jobs are gold on the map',4);storyAdvance();return}
+  if(step.k=='unlock'){STORY.cars[step.car]=1;STORY.car=step.car;if(typeof carUnlock=='function')carUnlock(step.car);const i=CAR_ROSTER.findIndex(d=>d.id==step.car);if(i>=0)carSelect(i);safeToast('NEW CAR  ·  '+step.name,3.5);storyAdvance();return}
   if(step.k=='end'){if(!st.shown){st.shown=1;STORY.done=true;storySave();EV.card={story:1,title:'CHAPTER '+STORY.ch+' COMPLETE',sub:STORY_CH[STORY.ch].name,lines:[['You run the coast now. The Magnet Muscle is yours.','#fff'],['Next: '+step.next+'  (coming soon)','#ffc23d'],['Keep driving: the map events are still open.','rgba(233,230,220,.75)']],btns:[{label:'OK',col:'#ff7a1a',act:()=>{EV.card=null}}]}}return}
   if(step.k=='ev'){if(!st.init){st.init=1;storyRadio(step.drive)}
     if(step.here){if(!st.go&&!STORY.rcur&&!STORY.radio.length&&!EV.card){st.go=1;storyStartEv(step,false)}else if(st.go&&!STORY.curEv){if(C.speed>15)st.dismiss=0;if(!EV.card&&C.speed<2&&!st.dismiss)EV.card=storyBrief(step)}return}   /* failed and closed: stop anywhere and the card offers it again */
     if(!st.ev){st.ev=evBuild(Object.assign({id:'story_c'+STORY.ch+'_'+step.id,story:1,minLen:300},step.def))}const e=st.ev;if(!e)return;
-    const d=Math.hypot(C.x-e.s.x,C.z-e.s.z);st.navT=(st.navT||0)-dt;if(st.navT<=0&&d>40&&(!NAV.wp||Math.hypot(NAV.wp.x-e.s.x,NAV.wp.z-e.s.z)>5)){st.navT=2;navSet(e.s.x,e.s.z)}
+    const d=Math.hypot(C.x-e.s.x,C.z-e.s.z);st.navT=(st.navT||0)-dt;if(st.navT<=0&&d>40&&(!NAV.wp||Math.hypot(NAV.wp.x-e.s.x,NAV.wp.z-e.s.z)>5)&&(!STORY.open||!st.navOnce)){st.navT=2;st.navOnce=1;navSet(e.s.x,e.s.z)}
     if(d>30)st.dismiss=0;if(d<14&&C.speed<7&&!EV.card&&!st.dismiss)EV.card=storyBrief(step);if(EV.card&&EV.card.story&&EV.card.offer&&d>30)EV.card=null}}
 /* the beam over the next story event */
 function storyFx(sprite){if(!STORY.on||EV.run)return;const e=STORY.st.ev;if(!e)return;const d=Math.hypot(e.s.x-C.x,e.s.z-C.z);if(d>1500)return;const pulse=.75+.25*Math.sin(EV.t*4);
@@ -198,3 +202,9 @@ function storyLineBox(c,W_,H_,u,l,t,scene,bh){const who=STORY_WHO[l[0]]||STORY_W
   /* the line types itself out */const n=Math.floor(Math.min(l[1].length,t*48));let left=n;c.font=(who.n?'600 ':'italic 600 ')+Math.round(fs)+'px '+UIF;c.textAlign='left';c.fillStyle=who.n?'#f1f4f6':'#cfe9f5';
   lines.forEach((s,i)=>{const part=s.slice(0,Math.max(0,left));left-=s.length+1;c.fillText(part,x+u*.35,y+u*.5+lh*(i+.8))});
   if(scene&&n>=l[1].length&&((t*2.2)|0)%2==0){c.fillStyle='rgba(207,233,245,.7)';c.font='700 '+Math.round(u*.18)+'px '+UIF;c.textAlign='right';c.fillText('TAP ▸',x+bw-u*.3,y+h-u*.15)}}
+
+/* (batch 63) while the story is guiding you (until the first race is won) the map events, garages' event lists and street racers stay hidden */
+const storyGuided=()=>typeof STORY!='undefined'&&STORY.on&&!STORY.open;
+/* the next story job on the world map and the minimap: a gold diamond */
+function storyMapIcons(ctx,px,pz,r){if(!STORY.on)return;const e=STORY.st&&STORY.st.ev;if(!e)return;const x=px(e.s.x),z=pz(e.s.z),k=r*1.6;ctx.save();ctx.fillStyle=((EV.t*3|0)&1)?'#ffd23a':'#ffb000';ctx.strokeStyle='#000';ctx.lineWidth=Math.max(1,r*.25);
+  ctx.beginPath();ctx.moveTo(x,z-k);ctx.lineTo(x+k,z);ctx.lineTo(x,z+k);ctx.lineTo(x-k,z);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}

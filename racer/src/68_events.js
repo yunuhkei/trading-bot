@@ -101,7 +101,8 @@ function evBuild(d){let s=d.at?Object.assign({},d.at):evAt(d.from[0],d.from[1]);
     return ev}
 function evInit(){EV.list.length=0;evLoad();
   for(const d of EV_DEF){const ev=evBuild(d);if(ev)EV.list.push(ev)}}
-const evMedal=(ev,t)=>t<=ev.gold?3:t<=ev.silver?2:t<=ev.bronze?1:0;
+const evMK=()=>typeof DIFF!='undefined'?DIFF.trial[DIFF.lv]:1;   /* (batch 63) the difficulty scales the medal times */
+const evMedal=(ev,t)=>{const k=evMK();return t<=ev.gold*k?3:t<=ev.silver*k?2:t<=ev.bronze*k?1:0};
 /* ---- start, run, finish ---- */
 function evStart(ev){if(typeof railReset=='function')railReset();IN.nitro=0;C.boostK=0;EV._starting=ev;EV.card=null;EV.res=null;navClear();GAME.state=0;GAME.lock=0;racerClear();
   const s=ev.s;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-s.x,c.z-s.z)<40&&c.kind!==1)trKill(c,0);copClear(true);for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);
@@ -177,7 +178,7 @@ function evFinish(ok){const r=EV.run,ev=r.ev;COP.on=r.copsWas;navClear();EV.run=
   else{medal=3;pay=rec.done?Math.round(ev.prize*.25/50)*50:ev.prize;rec.done=(rec.done|0)+1;if(!rec.t||r.t<rec.t){best=!!rec.t;rec.t=r.t}copClear(true)}
   rec.n=(rec.n|0)+1;evSave();if(pay>0)ECON.add(pay);evBeep(990,.3);if(ev.street){delete EV.rec.street;evSave()}EV.card=evResultCard(ev,true,null,{t:r.t,medal,pay,best,w:r.wrecks,place,n:(r.racers||[]).length+1,score:r.score});if(ev.story&&typeof storyEvDone=='function')storyEvDone(ev,true,{t:r.t,medal,place})}
 function evResultCard(ev,ok,why,o){const lines=[];o=o||{};
-  if(ok&&ev.type=='trial'){lines.push(['TIME '+evFmt(o.t)+(o.best?'   NEW BEST':''),'#fff']);lines.push([o.medal?EV_MEDAL[o.medal]+' MEDAL':'NO MEDAL  (bronze '+evFmt(ev.bronze)+')',EV_MCOL[o.medal]])}
+  if(ok&&ev.type=='trial'){lines.push(['TIME '+evFmt(o.t)+(o.best?'   NEW BEST':''),'#fff']);lines.push([o.medal?EV_MEDAL[o.medal]+' MEDAL':'NO MEDAL  (bronze '+evFmt(ev.bronze*evMK())+')',EV_MCOL[o.medal]])}
   else if(ok&&(ev.type=='race'||ev.type=='death')){const ord=['','1ST','2ND','3RD','4TH','5TH','6TH'];lines.push([ord[o.place]+' OF '+o.n+'   ·   '+evFmt(o.t),o.place==1?'#ffd23a':'#fff']);if(ev.type=='death')lines.push([o.w+' RACERS WRECKED  ·  '+o.score+' POINTS  ·  '+(o.medal?EV_MEDAL[o.medal]:'NO MEDAL'),EV_MCOL[o.medal]])}
   else if(ok&&ev.type=='rage'){lines.push([o.w+' OF '+ev.n+' RACERS TAKEN DOWN'+(o.best?'   NEW BEST':''),'#fff']);lines.push([o.medal?EV_MEDAL[o.medal]+' MEDAL':'NO MEDAL  (bronze '+ev.goals[0]+')',EV_MCOL[o.medal]])}
   else if(ok){lines.push(['LOST THEM IN '+evFmt(o.t),'#fff'])}
@@ -185,7 +186,7 @@ function evResultCard(ev,ok,why,o){const lines=[];o=o||{};
   if(ok)lines.push([o.pay>0?'+'+evMoney(o.pay):'no prize this time','#7dffb0']);
   const ok_=[{label:'OK',col:'#8a94a6',act:()=>{EV.card=null}}];return{title:ok?(ev.type=='trial'||ev.type=='race'||ev.type=='death'?'FINISHED':ev.type=='rage'?'TAKEDOWN OVER':'ESCAPED'):'FAILED',sub:ev.name,lines,btns:ev.street?ok_:[{label:'RETRY',col:'#ff7a1a',act:()=>evStart(ev)}].concat(ok_)}}
 /* ---- markers on the map: stop in one and a card offers the event ---- */
-function evMarkers(){if(GAME.state||MENU.open)return;let near=null;for(const ev of EV.list){const d=Math.hypot(C.x-ev.s.x,C.z-ev.s.z);if(d<10&&Math.abs(C.y-ev.s.y)<5){near=ev;break}}
+function evMarkers(){if(GAME.state||MENU.open||(typeof storyGuided=='function'&&storyGuided()))return;let near=null;for(const ev of EV.list){const d=Math.hypot(C.x-ev.s.x,C.z-ev.s.z);if(d<10&&Math.abs(C.y-ev.s.y)<5){near=ev;break}}
   if(EV.dismiss&&(!near||near!==EV.dismiss))EV.dismiss=null;
   if(near&&C.speed<6&&!EV.card&&EV.dismiss!==near)EV.card=evOfferCard(near,false);
   if(EV.card&&EV.card.offer&&!near&&!EV.card.garage)EV.card=null;
@@ -242,6 +243,7 @@ function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF
 function evTap(x,y){for(const b of EV.btns)if(x>=b.x-6&&x<=b.x+b.w+6&&y>=b.y-6&&y<=b.y+b.h+6){b.act();return true}return false}
 /* ---- in the world: the start markers (a glowing ring and a tall beam), the checkpoint gates ---- */
 function evFx(quad,flat,sprite,stage){const r=EV.run;
+  if(typeof storyGuided=='function'&&storyGuided()&&!r)return;
   if(stage==5){if(!r)for(const ev of EV.list){const d=Math.hypot(ev.s.x-C.x,ev.s.z-C.z);if(d>700)continue;const c3=EV_FXC[ev.type]||EV_FXC.escape;flat(ev.s.x,ev.s.y+.05,ev.s.z,13,13,c3[0],c3[1],c3[2],.22)}
     else if(r.ev.cps&&r.t>=0){const p=r.ev.cps[r.cp];if(p)flat(p.x,p.y+.06,p.z,9,9,.3,1,.6,.7)}
 }
@@ -262,5 +264,5 @@ function evGhostDraw(){const r=EV.run;if(!r||r.ev.type!='trial'||r.t<0||!CARM.bo
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);M4.trs(_gm,x,y,z,-yaw,0,0,S,S,S);drawCarMesh(CARM.body,_gm,CARM.body.gf);gl.depthMask(true);gl.disable(gl.BLEND)}
 function evBeep(f,d){if(!AU.ready)return;const x=AU.ctx,t=x.currentTime,o=x.createOscillator(),g=x.createGain();o.frequency.value=f;o.type='square';g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(AU.master);o.start(t);o.stop(t+d+.02)}
 /* the map: a chequered flag (trials) or a siren (escapes) at each start */
-function evMapIcons(ctx,px,pz,r){for(const ev of EV.list){const x=px(ev.s.x),z=pz(ev.s.z);ctx.fillStyle={trial:'#ffb000',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#e03030';ctx.beginPath();ctx.arc(x,z,r,0,TAU);ctx.fill();ctx.fillStyle='#111';ctx.fillRect(x-r*.45,z-r*.45,r*.45,r*.45);ctx.fillRect(x,z,r*.45,r*.45)}
+function evMapIcons(ctx,px,pz,r){if(typeof storyMapIcons=='function')storyMapIcons(ctx,px,pz,r);if(typeof storyGuided=='function'&&storyGuided())return;for(const ev of EV.list){const x=px(ev.s.x),z=pz(ev.s.z);ctx.fillStyle={trial:'#ffb000',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#e03030';ctx.beginPath();ctx.arc(x,z,r,0,TAU);ctx.fill();ctx.fillStyle='#111';ctx.fillRect(x-r*.45,z-r*.45,r*.45,r*.45);ctx.fillRect(x,z,r*.45,r*.45)}
   const run=EV.run;if(run&&run.ev.cps){const p=run.ev.cps[run.cp];if(p){ctx.strokeStyle='#4dffa0';ctx.lineWidth=Math.max(2,r*.4);ctx.beginPath();ctx.arc(px(p.x),pz(p.z),r*1.3,0,TAU);ctx.stroke()}}}

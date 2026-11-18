@@ -62,7 +62,7 @@ const L=require('./rlib.js');
   ok(G.h0>=2&&G.h===0&&G.rear===0&&G.chasers===0,'8 parking on a garage pad at heat '+G.h0+': heat '+G.h+', car repaired, chasers '+G.chasers+' ("'+G.msg+'")');
   /* 9. difficulty table */
   const D=await T.ev(()=>{const o={};for(const k of Object.keys(COPD)){copSetDiff(k);o[k]=[COP.D.name,COP.D.top,COP.D.chaseN.join(','),COP.D.ramLevel,COP.D.blockLevel,COP.D.bustT].join('|')}copSetDiff('forgiving');o.cur=COP.diff;return o});
-  ok(D.cur=='forgiving'&&Object.keys(D).length==4,'9 difficulty table: '+JSON.stringify({forgiving:D.forgiving,medium:D.medium,hard:D.hard}));
+  ok(D.cur=='forgiving'&&Object.keys(D).length==5,'9 difficulty table (batch 63: + brutal, the HARD setting\'s police): '+JSON.stringify({forgiving:D.forgiving,medium:D.medium,hard:D.hard,brutal:D.brutal}));
   const perf=await T.ev(()=>({ms:+TR.ms.toFixed(3),alive:TR.nAlive}));console.log('traffic+cops tick '+perf.ms+' ms with '+perf.alive+' cars');
   console.log('errs',T.errs);ok(T.errs.length==0,'no page errors');await T.close();process.exit(bad?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});

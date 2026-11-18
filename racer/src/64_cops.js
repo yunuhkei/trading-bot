@@ -8,6 +8,8 @@ const COPD={
      loseT / loseD: you only lose them by being more than loseD metres from every chaser AND out of sight for loseT seconds; passV: speed at which blowing past a cop gets you chased (120 mph) */
   forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,2,4,5,6,8],patrol:1,ramLevel:2,ramCd:4.2,ramV:10,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:10,loseD:170,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
   medium:{name:'Medium',top:72,follow:1.22,accel:16,react:.6,chaseN:[0,3,5,7,8,10],patrol:1,ramLevel:2,ramCd:2.6,ramV:13,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:14,loseD:230,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
+  /* (batch 63) the HARD difficulty's police */
+  brutal:{name:'Brutal',top:92,follow:1.36,accel:20,react:.3,chaseN:[0,4,7,9,10,13],patrol:2,ramLevel:1,ramCd:1.4,ramV:18,blockLevel:2,bustT:1.6,bustSpd:8.5,bustN:2,loseT:18,loseD:290,decay:5,ev:1,rbGap:0,chaseSpd:4,passV:53.64,thr:[0,20,55,110,200,320]},
   hard:{name:'Hard',top:84,follow:1.3,accel:18,react:.4,chaseN:[0,4,6,8,9,12],patrol:2,ramLevel:2,ramCd:1.8,ramV:16,blockLevel:2,bustT:2,bustSpd:8,bustN:2,loseT:16,loseD:260,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
 /* WHAT EACH STAR ADDS (batch 3; the difficulty presets above set the speeds, the number of chasers and how often they ram):
    1 a couple of patrol cars follow you, no contact; 2 more cars and they RAM you (interceptors join); 3 PIT manoeuvres (they aim at your rear quarter), bigger roadblocks (4 cars across, 5 at four stars, 6 at five; one fewer on Forgiving, which leaves a gap; fewer on a narrow road);
