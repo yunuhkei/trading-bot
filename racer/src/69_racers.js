@@ -56,7 +56,10 @@ function racerStep(c,dt){
       const closing=v-block.v,need=closing*closing/(2*7)+12;if(!moved||bdist<need)vt=Math.min(vt,block.v+Math.max(0,bdist-10)*.45)}   /* until it is actually beside it, it keeps a speed it can still stop from */
     else if(!block){if(R.launch>0)R.launch-=dt;else R.offT*=Math.exp(-dt*.4);   /* for the first 4 s it holds its grid lane (they used to dive for the middle together and crash) */
       /* (batch 53) defending: a car right behind you in a race gets its nose across your line (a move every 1.2 s, never more than 4 m off the route) */
-      if(EV.run&&EV.run.ev&&EV.run.ev.type=='race'){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;if(R.defT<=0&&fd<-4&&fd>-35&&Math.abs(lt)<6&&v>20){R.defT=1.2;R.offT=Math.max(-4,Math.min(4,R.off+Math.sign(lt||1)*2.2))}}}
+      if(EV.run&&EV.run.ev&&EV.run.t>=0&&!(c.spinT>0)){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;
+        /* (batch 64) racing you for position (every racer event, takedowns too): with you close behind or alongside it floors it, lights its nitro when you draw level, and once its nose is ahead of yours it cuts across in front of you (a move every second, never more than 4.5 m off the route) */
+        if(fd>-28&&fd<9&&Math.abs(lt)<10&&v>12){vt=Math.min(cornerV,vLim);if(fd>-6&&sk.nitro&&!(R.nzT>0)&&(R.nzCd||0)<6){R.nzT=2;R.nzCd=11}}
+        if(R.defT<=0&&fd<-1.5&&fd>-35&&Math.abs(lt)<7&&v>18){R.defT=1;R.offT=Math.max(-4.5,Math.min(4.5,R.off+Math.sign(lt||1)*Math.min(3,Math.abs(lt)+.8)))}}}
     R.off+=(R.offT-R.off)*Math.min(1,dt*2.6);
     let tx=p[ahead*3],tz=p[ahead*3+2];{const a2=Math.min(Rt.n-1,ahead+1),dx=p[a2*3]-tx,dz=p[a2*3+2]-tz,l=Math.hypot(dx,dz)||1;
       /* (batch 53) never aim off the asphalt: an offset that would put the car on the verge or into the barrier is pulled back towards the route */
@@ -104,7 +107,7 @@ function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m alo
 /* (batch 53) TAKEDOWN waves: three racers, each a different playable car a little slower than yours, already rolling S0 metres along the route (ahead of you); when you have wrecked or passed them the next three appear further on */
 let _pkUsed=new Set();
 function racerPack(Rt,n,S0,wave){const out=[];if(!wave)_pkUsed=new Set();if(_pkUsed.size>RACER_POOL.length-n)_pkUsed=new Set();
-  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const d=racerDiff();_rTier=EV_DTOP[d];const pc=racerCarNear(racerMyTop()*(.92-.04*k),_pkUsed);_rTier=null;const c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,.93-.03*k-[0,.06,.02,0][d],1),1);if(c)out.push(c)}return out}
+  for(let k=0;k<n;k++){const S=(S0||200)+k*48;if(S>Rt.len-70)break;const d=racerDiff();_rTier=EV_DTOP[d];const dl=typeof DIFF!='undefined'?DIFF.lv:1,pc=racerCarNear(racerMyTop()*(.98-.03*k)*(typeof DIFF!='undefined'?DIFF.car[dl]:1),_pkUsed);_rTier=null;const c=racerSpawn(Rt,S,(k&1)?-3.4:3.4,k+(wave||0)*3,racerSkillFor(pc,Math.min(1.02,(.97-.02*k-[0,.06,.02,0][d])*(typeof DIFF!='undefined'?DIFF.racer[dl]:1)),1),1);   /* (batch 64) the pack drives cars about as fast as yours (they were 8-16 % slower) */if(c)out.push(c)}return out}
 /* (batch 53) a racer that has crashed in a plain race is back on the road after 2.2 s (further on, on a clear spot), not out for the rest of the race; takedowns and death races keep their wrecks */
 function racerRecover(c,dt){const R=c.race,ev=EV.run&&EV.run.ev;if(!R||!ev||(ev.type!='race'&&ev.type!='death'&&ev.type!='rage')||R.done>=0||!R.go)return false;if(ev.type=='rage'&&c.byP)return false;   /* (batch 53) in a takedown a racer that crashed on its own comes back too; one YOU took down stays down */c.recT=(c.recT||0)+dt;
   if(c.recT>(ev.type=='death'?3.5:2.2)&&racerRespot(c)){c.recT=0;R.catchT=12;c.state=3;c.kind=2;c.dmg=Math.min(c.dmg||0,.45);c.rev=0;c.stk=0;c.hn=0;return true}return false}
