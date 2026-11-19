@@ -4957,8 +4957,8 @@ const COPD={
    4 a HELICOPTER with a spotlight follows you (it always knows where you are) and SPIKE STRIPS are laid on the road ahead; 5 SWAT trucks block, two or three helicopters, near-constant PIT
    attempts, roadblocks of 6 with heavy trucks. types: the police vehicles that chase at that level (4 patrol, 20 interceptor, 21 SUV, 22 SWAT truck). */
 const STARS=[{types:[4]},{types:[4],pit:0,block:0,heli:0,spikes:0,ramMul:1},{types:[4,20],pit:0,block:0,heli:0,spikes:0,ramMul:1},{types:[4,20,21],pit:1,block:4,heli:0,spikes:0,ramMul:.85},
-  {types:[20,21,4],pit:1,block:5,heli:0,spikes:1,ramMul:.7},{types:[20,21,4],pit:1,block:6,heli:1,spikes:1,ramMul:.4}];
-/* (batch 67) police per star (the difficulty picks within it): 1 star 1-2 cars, 2 stars 2-4, 3 stars 4-5, 4 stars 5 and a SWAT truck, 5 stars 5-6 and two SWAT trucks and the helicopter */
+  {types:[20,21,4],pit:1,block:5,heli:1,spikes:1,ramMul:.7},{types:[20,21,4],pit:1,block:6,heli:2,spikes:1,ramMul:.4}];   /* (batch 68) the helicopter is back at four stars (two at five), and it drops spike strips ahead of you */
+/* (batch 67) police per star (the difficulty picks within it): 1 star 1-2 cars, 2 stars 2-4, 3 stars 4-5, 4 stars 5, a SWAT truck and the helicopter (batch 68), 5 stars 5-6, two SWAT trucks and two helicopters */
 const COP_SWAT=[0,0,0,0,1,2];
 /* (batch 27) LOCK-ON: cops have to be close to see you (a crime counts only with a cop within 60 m, or 120 m in clear sight; a patrol notices you the same way), but once they
    are after you they always know where you are while any police car (chasing, wrecked or in a roadblock) is within a mile (COP_LOCK); reinforcements come only while one is within
@@ -4984,7 +4984,7 @@ function copTrigger(level,why){
 function copTop(c){const D=COP.D;let t=D.top*(c?(TTYPES[c.type]&&TTYPES[c.type].vtop)||1:1);if(c&&COP.sightT<1.5&&Math.hypot(c.x-C.x,c.z-C.z)<45)t=Math.max(t,Math.min(C.speed+6,t*1.12));return Math.min(115,t)}
 function heatAdd(p){if(!COP.on||GAME.state||!TR.on)return;COP.w+=p*COP.D.ev;if(COP.w>COP.D.thr[5]*1.3)COP.w=COP.D.thr[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=Math.min(COP.sightT,.2);copCall()}
 /* wipe the heat and send the chasers home (full: they disappear, as when you reach a garage) */
-function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;SPIKE.list.length=0;if(full)HELI.list.length=0;
+function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;SPIKE.list.length=0;SPIKE.fall.length=0;if(full)HELI.list.length=0;
   for(const c of TR.cars){if(!c.alive||c.kind!==1)continue;if(c.cm==3||(full&&c.cm>0))trKill(c,0);else if(c.cm>0)copStandDown(c)}}
 function copStandDown(c){c.cm=0;c.siren=0;c.v0f=1;c.A=2.2;if(c.state==3)copAttach(c)}
 function copAlert(c){c.cm=1;c.siren=1;c.v0f=COP.D.chaseSpd;c.A=COP.D.accel*.85;c.T=.7;c.pickJ=-1;c.role=0;c.rt=null}
@@ -5166,7 +5166,7 @@ function copHud(c,W_,H_,u){
       c.fillStyle=fl?'#ff4a3a':'#4a7aff';c.beginPath();const s=u*.2,beh=Math.abs(rel)>1.9;if(beh){c.moveTo(x-s,y-s*.7);c.lineTo(x+s,y-s*.7);c.lineTo(x,y+s*.8)}else if(rel>0){c.moveTo(x-s*.7,y-s);c.lineTo(x-s*.7,y+s);c.lineTo(x+s*.9,y)}else{c.moveTo(x+s*.7,y-s);c.lineTo(x+s*.7,y+s);c.lineTo(x-s*.9,y)}c.closePath();c.fill();
       c.fillStyle='#fff';c.fillText(fmtShort(d),x,y+u*.5)}c.restore()}
   if(COP.bust>.05){const k=Math.min(1,COP.bust/COP.D.bustT),w=u*3,h=u*.2,y=H_*.74;c.save();c.fillStyle='rgba(0,0,0,.55)';c.fillRect(W_*.5-w/2,y,w,h);c.fillStyle=((C.t*8)|0)%2?'#ff4a3a':'#4a7aff';c.fillRect(W_*.5-w/2,y,w*k,h);c.textAlign='center';c.font='800 '+Math.round(u*.26)+'px '+UIF;c.fillStyle='#fff';c.fillText('BUSTED?  keep moving!',W_*.5,y-u*.12);c.restore()}
-  if(COP.spikeWarn>0){fxText(c,'SPIKE STRIP AHEAD',W_*.5,H_*.335,u*.34,'#ff8a3a','center','rgba(255,120,40,.5)')}
+  if(COP.spikeWarn>0){fxText(c,COP.spikeHeli?'HELICOPTER DROPPED SPIKES AHEAD':'SPIKE STRIP AHEAD',W_*.5,H_*.335,u*.34,'#ff8a3a','center','rgba(255,120,40,.5)')}
   if(COP.warnT>0){fxText(c,'ROADBLOCK AHEAD',W_*.5,H_*.285,u*.34,'#ffd24a','center','rgba(255,200,40,.5)')}}
 
 'use strict';
@@ -5465,11 +5465,14 @@ function partsDrawCar(mf,sc,glass){
 /* ===== batch 3: police helicopters and spike strips =====
    HELICOPTERS (from 4 stars, STARS[heat].heli of them): a navy and white helicopter with a cabin, a tail boom and fin, skids, a main rotor and a tail rotor that blur into discs, a spotlight that
    follows you (a beam and a pool of light), and the chop of the rotor. It flies 32-45 m above the ground, holds a slot behind or beside you and keeps you in its light: while it is within
-   220 m you cannot lose the police. It has fuel for 75 s, then it peels off; the next one comes 25 s later (that gap is your chance to escape). Drawn with the car program (one draw each).
+   220 m you cannot lose the police. It has fuel for 75 s (55 s at four stars, batch 68), then it peels off; the next one comes 25 s later, and (batch 68) only if a police car can see you then (that gap is your chance to escape). Drawn with the car program (one draw each).
+   (batch 68) THE HELICOPTER DROPS SPIKES: about 10 s after it arrives, then every 13-17 s, it speeds up past you, and once it is 50 m or more ahead of you it throws a spike
+   strip down onto the lane you are in (it lands 90 m + 1.2 s of your speed ahead of you, falling for 1.2 s, with sparks where it lands): "HELICOPTER DROPPED SPIKES AHEAD". Swerve
+   round it like any strip. If it cannot get ahead in 10 s (you are too fast), it gives up and tries again later. It waits if a strip was laid in the last 6 s.
    SPIKE STRIPS (from 4 stars): every 16-20 s a strip is laid 150-230 m ahead of you across ONE lane, the one you are in (one and a half lanes at five stars, plus a second strip 30 m on over the other side): swerve round it. A police car stands beside it. It lies there for 40 s. Driving over it bursts the tyres: a bang, sparks from the rims,
    "TYRES BURST" and a short loss of grip (7.8 s on the rims: grip down to 40 %, the car wanders and pulls to one side, top speed about 90 km/h, then the tyres reinflate; approved by the owner). THIS IS A DELIBERATE EXCEPTION to "damage never changes how the car drives". */
 const HELI={list:[],mesh:null,nextT:0,want:0,chop:0,near:1e9,made:0};
-const SPIKE={list:[],nextT:0,hits:0},HELI_PAINT=new Float32Array([.012,.03,.09]);
+const SPIKE={list:[],fall:[],nextT:0,hits:0,drops:0},HELI_PAINT=new Float32Array([.012,.03,.09]);
 /* the helicopter mesh, built at a third of its size (the car mesh format holds +-4 m) and drawn three times bigger */
 function heliMesh(){const b=new CGB(),M=CGM,k=1/3,box=(x,y,z,hx,hy,hz,m)=>cgBox(b,x*k,y*k,z*k,hx*k,hy*k,hz*k,m,0);
   box(0,1.7,-.4,.95,.85,1.9,M.paint);box(0,1.55,-2.55,.8,.7,.45,M.glass);box(0,2.05,-1.7,.85,.42,.55,M.glass);box(0,1.55,-1.0,.97,.45,1.05,M.plate);   /* cabin, nose glass, windscreen, white band */
@@ -5480,16 +5483,20 @@ function heliMesh(){const b=new CGB(),M=CGM,k=1/3,box=(x,y,z,hx,hy,hz,m)=>cgBox(
   return b}
 function heliInit(){if(!G.gl)return;const B=heliMesh();HELI.mesh=_mkMesh(G.gl,B,m=>m==CGM.paint?[255,255,255]:CGCOL[m])}
 function heliSpawn(i){const ux=C.speed>3?C.vx/C.speed:Math.sin(C.yaw),uz=C.speed>3?C.vz/C.speed:-Math.cos(C.yaw);
-  HELI.list.push({x:C.x-ux*260+(i&1?60:-60),z:C.z-uz*260,y:C.y+60,yaw:Math.atan2(ux,-uz),vx:ux*40,vz:uz*40,vy:0,rot:0,fuel:75,slot:i,px:0,py:0,pz:0,pyaw:0,leave:0});HELI.made++}
+  HELI.list.push({x:C.x-ux*260+(i&1?60:-60),z:C.z-uz*260,y:C.y+60,yaw:Math.atan2(ux,-uz),vx:ux*40,vz:uz*40,vy:0,rot:0,fuel:COP.heat>=5?75:55,slot:i,px:0,py:0,pz:0,pyaw:0,leave:0,dropT:10+i*5,run:0});HELI.made++}
 function copHeliTick(dt){
   const want=COP.heat>0?((STARS[COP.heat]||{}).heli||0):0;HELI.want=want;let near=1e9;
   if(HELI.nextT>0)HELI.nextT-=dt;
-  const active=HELI.list.filter(h=>!h.leave).length;if(active<want&&HELI.nextT<=0){heliSpawn(HELI.list.length);HELI.nextT=active+1<want?4:0}
+  const active=HELI.list.filter(h=>!h.leave).length;if(active<want&&HELI.nextT<=0&&COP.sightT<2){heliSpawn(HELI.list.length);HELI.nextT=active+1<want?4:0}   /* (batch 68) a helicopter is only called in while a police car can see you: lose them while it refuels and none comes back */
   for(const h of HELI.list){h.px=h.x;h.py=h.y;h.pz=h.z;h.pyaw=h.yaw;h.fuel-=dt;if((h.fuel<=0||want==0)&&!h.leave){h.leave=1;if(want>0)HELI.nextT=25}
     const ps=C.speed,ux=ps>3?C.vx/ps:Math.sin(C.yaw),uz=ps>3?C.vz/ps:-Math.cos(C.yaw),side=h.slot%3==0?0:h.slot%3==1?-1:1;
     let tx=C.x-ux*(22+8*(h.slot%3))+(-uz)*side*24+C.vx*.8,tz=C.z-uz*(22+8*(h.slot%3))+ux*side*24+C.vz*.8,ty=Math.max(terrainH(tx,tz),C.y)+32+5*(h.slot%3);
     if(h.leave){tx=h.x+h.vx*10+(h.slot&1?400:-400);tz=h.z+h.vz*10;ty=h.y+40}
-    const dx=tx-h.x,dz=tz-h.z,d=Math.hypot(dx,dz),vmax=Math.min(85,ps*1.25+30),vw=Math.min(vmax,d*.9),ax=(dx/(d||1)*vw-h.vx)*1.3,az=(dz/(d||1)*vw-h.vz)*1.3,al=Math.hypot(ax,az),lim=14;
+    /* (batch 68) a spike run: fly out ahead of you, then throw a strip down onto your lane */
+    if(!h.leave){h.dropT-=dt;if(!h.run&&h.dropT<=0){if(ps>14&&COP.t-(SPIKE.lastT||-99)>6){h.run=1;h.runT=0}else h.dropT=2}
+      if(h.run){h.runT+=dt;tx=C.x+ux*(90+ps*.6)+(-uz)*side*8;tz=C.z+uz*(90+ps*.6)+ux*side*8;ty=Math.max(terrainH(tx,tz),C.y)+26;
+        const ah=(h.x-C.x)*ux+(h.z-C.z)*uz;if(ah>50&&heliDrop(h,ux,uz)){h.run=0;h.dropT=13+TR.rng()*4}else if(h.runT>10||ps<8){h.run=0;h.dropT=6+TR.rng()*4}}}
+    const dx=tx-h.x,dz=tz-h.z,d=Math.hypot(dx,dz),vmax=h.run?Math.min(120,ps*1.35+35):Math.min(85,ps*1.25+30),vw=Math.min(vmax,d*.9),ax=(dx/(d||1)*vw-h.vx)*1.3,az=(dz/(d||1)*vw-h.vz)*1.3,al=Math.hypot(ax,az),lim=h.run?24:14;
     h.vx+=(al>lim?ax/al*lim:ax)*dt;h.vz+=(al>lim?az/al*lim:az)*dt;h.vy+=((ty-h.y)*.8-h.vy)*Math.min(1,dt*2);h.x+=h.vx*dt;h.z+=h.vz*dt;h.y+=h.vy*dt;
     const gy=terrainH(h.x,h.z)+18;if(h.y<gy)h.y=gy;
     /* it faces you (the spotlight is in its nose), banked into its turns */
@@ -5515,11 +5522,18 @@ function heliFx(quad,flat,stage){
   if(stage==2)for(const s of SPIKE.list){const L=s.hw,nx=s.nx,nz=s.nz,tx=-nz,tz=nx,w=1.1,y=s.y+.05;quad(s.x-tx*w-nx*L,y,s.z-tz*w-nz*L,s.x+tx*w-nx*L,y,s.z+tz*w-nz*L,s.x+tx*w+nx*L,y,s.z+tz*w+nz*L,s.x-tx*w+nx*L,y,s.z-tz*w+nz*L,.03,.03,.035,.95);
       for(const o of[-.4,0,.4])quad(s.x+tx*(o-.07)-nx*L,y+.02,s.z+tz*(o-.07)-nz*L,s.x+tx*(o+.07)-nx*L,y+.3,s.z+tz*(o+.07)-nz*L,s.x+tx*(o+.07)+nx*L,y+.3,s.z+tz*(o+.07)+nz*L,s.x+tx*(o-.07)+nx*L,y+.02,s.z+tz*(o-.07)+nz*L,.82,.85,.9,.95)}}
 /* the glints of the spikes (sprites) */
-function spikeFx(sprite,SRN){const on=Math.sin(R.time*14)>0;for(const s of SPIKE.list){const d=Math.hypot(s.x-C.x,s.z-C.z);if(d>260)continue;for(let k=-6;k<=6;k++){const q=k/6*s.hw;sprite(s.x+s.nx*q,s.y+.24,s.z+s.nz*q,.2+d*.004,.9,.92,1,.9)}
+/* (batch 68) the helicopter throws a strip down onto the lane you are in, far enough ahead to swerve round it */
+function heliDrop(h,ux,uz){const dd=90+C.speed*1.2;if(!copAhead(dd,ux,uz))return false;const r=ROADS[TRP.ri],i=TRP.i,t=_tan(r,i),nx=-t[1],nz=t[0];
+  roadAt(C.x,C.z,C.y);const myLat=RQ.ri===TRP.ri?RQ.lat*((RQ.nx*nx+RQ.nz*nz)>0?1:-1):0,shw=COP.heat>=5?2.4:1.9,lim=r.hw-shw-.3,lat=clamp(myLat,-lim,lim);
+  SPIKE.fall.push({x0:h.x,y0:h.y-1.5,z0:h.z,x:h.x,y:h.y,z:h.z,lx:r.X[i]+nx*lat,ly:r.Y[i],lz:r.Z[i]+nz*lat,nx,nz,hw:shw,t:0,T:1.2});SPIKE.drops++;SPIKE.lastT=COP.t;SPIKE.nextT=Math.max(SPIKE.nextT,6);COP.spikeWarn=3;COP.spikeHeli=1;return true}
+function spikeFallTick(dt){for(const f of SPIKE.fall){f.t+=dt;const k=Math.min(1,f.t/f.T);f.x=f.x0+(f.lx-f.x0)*k;f.z=f.z0+(f.lz-f.z0)*k;f.y=f.y0+(f.ly-f.y0)*k*k+4*k*(1-k);
+    if(k>=1){SPIKE.list.push({x:f.lx,z:f.lz,y:f.ly,nx:f.nx,nz:f.nz,hw:f.hw,life:25,heli:1});if(typeof sparkAt==='function'&&Math.hypot(f.lx-C.x,f.lz-C.z)<300)sparkAt(f.lx,f.ly+.3,f.lz,0,0,10,4)}}
+  SPIKE.fall=SPIKE.fall.filter(f=>f.t<f.T)}
+function spikeFx(sprite,SRN){{const on=Math.sin(R.time*18)>0;for(const f of SPIKE.fall){/* the falling strip: a dark bundle with a red flasher */const dd=Math.hypot(f.x-C.x,f.z-C.z);sprite(f.x,f.y,f.z,1.6+dd*.01,.3,.3,.34,.95);if(SRN)SRN.push(f.x,f.y+.6,f.z,(on?1.6:.8)+dd*.012,1,.12,.08,on?1:.5)}}const on=Math.sin(R.time*14)>0;for(const s of SPIKE.list){const d=Math.hypot(s.x-C.x,s.z-C.z);if(d>260)continue;for(let k=-6;k<=6;k++){const q=k/6*s.hw;sprite(s.x+s.nx*q,s.y+.24,s.z+s.nz*q,.2+d*.004,.9,.92,1,.9)}
     /* a red flasher at each end, so the strip reads from a distance in daylight too */
     if(SRN)for(const sd of[-1,1])SRN.push(s.x+s.nx*s.hw*sd,s.y+.5,s.z+s.nz*s.hw*sd,(on==(sd>0)?.7:.3)+d*.006,1,.12,.08,on==(sd>0)?.95:.4)}}
 /* ---- spike strips ---- */
-function copSpikeTick(dt){if(COP.spikeWarn>0)COP.spikeWarn-=dt;
+function copSpikeTick(dt){if(COP.spikeWarn>0)COP.spikeWarn-=dt;spikeFallTick(dt);
   const on=COP.heat>0&&(STARS[COP.heat]||{}).spikes;for(const s of SPIKE.list)s.life-=dt;SPIKE.list=SPIKE.list.filter(s=>s.life>0);
   if(on&&C.speed>14&&COP.sightT<1.5){SPIKE.nextT-=dt;if(SPIKE.nextT<=0){SPIKE.nextT=16+TR.rng()*4;const ux=C.vx/C.speed,uz=C.vz/C.speed,dd=150+TR.rng()*80;
       if(copAhead(dd,ux,uz)){const r=ROADS[TRP.ri],i=TRP.i,t=_tan(r,i),nx=-t[1],nz=t[0];
@@ -5527,7 +5541,7 @@ function copSpikeTick(dt){if(COP.spikeWarn>0)COP.spikeWarn-=dt;
            A police car stands at the road's edge beside it. */
         roadAt(C.x,C.z,C.y);const myLat=RQ.ri===TRP.ri?RQ.lat*((RQ.nx*nx+RQ.nz*nz)>0?1:-1):0,five=COP.heat>=5,shw=five?2.7:1.9,lim=r.hw-shw-.3,lat=clamp(myLat,-lim,lim);
         const put=(ii,la)=>{SPIKE.list.push({x:r.X[ii]+nx*la,z:r.Z[ii]+nz*la,y:r.Y[ii],nx,nz,hw:shw,life:40});copSpikeCar(r,ii,la>0?-1:1)};
-        put(i,lat);if(five){const sg=(t[0]*ux+t[1]*uz)>=0?1:-1,j=Math.min(r.n-2,Math.max(1,i+sg*Math.round(30/r.ds)));put(j,clamp(-lat*.8+(lat>0?-1:1)*shw,-lim,lim))}COP.spikeWarn=3}}}
+        put(i,lat);if(five){const sg=(t[0]*ux+t[1]*uz)>=0?1:-1,j=Math.min(r.n-2,Math.max(1,i+sg*Math.round(30/r.ds)));put(j,clamp(-lat*.8+(lat>0?-1:1)*shw,-lim,lim))}COP.spikeWarn=3;COP.spikeHeli=0;SPIKE.lastT=COP.t}}}
   else SPIKE.nextT=Math.min(SPIKE.nextT,5)}
 /* the police car that laid the strip, parked on the road's edge beside it (on the other side from the strip) */
 function copSpikeCar(r,i,side){const e=LG.ofRoad[ROADS.indexOf(r)]&&LG.ofRoad[ROADS.indexOf(r)][0][0];if(!e)return;const t=_tan(r,i),nx=-t[1],nz=t[0],o=side*(r.hw-1.4);

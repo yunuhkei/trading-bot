@@ -16,8 +16,8 @@ const COPD={
    4 a HELICOPTER with a spotlight follows you (it always knows where you are) and SPIKE STRIPS are laid on the road ahead; 5 SWAT trucks block, two or three helicopters, near-constant PIT
    attempts, roadblocks of 6 with heavy trucks. types: the police vehicles that chase at that level (4 patrol, 20 interceptor, 21 SUV, 22 SWAT truck). */
 const STARS=[{types:[4]},{types:[4],pit:0,block:0,heli:0,spikes:0,ramMul:1},{types:[4,20],pit:0,block:0,heli:0,spikes:0,ramMul:1},{types:[4,20,21],pit:1,block:4,heli:0,spikes:0,ramMul:.85},
-  {types:[20,21,4],pit:1,block:5,heli:0,spikes:1,ramMul:.7},{types:[20,21,4],pit:1,block:6,heli:1,spikes:1,ramMul:.4}];
-/* (batch 67) police per star (the difficulty picks within it): 1 star 1-2 cars, 2 stars 2-4, 3 stars 4-5, 4 stars 5 and a SWAT truck, 5 stars 5-6 and two SWAT trucks and the helicopter */
+  {types:[20,21,4],pit:1,block:5,heli:1,spikes:1,ramMul:.7},{types:[20,21,4],pit:1,block:6,heli:2,spikes:1,ramMul:.4}];   /* (batch 68) the helicopter is back at four stars (two at five), and it drops spike strips ahead of you */
+/* (batch 67) police per star (the difficulty picks within it): 1 star 1-2 cars, 2 stars 2-4, 3 stars 4-5, 4 stars 5, a SWAT truck and the helicopter (batch 68), 5 stars 5-6, two SWAT trucks and two helicopters */
 const COP_SWAT=[0,0,0,0,1,2];
 /* (batch 27) LOCK-ON: cops have to be close to see you (a crime counts only with a cop within 60 m, or 120 m in clear sight; a patrol notices you the same way), but once they
    are after you they always know where you are while any police car (chasing, wrecked or in a roadblock) is within a mile (COP_LOCK); reinforcements come only while one is within
@@ -43,7 +43,7 @@ function copTrigger(level,why){
 function copTop(c){const D=COP.D;let t=D.top*(c?(TTYPES[c.type]&&TTYPES[c.type].vtop)||1:1);if(c&&COP.sightT<1.5&&Math.hypot(c.x-C.x,c.z-C.z)<45)t=Math.max(t,Math.min(C.speed+6,t*1.12));return Math.min(115,t)}
 function heatAdd(p){if(!COP.on||GAME.state||!TR.on)return;COP.w+=p*COP.D.ev;if(COP.w>COP.D.thr[5]*1.3)COP.w=COP.D.thr[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=Math.min(COP.sightT,.2);copCall()}
 /* wipe the heat and send the chasers home (full: they disappear, as when you reach a garage) */
-function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;SPIKE.list.length=0;if(full)HELI.list.length=0;
+function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;SPIKE.list.length=0;SPIKE.fall.length=0;if(full)HELI.list.length=0;
   for(const c of TR.cars){if(!c.alive||c.kind!==1)continue;if(c.cm==3||(full&&c.cm>0))trKill(c,0);else if(c.cm>0)copStandDown(c)}}
 function copStandDown(c){c.cm=0;c.siren=0;c.v0f=1;c.A=2.2;if(c.state==3)copAttach(c)}
 function copAlert(c){c.cm=1;c.siren=1;c.v0f=COP.D.chaseSpd;c.A=COP.D.accel*.85;c.T=.7;c.pickJ=-1;c.role=0;c.rt=null}
@@ -225,5 +225,5 @@ function copHud(c,W_,H_,u){
       c.fillStyle=fl?'#ff4a3a':'#4a7aff';c.beginPath();const s=u*.2,beh=Math.abs(rel)>1.9;if(beh){c.moveTo(x-s,y-s*.7);c.lineTo(x+s,y-s*.7);c.lineTo(x,y+s*.8)}else if(rel>0){c.moveTo(x-s*.7,y-s);c.lineTo(x-s*.7,y+s);c.lineTo(x+s*.9,y)}else{c.moveTo(x+s*.7,y-s);c.lineTo(x+s*.7,y+s);c.lineTo(x-s*.9,y)}c.closePath();c.fill();
       c.fillStyle='#fff';c.fillText(fmtShort(d),x,y+u*.5)}c.restore()}
   if(COP.bust>.05){const k=Math.min(1,COP.bust/COP.D.bustT),w=u*3,h=u*.2,y=H_*.74;c.save();c.fillStyle='rgba(0,0,0,.55)';c.fillRect(W_*.5-w/2,y,w,h);c.fillStyle=((C.t*8)|0)%2?'#ff4a3a':'#4a7aff';c.fillRect(W_*.5-w/2,y,w*k,h);c.textAlign='center';c.font='800 '+Math.round(u*.26)+'px '+UIF;c.fillStyle='#fff';c.fillText('BUSTED?  keep moving!',W_*.5,y-u*.12);c.restore()}
-  if(COP.spikeWarn>0){fxText(c,'SPIKE STRIP AHEAD',W_*.5,H_*.335,u*.34,'#ff8a3a','center','rgba(255,120,40,.5)')}
+  if(COP.spikeWarn>0){fxText(c,COP.spikeHeli?'HELICOPTER DROPPED SPIKES AHEAD':'SPIKE STRIP AHEAD',W_*.5,H_*.335,u*.34,'#ff8a3a','center','rgba(255,120,40,.5)')}
   if(COP.warnT>0){fxText(c,'ROADBLOCK AHEAD',W_*.5,H_*.285,u*.34,'#ffd24a','center','rgba(255,200,40,.5)')}}

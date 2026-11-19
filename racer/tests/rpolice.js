@@ -24,8 +24,8 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   let rising=true;for(let i=2;i<=5;i++)if(!(S.chaseN[i]>=S.chaseN[i-1]))rising=false;
   /* (batch 67) the asked-for counts: 1 star 1-2 police cars, 2 stars 2-4, 3 stars 4-5, 4 stars 5 and a SWAT truck (every difficulty) */
   const inRange=S.all.every(n=>n[1]>=1&&n[1]<=2&&n[2]>=2&&n[2]<=4&&n[3]>=4&&n[3]<=5&&n[4]==5&&n[5]>=5)&&S.swat[3]==0&&S.swat[4]==1&&S.swat[5]>=1;
-  ok(rising&&inRange&&S.ram==2&&S.block==3,'1 police cars per star on every difficulty: '+S.all.map(n=>n.slice(1).join('/')).join(', ')+', SWAT trucks '+S.swat.slice(1).join('/')+' (1-2, 2-4, 4-5, 5 + SWAT); ramming starts at 2, roadblocks at 3');
-  ok(!S.stars[3].heli&&!S.stars[4].heli&&S.stars[5].heli>=1&&!S.stars[3].spikes&&S.stars[4].spikes&&S.swat[5]>=1&&S.stars[5].block>S.stars[4].block&&S.stars[4].block>S.stars[3].block,'1 spike strips from 4 stars, the helicopter only at 5 (batch 67), roadblocks grow '+S.stars[3].block+' -> '+S.stars[4].block+' -> '+S.stars[5].block);
+  ok(rising&&inRange&&S.ram==2&&S.block==3,'1 police cars per star on every difficulty: '+S.all.map(n=>n.slice(1).join('/')).join(', ')+', SWAT trucks '+S.swat.slice(1).join('/')+' (1-2, 2-4, 4-5, 5 + SWAT + helicopter); ramming starts at 2, roadblocks at 3');
+  ok(!S.stars[3].heli&&S.stars[4].heli==1&&S.stars[5].heli>=2&&!S.stars[3].spikes&&S.stars[4].spikes&&S.swat[5]>=1&&S.stars[5].block>S.stars[4].block&&S.stars[4].block>S.stars[3].block,'1 helicopter and spike strips from 4 stars, two helicopters at 5, roadblocks grow '+S.stars[3].block+' -> '+S.stars[4].block+' -> '+S.stars[5].block);
   ok(S.patrol[0]==1&&S.patrol[1]==1,'1 patrols are rare: one at a time on Forgiving and Medium ('+S.patrol.join('/')+')');
   /* ---- 2 whose fault: only a crash YOU cause is a crime ---- */
   const F=await T.ev(()=>{const o={};const run=(n)=>{for(let s=0;s<n;s++){COP.spawnT=99;RACER.worldStep(1/120)}};
@@ -50,23 +50,25 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
   ok(CH.every(r=>r.nan==0&&r.maxC>=Math.min(r.want,r.Lv<4?r.want:r.want-1)),'3 the chasers turn out at every star: '+CH.map(r=>r.maxC+'/'+r.want).join(', '));
   ok(CH[0].types.every(t=>t==4)&&CH[0].maxB==0&&CH[0].maxH==0&&CH[0].strips==0&&CH[1].maxB==0,'3 one star: patrol cars only, no roadblock, helicopter or spikes; two stars: still no roadblock');
   ok(CH[2].maxB>=3&&CH[3].maxB>=CH[2].maxB&&CH[4].maxB>=CH[3].maxB&&CH[4].maxB>=5,'3 roadblocks grow with the stars: '+CH[2].maxB+', '+CH[3].maxB+', '+CH[4].maxB+' cars across the road (Forgiving leaves one out for the gap)');
-  ok(CH[2].maxH==0&&CH[3].maxH==0&&CH[4].maxH>=1,'3 helicopters: none at 3 stars, '+CH[3].maxH+' at 4, '+CH[4].maxH+' at 5');
+  ok(CH[2].maxH==0&&CH[3].maxH==1&&CH[4].maxH>=2,'3 helicopters: none at 3 stars, '+CH[3].maxH+' at 4, '+CH[4].maxH+' at 5');
   ok(CH[2].strips==0&&CH[3].strips>=1&&CH[4].strips>=1,'3 spike strips: none at 3 stars, '+CH[3].strips+' laid in 45 s at 4, '+CH[4].strips+' at 5');
   ok(CH[3].types.includes(22)&&(CH[4].types.includes(22)||CH[4].blockTypes.includes(22)),'3 four and five stars bring the SWAT trucks (four stars chasing '+JSON.stringify(CH[3].types)+'; five stars (chasing '+JSON.stringify(CH[4].types)+', blocking '+JSON.stringify(CH[4].blockTypes)+')');
   ok(CH[3].types.some(t=>t==20||t==21),'3 four stars: interceptors and SUVs chase ('+JSON.stringify(CH[3].types)+')');
   /* ---- 4 the helicopter ---- */
-  const H=await T.ev(()=>{P3.reset(.3,34);P3.pin(5);let first=-1,near=0,tot=0,minAlt=1e9,maxD=0,left=-1,second=-1,nan=0;const t0=COP.t;
-    for(let s=0;s<120*110;s++){P3.pin(5);COP.spawnT=99;P3.drive();if(!(s%30)){P3.noCivs();for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);SPIKE.list.length=0}if(!(s%120))dmgReset();RACER.worldStep(1/120);const t=COP.t-t0;
-      const act=HELI.list.filter(h=>!h.leave);if(act.length&&first<0)first=t;if(first>=0&&left<0&&HELI.list.some(h=>h.leave))left=t;if(left>=0&&second<0&&act.length)second=t;
+  const H=await T.ev(()=>{P3.reset(.3,34);P3.pin(4);const drops=[];const fl0=SPIKE.hits;let first=-1,near=0,tot=0,minAlt=1e9,maxD=0,left=-1,second=-1,nan=0;const t0=COP.t;
+    for(let s=0;s<120*110;s++){P3.pin(4);COP.spawnT=99;P3.drive();if(!(s%30)){P3.noCivs();for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);SPIKE.list.length=0}if(!(s%120))dmgReset();RACER.worldStep(1/120);const t=COP.t-t0;
+      for(const q of SPIKE.list)if(q.heli&&!q.seenT){q.seenT=1;const dx=q.x-C.x,dz=q.z-C.z,sp=Math.hypot(C.vx,C.vz)||1;drops.push({d:Math.round(Math.hypot(dx,dz)),ah:+((dx*C.vx+dz*C.vz)/sp).toFixed(0),onRoad:!!roadAt(q.x,q.z,q.y+1),t:+t.toFixed(1)})}const act=HELI.list.filter(h=>!h.leave);if(act.length&&first<0)first=t;if(first>=0&&left<0&&HELI.list.some(h=>h.leave))left=t;if(left>=0&&second<0&&act.length)second=t;
       if(s%20==0&&act.length&&t>first+12){const h=act[0],d=Math.hypot(h.x-C.x,h.z-C.z);tot++;if(d<220)near++;maxD=Math.max(maxD,d);minAlt=Math.min(minAlt,h.y-terrainH(h.x,h.z));if(!isFinite(h.x+h.y+h.z))nan++}}
     /* with no police car anywhere, a helicopter overhead still keeps the heat on */
-    P3.reset(.3,34);P3.pin(5);for(let s=0;s<120*10;s++){P3.pin(5);COP.spawnT=99;P3.drive();if(!(s%30)){P3.noCivs();for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0)}RACER.worldStep(1/120)}
+    P3.reset(.3,34);P3.pin(4);for(let s=0;s<120*10;s++){P3.pin(4);COP.spawnT=99;P3.drive();if(!(s%30)){P3.noCivs();for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0)}RACER.worldStep(1/120)}
     const h0=COP.heat;let hEnd=h0;for(let s=0;s<120*(COP.D.loseT+10);s++){COP.spawnT=99;P3.drive();if(!(s%30)){P3.noCivs();for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);SPIKE.list.length=0}RACER.worldStep(1/120);if(HELI.list.some(h=>!h.leave))hEnd=COP.heat}
-    P3.clear();return{first:+first.toFixed(1),near,tot,minAlt:+minAlt.toFixed(1),maxD:Math.round(maxD),left:+left.toFixed(1),second:+second.toFixed(1),nan,h0,hEnd,loseT:COP.D.loseT}});
-  ok(H.first>=0&&H.first<8&&H.nan==0,'4 at five stars a helicopter arrives ('+H.first+' s after the chase begins)');
+    const flats=SPIKE.hits-fl0;P3.clear();return{drops,flats,first:+first.toFixed(1),near,tot,minAlt:+minAlt.toFixed(1),maxD:Math.round(maxD),left:+left.toFixed(1),second:+second.toFixed(1),nan,h0,hEnd,loseT:COP.D.loseT}});
+  ok(H.first>=0&&H.first<8&&H.nan==0,'4 at four stars a helicopter arrives ('+H.first+' s after the chase begins)');
   ok(H.tot>50&&H.near/H.tot>.9&&H.minAlt>=17.5,'4 it stays with a car doing 34 m/s: within 220 m in '+Math.round(H.near/H.tot*100)+' % of the samples (furthest '+H.maxD+' m), never lower than '+H.minAlt+' m above the ground');
-  ok(H.left>60&&H.left<95&&H.second>H.left+20&&H.second<H.left+40,'4 it runs out of fuel after '+(H.left-H.first).toFixed(0)+' s and the next one comes '+(H.second-H.left).toFixed(0)+' s later (your chance to get away)');
-  ok(H.hEnd>=H.h0&&H.h0==5,'4 with no police car near, the helicopter alone keeps you wanted (heat '+H.h0+' -> '+H.hEnd+' while it was overhead, '+(H.loseT+10)+' s)');
+  ok(H.left>50&&H.left<95&&H.second>H.left+20&&H.second<H.left+40,'4 it runs out of fuel after '+(H.left-H.first).toFixed(0)+' s and the next one comes '+(H.second-H.left).toFixed(0)+' s later (your chance to get away)');
+  ok(H.hEnd>=H.h0&&H.h0==4,'4 with no police car near, the helicopter alone keeps you wanted (heat '+H.h0+' -> '+H.hEnd+' while it was overhead, '+(H.loseT+10)+' s)');
+  console.log('     helicopter spike drops: '+JSON.stringify(H.drops)+', tyres burst '+H.flats);
+  ok(H.drops.length>=3&&H.drops.every(q=>q.ah>40&&q.onRoad),'4 the helicopter drops spike strips: '+H.drops.length+' in 110 s, every one landing on the road ahead of you ('+H.drops.map(q=>q.ah+' m').join(', ')+' ahead as it landed)');
   /* ---- 5 spike strips ---- */
   const K=await T.ev(()=>{const o={};
     const turn=(flat)=>{P3.reset(.3,30);C.flatT=flat;const a0=Math.atan2(C.vx,-C.vz),x0=C.x,z0=C.z;for(let s=0;s<120;s++){C.steer=-.7;IN.thr=.4;RACER.worldStep(1/120);if(flat)C.flatT=Math.max(C.flatT,3)}const a1=Math.atan2(C.vx,-C.vz);
