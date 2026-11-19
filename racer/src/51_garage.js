@@ -13,6 +13,7 @@ function carLoad(){let j=null;try{j=JSON.parse(localStorage.getItem(CAROWN.key)|
   /* (batch 71) THE CAR LADDER: a save from before it is reset once to the Warden (it held the free Kestrel S, and cars bought at the old prices), with the test switch off */
   if(j){const v2=(j.prog|0)>=2;if(v2&&j.owned)Object.assign(CAROWN.owned,j.owned);CAROWN.all=v2&&('allv2' in j)?!!j.allv2:CAR_ALL_DEFAULT;if(j.color)Object.assign(CAROWN.color,j.color);if(v2&&j.curId&&CAR_ROSTER.some(d=>d.id===j.curId))CARSEL.cur=carIndex(j.curId);if(!v2)CAROWN.reset=1}
   if(typeof window!='undefined'&&window.__testK1&&!j){CAROWN.owned.k1=true;CARSEL.cur=carIndex('k1')}
+  if(typeof STORY!='undefined'&&typeof storyLoad=='function'&&!STORY.on&&!STORY._ld){STORY._ld=1;storyLoad()}
   if(typeof STORY!='undefined'&&STORY.cars)for(const id in STORY.cars)if(CAR_ROSTER.some(d=>d.id===id))CAROWN.owned[id]=true;
   if(!carOwned(CARSEL.cur))CARSEL.cur=carIndex('cc_h_warden');carSave()}
 /* (batch 71) THE CAR LADDER: every car has a rank, slowest to fastest (top speed, nudged by 0-100 km/h). You may buy a car up to TWO rungs above the best car you own; the rest are LOCKED.
@@ -23,7 +24,12 @@ function carBest(){let b=0;CAR_ROSTER.forEach((d,i)=>{if(CAROWN.owned[d.id])b=Ma
 /* and how high your wins let you go: two rungs for every event you have won (a race or a gold medal, an escape), so money alone cannot rush you up the ladder */
 function carWins(){let n=0;if(typeof EV!='undefined'&&EV.rec)for(const k in EV.rec){if(k=='street')continue;const r=EV.rec[k];if(r&&((r.m|0)>=3||(r.done|0)>0))n++}return n}
 const carCap=()=>2*carWins();
-const carReach=i=>CAROWN.all||carOwned(i)||(carRank(i)<=carBest()+2&&carRank(i)<=carCap());
+/* (batch 74) THE STORY TIERS: the ladder is cut into five tiers, one per chapter. The best car of each tier is a STORY CAR: never for sale, it is the prize at the end of its chapter
+   (1 Surge Sport, 2 Kestrel RS, 3 Nightshade Super, 4 Stag Zero, 5 Veyra, the best car in the game). The other cars of a tier can be bought once you have reached its chapter. */
+const CAR_EXCL={cc_n_nitro:1,k3:2,cc_h_widow:3,s2:4,h2:5},CAR_TIER_TOP=[10,21,34,45,56];
+function carChaptersDone(){if(typeof STORY=='undefined')return 0;if(!STORY._ld&&typeof storyLoad=='function'){STORY._ld=1;if(!STORY.on)storyLoad()}return Math.max(0,Math.min(5,(STORY.ch-1)+(STORY.done?1:0)))}
+const carTierCap=()=>CAR_TIER_TOP[Math.min(4,carChaptersDone())];
+const carReach=i=>CAROWN.all||carOwned(i)||(!CAR_EXCL[CAR_ROSTER[i].id]&&carRank(i)<=carBest()+2&&carRank(i)<=carCap()&&carRank(i)<=carTierCap());
 function carNextName(){const r=carRanks(),b=carBest();const i=r.indexOf(b+1);return i>=0?CAR_ROSTER[i].name:''}
 function carSave(){try{localStorage.setItem(CAROWN.key,JSON.stringify({owned:CAROWN.owned,all:CAROWN.all,color:CAROWN.color,allv2:CAROWN.all,curId:(CAR_ROSTER[CARSEL.cur]||{}).id}))}catch(e){}}
 const carOwned=i=>CAROWN.all||!!CAROWN.owned[CAR_ROSTER[i].id];
@@ -37,7 +43,7 @@ function menuOpen(){if(MENU.open)return;MENU.open=1;MENU.tab=0;MENU.userCam=0;ME
 function menuPreview(i){MENU.i=_cl(i,0,CAR_ROSTER.length-1);if(MENU.i!=CARM.idx){carInstall(CAR_ROSTER[MENU.i],carPaintOf(MENU.i));CARM.idx=MENU.i}}
 function menuClose(){if(MENU.garage&&MENU.open){garageLeave();return}menuCloseNow()}   /* (batch 19: out of the garage through the fade) */
 function menuCloseNow(){if(!MENU.open)return;MENU.garage=null;MENU.open=0;if(MENU.prevEnv)envApply(MENU.prevEnv);if(CARM.idx!=CARSEL.cur){carInstall(CAR_ROSTER[CARSEL.cur],carPaintOf(CARSEL.cur));CARM.idx=CARSEL.cur}}
-function menuChoose(){const i=MENU.i;if(typeof storyGuided=='function'&&storyGuided()&&!STORY.cars[CAR_ROSTER[i].id]){safeToast('WIN YOUR FIRST RACE FIRST',2.6);return}   /* (batch 58/63) */if(!carOwned(i)&&!carReach(i)){const need=Math.ceil(carRank(i)/2)-carWins();safeToast(carRank(i)>carCap()?'LOCKED  ·  WIN '+need+' MORE EVENT'+(need>1?'S':'')+' TO GET THIS HIGH':'LOCKED  ·  BUY YOUR WAY UP: NEXT IS THE '+carNextName().toUpperCase(),3);return}if(!carOwned(i)){const id=CAR_ROSTER[i].id,p=ECON.carPrice(id);if(ECON.buyCar(id))safeToast('BOUGHT  -'+evMoney(p),2.6);else{safeToast('NEED '+evMoney(p)+'  (you have '+evMoney(ECON.money)+')',2.6);return}}carSelect(i);CARM.idx=i;carInstall(CAR_ROSTER[i],carPaintOf(i));carSave();safeToast(CAR_ROSTER[i].name+' selected',2);menuClose()}
+function menuChoose(){const i=MENU.i;if(typeof storyGuided=='function'&&storyGuided()&&!STORY.cars[CAR_ROSTER[i].id]){safeToast('WIN YOUR FIRST RACE FIRST',2.6);return}   /* (batch 58/63) */if(!carOwned(i)&&!carReach(i)){const need=Math.ceil(carRank(i)/2)-carWins(),ex=CAR_EXCL[CAR_ROSTER[i].id];if(ex){safeToast('STORY CAR  ·  WIN IT AT THE END OF CHAPTER '+ex,3);return}if(carRank(i)>carTierCap()){const t=CAR_TIER_TOP.findIndex(v=>carRank(i)<=v);safeToast('LOCKED  ·  REACH CHAPTER '+(t+1)+' OF THE STORY TO BUY THIS',3);return}safeToast(carRank(i)>carCap()?'LOCKED  ·  WIN '+need+' MORE EVENT'+(need>1?'S':'')+' TO GET THIS HIGH':'LOCKED  ·  BUY YOUR WAY UP: NEXT IS THE '+carNextName().toUpperCase(),3);return}if(!carOwned(i)){const id=CAR_ROSTER[i].id,p=ECON.carPrice(id);if(ECON.buyCar(id))safeToast('BOUGHT  -'+evMoney(p),2.6);else{safeToast('NEED '+evMoney(p)+'  (you have '+evMoney(ECON.money)+')',2.6);return}}carSelect(i);CARM.idx=i;carInstall(CAR_ROSTER[i],carPaintOf(i));carSave();safeToast(CAR_ROSTER[i].name+' selected',2);menuClose()}
 function menuPaint(k){const id=CAR_ROSTER[MENU.i].id;CAROWN.color[id]=k;carInstall(CAR_ROSTER[MENU.i],carPaintOf(MENU.i));CARM.idx=MENU.i;carSave()}
 function menuUnlockAll(){CAROWN.all=!CAROWN.all;carSave()}
 /* the camera: round the car, a little above */
@@ -60,7 +66,7 @@ function menuDraw(c,W_,H_,u){if(MENU.tab==1){upgDraw(c,W_,H_,u);return}
     c.font=dLcd(u*.26);const mt=evMoney(ECON.money),mw=c.measureText(mt).width+u*.5;dLcdBox(c,u*.3,u*.95,mw,u*.46,u*.07);dLcdText(c,mt,u*.55,u*.95+u*.33,u*.26)}   /* (batch 21: your money under the garage name) */
   const x0=L.x0,fs=(f,w)=>(w||700)+' '+Math.round(u*f)+'px '+UIF;
   c.fillStyle='#fff';c.font=fs(.5,800);{const wmax=L.iw-u*1.5,wn=c.measureText(d.name).width;if(wn>wmax)c.font=fs(.5*wmax/wn,800)}c.fillText(d.name,x0,L.py+u*.62);   /* a long name shrinks so it never runs into the OWNED label */c.fillStyle='rgba(255,255,255,.65)';c.font=fs(.21);c.fillText(d.cls,x0,L.py+u*.9);c.fillText((MENU.i+1)+' / '+CAR_ROSTER.length+'   ·   '+Math.round(d.real.hp)+' hp  ·  '+DRV[d.real.drive],x0,L.py+u*1.16);
-  c.textAlign='right';c.fillStyle=own?(cur?'#7dffb0':'#9cc8ff'):'#ff9a4a';c.font=fs(.26,800);c.fillText(own?(cur?'YOUR CAR':'OWNED'):carReach(MENU.i)?evMoney(ECON.carPrice(d.id)):'LOCKED',L.px+L.pw-L.m,L.py+u*.62);c.textAlign='left';
+  c.textAlign='right';c.fillStyle=own?(cur?'#7dffb0':'#9cc8ff'):'#ff9a4a';c.font=fs(.26,800);c.fillText(own?(cur?'YOUR CAR':'OWNED'):CAR_EXCL[d.id]?'STORY · CH '+CAR_EXCL[d.id]:carReach(MENU.i)?evMoney(ECON.carPrice(d.id)):'LOCKED',L.px+L.pw-L.m,L.py+u*.62);c.textAlign='left';
   /* the figures */
   const st=carStats(d),bx=x0+L.iw*.3,bw=L.iw*.3,tx=x0+L.iw*.64;let y=L.stats+u*.14;
   for(const[n,v,t]of st){c.fillStyle='rgba(255,255,255,.7)';c.font=fs(.19);c.fillText(n,x0,y);c.fillStyle='rgba(255,255,255,.12)';rr(c,bx,y-u*.16,bw,u*.15,u*.05);c.fill();c.fillStyle=DASH.amber;rr(c,bx,y-u*.16,Math.max(u*.1,bw*v),u*.15,u*.05);c.fill();c.fillStyle='rgba(255,255,255,.85)';c.font=fs(.18);c.fillText(t,tx,y);y+=u*.27}

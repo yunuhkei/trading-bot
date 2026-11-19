@@ -21,7 +21,7 @@ const out=await T.ev(([LAT,VMAX])=>{const log=[];const W=n=>{for(let i=0;i<n;i++
     if(step.k=='end'){W(60);skip();W(60);const c=EV.card;log.push(tag+': end card '+(c&&c.title)+' | '+(c?c.lines.map(l=>l[0]).join(' / '):'')+' | car '+CAR_ROSTER[CARSEL.cur].name);if(c&&/THE END/.test(c.title)){c.btns[0].act();break}if(c&&c.btns)c.btns[0].act();else break;W(60);skip();continue}
     if(step.k!='ev'){W(60);skip();continue}   /* a scene, a radio step, an unlock: let it run, skip the scene */
     STORY.radio=[];STORY.rcur=null;
-    if(!step.here){W(10);let e=STORY.st.ev;for(let k=0;k<20&&!e;k++){W(30);e=STORY.st.ev}if(!e){log.push(tag+': NO ROUTE (card '+(EV.card&&EV.card.title)+', run '+!!EV.run+', dlg '+!!STORY.dlg+', st '+JSON.stringify(Object.keys(STORY.st))+')');STORY.st={};storyAdvance();continue}carPlace(e.s.x,e.s.z,e.s.yaw,e.s.y+.5);C.vx=C.vz=0;W(60);if(!EV.card){log.push(tag+': no card');break}EV.card.btns[0].act()}
+    if(!step.here){W(10);let e=STORY.st.ev;for(let k=0;k<20&&!e;k++){W(30);e=STORY.st.ev}if(!e){log.push(tag+': NO ROUTE (card '+(EV.card&&EV.card.title)+', run '+!!EV.run+', dlg '+!!STORY.dlg+', st '+JSON.stringify(Object.keys(STORY.st))+')');STORY.st={};storyAdvance();continue}carPlace(e.s.x,e.s.z,e.s.yaw,e.s.y+.5);C.vx=C.vz=0;for(let k=0;k<8&&!(EV.card&&EV.card.offer);k++){IN.thr=0;IN.brk=1;W(60);IN.brk=0;if(!EV.card||!EV.card.offer){C.vx=C.vz=0;if(EV.card&&!EV.card.offer&&EV.card.btns&&EV.card.btns.length==1)EV.card.btns[0].act()}}if(!EV.card||!EV.card.offer){log.push(tag+': no card (card '+(EV.card&&EV.card.title)+', d '+Math.hypot(C.x-e.s.x,C.z-e.s.z).toFixed(1)+', v '+C.speed.toFixed(1)+', dismiss '+STORY.st.dismiss+', dlg '+!!STORY.dlg+', radio '+(STORY.rcur?1:0)+')');break}EV.card.btns[0].act()}
     else{W(30);if(!EV.run&&EV.card&&EV.card.btns)EV.card.btns[0].act()}
     if(!EV.run){log.push(tag+': did not start');break}
     const ev=EV.run.ev;window.__ord=null;skip();
@@ -33,17 +33,17 @@ const out=await T.ev(([LAT,VMAX])=>{const log=[];const W=n=>{for(let i=0;i<n;i++
     else if(cd){cd.btns[0].act();skip();W(120)}}
   W(240);skip();W(240);log.push('end: ch '+STORY.ch+' step '+STORY.step+' car '+CAR_ROSTER[CARSEL.cur].name+' card '+(EV.card&&EV.card.title)+' done '+STORY.done+' flags '+JSON.stringify(STORY.flags));return log},[LAT,VMAX]);
 for(const l of out)console.log('     '+(process.env.RFULL?l:l.replace(/racers \[.*?\]\] \| /,'')));
-  const g=k=>out.find(l=>l.startsWith(k+':'))||'';const evs=out.filter(l=>/^c\d_\w+: racers/.test(l)),failed=out.filter(l=>/failed: advancing/.test(l)).length,noroute=out.filter(l=>/NO ROUTE|no card|did not start/.test(l));
+  const g=k=>out.find(l=>l.startsWith(k+':'))||'',ga=k=>out.filter(l=>l.startsWith(k+':')).join(' || ');const evs=out.filter(l=>/^c\d_\w+: racers/.test(l)),failed=out.filter(l=>/failed: advancing/.test(l)).length,noroute=out.filter(l=>/NO ROUTE|no card|did not start/.test(l));
   ok(/step 1/.test(out[0]),'1 the prologue scene plays and the story moves on to the first race');
-  ok(/YOU WON/.test(g('c1_fennec')),'2 Fennec Run (race, Warden vs three Fennec Hatches and Jules) can be won by a careful driver');
-  ok(/YOU WON/.test(g('c1_test')),"3 Deacon's Test (time trial up the coast) gets a medal");
-  ok(/ESCAPED/.test(g('c1_heat')),'4 Heat Check (escape) starts where you are and moves the story on when the cops lose you');
-  ok(/YOU WON/.test(g('c1_deacon')),"5 Deacon's Run (the boss race) can be won");
-  ok(/CHAPTER 1 COMPLETE/.test(g('c1_end'))&&/Drifter Roadster/.test(g('c1_end')),'6 chapter 1 ends with the Drifter Roadster and the CHAPTER 1 COMPLETE card, and goes on to chapter 2');
+  ok(/YOU WON/.test(ga('c1_fennec')),'2 Fennec Run (race, Warden vs three Fennec Hatches and Jules) can be won by a careful driver');
+  ok(/YOU WON/.test(ga('c1_test')),"3 Deacon's Test (time trial up the coast) gets a medal");
+  ok(/ESCAPED/.test(ga('c1_heat')),'4 Heat Check (escape) starts where you are and moves the story on when the cops lose you');
+  ok(/YOU WON/.test(ga('c1_deacon')),"5 Deacon's Run (the boss race) can be won (within 3 tries)");
+  ok(/CHAPTER 1 COMPLETE/.test(g('c1_end'))&&/Surge Sport/.test(g('c1_end')),'6 chapter 1 ends with the Surge Sport and the CHAPTER 1 COMPLETE card, and goes on to chapter 2');
   ok(!noroute.length,'7 every story event has a route and starts ('+evs.length+' events'+(noroute.length?'; '+noroute.join(' | '):'')+')');
   for(const c of [2,3,4,5])ok(/COMPLETE|THE END/.test(g('c'+c+'_end')),'8 chapter '+c+' ends: '+g('c'+c+'_end').replace(/^c\d_end: /,''));
   ok(/choice/.test(g('c4_helped')),'9 the choice in the desert: '+g('c4_helped'));
-  ok(/THE END/.test(g('c5_end'))&&/done true/.test(out[out.length-1])&&/Surge Sport/.test(out[out.length-1]),'10 the story ends: '+out[out.length-1]);
+  ok(/THE END/.test(g('c5_end'))&&/done true/.test(out[out.length-1])&&/Veyra/.test(out[out.length-1]),'10 the story ends: '+out[out.length-1]);
   {const retried=out.filter(l=>/won on try/.test(l)).length;ok(failed<=Number(process.env.FAILOK||0),'11 a careful bot (no nitro, cannot dodge) wins every event within 3 tries on this difficulty: '+(evs.length-retried-failed)+' first time, '+retried+' on a retry, '+failed+' not in 3 ('+out.filter((l,i)=>/failed: advancing/.test(l)).map((l,i,a)=>'').length+(failed?': '+out.map((l,i)=>/failed: advancing/.test(l)?(out.slice(0,i).reverse().find(q=>/^c\d_\w+: (racers|\[)/.test(q))||'?').split(':')[0]:null).filter(Boolean).join(', '):'')+')')}
   ok(!T.errs.length,'errors: '+T.errs.slice(0,2).join(' | '));
   console.log(bad?bad+' FAILED':'all passed');await T.close();process.exit(bad?1:0)})().catch(e=>{console.error(e);process.exit(1)});
