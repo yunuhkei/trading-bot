@@ -1,6 +1,6 @@
 {
  "strategy": "trend",
- "tuned_at": "2026-11-18 10:34 UTC",
+ "tuned_at": "2026-11-19 10:35 UTC",
  "params": {
   "period": 200,
   "band": 0.04
@@ -11,9 +11,9 @@
   "was": "200-day average with a 4% band",
   "tried": 9,
   "best": "200-day average with a 4% band",
-  "exam_from": "2023-11-01",
-  "exam_current": 0.11382456607390852,
-  "exam_best": 0.11382456607390852,
+  "exam_from": "2023-11-02",
+  "exam_current": 0.10652415064134672,
+  "exam_best": 0.10652415064134672,
   "sure": 0.0
  }
 }
