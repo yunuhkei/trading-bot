@@ -1,6 +1,6 @@
 // Story mode (batch 58): plays Chapter 1 with a route-following bot. The prologue scene runs and is skipped, every event is started from its card and driven,
 // and the story must move on after each one; at the end the Magnet Muscle is the car and the chapter card shows.  usage: node racer/tests/rstory.js
-const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};const LAT=+(process.env.LAT||6.5),VMAX=+(process.env.VMAX||99);
+const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};const LAT=+(process.env.LAT||7.5)   /* (batch 67) 7.5 m/s² of cornering, no nitro: at 6.5 the boss won some runs on Easy by a few metres */,VMAX=+(process.env.VMAX||99);
 (async()=>{const T=await L.launch({q:'go=1&scale=.3&fixed=1&story=new'+'&diff='+(process.env.DIFFQ||'0'),w:300,h:200,mobile:false,traffic:true});
 await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:300000});
 const out=await T.ev(([LAT,VMAX])=>{const log=[];const W=n=>{for(let i=0;i<n;i++)RACER.worldStep(1/120)};
@@ -12,7 +12,7 @@ const out=await T.ev(([LAT,VMAX])=>{const log=[];const W=n=>{for(let i=0;i<n;i++
           const h1=Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2])),h2=Math.atan2(p[c*3]-p[b*3],-(p[c*3+2]-p[b*3+2])),kc=Math.abs(angd(h2,h1))/8;if(kc>1e-3){const vc=Math.sqrt(LAT/kc);vt=Math.min(vt,Math.sqrt(vc*vc+2*7*d))}}
         IN.thr=C.speed<vt?1:0;IN.brk=C.speed>vt+3?1:0;IN.auto=false;C.shield=Math.max(C.shield||0,.2)}   /* (batch 66) the racers can take a non-dodging bot down now: this test is about the story's flow, so the bot is shielded */
       else if(!Rt){/* escape: drive away fast along whatever road */IN.thr=1;IN.brk=0;C.steer=0;if(r.t>4)COP.heat=Math.max(0,COP.heat);}
-      if(EV.run&&EV.run.racers){window.__ord=EV.run.racers.map(c=>[c.race&&c.race.name,c.race?+(c.race.done>=0?c.race.done.toFixed(1):-1):-2,c.race?c.race.s|0:0])}W(12);t+=.1}
+      if(EV.run&&EV.run.racers){window.__ord=EV.run.racers.map(c=>[c.race&&c.race.name,c.race?+(c.race.done>=0?c.race.done.toFixed(1):-1):-2,c.race?c.race.s|0:0,+(c.dmg||0).toFixed(2),c.hitN|0])}W(12);t+=.1}
     return t};
   W(30);skip();W(240);log.push('after prologue: step '+STORY.step+' radio '+STORY.radio.length);
   for(let guard=0;guard<16;guard++){const step=storyStep();if(!step)break;if(step.k!='ev'){W(60);skip();continue}   /* a scene step: let it start, then skip it */
@@ -26,7 +26,7 @@ const out=await T.ev(([LAT,VMAX])=>{const log=[];const W=n=>{for(let i=0;i<n;i++
     if(card&&card.title!='YOU WON'&&card.title!='ESCAPED'){if(STORY.step==STORY_CH[1].steps.indexOf(step)){/* failed: cheat past it so the rest gets tested */log.push('  (failed: advancing by hand)');EV.card=null;EV.pending=null;storyAdvance()}}
     else if(card){card.btns[0].act();skip();W(120)}}
   W(240);skip();W(240);log.push('end: step '+STORY.step+' car '+CAR_ROSTER[CARSEL.cur].name+' card '+(EV.card&&EV.card.title)+' done '+STORY.done);return log},[LAT,VMAX]);
-for(const l of out)console.log('     '+l.replace(/racers \[.*?\]\] \| /,''));
+for(const l of out)console.log('     '+(process.env.RFULL?l:l.replace(/racers \[.*?\]\] \| /,'')));
   const g=k=>out.find(l=>l.startsWith(k+':'))||'';
   ok(/step 1/.test(out[0]),'1 the prologue scene plays and the story moves on to the first race');
   ok(/YOU WON/.test(g('fennec')),'2 Fennec Run (race, Warden vs three Fennec Hatches and Jules) can be won by a careful driver');

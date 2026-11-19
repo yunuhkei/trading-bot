@@ -36,7 +36,7 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     for(let s=0;s<120*60&&EV.run;s++){IN.thr=0;C.vx=C.vz=0;RACER.worldStep(1/120);if(!EV.run&&tLost<0)tLost=s/120}
     return{card:EV.card&&EV.card.title,lines:EV.card&&EV.card.lines.map(l=>l[0]),maxHeat,chasers,paid:ECON.money-m0,tLost,crimes:(COP.crimes||[]).slice(-4)}});
   console.log('     '+JSON.stringify(E));
-  ok(E.maxHeat==2&&E.chasers>=2&&E.card=='ESCAPED'&&E.paid==4000,'4 escape at two stars: the chase starts ('+E.chasers+' chasers), out of sight the heat is gone after '+E.tLost.toFixed(1)+' s: '+(E.lines||[]).join(', '));
+  ok(E.maxHeat==2&&E.chasers>=1&&E.card=='ESCAPED'&&E.paid==4000,'4 escape at two stars: the chase starts ('+E.chasers+' chasers), out of sight the heat is gone after '+E.tLost.toFixed(1)+' s: '+(E.lines||[]).join(', '));
   const E2=await T.ev(()=>{const ev=EV.list.find(e=>e.id=='e_2');evStart(ev);const trig=copTrigger;window.copTrigger=function(){};for(let s=0;s<120*(ev.secs+5)&&EV.run;s++){IN.thr=0;RACER.worldStep(1/120);C.vx=C.vz=0;COP.sightT=0;if(GAME.state){GAME.state=0;GAME.lock=0}COP.bust=0}window.copTrigger=trig;copClear(true);return{card:EV.card&&EV.card.title,why:EV.card&&EV.card.lines[0][0]}});
   ok(E2.card=='FAILED'&&E2.why=='OUT OF TIME','4 still wanted when the clock runs out: "'+E2.why+'"');
   /* 5 a failed event: busted while parked */

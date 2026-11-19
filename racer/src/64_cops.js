@@ -6,17 +6,19 @@
 const COPD={
   /* top: the slowest a chaser's top speed can be; follow: chasers match your speed times this (up to 105 m/s) and get a rubber-band boost when they fall behind; accel: how hard they accelerate;
      loseT / loseD: you only lose them by being more than loseD metres from every chaser AND out of sight for loseT seconds; passV: speed at which blowing past a cop gets you chased (120 mph) */
-  forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,2,4,5,6,8],patrol:1,ramLevel:2,ramCd:4.2,ramV:10,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:10,loseD:170,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
-  medium:{name:'Medium',top:72,follow:1.22,accel:16,react:.6,chaseN:[0,3,5,7,8,10],patrol:1,ramLevel:2,ramCd:2.6,ramV:13,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:14,loseD:230,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
+  forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,1,2,3,4,4],patrol:1,ramLevel:2,ramCd:4.2,ramV:10,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:10,loseD:170,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
+  medium:{name:'Medium',top:72,follow:1.22,accel:16,react:.6,chaseN:[0,1,2,4,5,5],patrol:1,ramLevel:2,ramCd:2.6,ramV:13,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:14,loseD:230,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
   /* (batch 63) the HARD difficulty's police */
-  brutal:{name:'Brutal',top:92,follow:1.36,accel:20,react:.3,chaseN:[0,4,7,9,10,13],patrol:2,ramLevel:1,ramCd:1.4,ramV:18,blockLevel:2,bustT:1.6,bustSpd:8.5,bustN:2,loseT:18,loseD:290,decay:5,ev:1,rbGap:0,chaseSpd:4,passV:53.64,thr:[0,20,55,110,200,320]},
-  hard:{name:'Hard',top:84,follow:1.3,accel:18,react:.4,chaseN:[0,4,6,8,9,12],patrol:2,ramLevel:2,ramCd:1.8,ramV:16,blockLevel:2,bustT:2,bustSpd:8,bustN:2,loseT:16,loseD:260,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
+  brutal:{name:'Brutal',top:92,follow:1.36,accel:20,react:.3,chaseN:[0,2,4,5,5,6],patrol:2,ramLevel:1,ramCd:1.4,ramV:18,blockLevel:2,bustT:1.6,bustSpd:8.5,bustN:2,loseT:18,loseD:290,decay:5,ev:1,rbGap:0,chaseSpd:4,passV:53.64,thr:[0,20,55,110,200,320]},
+  hard:{name:'Hard',top:84,follow:1.3,accel:18,react:.4,chaseN:[0,2,3,4,5,5],patrol:2,ramLevel:2,ramCd:1.8,ramV:16,blockLevel:2,bustT:2,bustSpd:8,bustN:2,loseT:16,loseD:260,decay:6,ev:1,rbGap:0,chaseSpd:3.8,passV:53.64,thr:[0,22,60,120,220,350]}};
 /* WHAT EACH STAR ADDS (batch 3; the difficulty presets above set the speeds, the number of chasers and how often they ram):
    1 a couple of patrol cars follow you, no contact; 2 more cars and they RAM you (interceptors join); 3 PIT manoeuvres (they aim at your rear quarter), bigger roadblocks (4 cars across, 5 at four stars, 6 at five; one fewer on Forgiving, which leaves a gap; fewer on a narrow road);
    4 a HELICOPTER with a spotlight follows you (it always knows where you are) and SPIKE STRIPS are laid on the road ahead; 5 SWAT trucks block, two or three helicopters, near-constant PIT
    attempts, roadblocks of 6 with heavy trucks. types: the police vehicles that chase at that level (4 patrol, 20 interceptor, 21 SUV, 22 SWAT truck). */
 const STARS=[{types:[4]},{types:[4],pit:0,block:0,heli:0,spikes:0,ramMul:1},{types:[4,20],pit:0,block:0,heli:0,spikes:0,ramMul:1},{types:[4,20,21],pit:1,block:4,heli:0,spikes:0,ramMul:.85},
-  {types:[20,21,4],pit:1,block:5,heli:1,spikes:1,ramMul:.7},{types:[20,21,22],pit:1,block:6,heli:3,spikes:1,ramMul:.4}];
+  {types:[20,21,4],pit:1,block:5,heli:0,spikes:1,ramMul:.7},{types:[20,21,4],pit:1,block:6,heli:1,spikes:1,ramMul:.4}];
+/* (batch 67) police per star (the difficulty picks within it): 1 star 1-2 cars, 2 stars 2-4, 3 stars 4-5, 4 stars 5 and a SWAT truck, 5 stars 5-6 and two SWAT trucks and the helicopter */
+const COP_SWAT=[0,0,0,0,1,2];
 /* (batch 27) LOCK-ON: cops have to be close to see you (a crime counts only with a cop within 60 m, or 120 m in clear sight; a patrol notices you the same way), but once they
    are after you they always know where you are while any police car (chasing, wrecked or in a roadblock) is within a mile (COP_LOCK); reinforcements come only while one is within
    600 m. Put a mile between you and the nearest one and within about 5 s the heat is gone. */
@@ -136,6 +138,20 @@ function trSpawnCop(chase,far){
 /* a point on the road D metres ahead of you ALONG the road you are on (so it also works round a bend); where that road ends, a straight-line probe. Leaves the result in TRP */
 function copAhead(D,ux,uz){let pl=NAV.pl;if(!pl||!ROADS[pl.ri]||Math.hypot(ROADS[pl.ri].X[pl.i]-C.x,ROADS[pl.ri].Z[pl.i]-C.z)>90)pl=navSnap(C.x,C.z,70);if(pl&&ROADS[pl.ri]){const r=ROADS[pl.ri],t=_tan(r,pl.i),sg=(t[0]*ux+t[1]*uz)>=0?1:-1;let i=pl.i+sg*Math.round(D/r.ds);if(r.closed)i=((i%r.n)+r.n)%r.n;if(i>=3&&i<=r.n-4){TRP.ri=pl.ri;TRP.i=i;TRP.t=0;return true}}
   return !!trProbe(C.x+ux*D,C.z+uz*D)}
+/* (batch 67) a police car on the road AHEAD of you (220-330 m along it), in the lane coming towards you, already after you: it comes at you and pulls across your path */
+function copSpawnAhead(type){const rng=TR.rng;let ux=C.vx,uz=C.vz;const l=Math.hypot(ux,uz);if(l<3){ux=Math.sin(C.yaw);uz=-Math.cos(C.yaw)}else{ux/=l;uz/=l}
+  for(let tries=0;tries<6;tries++){const D=220+rng()*110;if(!copAhead(D,ux,uz))continue;const ri=TRP.ri,o=LG.ofRoad[ri],r0=ROADS[ri];if(!o||!r0)continue;const i=TRP.i,j=Math.min(r0.n-1,i+1),tx=r0.X[j]-r0.X[i],tz=r0.Z[j]-r0.Z[i];
+    const toward=(C.x-r0.X[i])*tx+(C.z-r0.Z[i])*tz,di=toward>0?0:1;if(!o[di]||!o[di].length)continue;const e=o[di][Math.floor(rng()*o[di].length)];let u=e.dir>0?i:r0.n-1-i;if(e.closed)u=((u%e.n)+e.n)%e.n;else if(u<6||u>e.n-8)continue;
+    trPt(e,u);const sx=_pt.x,sz=_pt.z;if(Math.hypot(sx-C.x,sz-C.z)<180)continue;let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
+    const c=trPlace(e,u,type,12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim),Math.floor(rng()*1e9));if(!c)return null;c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;copAlert(c);c.ahead=1;return c}
+  return null}
+/* (batch 67) a police car searching: on a road 120-280 m from the last place they saw you, out of your sight and at least 250 m from you */
+function copSpawnSearch(type){const rng=TR.rng,lx=COP.lkx,lz=COP.lkz;if(lx===undefined)return null;
+  for(let tries=0;tries<12;tries++){const a=rng()*TAU,r=120+rng()*160,x=lx+Math.cos(a)*r,z=lz+Math.sin(a)*r;if(Math.hypot(x-C.x,z-C.z)<250||!trProbe(x,z))continue;const ri=TRP.ri,o=LG.ofRoad[ri],r0=ROADS[ri];if(!o||!r0)continue;
+    const di=rng()<.5?0:1;if(!o[di]||!o[di].length)continue;const e=o[di][Math.floor(rng()*o[di].length)];let u=e.dir>0?TRP.i:r0.n-1-TRP.i;if(e.closed)u=((u%e.n)+e.n)%e.n;else if(u<6||u>e.n-8)continue;
+    trPt(e,u);const sx=_pt.x,sz=_pt.z;if(Math.hypot(sx-C.x,sz-C.z)<250||trSeen(sx,sz))continue;let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
+    const c=trPlace(e,u,type,12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*.8,Math.floor(rng()*1e9));if(!c)return null;c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;copAlert(c);return c}
+  return null}
 /* ---- roadblock: two or three cars across the road ahead (with a gap on Forgiving) ---- */
 function copRoadblock(){
   const rng=TR.rng;let ux=C.vx,uz=C.vz;const l=Math.hypot(ux,uz);if(l<8)return false;ux/=l;uz/=l;
@@ -159,7 +175,7 @@ function copTick(dt){
     if(c.state==1)continue;                                 /* a wrecked cop is out of it */
     const d=Math.hypot(c.x-C.x,c.z-C.z);if(c.cm==0)nP++;else{nC++;if(d<minChase)minChase=d}
     if(d<minD)minD=d;
-    if(((TR.tk|0)+i)%15==0||c.los===null)c.los=d<300&&copLos(c);
+    if(((TR.tk|0)+i)%15==0||c.los===null)c.los=d<340&&copLos(c);
     if(c.cm>=1&&d>COP_LOCK+250){trKill(c,0);continue}  /* (batch 27) a chaser more than a mile behind has lost you for good (it is no longer replaced by a fresh one close behind you) */
     if(c.cm==0&&ps>=D.passV&&d<55&&COP.t-(c.clk||-99)>14){c.clk=COP.t;copTrigger(1,'speeding past a cop')}   /* you blow past a cop at 120 mph or more */
     if(c.cm>=1&&d<10)nNear++;
@@ -170,17 +186,21 @@ function copTick(dt){
       if(COP.heat==0||COP.sightT>D.loseT+2){copStandDown(c);continue}
       if(c.state==0){if((d<115&&c.los)||d<40||(!C.onRoad&&d<350))copDetach(c)}   /* (batch 30) you left the road: it comes after you across the grass */
       else if(c.state==3){if((d>210&&C.onRoad)||c.stk>3.2)copAttach(c)}}}
-  if(COP.heat>0&&(lockD<COP_LOCK||(COP.callT<20&&copCallD()<COP_LOCK)))seen=true;COP.lockD=lockD;   /* (for 20 s after a crime the call says where you are, before any car has arrived) */
+  /* (batch 67) they know where you are only while a police car can SEE you (clear line of sight within 190 m, or right on you within 60 m), the helicopter is over you, or for 8 s after a crime near where it happened; any police car within 560 m used to be enough, so they always knew */
+  {let saw=false;for(let i=0;i<TRN&&!saw;i++){const c=cars[i];if(!c.alive||c.kind!==1||c.state==1||!(c.cm>=1))continue;const d=Math.hypot(c.x-C.x,c.z-C.z);if(d<COP_NEAR||(c.los&&d<COP_SEE*(1+.12*Math.max(0,COP.heat-1))))saw=true}   /* they see further the more stars you have (190 m at one star, 260 m at four) */
+   if(COP.heat>0&&(saw||(COP.callT<8&&copCallD()<300)))seen=true}COP.lockD=lockD;
   COP.nC=nC;COP.nP=nP;COP.minD=minD;COP.seenNow=seen;
   /* roles for the free chasers, nearest first */
   if(nFree){let k=0;const free=[];for(let i=0;i<TRN;i++){const c=cars[i];if(c.alive&&c.kind===1&&c.state==3)free.push(c)}free.sort((a,b)=>Math.hypot(a.x-C.x,a.z-C.z)-Math.hypot(b.x-C.x,b.z-C.z));for(const c of free)c.role=k++}
   COP.snapT=(COP.snapT||0)-dt;if(COP.snapT<=0){COP.snapT=.35;NAV.pl=navSnap(C.x,C.z,70);if(NAV.pl&&NAV.pl.ri!==COP.roadRi){COP.roadRi=NAV.pl.ri;COP.roadT=COP.t}}   /* (batch 30: when you last turned onto another road) */        /* where you are on the road network, for the chasers' routes and spawns */
   if(seen)COP.sightT=0;else COP.sightT+=dt;
   if(COP.sightT<1||COP.lkx===undefined){COP.lkx=C.x;COP.lkz=C.z;COP.lkyaw=C.yaw;COP.lkPl=NAV.pl}   /* the last place they saw you */
-  if(COP.heat>0&&COP.sightT>3){COP.w=Math.max(0,COP.w-Math.max(D.decay,COP.w*.8)*dt);if(COP.w<1)COP.w=0;COP.heat=copLevelOf()}   /* (batch 27) a mile clear: gone within about 5 s */
+  if(COP.heat>0&&COP.sightT>D.loseT*(.35+.1*COP.heat)){   /* unseen for longer the more stars you have */COP.w=Math.max(0,COP.w-Math.max(D.decay*.6,COP.w*.35)*dt);if(COP.w<1)COP.w=0;COP.heat=copLevelOf()}   /* (batch 67) out of their sight for 7-9 s, then the heat fades over several seconds (it went in 3 s + 2 s once a mile clear) */
   /* spawns */
   if(COP.spawnT<=0){
-    if(COP.heat>0){const want=D.chaseN[COP.heat];if(nC<want&&(lockD<600||(COP.callT<15&&copCallD()<600))){   /* (batch 27) reinforcements while a police car is within 600 m of you, and for 15 s after a new crime (the call goes out) */if(trSpawnCop(true,false)){COP.spawnT=1.4}else COP.spawnT=.5}}
+    if(COP.heat>0){/* (batch 67) a few at a time, every 5-7 s: while they can see you a new car comes AT you from the road ahead (so you can dodge it or wreck it, whatever you drive); once they have lost you it turns up near the last place they saw you, not near you */
+      const want=D.chaseN[COP.heat],ws=COP_SWAT[COP.heat]||0;let nS=0;for(let i=0;i<TRN;i++){const c=cars[i];if(c.alive&&c.kind===1&&c.cm>=1&&c.cm!=3&&c.state!=1&&c.type==22)nS++}
+      if(nC<want+ws){const type=nS<ws?22:copType(true);let c=null;if(COP.sightT<3)c=copSpawnAhead(type)||(nC==0?trSpawnCop(true,false):null);else if(COP.sightT<D.loseT)c=copSpawnSearch(type);COP.spawnT=c?(nC+1<Math.ceil(want/2)?1.2:5+2*TR.rng()):.8}}   /* the first half of the cars come quickly, then one every 5-7 s */
     else if(nP<D.patrol&&TR.nAlive<TRN-8&&COP.t-(COP.lastPatrol||-99)>110&&DISTRICT_BOXES.some(B=>inBox(C.x,C.z,B,350))){if(trSpawnCop(false)){COP.spawnT=1.6;COP.lastPatrol=COP.t}else COP.spawnT=1}}   /* patrols are rare (batch 9): one at a time (two on Hard), a new one at most every 110 s, and only in or near a town or city: none on the country highways */
   /* roadblock */
   if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>75&&COP.t-(COP.roadT||-99)>12&&COP.sightT<1.5&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<6)copRoadblock()}

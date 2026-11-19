@@ -21,10 +21,10 @@ const L=require('./rlib.js');
     return{nP:maxN,first:+first.toFixed(1),frac:present/samples,bad,heat:COP.heat,want:COP.D.patrol}});
   ok(P.nP>=1&&P.nP<=P.want&&P.bad===0&&P.heat===0,'2 patrols at heat 0 are rare: never more than '+P.nP+' at once (Forgiving allows '+P.want+', a new one at most every 110 s, none on country highways), one is around '+Math.round(P.frac*100)+' % of the time, first after '+P.first+' s, every one is a lights-off lane follower');
   /* 3. a chase on the ring */
-  const C3=await T.ev(()=>{T3.reset(.3,30);heatAdd(200);const lvl=COP.heat;let minD=1e9,tFree=-1,tNear=-1,maxC=0,freeSeen=0,nan=0,sirenOn=0;const imp0=IMP.n;let ramHit=0;
-    for(let s=0;s<120*80;s++){T3.drive();RACER.worldStep(1/120);if(!isFinite(C.x+C.z))nan++;if(s%60==0){const ch=TR.cars.filter(c=>c.alive&&c.kind==1&&c.cm>=1);maxC=Math.max(maxC,ch.length);for(const c of ch){const d=Math.hypot(c.x-C.x,c.z-C.z);if(d<minD)minD=d;if(c.state==3)freeSeen++;if(c.siren)sirenOn=1;if(!isFinite(c.x+c.z+c.y))nan++}if(tNear<0&&minD<25)tNear=TR.t;if(tFree<0&&freeSeen)tFree=TR.t}}
-    return{lvl,maxC,minD:+minD.toFixed(1),tNear:+tNear.toFixed(1),tFree:+tFree.toFixed(1),want:COP.D.chaseN[lvl],nan,sirenOn,dist:Math.round(T3.travelled),heatNow:COP.heat,impacts:IMP.n-imp0,hp:+DMG.hp.toFixed(2)}});
-  ok(C3.maxC>=C3.want&&C3.sirenOn,'3 chase at heat '+C3.lvl+': '+C3.maxC+' chasing cops (wanted '+C3.want+'), lights and siren on');
+  const C3=await T.ev(()=>{T3.reset(.3,30);heatAdd(200);const lvl=COP.heat;let minD=1e9,tFree=-1,tNear=-1,maxC=0,freeSeen=0,nan=0,sirenOn=0;const imp0=IMP.n;let ramHit=0;const over=[];let maxLive=0;
+    for(let s=0;s<120*80;s++){T3.drive();RACER.worldStep(1/120);if(!isFinite(C.x+C.z))nan++;if(s%60==0){const ch=TR.cars.filter(c=>c.alive&&c.kind==1&&c.cm>=1);maxC=Math.max(maxC,ch.length);const wN=COP.D.chaseN[COP.heat]+(COP_SWAT[COP.heat]||0);{const live=ch.filter(c=>c.cm!=3&&c.state!=1).length;maxLive=Math.max(maxLive,live);if(live>wN)over.push(COP.heat+':'+live+'/'+wN)}for(const c of ch){const d=Math.hypot(c.x-C.x,c.z-C.z);if(d<minD)minD=d;if(c.state==3)freeSeen++;if(c.siren)sirenOn=1;if(!isFinite(c.x+c.z+c.y))nan++}if(tNear<0&&minD<25)tNear=TR.t;if(tFree<0&&freeSeen)tFree=TR.t}}
+    return{lvl,maxC,minD:+minD.toFixed(1),tNear:+tNear.toFixed(1),tFree:+tFree.toFixed(1),want:COP.D.chaseN[lvl],nan,sirenOn,dist:Math.round(T3.travelled),heatNow:COP.heat,impacts:IMP.n-imp0,hp:+DMG.hp.toFixed(2),over:over.slice(0,8),maxLive}});
+  ok(C3.maxLive>=C3.want&&!C3.over.length&&C3.sirenOn,'3 chase at heat '+C3.lvl+': at most '+C3.maxLive+' working police cars chasing at once (wanted '+C3.want+'; never more than the stars allow'+(C3.over.length?', OVER: '+C3.over.join(' '):'')+'), lights and siren on');
   ok(C3.minD<25&&C3.tFree>0,'3 they catch up with a player doing 30 m/s: closest '+C3.minD+' m after '+C3.tNear+' s, free pursuit began after '+C3.tFree+' s; player drove '+C3.dist+' m, took '+C3.impacts+' impacts, health '+C3.hp);
   ok(C3.nan===0,'3 no NaN in 80 s of chase');
   /* 4. boxed in: the player stops, cops come, BUSTED, back at the garage */
@@ -34,17 +34,17 @@ const L=require('./rlib.js');
     const home=SAFE.pads.find(q=>q.id=='home');return{st,msg,bustStart:+bustAt.toFixed(1),maxBust:+maxBust.toFixed(1),after:GAME.state,heat:COP.heat,chasers:TR.cars.filter(c=>c.alive&&c.kind==1&&c.cm>=1).length,dist:+Math.hypot(C.x-home.pad.x,C.z-home.pad.z).toFixed(1),need:COP.D.bustT}});
   ok(B.st===2,'4 parked with the heat on: cops box you in (bust meter began after '+B.bustStart+' s, reached '+B.maxBust+' of '+B.need+' s) -> '+B.msg);
   ok(B.after===0&&B.heat===0&&B.chasers===0&&B.dist<8,'4 afterwards: playing again, heat '+B.heat+', chasers '+B.chasers+', car on the Home Garage pad ('+B.dist+' m from its centre)');
-  /* 5. escape (batch 27): the police are locked on while any police car after you is within a mile; a mile clear of the nearest, the heat is gone within about 5 s */
-  const E=await T.ev(()=>{T3.reset(.3,0);heatAdd(95);const l0=COP.heat;const c=trSpawnCop(true,false);let held=1;const t0=TR.t;
-    /* a chaser kept 1.2 km away (frozen there): it still knows where you are */
-    for(let s=0;s<120*12;s++){COP.spawnT=999;if(c&&c.alive){c.x=c.px=C.x+1200;c.z=c.pz=C.z;c.v=0}C.vx=C.vz=0;RACER.worldStep(1/120);if(COP.heat<l0)held=0}
+  /* 5. escape (batch 67): they only know where you are while a police car can see you (or within 60 m of you); out of their sight the heat holds for 7-9 s, then fades */
+  const E=await T.ev(()=>{T3.reset(.3,0);heatAdd(95);const l0=COP.heat;const c=trSpawnCop(true,false);let held=1;
+    /* a chaser kept 40 m away (frozen there): it knows where you are */
+    for(let s=0;s<120*12;s++){COP.spawnT=999;if(c&&c.alive){c.x=c.px=C.x+40;c.z=c.pz=C.z;c.v=0}C.vx=C.vz=0;RACER.worldStep(1/120);if(COP.heat<l0)held=0}
     const lockAt12=COP.sightT;
-    /* now 1.8 km away: lost within a few seconds */
+    /* now 1.2 km away, out of sight: lost */
     COP.callT=30;   /* the crime itself was long ago */
-    let tZero=-1;for(let s=0;s<120*20;s++){COP.spawnT=999;if(c&&c.alive){c.x=c.px=C.x+1800;c.z=c.pz=C.z;c.v=0}C.vx=C.vz=0;RACER.worldStep(1/120);if(tZero<0&&COP.heat===0){tZero=s/120;break}}
-    COP.spawnT=1;return{l0,held,lockAt12:+lockAt12.toFixed(2),tZero:+tZero.toFixed(1),c:!!c}});
-  ok(E.c&&E.held&&E.lockAt12<.1,'5 heat '+E.l0+' with the nearest chaser 1.2 km away: they still know where you are after 12 s (heat held)');
-  ok(E.tZero>2.5&&E.tZero<9,'5 a mile clear of every police car: the heat is gone after '+E.tZero+' s');
+    let tZero=-1,tDrop=-1;for(let s=0;s<120*40;s++){COP.spawnT=999;if(c&&c.alive){c.x=c.px=C.x+1200;c.z=c.pz=C.z;c.v=0}C.vx=C.vz=0;RACER.worldStep(1/120);if(tDrop<0&&COP.heat<l0)tDrop=s/120;if(tZero<0&&COP.heat===0){tZero=s/120;break}}
+    COP.spawnT=1;return{l0,held,lockAt12:+lockAt12.toFixed(2),tZero:+tZero.toFixed(1),tDrop:+tDrop.toFixed(1),c:!!c}});
+  ok(E.c&&E.held&&E.lockAt12<.1,'5 heat '+E.l0+' with a chaser 40 m away: they know where you are after 12 s (heat held)');
+  ok(E.tDrop>5&&E.tZero>E.tDrop&&E.tZero<25,'5 the only chaser 1.2 km away, out of sight: the heat starts to fade after '+E.tDrop+' s and is gone after '+E.tZero+' s');
   /* 6. roadblock at heat 5 and a ram */
   const R=await T.ev(()=>{T3.reset(.3,34);heatAdd(900);let blocks=0,tBlock=-1,rams=0,maxHeat=COP.heat;const imp0=IMP.n;let ramImp=0;const t0=TR.t;
     for(let s=0;s<120*100;s++){T3.drive();RACER.worldStep(1/120);if(s%120==0){const nb=TR.cars.filter(c=>c.alive&&c.cm==3).length;if(nb>blocks){blocks=nb;if(tBlock<0)tBlock=TR.t-t0}}
