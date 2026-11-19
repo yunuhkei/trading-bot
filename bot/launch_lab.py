@@ -763,7 +763,8 @@ class Lab:
             p = a.positions.get(coin.mint)
             if not p or p.get("selling"):
                 continue
-            rules = BRAIN_MODEL_RULES if p.get("via") == "model" else STRATEGIES[p.get("via") or a.key]
+            rules = ((self.brain.get("exit_rules") or BRAIN_MODEL_RULES) if p.get("via") == "model"
+                     else STRATEGIES[p.get("via") or a.key])
             ch = px / p["entry"] - 1 if p["entry"] else 0.0
             p["peak"] = max(p["peak"], px)
             why = None
@@ -1330,7 +1331,8 @@ def load_brain(lab: "Lab", path: Path = BRAIN_LIVE) -> bool:
         lab.brain["note"] = f"couldn't load its approvals: {type(ex).__name__}"
         return False
     lab.brain.update(approved=set(d.get("approved") or []), model=d.get("model"), cut=d.get("cut"),
-                     model_ok=bool(d.get("model_ok")), at=d.get("at"), note=d.get("note", ""), cfg=d.get("cfg"))
+                     model_ok=bool(d.get("model_ok")), at=d.get("at"), note=d.get("note", ""), cfg=d.get("cfg"),
+                     exit_rules=d.get("exit_rules"))
     return True
 
 

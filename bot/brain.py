@@ -391,7 +391,7 @@ def _cross(x: dict, key: str) -> tuple[float | None, float | None]:
     return (v[0], v[1]) if isinstance(v, list) else (v, None)
 
 
-def trade_60(r: dict, cost: float, tp: str = "+50", sl: str = "-35", hold: float = 1740) -> float | None:
+def trade_60(r: dict, cost: float, tp: str = "+50", sl: str = "-35", hold: float = 1740, mark: str = "30") -> float | None:
     """One fixed practice trade on a coin: bought at its 1-minute price, sold when it first reaches +50% or falls
     through -35% (at the price it really fell to), else at 30 minutes; after a real round trip's cost."""
     e60 = r.get("e60")
@@ -407,11 +407,98 @@ def trade_60(r: dict, cost: float, tp: str = "+50", sl: str = "-35", hold: float
     elif td is not None:
         raw = (md if md is not None else 1 + float(sl) / 100) - 1
     else:
-        m = (r.get("mk") or {}).get("30")
+        m = (r.get("mk") or {}).get(mark)
         if not m or m[2] is None:
             return None
         raw = m[2] / e60 - 1
     return (1 + raw) * (1 - cost) - 1
+
+
+# ---- the exit test: other ways to sell the coin model's picks ----
+EXITS = ([{"tp": tp, "sl": sl, "hold": h, "half": False} for tp in ("+25", "+50", "+100") for sl in ("-20", "-35")
+          for h in (5, 30)]
+         + [{"tp": tp, "sl": sl, "hold": h, "half": True} for tp in ("+50", "+100") for sl in ("-20", "-35") for h in (5, 30)])
+
+
+def exit_name(e: dict) -> str:
+    sell = f"half at +25%, the rest at {e['tp']}%" if e["half"] else f"sell at {e['tp']}%"
+    return f"{sell}, stop {e['sl']}%, {e['hold']} min"
+
+
+def exit_trade(r: dict, cost: float, e: dict) -> float | None:
+    """One pick sold the way `e` says: bought at its 1-minute price; the stop fills at the price it really fell to."""
+    hold, mark = e["hold"] * 60 - 60, str(e["hold"])
+    if not e["half"]:
+        return trade_60(r, cost, e["tp"], e["sl"], hold, mark)
+    a, b = trade_60(r, cost, "+25", e["sl"], hold, mark), trade_60(r, cost, e["tp"], e["sl"], hold, mark)
+    return None if a is None or b is None else (a + b) / 2
+
+
+def exit_rules(e: dict) -> dict:
+    """The lab's exit rules for an approved (whole-position) exit."""
+    return {"label": f"the coin model's pick ({exit_name(e)})", "tp": float(e["tp"]) / 100, "sl": -float(e["sl"]) / 100,
+            "max_s": e["hold"] * 60 - 60}
+
+
+def exit_test(t, sel: dict, cfg: dict, seed: int = 0) -> dict:
+    """The model's same picks (only from days it never saw), sold 20 different ways. Each exit must pass the strict
+    test, corrected for trying 20; and a fair walk-forward: each day uses the exit that did best on EARLIER days only."""
+    import numpy as np
+    from statistics import NormalDist
+
+    z = NormalDist().inv_cdf(1 - cfg["alpha"] / len(EXITS))
+    rng = np.random.default_rng(seed)
+    rows = [(t.raw[i], d, h) for i, d, h in zip(sel["i"], sel["day"], sel["hr"]) if t.raw[i] is not None]
+    out, per = {"picks": len(rows), "exits": []}, []
+    for k, e in enumerate(EXITS):
+        res = [(d, h, exit_trade(r, cfg["cost"], e)) for r, d, h in rows]
+        res = [x for x in res if x[2] is not None]
+        per.append(res)
+        blocks: dict = {}
+        for d, h, v in res:
+            b = blocks.setdefault((d, h), [0, 0.0, 0, 0.0])
+            b[0] += 1
+            b[1] += v
+            if v > 0:
+                b[2] += 1
+                b[3] += v
+        st = _stats([(d, h, *v) for (d, h), v in blocks.items()], cfg, z, rng) if res else {"n": 0, "mean": None}
+        ok, why = passes(st, cfg) if res else (False, "no trades")
+        out["exits"].append({"exit": exit_name(e), "k": k, **{x: st.get(x) for x in ("n", "win_rate", "avg_win",
+                             "avg_loss", "mean", "lb", "day_share", "days")}, "ok": ok, "why": why})
+    days = sorted({d for _, d, _ in rows})
+    wf, chosen = [], []
+    for i in range(1, len(days)):
+        past = [(k, [v for d, _, v in per[k] if d < days[i]]) for k in range(len(EXITS))]
+        past = [(sum(v) / len(v), k) for k, v in past if len(v) >= 50]
+        if not past:
+            continue
+        k = max(past)[1]
+        chosen.append(exit_name(EXITS[k]))
+        wf += [v for d, _, v in per[k] if d == days[i]]
+    out["walk_forward"] = {"n": len(wf), "mean": sum(wf) / len(wf) if wf else None, "chosen": chosen[-3:]}
+    good = [x for x in out["exits"] if x["ok"] and not EXITS[x["k"]]["half"]]
+    if good and wf and out["walk_forward"]["mean"] > 0 and len(wf) >= cfg["min_oos_trades"]:
+        out["approved"] = max(good, key=lambda x: x["lb"])
+    return out
+
+
+def exit_lines(et: dict | None) -> list[str]:
+    if not et or not et.get("exits"):
+        return []
+    best = sorted((x for x in et["exits"] if x["mean"] is not None), key=lambda x: -x["mean"])[:3]
+    lines = [f"Exit test on the coin model's {et['picks']:,} picks (days it never saw; 20 ways to sell, corrected for "
+             "trying 20):"]
+    for x in best:
+        lines.append(f"• {x['exit']}: won {x['win_rate']:.0%}, avg win {pct(x['avg_win'])}, avg loss {pct(x['avg_loss'])}, "
+                     f"{pct(x['mean'])} a trade after fees" + (" - PASSES" if x["ok"] else f": {x['why']}"))
+    w = et["walk_forward"]
+    if w["n"]:
+        lines.append(f"  Fair check (each day sold the way that did best on earlier days only): {w['n']:,} trades, "
+                     f"{pct(w['mean'])} a trade.")
+    lines.append("  APPROVED: " + et["approved"]["exit"] + "; the brain trades the model's picks this way (practice)."
+                 if et.get("approved") else "  No exit turns the picks into a profit yet.")
+    return lines
 
 
 def rugged(r: dict, at_launch: bool = False) -> bool | None:
@@ -430,6 +517,7 @@ class CoinTable:
     def __init__(self, cost: float):
         self.cost = cost
         self.m, self.day, self.hr, self.x60, self.ret, self.rug, self.x0, self.rug0 = ([] for _ in range(8))
+        self.raw: list = []                        # what the exit test needs: the crossings and the marks
 
     def add(self, r: dict):
         if r.get("my") or "hr" not in r:
@@ -445,6 +533,7 @@ class CoinTable:
         self.rug.append(rugged(r))
         self.x0.append(features(r, F0))
         self.rug0.append(r0)
+        self.raw.append({"x60": r.get("x60"), "mk": r.get("mk"), "e60": r.get("e60")} if ret is not None else None)
 
     @classmethod
     def of(cls, coins, cost: float) -> "CoinTable":
@@ -513,6 +602,8 @@ def coin_model(coins, cfg: dict, pick: float = 0.10, seed: int = 0) -> dict:
     y = (rets > 0).astype(int)
     pred = walk_forward(X, y, days, seed=seed)
     sel = picks(pred, days, pick)
+    out["_sel"] = {"i": [idx[j] for j in np.where(sel)[0]], "day": [days[j] for j in np.where(sel)[0]],
+                   "hr": [hrs[j] for j in np.where(sel)[0]]}
     oos = ~np.isnan(pred)
     out.update(oos_coins=int(oos.sum()), base_win=float(y[oos].mean()) if oos.any() else None,
                base_mean=float(rets[oos].mean()) if oos.any() else None, picked=int(sel.sum()))
@@ -710,11 +801,13 @@ def read_all(data_dir: Path, cfg: dict) -> tuple[BaseRates, CoinTable, BetBlocks
 def report(data_dir: Path = cl.DATA_DIR, cfg: dict | None = None) -> dict:
     cfg = cfg or config()
     br, ct, bb = read_all(data_dir, cfg)
-    out = {"base_rates": br.result(), "timing": timing_map(bb, cfg), "model": coin_model(ct, cfg),
-           "rug": rug_filter(ct, bb.snipes, cfg),
+    m = coin_model(ct, cfg)
+    sel = m.pop("_sel", None)
+    out = {"base_rates": br.result(), "timing": timing_map(bb, cfg), "model": m,
+           "exits": exit_test(ct, sel, cfg) if sel else None, "rug": rug_filter(ct, bb.snipes, cfg),
            "bots": {k: record(v) for k, v in bb.raw.items() if v[0]}, "sat_out": bb.sat}
     out["lines"] = (base_rates_lines(out["base_rates"]) + timing_lines(out["timing"], cfg)
-                    + model_lines(out["model"], out["rug"]) + side_by_side_lines(bb.raw, bb.sat))
+                    + model_lines(out["model"], out["rug"]) + exit_lines(out["exits"]) + side_by_side_lines(bb.raw, bb.sat))
     return out
 
 
@@ -732,7 +825,12 @@ def live(data_dir: Path = cl.DATA_DIR, cfg: dict | None = None) -> dict:
     out = {"approved": tm["approved"], "model": None, "cut": None, "model_ok": False, "at": time.time(), "cfg": cfg,
            "note": f"{len(tm['approved'])} of {tm['tested']} windows approved"}
     m = coin_model(ct, cfg)
-    if m.get("ok"):
+    sel = m.pop("_sel", None)
+    et = exit_test(ct, sel, cfg) if sel else None
+    ex = (et or {}).get("approved")
+    if ex:                                               # the picks pass when sold this way
+        out["exit_rules"] = exit_rules(EXITS[ex["k"]])
+    if m.get("ok") or ex:
         idx = [i for i, r in enumerate(ct.ret) if r is not None]
         days = np.array([ct.day[i] for i in idx])
         recent = sorted(set(days))[-14:]

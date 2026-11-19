@@ -4696,3 +4696,35 @@ def test_brain_finds_an_edge_that_exists_only_on_news_named_coins():
     tm = brain.timing_map(rows, dict(brain.DEFAULTS))
     assert tm["approved"] == ["s1|news"]
     assert brain.window_label("news", brain.DEFAULTS).startswith("on coins named after")
+
+
+def test_exit_test_finds_the_exit_that_turns_good_picks_into_profit():
+    import random
+
+    from bot import brain
+
+    rng = random.Random(9)
+    coins = _synthetic_coins(signal=True, seed=10)
+    for c in coins:                  # like the real picks: 30% run past +50%, 45% pop +25% then crash, 25% just crash
+        if c["s60"]["u"] < 30:
+            continue
+        x = rng.random()
+        if x < 0.30:
+            c["x60"] = {"+25": [20.0, 1.25], "+50": [60.0, 1.5]}
+            c["mk"] = {"5": [1.6, 1.0, 1.5], "30": [1.6, 1.0, 1.5]}
+        elif x < 0.75:
+            c["x60"] = {"+25": [40.0, 1.25], "-20": [200.0, 0.6], "-35": [200.0, 0.6]}
+            c["mk"] = {"5": [1.3, 0.6, 0.6], "30": [1.3, 0.6, 0.6]}
+        else:
+            c["x60"] = {"-20": [30.0, 0.7], "-35": [60.0, 0.6]}
+            c["mk"] = {"5": [1.0, 0.6, 0.6], "30": [1.0, 0.6, 0.6]}
+    cfg = dict(brain.DEFAULTS)
+    t = brain.CoinTable.of(coins, cfg["cost"])
+    m = brain.coin_model(t, cfg)
+    assert not m["ok"]                                      # sold at +50% / -35%, the picks lose
+    et = brain.exit_test(t, m.pop("_sel"), cfg)
+    assert et["approved"]["exit"].startswith("sell at +25%")
+    assert et["walk_forward"]["mean"] > 0.05
+    rules = brain.exit_rules(brain.EXITS[et["approved"]["k"]])
+    assert rules["tp"] == 0.25 and rules["sl"] in (0.2, 0.35) and rules["max_s"] in (240, 1740)
+    assert any("APPROVED" in line for line in brain.exit_lines(et))
