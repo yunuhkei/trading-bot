@@ -105,6 +105,7 @@ function fxDraw(){
   /* traffic: tail lights, headlights, the siren on a police car */
   if(TR.on){const fx=R.fw;for(const c of TR.cars){if(!c.alive)continue;if(c.air||Math.abs(c.roll)>.6||Math.abs(c.pitch)>.6)continue;   /* a car on its side or roof: its lights are not where an upright car's would be (and are mostly smashed) */const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz,d2=dx*dx+dz*dz;if(d2>62500||dx*fx[0]+dz*fx[2]<-6)continue;
       const d=Math.sqrt(d2),py=lerp(c.py,c.y,a),yaw=c.pyaw+angd(c.yaw,c.pyaw)*a,hx=Math.sin(yaw),hz=-Math.cos(yaw),rr=Math.cos(yaw),rs=Math.sin(yaw),k=1-d/250;if(k<=.02)continue;
+      if(c.kind===2&&c.race&&c.race.nzT>0&&c.state!=1){/* (batch 72) a racer's nitro: a flame from each exhaust */for(const sd of[-1,1])for(let i=0;i<8;i++){const fl=.8+.2*Math.sin(R.time*83+i*1.9+sd*2.3+c.seed),dd=c.hl+.1+i*.3*fl,t=i/7;sprite(px-hx*dd+rr*sd*.45,py+.38,pz-hz*dd+rs*sd*.45,Math.max(.05,(.5-i*.05)*fl),.42+.58*Math.min(1,t*1.8),.62-.3*t,1-1.05*t,(.8-.08*i)*k)}}
       for(const sd of[-1,1]){const w=sd*c.hw*.68;
         sprite(px-hx*(c.hl-.12)+rr*w,py+.66,pz-hz*(c.hl-.12)+rs*w,(c.brake?.75:.45)+d*.004,1,.1,.06,(c.brake?.95:.55)*k);
         sprite(px+hx*(c.hl-.12)+rr*w,py+.62,pz+hz*(c.hl-.12)+rs*w,.5+d*.004,1,.93,.74,.5*k*dayK)}

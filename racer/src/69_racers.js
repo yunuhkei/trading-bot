@@ -37,8 +37,8 @@ function racerStep(c,dt){
     /* nitro: the racers use it too, on a clear straight, for 2.5 s every 12-20 s */
     if(!R.started){R.started=1;const fx=Math.sin(c.yaw),fz=-Math.cos(c.yaw),inFront=q=>{const dx=q.x-c.x,dz=q.z-c.z,f=dx*fx+dz*fz,l=dx*-fz+dz*fx;return f>0&&f<16&&Math.abs(l)<2.6};if(sk.nitro&&(c.seed%10)<8&&!inFront(C)&&!TR.cars.some(q=>q.alive&&q!==c&&q.kind===2&&inFront(q))){R.nzT=1.4+(c.seed%7)*.12;R.nzCd=10}}   /* (batch 66) not with a car right in front of it */   /* (batch 65) most racers fire their nitro off the line, as you do */
     R.nzCd=(R.nzCd||4)-dt;if(R.nzT>0)R.nzT-=dt;else if(sk.nitro&&R.nzCd<=0&&v>25&&!(R.launch>0)){R.nzT=2.5;R.nzCd=12+((c.seed|0)%8)}
-    const vLim=(sk.vtop||sk.vmax)*(R.nzT>0?1.26:1);   /* (batch 54) the car's real top speed, +26 % while its nitro burns: exactly what your boost gives you (it was +8 % all the time and +20 % on nitro) */
-    let vt=sk.vmax*(R.nzT>0?1.26:1);for(const L of[Math.max(40,v*1.4),Math.max(80,v*2.6)]){const A=_ra(Rt,bi,R.s+10),B=_ra(Rt,bi,R.s+10+L/2),Cc=_ra(Rt,bi,R.s+10+L);const ax=p[A*3],az=p[A*3+2],bx=p[B*3],bz=p[B*3+2],cx=p[Cc*3],cz=p[Cc*3+2];
+    const vLim=(sk.vtop||sk.vmax)*(R.nzT>0?RACER_NZ:1);   /* (batch 54) the car's real top speed, +26 % while its nitro burns: exactly what your boost gives you (it was +8 % all the time and +20 % on nitro) */
+    let vt=sk.vmax*(R.nzT>0?RACER_NZ:1);for(const L of[Math.max(40,v*1.4),Math.max(80,v*2.6)]){const A=_ra(Rt,bi,R.s+10),B=_ra(Rt,bi,R.s+10+L/2),Cc=_ra(Rt,bi,R.s+10+L);const ax=p[A*3],az=p[A*3+2],bx=p[B*3],bz=p[B*3+2],cx=p[Cc*3],cz=p[Cc*3+2];
       const ar=Math.abs((bx-ax)*(cz-az)-(bz-az)*(cx-ax)),dd=Math.hypot(bx-ax,bz-az)*Math.hypot(cx-bx,cz-bz)*Math.hypot(cx-ax,cz-az),kc=dd>1e-3?2*ar/dd:0;if(kc>1e-4){const vb=Math.sqrt(sk.grip/kc),dist=Math.max(0,Rt.S[A]-R.s);vt=Math.min(vt,Math.sqrt(vb*vb+2*(sk.brk||9)*.72*dist))}}
     /* catch-up: a little faster when far behind you, a little slower when far ahead */
     const gap=(EV.run&&EV.run.ps!=null)?EV.run.ps-R.s:0;vt*=gap>300?1.3:gap>150?1.18:gap>60?1.08:gap<-320?.93:1;if(R.catchT>0){R.catchT-=dt;if(gap>20)vt*=1.12}
@@ -60,7 +60,7 @@ function racerStep(c,dt){
       /* (batch 53) defending: a car right behind you in a race gets its nose across your line (a move every 1.2 s, never more than 4 m off the route) */
       if(EV.run&&EV.run.ev&&EV.run.t>=0&&!(c.spinT>0)){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;
         /* (batch 64) racing you for position (every racer event, takedowns too): with you close behind or alongside it floors it, lights its nitro when you draw level, and once its nose is ahead of yours it cuts across in front of you (a move every second, never more than 4.5 m off the route) */
-        if(fd>-28&&fd<9&&Math.abs(lt)<10&&v>12){vt=Math.min(cornerV,vLim);if(fd>-6&&sk.nitro&&!(R.nzT>0)&&(R.nzCd||0)<6){R.nzT=2;R.nzCd=11}}
+        if(fd>-28&&fd<9&&Math.abs(lt)<10&&v>12){vt=Math.min(cornerV,vLim)}   /* (batch 72) it no longer lights its nitro the moment you draw level (it matched your boost every time): its nitro runs on its own clock */
         if(R.aggr>0&&R.defT<=0&&fd<-1.5&&fd>-35&&Math.abs(lt)<7&&v>18){R.defT=1;   /* (batch 65) clean racers (aggr 0) race you for position but never block */R.offT=Math.max(-4.5,Math.min(4.5,R.off+Math.sign(lt||1)*Math.min(3,Math.abs(lt)+.8)))}}}
     /* (batch 65) a racer right beside it: move apart (they rubbed side by side for 20-50 s of every minute and got tangled) */
     /* (batch 66) any racer close ahead and not clearly to one side: ease off to keep 5.5 m + 0.22 s (the inLane test above can miss a car merging diagonally where the road narrows) */
@@ -82,7 +82,7 @@ function racerStep(c,dt){
     if(c.spinT>0){c.spinT-=dt;c.v*=Math.exp(-dt*.75);c.ks=c.ks||0;if(c.spinT<=0){c.yaw=c.yaw;c.ks*=.3}}   /* spinning out: no steering, it slides on and loses speed */
     const err=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw),maxYr=Math.min(2.4,sk.grip*1.3/Math.max(v,4)),yr=(c.spinT>0||c.air)?0:Math.max(-maxYr,Math.min(maxYr,err*3))*(c.loose>0?Math.max(.2,1-c.loose*.9):1);c.om=yr;c.yaw+=yr*dt;
     {const ea=Math.abs(angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw));if(ea>.3&&!(c.spinT>0))vt=Math.min(vt,v*(ea>.6?.97:1))}   /* (batch 54) still turning in (pointing well away from where it is going): it does not put the power down yet */
-    R.cv=cornerV;R.vt=vt;const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?1.26:1))),1.6))*(R.nzT>0?1.5:1),a=Math.max(-(sk.brk||11),Math.min(accNow,(vt-v)*1.6));if(!(c.spinT>0)&&!c.air)c.v=Math.max(0,Math.min(vLim*(1+.06*(c.slip||0)),v+a*dt));c.brake=a<-2.5?1:0;
+    R.cv=cornerV;R.vt=vt;const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?RACER_NZ:1))),1.6))*(R.nzT>0?1.5:1),a=Math.max(-(sk.brk||11),Math.min(accNow,(vt-v)*1.6));if(!(c.spinT>0)&&!c.air)c.v=Math.max(0,Math.min(vLim*(1+.06*(c.slip||0)),v+a*dt));c.brake=a<-2.5?1:0;
     if(c.v<1.5)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
   const mvy=c.spinT>0&&c.sdir!=null?c.sdir+angd(c.yaw,c.sdir)*Math.max(0,1-c.spinT/.45):c.yaw,sy=Math.sin(mvy),cy=Math.cos(mvy);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
   /* (batch 53) a knock: a sideways drift and a spin that die away in about half a second */if(c.kx||c.kz){c.x+=c.kx*dt;c.z+=c.kz*dt;c.vx+=c.kx;c.vz+=c.kz;const kl=Math.hypot(c.kx,c.kz),nk=Math.max(0,kl-dt*(c.loose>0?6.5:14)-kl*dt*.8);c.kx*=nk/kl;c.kz*=nk/kl;if(nk<.15)c.kx=c.kz=0}if(c.ks){c.yaw+=c.ks*dt;c.ks*=Math.exp(-dt*(c.spinT>0?.8:c.loose>0?1.6:4));if(Math.abs(c.ks)<.02)c.ks=0}   /* (batch 54) the sideways slide is scrubbed off by the tyres (a steady ~0.7 g while they are loose), so a shove carries it several metres across: off the road if you push it there */if(c.loose>0)c.loose-=dt;
@@ -102,6 +102,8 @@ function racerStep(c,dt){
 /* (batch 53) a racer is one of the playable cars: the pool car about as fast as yours (the lead racer 3 % faster), driven with that car's own figures: its grip, top speed, acceleration and braking, a little under what you can do with it (95-99 %) */
 let _rTier=null;   /* (batch 54) the event's car band (km/h), from its difficulty */
 function racerCarNear(want,used){let b=null;const T=_rTier;if(T)want=Math.max(T[0]+5,Math.min(T[1]-5,want));for(const p of RACER_POOL){if(used&&used.has(p.id))continue;if(T&&(p.top<T[0]||p.top>T[1]))continue;if(!b||Math.abs(p.top-want)<Math.abs(b.top-want))b=p}if(!b&&T){for(const p of RACER_POOL)if(p.top>=T[0]&&p.top<=T[1]&&(!b||Math.abs(p.top-want)<Math.abs(b.top-want)))b=p}b=b||RACER_POOL[0];if(used)used.add(b.id);return b}
+/* (batch 72) a racer's nitro: +18 % top speed while it burns (your boost gives +26 %, so boosting you always pull away), a flame from its exhausts */
+const RACER_NZ=1.18;
 function racerSkillFor(pc,sk,nitro){const r=pc.def.real,vm=1+(r.top/308-1)*.75,gr=Math.pow(r.lat/1.05,.9),ac=Math.pow(3.7/r.t100,.8),br=Math.pow(34/r.brk,.9);
   return{grip:15*gr*sk,vmax:r.top/3.6*sk,vtop:r.top/3.6,acc:12*ac*sk,brk:19*br,type:pc.type,col:pc.col,car:pc.id,nitro:nitro?1:0}}
 const racerMyTop=()=>{const d=CAR_ROSTER[CARSEL.cur];return d?(typeof upgReal=='function'?upgReal(d).top:d.real.top):300};

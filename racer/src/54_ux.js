@@ -30,7 +30,10 @@ function mapBlips(){const B=[];
   for(const h of SAFEHOUSES){const own=SAFE.owned[h.id];B.push({x:h.x,z:h.z,col:own?'#3cf08c':'#8d97a3',title:h.name,lines:own?['Your garage. Stop on the pad: repaired and saved,','then go inside to change cars and buy upgrades.']:['For sale: '+evMoney(SAFE.price[h.id]||0)+'. Stop on its pad to buy it.']})}
   for(const p of REPAIRS)B.push({x:p.x,z:p.z,col:'#2a6be0',title:p.name||'Repair shop',lines:['Drive straight through the bay: the car is fixed','at once, for free.']});
   const TN={trial:'TIME TRIAL',race:'RACE',death:'DEATH RACE',rage:'TAKEDOWN',escape:'ESCAPE'};
-  for(const ev of EV.list)B.push({x:ev.s.x,z:ev.s.z,col:{trial:'#ffb000',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#e03030',title:ev.name,tag:TN[ev.type]||'EVENT',lines:evInfo(ev).concat(['Stop in the ring at the start to begin.'])});
+  /* (batch 72) the story mission is a blip like the rest: tap it for its name, what to do and the prize */
+  if(typeof STORY!='undefined'&&STORY.on&&STORY.st&&STORY.st.ev){const step=storyStep(),e=STORY.st.ev;if(step&&step.def){const d=step.def,boss=(d.lineup||[]).find(q=>q.who);
+    B.push({x:e.s.x,z:e.s.z,col:'#ffd23a',title:d.name||'Story mission',tag:'STORY  ·  CHAPTER '+STORY.ch,lines:[(step.obj||'')+'  ·  '+(TN[d.type]||'EVENT'),(boss?'Against '+boss.name+'  ·  ':'')+(e.len?fmtLen(e.len)+'  ·  ':'')+(d.prize?'prize '+evMoney(d.prize):''),'Drive to the gold beam and stop in the ring to begin.']})}}
+  if(!(typeof storyGuided=='function'&&storyGuided()))for(const ev of EV.list)B.push({x:ev.s.x,z:ev.s.z,col:{trial:'#ffb000',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#e03030',title:ev.name,tag:TN[ev.type]||'EVENT',lines:evInfo(ev).concat(['Stop in the ring at the start to begin.'])});
   for(const s of SPOTS.list){const rec=(EV.rec[s.id]||{}).v;
     if(s.type=='trap')B.push({x:s.x,z:s.z,col:'rgb(76,153,255)',title:'Speed trap',lines:['Drive past it as fast as you can: your best speed is kept.',rec!=null?'Best '+fmtKmh(rec):'Not set yet']});
     else if(s.type=='jump'){if(s.secret&&rec==null)continue;B.push({x:s.x,z:s.z,col:'rgb(76,255,115)',title:'Jump',lines:['Take off here: your longest jump is kept.',rec!=null?'Best '+fmtShort(rec):'Not set yet']});}

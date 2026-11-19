@@ -3064,6 +3064,7 @@ function fxDraw(){
   /* traffic: tail lights, headlights, the siren on a police car */
   if(TR.on){const fx=R.fw;for(const c of TR.cars){if(!c.alive)continue;if(c.air||Math.abs(c.roll)>.6||Math.abs(c.pitch)>.6)continue;   /* a car on its side or roof: its lights are not where an upright car's would be (and are mostly smashed) */const px=lerp(c.px,c.x,a),pz=lerp(c.pz,c.z,a),dx=px-gcx,dz=pz-gcz,d2=dx*dx+dz*dz;if(d2>62500||dx*fx[0]+dz*fx[2]<-6)continue;
       const d=Math.sqrt(d2),py=lerp(c.py,c.y,a),yaw=c.pyaw+angd(c.yaw,c.pyaw)*a,hx=Math.sin(yaw),hz=-Math.cos(yaw),rr=Math.cos(yaw),rs=Math.sin(yaw),k=1-d/250;if(k<=.02)continue;
+      if(c.kind===2&&c.race&&c.race.nzT>0&&c.state!=1){/* (batch 72) a racer's nitro: a flame from each exhaust */for(const sd of[-1,1])for(let i=0;i<8;i++){const fl=.8+.2*Math.sin(R.time*83+i*1.9+sd*2.3+c.seed),dd=c.hl+.1+i*.3*fl,t=i/7;sprite(px-hx*dd+rr*sd*.45,py+.38,pz-hz*dd+rs*sd*.45,Math.max(.05,(.5-i*.05)*fl),.42+.58*Math.min(1,t*1.8),.62-.3*t,1-1.05*t,(.8-.08*i)*k)}}
       for(const sd of[-1,1]){const w=sd*c.hw*.68;
         sprite(px-hx*(c.hl-.12)+rr*w,py+.66,pz-hz*(c.hl-.12)+rs*w,(c.brake?.75:.45)+d*.004,1,.1,.06,(c.brake?.95:.55)*k);
         sprite(px+hx*(c.hl-.12)+rr*w,py+.62,pz+hz*(c.hl-.12)+rs*w,.5+d*.004,1,.93,.74,.5*k*dayK)}
@@ -3889,7 +3890,10 @@ function mapBlips(){const B=[];
   for(const h of SAFEHOUSES){const own=SAFE.owned[h.id];B.push({x:h.x,z:h.z,col:own?'#3cf08c':'#8d97a3',title:h.name,lines:own?['Your garage. Stop on the pad: repaired and saved,','then go inside to change cars and buy upgrades.']:['For sale: '+evMoney(SAFE.price[h.id]||0)+'. Stop on its pad to buy it.']})}
   for(const p of REPAIRS)B.push({x:p.x,z:p.z,col:'#2a6be0',title:p.name||'Repair shop',lines:['Drive straight through the bay: the car is fixed','at once, for free.']});
   const TN={trial:'TIME TRIAL',race:'RACE',death:'DEATH RACE',rage:'TAKEDOWN',escape:'ESCAPE'};
-  for(const ev of EV.list)B.push({x:ev.s.x,z:ev.s.z,col:{trial:'#ffb000',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#e03030',title:ev.name,tag:TN[ev.type]||'EVENT',lines:evInfo(ev).concat(['Stop in the ring at the start to begin.'])});
+  /* (batch 72) the story mission is a blip like the rest: tap it for its name, what to do and the prize */
+  if(typeof STORY!='undefined'&&STORY.on&&STORY.st&&STORY.st.ev){const step=storyStep(),e=STORY.st.ev;if(step&&step.def){const d=step.def,boss=(d.lineup||[]).find(q=>q.who);
+    B.push({x:e.s.x,z:e.s.z,col:'#ffd23a',title:d.name||'Story mission',tag:'STORY  ·  CHAPTER '+STORY.ch,lines:[(step.obj||'')+'  ·  '+(TN[d.type]||'EVENT'),(boss?'Against '+boss.name+'  ·  ':'')+(e.len?fmtLen(e.len)+'  ·  ':'')+(d.prize?'prize '+evMoney(d.prize):''),'Drive to the gold beam and stop in the ring to begin.']})}}
+  if(!(typeof storyGuided=='function'&&storyGuided()))for(const ev of EV.list)B.push({x:ev.s.x,z:ev.s.z,col:{trial:'#ffb000',rage:'#a050e0',race:'#2a9be0',death:'#e04a2a'}[ev.type]||'#e03030',title:ev.name,tag:TN[ev.type]||'EVENT',lines:evInfo(ev).concat(['Stop in the ring at the start to begin.'])});
   for(const s of SPOTS.list){const rec=(EV.rec[s.id]||{}).v;
     if(s.type=='trap')B.push({x:s.x,z:s.z,col:'rgb(76,153,255)',title:'Speed trap',lines:['Drive past it as fast as you can: your best speed is kept.',rec!=null?'Best '+fmtKmh(rec):'Not set yet']});
     else if(s.type=='jump'){if(s.secret&&rec==null)continue;B.push({x:s.x,z:s.z,col:'rgb(76,255,115)',title:'Jump',lines:['Take off here: your longest jump is kept.',rec!=null?'Best '+fmtShort(rec):'Not set yet']});}
@@ -3964,14 +3968,14 @@ function boostHud(c,W_,H_,u){killCamHud(c,W_,H_,u);const G=UI.gg;if(!G||!BOOST.p
     fxText(c,'+ '+p.l,G.x+G.w/2,G.y1-u*.25-k*u*.3-a*u*.2,u*.26,'#ffc23a','center');k++}
   c.restore()}
 
-/* (batch 54) SLIPSTREAM: tucked in behind a moving car (a racer, a cop or traffic going your way), 3-30 m back and within about a car's width of its line, above 50 mph, the air it pushes aside
+/* (batch 54) SLIPSTREAM (batch 72: behind a RACER only, at 100 mph or more, shown only as air streaming off its tail): tucked in behind a moving car, 3-30 m back and within about a car's width of its line, above 50 mph, the air it pushes aside
    tows you (3-40 m back): up to 70 % less drag, a pull of 4.5 m/s2 and 10 % more top speed, and your nitro fills (a tank in about 8 s). It builds over half a second and fades over a second when you pull out.
    Wind streaks stream past the car and SLIPSTREAM shows with a bar. Racers get it too, behind you or each other (up to +6 % speed). */
 const SLIP={k:0,src:null,t:0};
 function slipTick(dt){let best=0,src=null;
-  if(C.speed>22&&!TUM.on&&!CC.on&&TR.on){const fx=C.vx/C.speed,fz=C.vz/C.speed;
-    for(const c of TR.cars){if(!c.alive||c.state==1)continue;const dx=c.x-C.x,dz=c.z-C.z,f=dx*fx+dz*fz;if(f<3||f>40)continue;const lat=Math.abs(dx*-fz+dz*fx);if(lat>2.3)continue;
-      const cv=c.state==0?c.v:Math.hypot(c.vx||0,c.vz||0);if(cv<16)continue;const hx=c.state==0?Math.sin(c.yaw):(c.vx||0)/cv,hz=c.state==0?-Math.cos(c.yaw):(c.vz||0)/cv;if(hx*fx+hz*fz<.92)continue;
+  if(C.speed>=44.7&&!TUM.on&&!CC.on&&TR.on){const fx=C.vx/C.speed,fz=C.vz/C.speed;   /* (batch 72) only at 100 mph or more, and only behind a RACER (traffic and police no longer tow you) */
+    for(const c of TR.cars){if(!c.alive||c.state==1||c.kind!==2)continue;const dx=c.x-C.x,dz=c.z-C.z,f=dx*fx+dz*fz;if(f<3||f>40)continue;const lat=Math.abs(dx*-fz+dz*fx);if(lat>2.3)continue;
+      const cv=c.state==0?c.v:Math.hypot(c.vx||0,c.vz||0);if(cv<35)continue;const hx=c.state==0?Math.sin(c.yaw):(c.vx||0)/cv,hz=c.state==0?-Math.cos(c.yaw):(c.vz||0)/cv;if(hx*fx+hz*fz<.92)continue;
       const k=Math.min(1,(1.15-lat/2.3))*(f<10?1:1-(f-10)/30);if(k>best){best=k;src=c}}}
   const want=Math.min(1,best*1.4);SLIP.k+=(want-SLIP.k)*(1-Math.exp(-dt*(want>SLIP.k?2.2:1.1)));if(SLIP.k<.01)SLIP.k=0;C.tow=SLIP.k;SLIP.src=src;
   if(SLIP.k>.15){C.nos=Math.min(1,C.nos+dt*.12*SLIP.k);SLIP.t+=dt}else SLIP.t=0}
@@ -3980,17 +3984,13 @@ function slipRacer(c){const v=c.v;if(v<22)return 1;const fx=Math.sin(c.yaw),fz=-
   const test=(x,z,vx,vz)=>{const dx=x-c.x,dz=z-c.z,f=dx*fx+dz*fz;if(f<3||f>30)return;const lat=Math.abs(dx*-fz+dz*fx);if(lat>1.9)return;const ov=Math.hypot(vx,vz);if(ov<16||(vx*fx+vz*fz)/ov<.92)return;const k=(1-lat/1.9)*(f<8?1:1-(f-8)/22);if(k>best)best=k};
   test(C.x,C.z,C.vx,C.vz);for(const o of(EV.run&&EV.run.racers||[]))if(o!==c&&o.alive&&o.state==3)test(o.x,o.z,o.vx||0,o.vz||0);
   c.slip=(c.slip||0)+(best-(c.slip||0))*.05;return 1+.06*c.slip}
-/* wind streaks past the car (from the effects pass) */
-function slipFx(quad,time){if(!(SLIP.k>.05))return;const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),n=Math.round(22*SLIP.k);
-  for(let i=0;i<n;i++){const h=(i*0.618+.13)%1,side=(h<.5?-1:1),ph=((time*2.8+h*7)%1),along=7-ph*18,lat=side*(.9+((h*13)%1)*2.2),y=C.y+.25+((h*29)%1)*1.6,L=3.5+((h*7)%1)*3.5,w=.045;
-    const x0=C.x+fx*along+rx*lat,z0=C.z+fz*along+rz*lat,x1=x0-fx*L,z1=z0-fz*L,al=.85*SLIP.k*Math.sin(ph*Math.PI);
+/* (batch 72) the slipstream you can SEE: streaks of air peeling off the back of the racer you are tucked in behind, streaming back past you. No words, no bar */
+function slipFx(quad,time){const s=SLIP.src;if(!(SLIP.k>.05)||!s||!s.alive)return;const cv=Math.hypot(s.vx||0,s.vz||0)||1,hx=s.state==0?Math.sin(s.yaw):(s.vx||0)/cv,hz=s.state==0?-Math.cos(s.yaw):(s.vz||0)/cv,rx=-hz,rz=hx;
+  const hl=s.hl||2.2,tx=s.x-hx*hl,tz=s.z-hz*hl,D=Math.max(8,(tx-C.x)*hx+(tz-C.z)*hz+10),n=Math.round(30*SLIP.k),y0=(s.y||C.y);
+  for(let i=0;i<n;i++){const h=(i*.618+.13)%1,h2=(h*13)%1,h3=(h*29)%1,h4=(h*7)%1,side=h<.5?-1:1,ph=(time*2.6+h*7)%1,along=ph*D,spread=(s.hw||.9)*(.35+.75*h2)*(1+.9*along/D),
+      L=2.2+h4*3.2,w=.04+.02*h3,y=y0+.25+h3*1.15,x0=tx-hx*along+rx*side*spread,z0=tz-hz*along+rz*side*spread,x1=x0-hx*L,z1=z0-hz*L,al=.75*SLIP.k*Math.sin(ph*Math.PI);
     quad(x0,y-w,z0,x0,y+w,z0,x1,y+w,z1,x1,y-w,z1,.85,.95,1,al)}}
-function slipHud(c,W_,H_,u){if(!(SLIP.k>.05)||EV.card||GAME.state||CC.on)return;c.save();
-  /* speed lines down both edges of the screen while you are in the tow */{const n=Math.round(14*SLIP.k),t=performance.now()/1000;c.strokeStyle='rgba(220,240,255,'+(.35*SLIP.k)+')';c.lineWidth=Math.max(1,u*.025);c.beginPath();
-    for(let i=0;i<n;i++){const h=(i*.618+.31)%1,side=h<.5?0:1,ph=(t*1.8+h*5)%1,x=side?W_*(.86+((h*7)%1)*.13):W_*(.01+((h*7)%1)*.13),y=H_*(ph*1.2-.1),L=H_*(.08+.1*((h*13)%1));c.moveTo(x,y);c.lineTo(x+(side?1:-1)*L*.12,y+L)}c.stroke()}
-  if(SLIP.k>.15){const a=Math.min(1,(SLIP.k-.15)*3);c.globalAlpha=a;fxText(c,'SLIPSTREAM',W_/2,H_*.2,u*.38,'#d6f1ff','center','rgba(90,180,255,.85)');
-    const bw=u*2.6,bh=u*.09,x=W_/2-bw/2,y=H_*.2+u*.13;c.fillStyle='rgba(0,0,0,.5)';c.fillRect(x,y,bw,bh);c.fillStyle='#7fd0ff';c.fillRect(x,y,bw*SLIP.k,bh)}
-  c.restore()}
+function slipHud(){}   /* (batch 72) the SLIPSTREAM label, its bar and the screen-edge lines are gone */
 
 /* (batch 54) GUARD RAILS as real, breakable barriers.
    Every rail section (one road sample, about 4 m, one side of the road) is a line segment in a grid. Your car and the racers collide with it from EITHER side (it used to be a check against
@@ -5893,8 +5893,8 @@ function racerStep(c,dt){
     /* nitro: the racers use it too, on a clear straight, for 2.5 s every 12-20 s */
     if(!R.started){R.started=1;const fx=Math.sin(c.yaw),fz=-Math.cos(c.yaw),inFront=q=>{const dx=q.x-c.x,dz=q.z-c.z,f=dx*fx+dz*fz,l=dx*-fz+dz*fx;return f>0&&f<16&&Math.abs(l)<2.6};if(sk.nitro&&(c.seed%10)<8&&!inFront(C)&&!TR.cars.some(q=>q.alive&&q!==c&&q.kind===2&&inFront(q))){R.nzT=1.4+(c.seed%7)*.12;R.nzCd=10}}   /* (batch 66) not with a car right in front of it */   /* (batch 65) most racers fire their nitro off the line, as you do */
     R.nzCd=(R.nzCd||4)-dt;if(R.nzT>0)R.nzT-=dt;else if(sk.nitro&&R.nzCd<=0&&v>25&&!(R.launch>0)){R.nzT=2.5;R.nzCd=12+((c.seed|0)%8)}
-    const vLim=(sk.vtop||sk.vmax)*(R.nzT>0?1.26:1);   /* (batch 54) the car's real top speed, +26 % while its nitro burns: exactly what your boost gives you (it was +8 % all the time and +20 % on nitro) */
-    let vt=sk.vmax*(R.nzT>0?1.26:1);for(const L of[Math.max(40,v*1.4),Math.max(80,v*2.6)]){const A=_ra(Rt,bi,R.s+10),B=_ra(Rt,bi,R.s+10+L/2),Cc=_ra(Rt,bi,R.s+10+L);const ax=p[A*3],az=p[A*3+2],bx=p[B*3],bz=p[B*3+2],cx=p[Cc*3],cz=p[Cc*3+2];
+    const vLim=(sk.vtop||sk.vmax)*(R.nzT>0?RACER_NZ:1);   /* (batch 54) the car's real top speed, +26 % while its nitro burns: exactly what your boost gives you (it was +8 % all the time and +20 % on nitro) */
+    let vt=sk.vmax*(R.nzT>0?RACER_NZ:1);for(const L of[Math.max(40,v*1.4),Math.max(80,v*2.6)]){const A=_ra(Rt,bi,R.s+10),B=_ra(Rt,bi,R.s+10+L/2),Cc=_ra(Rt,bi,R.s+10+L);const ax=p[A*3],az=p[A*3+2],bx=p[B*3],bz=p[B*3+2],cx=p[Cc*3],cz=p[Cc*3+2];
       const ar=Math.abs((bx-ax)*(cz-az)-(bz-az)*(cx-ax)),dd=Math.hypot(bx-ax,bz-az)*Math.hypot(cx-bx,cz-bz)*Math.hypot(cx-ax,cz-az),kc=dd>1e-3?2*ar/dd:0;if(kc>1e-4){const vb=Math.sqrt(sk.grip/kc),dist=Math.max(0,Rt.S[A]-R.s);vt=Math.min(vt,Math.sqrt(vb*vb+2*(sk.brk||9)*.72*dist))}}
     /* catch-up: a little faster when far behind you, a little slower when far ahead */
     const gap=(EV.run&&EV.run.ps!=null)?EV.run.ps-R.s:0;vt*=gap>300?1.3:gap>150?1.18:gap>60?1.08:gap<-320?.93:1;if(R.catchT>0){R.catchT-=dt;if(gap>20)vt*=1.12}
@@ -5916,7 +5916,7 @@ function racerStep(c,dt){
       /* (batch 53) defending: a car right behind you in a race gets its nose across your line (a move every 1.2 s, never more than 4 m off the route) */
       if(EV.run&&EV.run.ev&&EV.run.t>=0&&!(c.spinT>0)){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;
         /* (batch 64) racing you for position (every racer event, takedowns too): with you close behind or alongside it floors it, lights its nitro when you draw level, and once its nose is ahead of yours it cuts across in front of you (a move every second, never more than 4.5 m off the route) */
-        if(fd>-28&&fd<9&&Math.abs(lt)<10&&v>12){vt=Math.min(cornerV,vLim);if(fd>-6&&sk.nitro&&!(R.nzT>0)&&(R.nzCd||0)<6){R.nzT=2;R.nzCd=11}}
+        if(fd>-28&&fd<9&&Math.abs(lt)<10&&v>12){vt=Math.min(cornerV,vLim)}   /* (batch 72) it no longer lights its nitro the moment you draw level (it matched your boost every time): its nitro runs on its own clock */
         if(R.aggr>0&&R.defT<=0&&fd<-1.5&&fd>-35&&Math.abs(lt)<7&&v>18){R.defT=1;   /* (batch 65) clean racers (aggr 0) race you for position but never block */R.offT=Math.max(-4.5,Math.min(4.5,R.off+Math.sign(lt||1)*Math.min(3,Math.abs(lt)+.8)))}}}
     /* (batch 65) a racer right beside it: move apart (they rubbed side by side for 20-50 s of every minute and got tangled) */
     /* (batch 66) any racer close ahead and not clearly to one side: ease off to keep 5.5 m + 0.22 s (the inLane test above can miss a car merging diagonally where the road narrows) */
@@ -5938,7 +5938,7 @@ function racerStep(c,dt){
     if(c.spinT>0){c.spinT-=dt;c.v*=Math.exp(-dt*.75);c.ks=c.ks||0;if(c.spinT<=0){c.yaw=c.yaw;c.ks*=.3}}   /* spinning out: no steering, it slides on and loses speed */
     const err=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw),maxYr=Math.min(2.4,sk.grip*1.3/Math.max(v,4)),yr=(c.spinT>0||c.air)?0:Math.max(-maxYr,Math.min(maxYr,err*3))*(c.loose>0?Math.max(.2,1-c.loose*.9):1);c.om=yr;c.yaw+=yr*dt;
     {const ea=Math.abs(angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw));if(ea>.3&&!(c.spinT>0))vt=Math.min(vt,v*(ea>.6?.97:1))}   /* (batch 54) still turning in (pointing well away from where it is going): it does not put the power down yet */
-    R.cv=cornerV;R.vt=vt;const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?1.26:1))),1.6))*(R.nzT>0?1.5:1),a=Math.max(-(sk.brk||11),Math.min(accNow,(vt-v)*1.6));if(!(c.spinT>0)&&!c.air)c.v=Math.max(0,Math.min(vLim*(1+.06*(c.slip||0)),v+a*dt));c.brake=a<-2.5?1:0;
+    R.cv=cornerV;R.vt=vt;const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?RACER_NZ:1))),1.6))*(R.nzT>0?1.5:1),a=Math.max(-(sk.brk||11),Math.min(accNow,(vt-v)*1.6));if(!(c.spinT>0)&&!c.air)c.v=Math.max(0,Math.min(vLim*(1+.06*(c.slip||0)),v+a*dt));c.brake=a<-2.5?1:0;
     if(c.v<1.5)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
   const mvy=c.spinT>0&&c.sdir!=null?c.sdir+angd(c.yaw,c.sdir)*Math.max(0,1-c.spinT/.45):c.yaw,sy=Math.sin(mvy),cy=Math.cos(mvy);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
   /* (batch 53) a knock: a sideways drift and a spin that die away in about half a second */if(c.kx||c.kz){c.x+=c.kx*dt;c.z+=c.kz*dt;c.vx+=c.kx;c.vz+=c.kz;const kl=Math.hypot(c.kx,c.kz),nk=Math.max(0,kl-dt*(c.loose>0?6.5:14)-kl*dt*.8);c.kx*=nk/kl;c.kz*=nk/kl;if(nk<.15)c.kx=c.kz=0}if(c.ks){c.yaw+=c.ks*dt;c.ks*=Math.exp(-dt*(c.spinT>0?.8:c.loose>0?1.6:4));if(Math.abs(c.ks)<.02)c.ks=0}   /* (batch 54) the sideways slide is scrubbed off by the tyres (a steady ~0.7 g while they are loose), so a shove carries it several metres across: off the road if you push it there */if(c.loose>0)c.loose-=dt;
@@ -5958,6 +5958,8 @@ function racerStep(c,dt){
 /* (batch 53) a racer is one of the playable cars: the pool car about as fast as yours (the lead racer 3 % faster), driven with that car's own figures: its grip, top speed, acceleration and braking, a little under what you can do with it (95-99 %) */
 let _rTier=null;   /* (batch 54) the event's car band (km/h), from its difficulty */
 function racerCarNear(want,used){let b=null;const T=_rTier;if(T)want=Math.max(T[0]+5,Math.min(T[1]-5,want));for(const p of RACER_POOL){if(used&&used.has(p.id))continue;if(T&&(p.top<T[0]||p.top>T[1]))continue;if(!b||Math.abs(p.top-want)<Math.abs(b.top-want))b=p}if(!b&&T){for(const p of RACER_POOL)if(p.top>=T[0]&&p.top<=T[1]&&(!b||Math.abs(p.top-want)<Math.abs(b.top-want)))b=p}b=b||RACER_POOL[0];if(used)used.add(b.id);return b}
+/* (batch 72) a racer's nitro: +18 % top speed while it burns (your boost gives +26 %, so boosting you always pull away), a flame from its exhausts */
+const RACER_NZ=1.18;
 function racerSkillFor(pc,sk,nitro){const r=pc.def.real,vm=1+(r.top/308-1)*.75,gr=Math.pow(r.lat/1.05,.9),ac=Math.pow(3.7/r.t100,.8),br=Math.pow(34/r.brk,.9);
   return{grip:15*gr*sk,vmax:r.top/3.6*sk,vtop:r.top/3.6,acc:12*ac*sk,brk:19*br,type:pc.type,col:pc.col,car:pc.id,nitro:nitro?1:0}}
 const racerMyTop=()=>{const d=CAR_ROSTER[CARSEL.cur];return d?(typeof upgReal=='function'?upgReal(d).top:d.real.top):300};
@@ -7015,7 +7017,7 @@ function storyTick(dt){if(!STORY.on)return;if(STORY.title>0)STORY.title-=dt;
   if(step.k=='scene'){if(!st.started){st.started=1;if(step.at=='gas')storyPlace(storyGas());storyScene(step,()=>storyAdvance())}return}
   if(step.k=='open'){STORY.open=true;storySave();storyRadio(step.lines);safeToast('FREE ROAM OPEN  ·  story jobs are gold on the map',4);storyAdvance();return}
   if(step.k=='unlock'){STORY.cars[step.car]=1;STORY.car=step.car;if(typeof carUnlock=='function')carUnlock(step.car);const i=CAR_ROSTER.findIndex(d=>d.id==step.car);if(i>=0)carSelect(i);safeToast('NEW CAR  ·  '+step.name,3.5);storyAdvance();return}
-  if(step.k=='end'){if(!st.shown){st.shown=1;STORY.done=true;storySave();EV.card={story:1,title:'CHAPTER '+STORY.ch+' COMPLETE',sub:STORY_CH[STORY.ch].name,lines:[['You run the coast now. The Magnet Muscle is yours.','#fff'],['Next: '+step.next+'  (coming soon)','#ffc23d'],['Keep driving: the map events are still open.','rgba(233,230,220,.75)']],btns:[{label:'OK',col:'#ff7a1a',act:()=>{EV.card=null}}]}}return}
+  if(step.k=='end'){if(!st.shown){st.shown=1;STORY.done=true;storySave();EV.card={story:1,title:'CHAPTER '+STORY.ch+' COMPLETE',sub:STORY_CH[STORY.ch].name,lines:[['You run the coast now. The '+((STORY_CH[STORY.ch].steps.find(q=>q.k=='unlock')||{}).name||'new car').toLowerCase().replace(/\b\w/g,m=>m.toUpperCase())+' is yours.','#fff'],['Next: '+step.next+'  (coming soon)','#ffc23d'],['Keep driving: the map events are still open.','rgba(233,230,220,.75)']],btns:[{label:'OK',col:'#ff7a1a',act:()=>{EV.card=null}}]}}return}
   if(step.k=='ev'){if(!st.init){st.init=1;storyRadio(step.drive)}
     if(step.here){if(!st.go&&!STORY.rcur&&!STORY.radio.length&&!EV.card){st.go=1;storyStartEv(step,false)}else if(st.go&&!STORY.curEv){if(C.speed>15)st.dismiss=0;if(!EV.card&&C.speed<2&&!st.dismiss)EV.card=storyBrief(step)}return}   /* failed and closed: stop anywhere and the card offers it again */
     if(!st.ev){st.ev=evBuild(Object.assign({id:'story_c'+STORY.ch+'_'+step.id,story:1,minLen:300},step.def))}const e=st.ev;if(!e)return;
