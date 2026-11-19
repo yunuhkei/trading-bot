@@ -10,7 +10,7 @@
 const RACE={sr:null,srT:60,pending:null};
 const RACER_TYPES=[10,12,16,18,19],RACER_COLS=[0,3,6,9,12,15,1,4,7,10];
 /* a racer at distance S along the route, lat metres to the right of it */
-function racerSpawn(Rt,S,lat,k,skill,aggr){let j=0;while(j<Rt.n-2&&Rt.S[j+1]<S)j++;const p=Rt.pts,x=p[j*3],z=p[j*3+2],dx=p[j*3+3]-x,dz=p[j*3+5]-z,l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l;
+function racerSpawn(Rt,S,lat,k,skill,aggr){let j=0;while(j<Rt.n-2&&Rt.S[j+1]<S)j++;const p=Rt.pts,dx=p[j*3+3]-p[j*3],dz=p[j*3+5]-p[j*3+2],l=Math.hypot(dx,dz)||1,ux=dx/l,uz=dz/l,back=Math.min(0,S),x=p[j*3]+ux*back,z=p[j*3+2]+uz*back;   /* (batch 66) S < 0: behind the start line */
   /* (batch 53) a grid slot off the asphalt (a narrow road) is moved in until it is on the road, well clear of the edge: racers used to start half in the barrier and hit it */
   {const ok=L=>roadAt(x-uz*L,z+ux*L,p[j*3+1]+1)&&Math.abs(RQ.lat)<RQ.hw-1.3;if(!ok(lat)){let f=null;for(const L of[lat*.7,lat*.45,-lat*.45,0,-lat*.7])if(ok(L)){f=L;break}lat=f==null?0:f}}
   const sn=navSnap(x,z,40);if(!sn)return null;const la=navLane(sn,x,z,ux,uz);if(!la)return null;const c=trPlace(la.e,la.u,skill.type!=null?skill.type:RACER_TYPES[k%RACER_TYPES.length],skill.type!=null?skill.col:RACER_COLS[k%RACER_COLS.length],0,7000+k);if(!c)return null;
@@ -23,7 +23,7 @@ function racerStep(c,dt){
   let bi=R.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(Rt.n,bi+40);k++){const d=(p[k*3]-c.x)**2+(p[k*3+2]-c.z)**2;if(d<bd){bd=d;bi=k}}R.fi=bi;R.s=Rt.S[bi];
   if(R.done<0&&R.s>=Rt.len-10&&R.go)R.done=EV.t;
   /* (batch 63) knocked off its route and driving away (fast, so the stuck check never fires): more than 30 m from the route for 1.5 s, it is put back on it */
-  if(R.go&&R.done<0){R.offT=bd>900?(R.offT||0)+dt:0;if(R.offT>1.5){R.offT=0;if(racerRespot(c))return}}
+  if(R.go&&R.done<0){R.lostT=bd>900?(R.lostT||0)+dt:0;if(R.lostT>1.5){R.lostT=0;if(racerRespot(c))return}}   /* (batch 66: its own timer; it was written into offT, the racer's lane, and pulled every racer onto the centre line) */
   /* (batch 27) stuck for 5 s (a jam, a pile-up, a wall): it is put back on the route a little further on, on a clear spot */
   if(R.go&&R.done<0){R.still=c.v<2.5?(R.still||0)+dt:0;if(R.still>2.4&&racerRespot(c))return;if(R.still>7){R.still=0;if(EV.run&&EV.run.ev.type=='rage'){c.race=null;trKill(c,0);return}}   /* (batch 53) no clear spot to put it back on for 7 s: in a takedown it is removed, so the next wave can come */}
   if(!R.go||R.done>=0){const k=Math.exp(-dt*(R.done>=0?.8:20));c.v*=k;}
@@ -35,7 +35,7 @@ function racerStep(c,dt){
     {const bk=(sk.brk||9)*.72,maxD=Math.max(90,v*3.2),hd=q=>{const a=_ra(Rt,bi,q),b=_ra(Rt,bi,q+10);return Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2]))};let h0=hd(R.s-8);
       for(let d=-2;d<maxD;d+=6){const h1=hd(R.s+d),kc=Math.abs(angd(h1,h0))/6;h0=h1;   /* (batch 54) from where it is now, every 6 m: the scan began 12 m ahead, so a car already in a tight turn stopped seeing it and accelerated out wide */if(kc>1e-3){const vc=Math.sqrt(sk.grip*1.05/kc);cornerV=Math.min(cornerV,Math.sqrt(vc*vc+2*bk*Math.max(0,d)))}}}
     /* nitro: the racers use it too, on a clear straight, for 2.5 s every 12-20 s */
-    if(!R.started){R.started=1;if(sk.nitro&&(c.seed%10)<8){R.nzT=1.4+(c.seed%7)*.12;R.nzCd=10}}   /* (batch 65) most racers fire their nitro off the line, as you do */
+    if(!R.started){R.started=1;const fx=Math.sin(c.yaw),fz=-Math.cos(c.yaw),inFront=q=>{const dx=q.x-c.x,dz=q.z-c.z,f=dx*fx+dz*fz,l=dx*-fz+dz*fx;return f>0&&f<16&&Math.abs(l)<2.6};if(sk.nitro&&(c.seed%10)<8&&!inFront(C)&&!TR.cars.some(q=>q.alive&&q!==c&&q.kind===2&&inFront(q))){R.nzT=1.4+(c.seed%7)*.12;R.nzCd=10}}   /* (batch 66) not with a car right in front of it */   /* (batch 65) most racers fire their nitro off the line, as you do */
     R.nzCd=(R.nzCd||4)-dt;if(R.nzT>0)R.nzT-=dt;else if(sk.nitro&&R.nzCd<=0&&v>25&&!(R.launch>0)){R.nzT=2.5;R.nzCd=12+((c.seed|0)%8)}
     const vLim=(sk.vtop||sk.vmax)*(R.nzT>0?1.26:1);   /* (batch 54) the car's real top speed, +26 % while its nitro burns: exactly what your boost gives you (it was +8 % all the time and +20 % on nitro) */
     let vt=sk.vmax*(R.nzT>0?1.26:1);for(const L of[Math.max(40,v*1.4),Math.max(80,v*2.6)]){const A=_ra(Rt,bi,R.s+10),B=_ra(Rt,bi,R.s+10+L/2),Cc=_ra(Rt,bi,R.s+10+L);const ax=p[A*3],az=p[A*3+2],bx=p[B*3],bz=p[B*3+2],cx=p[Cc*3],cz=p[Cc*3+2];
@@ -63,6 +63,8 @@ function racerStep(c,dt){
         if(fd>-28&&fd<9&&Math.abs(lt)<10&&v>12){vt=Math.min(cornerV,vLim);if(fd>-6&&sk.nitro&&!(R.nzT>0)&&(R.nzCd||0)<6){R.nzT=2;R.nzCd=11}}
         if(R.aggr>0&&R.defT<=0&&fd<-1.5&&fd>-35&&Math.abs(lt)<7&&v>18){R.defT=1;   /* (batch 65) clean racers (aggr 0) race you for position but never block */R.offT=Math.max(-4.5,Math.min(4.5,R.off+Math.sign(lt||1)*Math.min(3,Math.abs(lt)+.8)))}}}
     /* (batch 65) a racer right beside it: move apart (they rubbed side by side for 20-50 s of every minute and got tangled) */
+    /* (batch 66) any racer close ahead and not clearly to one side: ease off to keep 5.5 m + 0.22 s (the inLane test above can miss a car merging diagonally where the road narrows) */
+    for(const o of TR.cars){if(!o.alive||o===c||o.kind!==2||!o.race||o.state!==3)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<=0||f>16)continue;const lt=dx*-cy+dz*sy;if(Math.abs(lt-(R.offT-R.off))<2.9&&Math.abs(lt)<3.2)vt=Math.min(vt,o.v+(f-(5.5+v*.22))*.7)}
     R.sepT=(R.sepT||0)-dt;if(R.sepT<=0){for(const o of TR.cars){if(!o.alive||o===c||o.kind!==2||!o.race||o.state!==3)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy,lt=dx*-cy+dz*sy;if(Math.abs(f)<6&&Math.abs(lt)<3.6){R.offT=Math.max(-4.5,Math.min(4.5,R.off+(lt>0?-1:1)*(3.8-Math.abs(lt))));if(f>0)vt=Math.min(vt,o.v-1.5);R.sepT=.35;break}}}   /* the one behind yields */
     R.off+=(R.offT-R.off)*Math.min(1,dt*2.6);
     let tx=p[ahead*3],tz=p[ahead*3+2];{const a2=Math.min(Rt.n-1,ahead+1),dx=p[a2*3]-tx,dz=p[a2*3+2]-tz,l=Math.hypot(dx,dz)||1;
@@ -106,7 +108,10 @@ const racerMyTop=()=>{const d=CAR_ROSTER[CARSEL.cur];return d?(typeof upgReal=='
 const racerDiff=()=>{const ev=EV.run&&EV.run.ev||EV._starting;return ev&&typeof evDiff=='function'?evDiff(ev):2};
 let _rUsed=null;const racerSkill=(k,n,hard)=>{if(k==0)_rUsed=new Set();const d=racerDiff();_rTier=EV_DTOP[d];const dl=typeof DIFF!='undefined'?DIFF.lv:1,pc=racerCarNear(racerMyTop()*(hard?1.07:1.03)*(1-.032*k)*(typeof DIFF!='undefined'?DIFF.car[dl]:1),_rUsed);_rTier=null;return racerSkillFor(pc,Math.min(1.02,((hard?1:.99)-.018*k-[0,.07,.025,0][d])*(typeof DIFF!='undefined'?DIFF.racer[dl]:1)),1)};   /* (batch 63) the difficulty setting */   /* (batch 54) easy racers drive a little below their best too */   /* (batch 53) they drive their cars almost flat out */
 /* the field for an event: n racers on the grid behind the start line, two abreast */
-function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m along the route); the racers: beside you on the left, then two by two behind */const G=[[24,-3.4],[15,3.4],[15,-3.4],[6,3.4],[6,-3.4],[0,0]];const out=[];const ev=EV._starting,LU=ev&&ev.lineup;if(LU)n=LU.length;for(let k=0;k<n;k++){/* (batch 58) a story event names its racers and their cars */const lu=LU&&LU[k],pc=lu&&RACER_POOL.find(p=>p.id==lu.car);const c=racerSpawn(Rt,G[k][0],G[k][1],k,pc?racerSkillFor(pc,Math.min(1.02,(lu.sk||.95)*(typeof DIFF!='undefined'?DIFF.story[DIFF.lv]:1)),lu.nitro!=null?lu.nitro:1):racerSkill(k,n,aggr),lu&&lu.aggr!=null?lu.aggr:(aggr?2:1));if(c&&lu){c.race.name=lu.name;c.race.who=lu.who}   /* (batch 53) every racer tries to take you down, in every mode */if(c)out.push(c)}return out}
+function racerGrid(Rt,n,aggr){/* you are on the front row on the right (24 m along the route); the racers: beside you on the left, then two by two behind */const G=[[24,-3.4],[15,3.4],[15,-3.4],[6,3.4],[6,-3.4],[-3,3.4],[-3,-3.4],[-12,3.4],[-12,-3.4],[-21,0],[-30,0]];const out=[];const ev=EV._starting,LU=ev&&ev.lineup;if(LU)n=LU.length;
+  /* (batch 66) no two cars on the grid overlap: on a narrow road the two of a row used to be squeezed onto each other (they touched from the first frame); a slot that would overlap a car already there is skipped and the racer goes to the next row back */
+  const p0=Rt.pts,tx=p0[3]-p0[0],tz=p0[5]-p0[2],tl=Math.hypot(tx,tz)||1,ux=tx/tl,uz=tz/tl,placed=[[C.x,C.z]],clash=(x,z)=>placed.some(q=>{const dx=x-q[0],dz=z-q[1],f=dx*ux+dz*uz,l=-dx*uz+dz*ux;return Math.abs(f)<9.5&&Math.abs(l)<2.7});let gi=0;
+  for(let k=0;k<n;k++){/* (batch 58) a story event names its racers and their cars */const lu=LU&&LU[k],pc=lu&&RACER_POOL.find(p=>p.id==lu.car);let c=null;for(;gi<G.length&&!c;gi++){c=racerSpawn(Rt,G[gi][0],G[gi][1],k,pc?racerSkillFor(pc,Math.min(1.02,(lu.sk||.95)*(typeof DIFF!='undefined'?DIFF.story[DIFF.lv]:1)),lu.nitro!=null?lu.nitro:1):racerSkill(k,n,aggr),lu&&lu.aggr!=null?lu.aggr:(aggr?2:1));if(c&&clash(c.x,c.z)){c.race=null;trKill(c,0);c=null}}if(c)placed.push([c.x,c.z]);if(c&&lu){c.race.name=lu.name;c.race.who=lu.who}   /* (batch 53) every racer tries to take you down, in every mode */if(c)out.push(c)}return out}
 /* (batch 27) TAKEDOWN: the pack sets off 70-300 m ahead of you, two abreast, a little slower than race racers (top 50-60 m/s), not ramming */
 /* (batch 53) TAKEDOWN waves: three racers, each a different playable car a little slower than yours, already rolling S0 metres along the route (ahead of you); when you have wrecked or passed them the next three appear further on */
 let _pkUsed=new Set();

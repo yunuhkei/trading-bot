@@ -10,7 +10,7 @@ const out=await T.ev(([LAT,VMAX])=>{const log=[];const W=n=>{for(let i=0;i<n;i++
         let k=fi;while(k<Rt.n-1&&Rt.S[k]<Rt.S[fi]+Math.max(12,C.speed*.55))k++;let tx=p[k*3],tz=p[k*3+2];{/* (batch 65) overtake: a car in the way ahead, aim 3.5 m to the side with more room */const hx=Math.sin(C.yaw),hz=-Math.cos(C.yaw);let blk=null,bd2=1e9;for(const o of TR.cars){if(!o.alive||o.state==1)continue;const dx=o.x-C.x,dz=o.z-C.z,f=dx*hx+dz*hz,lt=dx*-hz+dz*hx;if(f>2&&f<32&&Math.abs(lt)<2.6&&f<bd2){bd2=f;blk={lt}}}if(blk){const sd=blk.lt>0?-1:1;tx+=sd*Math.cos(C.yaw)*3.5;tz+=sd*Math.sin(C.yaw)*3.5}}C.steer=clamp(angd(Math.atan2(tx-C.x,-(tz-C.z)),C.yaw)*2.2,-1,1);
         /* speed the next 120 m of bends allow */let vt=VMAX;for(let d=6;d<Math.max(60,C.speed*3);d+=6){const a=_ra(Rt,fi,Rt.S[fi]+d),b=_ra(Rt,fi,Rt.S[fi]+d+8),c=_ra(Rt,fi,Rt.S[fi]+d+16);
           const h1=Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2])),h2=Math.atan2(p[c*3]-p[b*3],-(p[c*3+2]-p[b*3+2])),kc=Math.abs(angd(h2,h1))/8;if(kc>1e-3){const vc=Math.sqrt(LAT/kc);vt=Math.min(vt,Math.sqrt(vc*vc+2*7*d))}}
-        IN.thr=C.speed<vt?1:0;IN.brk=C.speed>vt+3?1:0;IN.auto=false}
+        IN.thr=C.speed<vt?1:0;IN.brk=C.speed>vt+3?1:0;IN.auto=false;C.shield=Math.max(C.shield||0,.2)}   /* (batch 66) the racers can take a non-dodging bot down now: this test is about the story's flow, so the bot is shielded */
       else if(!Rt){/* escape: drive away fast along whatever road */IN.thr=1;IN.brk=0;C.steer=0;if(r.t>4)COP.heat=Math.max(0,COP.heat);}
       if(EV.run&&EV.run.racers){window.__ord=EV.run.racers.map(c=>[c.race&&c.race.name,c.race?+(c.race.done>=0?c.race.done.toFixed(1):-1):-2,c.race?c.race.s|0:0])}W(12);t+=.1}
     return t};
