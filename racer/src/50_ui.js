@@ -87,6 +87,7 @@ function mapInit(){
 function mapOverlay(ctx,pxm,s){
   evMapIcons(ctx,v=>(v+W.half)*pxm,v=>(v+W.half)*pxm,5/s);spotMapIcons(ctx,v=>(v+W.half)*pxm,v=>(v+W.half)*pxm,5/s);racerMapIcons(ctx,v=>(v+W.half)*pxm,v=>(v+W.half)*pxm,5/s);for(const p of REPAIRS){const px=(p.x+W.half)*pxm,pz=(p.z+W.half)*pxm,r=6;ctx.fillStyle='#2a6be0';ctx.beginPath();ctx.arc(px,pz,r,0,TAU);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(px-r*.62,pz-r*.18,r*1.24,r*.36);ctx.fillRect(px-r*.18,pz-r*.62,r*.36,r*1.24)}   /* repair shops: a white cross on blue */
   const rs=6.8;ctx.lineWidth=1.7;for(const h of SAFEHOUSES){const px=(h.x+W.half)*pxm,pz=(h.z+W.half)*pxm,own=SAFE.owned[h.id];ctx.beginPath();ctx.arc(px,pz,rs,0,TAU);ctx.fillStyle=own?'#3cf08c':'#8d97a3';ctx.fill();ctx.strokeStyle=own?'#05301a':'#222a33';ctx.stroke()}
+  copZoneDraw(ctx,v=>(v+W.half)*pxm,v=>(v+W.half)*pxm,1/s);
   if(TR.on){const r=4.2/s,f=((C.t*4)|0)%2;for(const c of TR.cars){if(!c.alive||c.kind!==1||(c.cm==0&&!c.siren))continue;ctx.fillStyle=f?'#ff4a3a':'#4a7aff';ctx.fillRect((c.x+W.half)*pxm-r,(c.z+W.half)*pxm-r,r*2,r*2)}}
   navMapOverlay(ctx,pxm,s)}
 function drawMap(ctx,cx,cy,rad,zoomM,rot){
@@ -125,7 +126,7 @@ function hudDraw(){
    if(!C.grounded&&C.air>.3)toast('AIR  '+C.air.toFixed(1)+' s','#ffd24a',H_*.445,-Math.min(.16,C.air-.3)-.0001,1);
    else if(C.jump){const age=C.t-C.jump.t;if(age<2.8)toast('JUMP  '+fmtShort(C.jump.d)+'  ·  '+C.jump.air.toFixed(1)+' s','#ffd24a',H_*.445,age,2.2)}}
   /* minimap */
-  const mm=UI.mm;drawMap(c,mm.cx,mm.cy,mm.r,420,-C.yaw);c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px '+UIF;c.fillStyle='rgba(255,255,255,.85)';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText('MAP',mm.cx,mm.cy+mm.r+u*.3);c.restore();
+  const mm=UI.mm;UI.mmZ=(UI.mmZ||420)+((COP.heat>0?700:420)-(UI.mmZ||420))*.04;drawMap(c,mm.cx,mm.cy,mm.r,UI.mmZ,-C.yaw);   /* (batch 69) zoomed out while wanted, so the search area fits */c.save();c.textAlign='center';c.font='800 '+Math.round(u*.22)+'px '+UIF;c.fillStyle='rgba(255,255,255,.85)';c.shadowColor='rgba(0,0,0,.8)';c.shadowBlur=4;c.fillText('MAP',mm.cx,mm.cy+mm.r+u*.3);c.restore();
   /* location banner */
   if(C.t-UI.locT>1.5){const n=regionName();if(n!==UI.locName){UI.locName=n;UI.locT=C.t}}
   if(UI.locName&&C.t-UI.locT<3.5&&!UI.paused&&!EV.run&&!(KC.t>0)&&!(SAFE.msgT>0)&&!CC.on){   /* (batch 53) every message has its own height on the screen: place name .24, roadblock .285, spikes .335, drift .385, air .445, the amber toast .52 */const a=Math.min(1,(3.5-(C.t-UI.locT)),(C.t-UI.locT)*3);c.save();c.globalAlpha=a;fxText(c,UI.locName.toUpperCase(),W_*.5,H_*.24,u*.6,'#ffd24a','center','rgba(255,170,40,.6)');c.restore()}

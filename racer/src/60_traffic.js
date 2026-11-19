@@ -246,7 +246,8 @@ function trReattach(c){
   const e=lanes[bk];c.e=e;c.u=Math.min(Math.floor(u),e.n-2);c.L=null;c.lu=0;c.state=0;c.pjid=-1;c.pickJ=-1;c.hn=0;c.stk=0;c.v=0;c.vx=c.vz=c.om=0;c.rec=0;c.v0f=Math.max(.4,c.v0f*(1-.55*(c.dmg||0)));c.A=Math.max(.8,c.A*(1-.4*(c.dmg||0)));
   const t=lgTan(e,c.u|0);c.off=Math.max(-8,Math.min(8,(c.x-e.X[c.u|0])*(-t[1])+(c.z-e.Z[c.u|0])*t[0]));return true}
 TR.wreckLife=30;
-function trKill(c,why){if(!c.alive)return;c.alive=0;TR.nAlive--;TR.stat.despawn++;if(why==2)TR.stat.stuck++}
+function trKill(c,why){if(!c.alive)return;if(c.kind===1&&c.cm>=1&&c.cm!=3&&c.state!=1&&COP.heat>0)COP.gone=(COP.gone||0)+1;   /* (batch 69) a chaser removed without being wrecked (left behind, recycled, stuck) keeps its place used: it is not replaced */
+  c.alive=0;TR.nAlive--;TR.stat.despawn++;if(why==2)TR.stat.stuck++}
 /* two bodies hit (a: car, wreck or the player proxy; b: car or wreck). Returns the impact energy (J) or 0. a and b have x,z,yaw,vx,vz,om,m,I,hl,hw; normal points from b to a. */
 const HIT={nx:0,nz:0,cx:0,cz:0,pen:0,vn:0,E:0,jn:0};
 function trObb(a,b){

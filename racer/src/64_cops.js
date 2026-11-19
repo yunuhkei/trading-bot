@@ -22,7 +22,8 @@ const COP_SWAT=[0,0,0,0,1,2];
 /* (batch 27) LOCK-ON: cops have to be close to see you (a crime counts only with a cop within 60 m, or 120 m in clear sight; a patrol notices you the same way), but once they
    are after you they always know where you are while any police car (chasing, wrecked or in a roadblock) is within a mile (COP_LOCK); reinforcements come only while one is within
    600 m. Put a mile between you and the nearest one and within about 5 s the heat is gone. */
-const COP_LOCK=560,COP_SEE=190,COP_NEAR=60;   /* (batch 53) lock-on was a whole mile (they always knew where you were); now 560 m, then they drive to the last place they saw you; they see further in clear sight (190 m) */
+const COP_LOCK=560,COP_SEE=190,COP_NEAR=60,COP_ZR=402;   /* (batch 69) COP_ZR: the SEARCH AREA, a circle half a mile across round the last place they saw you (drawn on the map) */
+   /* (batch 53) lock-on was a whole mile (they always knew where you were); now 560 m, then they drive to the last place they saw you; they see further in clear sight (190 m) */
 /* the call that goes out with a crime: when and where it happened (for 20 s they know you are near there; reinforcements are sent there for 15 s) */
 function copCall(){COP.callT=0;COP.callX=C.x;COP.callZ=C.z}
 const copCallD=()=>COP.callX===undefined?1e9:Math.hypot(C.x-COP.callX,C.z-COP.callZ);
@@ -43,7 +44,7 @@ function copTrigger(level,why){
 function copTop(c){const D=COP.D;let t=D.top*(c?(TTYPES[c.type]&&TTYPES[c.type].vtop)||1:1);if(c&&COP.sightT<1.5&&Math.hypot(c.x-C.x,c.z-C.z)<45)t=Math.max(t,Math.min(C.speed+6,t*1.12));return Math.min(115,t)}
 function heatAdd(p){if(!COP.on||GAME.state||!TR.on)return;COP.w+=p*COP.D.ev;if(COP.w>COP.D.thr[5]*1.3)COP.w=COP.D.thr[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=Math.min(COP.sightT,.2);copCall()}
 /* wipe the heat and send the chasers home (full: they disappear, as when you reach a garage) */
-function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;SPIKE.list.length=0;SPIKE.fall.length=0;if(full)HELI.list.length=0;
+function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;COP.gone=0;COP.goneT=0;SPIKE.list.length=0;SPIKE.fall.length=0;if(full)HELI.list.length=0;
   for(const c of TR.cars){if(!c.alive||c.kind!==1)continue;if(c.cm==3||(full&&c.cm>0))trKill(c,0);else if(c.cm>0)copStandDown(c)}}
 function copStandDown(c){c.cm=0;c.siren=0;c.v0f=1;c.A=2.2;if(c.state==3)copAttach(c)}
 function copAlert(c){c.cm=1;c.siren=1;c.v0f=COP.D.chaseSpd;c.A=COP.D.accel*.85;c.T=.7;c.pickJ=-1;c.role=0;c.rt=null}
@@ -147,7 +148,7 @@ function copSpawnAhead(type){const rng=TR.rng;let ux=C.vx,uz=C.vz;const l=Math.h
   return null}
 /* (batch 67) a police car searching: on a road 120-280 m from the last place they saw you, out of your sight and at least 250 m from you */
 function copSpawnSearch(type){const rng=TR.rng,lx=COP.lkx,lz=COP.lkz;if(lx===undefined)return null;
-  for(let tries=0;tries<12;tries++){const a=rng()*TAU,r=120+rng()*160,x=lx+Math.cos(a)*r,z=lz+Math.sin(a)*r;if(Math.hypot(x-C.x,z-C.z)<250||!trProbe(x,z))continue;const ri=TRP.ri,o=LG.ofRoad[ri],r0=ROADS[ri];if(!o||!r0)continue;
+  for(let tries=0;tries<12;tries++){const a=rng()*TAU,r=60+rng()*(COP_ZR-90),x=lx+Math.cos(a)*r,z=lz+Math.sin(a)*r;if(Math.hypot(x-C.x,z-C.z)<250||!trProbe(x,z))continue;const ri=TRP.ri,o=LG.ofRoad[ri],r0=ROADS[ri];if(!o||!r0)continue;
     const di=rng()<.5?0:1;if(!o[di]||!o[di].length)continue;const e=o[di][Math.floor(rng()*o[di].length)];let u=e.dir>0?TRP.i:r0.n-1-TRP.i;if(e.closed)u=((u%e.n)+e.n)%e.n;else if(u<6||u>e.n-8)continue;
     trPt(e,u);const sx=_pt.x,sz=_pt.z;if(Math.hypot(sx-C.x,sz-C.z)<250||trSeen(sx,sz))continue;let ok=true;for(const c of TR.cars)if(c.alive&&Math.hypot(c.x-sx,c.z-sz)<18){ok=false;break}if(!ok)continue;
     const c=trPlace(e,u,type,12,Math.min(e.V[Math.min(u|0,e.n-1)],e.lim)*.8,Math.floor(rng()*1e9));if(!c)return null;c.kind=1;c.cm=0;c.siren=0;c.block=0;c.pickJ=-1;c.ramCd=0;c.los=false;c.stk=0;copAlert(c);return c}
@@ -176,7 +177,7 @@ function copTick(dt){
     const d=Math.hypot(c.x-C.x,c.z-C.z);if(c.cm==0)nP++;else{nC++;if(d<minChase)minChase=d}
     if(d<minD)minD=d;
     if(((TR.tk|0)+i)%15==0||c.los===null)c.los=d<340&&copLos(c);
-    if(c.cm>=1&&d>COP_LOCK+250){trKill(c,0);continue}  /* (batch 27) a chaser more than a mile behind has lost you for good (it is no longer replaced by a fresh one close behind you) */
+    if(c.cm>=1&&d>COP_LOCK+250){trKill(c,0);continue}   /* (batch 69) a chaser you left behind is gone, but its place is NOT refilled: only a wrecked one is replaced */  /* (batch 27) a chaser more than a mile behind has lost you for good (it is no longer replaced by a fresh one close behind you) */
     if(c.cm==0&&ps>=D.passV&&d<55&&COP.t-(c.clk||-99)>14){c.clk=COP.t;copTrigger(1,'speeding past a cop')}   /* you blow past a cop at 120 mph or more */
     if(c.cm>=1&&d<10)nNear++;
     if(c.state==3)nFree++;
@@ -187,7 +188,7 @@ function copTick(dt){
       if(c.state==0){if((d<115&&c.los)||d<40||(!C.onRoad&&d<350))copDetach(c)}   /* (batch 30) you left the road: it comes after you across the grass */
       else if(c.state==3){if((d>210&&C.onRoad)||c.stk>3.2)copAttach(c)}}}
   /* (batch 67) they know where you are only while a police car can SEE you (clear line of sight within 190 m, or right on you within 60 m), the helicopter is over you, or for 8 s after a crime near where it happened; any police car within 560 m used to be enough, so they always knew */
-  {let saw=false;for(let i=0;i<TRN&&!saw;i++){const c=cars[i];if(!c.alive||c.kind!==1||c.state==1||!(c.cm>=1))continue;const d=Math.hypot(c.x-C.x,c.z-C.z);if(d<COP_NEAR||(c.los&&d<COP_SEE*(1+.12*Math.max(0,COP.heat-1))))saw=true}   /* they see further the more stars you have (190 m at one star, 260 m at four) */
+  {let saw=false;for(let i=0;i<TRN&&!saw;i++){const c=cars[i];if(!c.alive||c.kind!==1||!(c.cm>=1))continue;const d=Math.hypot(c.x-C.x,c.z-C.z);if(c.state==1){if(d<40&&c.cm!=3)saw=true;continue}   /* (batch 69) a wrecked police car right beside you still knows where you are: drive away from it */if(d<COP_NEAR||(c.los&&d<COP_SEE*(1+.12*Math.max(0,COP.heat-1))))saw=true}   /* they see further the more stars you have (190 m at one star, 260 m at four) */
    if(COP.heat>0&&(saw||(COP.callT<8&&copCallD()<300)))seen=true}COP.lockD=lockD;
   COP.nC=nC;COP.nP=nP;COP.minD=minD;COP.seenNow=seen;
   /* roles for the free chasers, nearest first */
@@ -195,12 +196,14 @@ function copTick(dt){
   COP.snapT=(COP.snapT||0)-dt;if(COP.snapT<=0){COP.snapT=.35;NAV.pl=navSnap(C.x,C.z,70);if(NAV.pl&&NAV.pl.ri!==COP.roadRi){COP.roadRi=NAV.pl.ri;COP.roadT=COP.t}}   /* (batch 30: when you last turned onto another road) */        /* where you are on the road network, for the chasers' routes and spawns */
   if(seen)COP.sightT=0;else COP.sightT+=dt;
   if(COP.sightT<1||COP.lkx===undefined){COP.lkx=C.x;COP.lkz=C.z;COP.lkyaw=C.yaw;COP.lkPl=NAV.pl}   /* the last place they saw you */
-  if(COP.heat>0&&COP.sightT>D.loseT*(.35+.1*COP.heat)){   /* unseen for longer the more stars you have */COP.w=Math.max(0,COP.w-Math.max(D.decay*.6,COP.w*.35)*dt);if(COP.w<1)COP.w=0;COP.heat=copLevelOf()}   /* (batch 67) out of their sight for 7-9 s, then the heat fades over several seconds (it went in 3 s + 2 s once a mile clear) */
+  const inZone=COP.lkx===undefined||Math.hypot(C.x-COP.lkx,C.z-COP.lkz)<COP_ZR;if(COP.heat>0&&COP.sightT>2&&!inZone&&COP.inZone)safeToast('OUT OF THE SEARCH AREA',2.2);COP.inZone=inZone;
+  if(COP.heat>0&&COP.sightT>(inZone?D.loseT*(.35+.1*COP.heat):3)){   /* (batch 69) out of the search area and unseen, the heat starts to fade after 3 s */   /* unseen for longer the more stars you have */COP.w=Math.max(0,COP.w-Math.max(D.decay*.6,COP.w*.35)*dt);if(COP.w<1)COP.w=0;COP.heat=copLevelOf()}   /* (batch 67) out of their sight for 7-9 s, then the heat fades over several seconds (it went in 3 s + 2 s once a mile clear) */
   /* spawns */
   if(COP.spawnT<=0){
     if(COP.heat>0){/* (batch 67) a few at a time, every 5-7 s: while they can see you a new car comes AT you from the road ahead (so you can dodge it or wreck it, whatever you drive); once they have lost you it turns up near the last place they saw you, not near you */
       const want=D.chaseN[COP.heat],ws=COP_SWAT[COP.heat]||0;let nS=0;for(let i=0;i<TRN;i++){const c=cars[i];if(c.alive&&c.kind===1&&c.cm>=1&&c.cm!=3&&c.state!=1&&c.type==22)nS++}
-      if(nC<want+ws){const type=nS<ws?22:copType(true);let c=null;if(COP.sightT<3)c=copSpawnAhead(type)||(nC==0?trSpawnCop(true,false):null);else if(COP.sightT<D.loseT)c=copSpawnSearch(type);COP.spawnT=c?(nC+1<Math.ceil(want/2)?1.2:5+2*TR.rng()):.8}}   /* the first half of the cars come quickly, then one every 5-7 s */
+      if(COP.gone>0){COP.goneT=(COP.goneT||0)+dt;if(COP.goneT>45){COP.gone--;COP.goneT=0}}   /* (batch 69) one left-behind place frees up every 45 s */
+      if(nC+(COP.gone||0)<want+ws){const type=nS<ws?22:copType(true);let c=null;if(COP.sightT<1)c=copSpawnAhead(type)||(nC==0&&!COP.gone?trSpawnCop(true,false):null);else if(COP.sightT<D.loseT&&inZone)c=copSpawnSearch(type);COP.spawnT=c?(nC==0?4:9+4*TR.rng()):1}}   /* (batch 69) the cap is a cap: a car you left behind is not replaced (only a wrecked one is); a new car comes from ahead only while one can see you, every 9-13 s; once they have lost you new cars turn up only inside the search area, and only while you are still in it */
     else if(nP<D.patrol&&TR.nAlive<TRN-8&&COP.t-(COP.lastPatrol||-99)>110&&DISTRICT_BOXES.some(B=>inBox(C.x,C.z,B,350))){if(trSpawnCop(false)){COP.spawnT=1.6;COP.lastPatrol=COP.t}else COP.spawnT=1}}   /* patrols are rare (batch 9): one at a time (two on Hard), a new one at most every 110 s, and only in or near a town or city: none on the country highways */
   /* roadblock */
   if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>75&&COP.t-(COP.roadT||-99)>12&&COP.sightT<1.5&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<6)copRoadblock()}
@@ -210,6 +213,9 @@ function copTick(dt){
   if(COP.bust>=D.bustT){gameBusted();COP.bust=0}
   COP.sirenVol=COP.heat>0&&minChase<260?Math.pow(1-minChase/260,1.4):0}
 /* a ram or a collision with a cop: called from the player collision code */
+/* (batch 69) the search area on the map: while they can see you it rides with you, flashing red and blue; once they have lost you it stays where they last saw you, dashed */
+function copZoneDraw(ctx,px,pz,sc){if(!(COP.heat>0)||COP.lkx===undefined||!COP.on)return;const seen=COP.sightT<1,f=((R.time*3)|0)&1,x=px(COP.lkx),z=pz(COP.lkz),r=px(COP.lkx+COP_ZR)-x;
+  ctx.save();ctx.beginPath();ctx.arc(x,z,r,0,TAU);ctx.fillStyle=f?'rgba(255,50,50,.15)':'rgba(60,110,255,.15)';ctx.fill();ctx.lineWidth=2.4*sc;if(!seen)ctx.setLineDash([8*sc,6*sc]);ctx.strokeStyle=f?'rgba(255,70,70,.95)':'rgba(80,130,255,.95)';ctx.stroke();ctx.restore()}
 function copRammed(c,e,fault){c.ramCd=COP.D.ramCd*((STARS[COP.heat]||STARS[1]).ramMul||1);if(fault)copTrigger(c.cm>0?Math.max(2,COP.heat):2,'hit a cop');if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;if(fault)copTrigger(4,'wrecked a cop')}}   /* (batch 15: only when it was your fault; a chaser that wrecks itself on you used to add two stars) */   /* a cop that runs into you is not your crime */
 /* ---- HUD: stars, the bust meter, the losing-them bar ---- */
 function copStar(c,x,y,r,fill,col){c.beginPath();for(let k=0;k<10;k++){const a=-PI/2+k*PI/5,rr=k&1?r*.45:r;k?c.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr):c.moveTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}c.closePath();if(fill){c.fillStyle=col;c.fill()}c.strokeStyle='rgba(255,255,255,.7)';c.lineWidth=1.4;c.stroke()}

@@ -63,6 +63,21 @@ const L=require('./rlib.js');
   /* 9. difficulty table */
   const D=await T.ev(()=>{const o={};for(const k of Object.keys(COPD)){copSetDiff(k);o[k]=[COP.D.name,COP.D.top,COP.D.chaseN.join(','),COP.D.ramLevel,COP.D.blockLevel,COP.D.bustT].join('|')}copSetDiff('forgiving');o.cur=COP.diff;return o});
   ok(D.cur=='forgiving'&&Object.keys(D).length==5,'9 difficulty table (batch 63: + brutal, the HARD setting\'s police): '+JSON.stringify({forgiving:D.forgiving,medium:D.medium,hard:D.hard,brutal:D.brutal}));
+  /* 10. (batch 69) the cap: chasers you leave behind are not replaced; once they have lost you, nobody turns up outside the half-mile search area */
+  const Z=await T.ev(()=>{copSetDiff('medium');T3.reset(.3,30);const t=COP.D.thr,pin=()=>{copCall();COP.heat=3;COP.w=t[3]+20;COP.sightT=0;COP.bust=0};pin();const want=COP.D.chaseN[3];let maxC=0;
+    const chasers=()=>TR.cars.filter(c=>c.alive&&c.kind==1&&c.cm>=1&&c.cm!=3&&c.state!=1);
+    for(let s=0;s<120*60&&maxC<want;s++){pin();T3.drive();RACER.worldStep(1/120);maxC=Math.max(maxC,chasers().length)}
+    /* leave them all behind: a mile back */
+    for(const c of chasers()){c.x=c.px=C.x+1500;c.z=c.pz=C.z;c.v=0;c.vx=c.vz=0}const seed0=new Set(TR.cars.filter(c=>c.alive).map(c=>c.seed));
+    let fresh=0;const seen=new Set();for(let s=0;s<120*30;s++){pin();T3.drive();RACER.worldStep(1/120);for(const c of chasers())if(!seed0.has(c.seed)&&!seen.has(c.seed)){seen.add(c.seed);fresh++}}
+    const gone=COP.gone;
+    /* the search area: they last saw you here; you are 700 m away and unseen */
+    copClear(true);T3.reset(.3,0);pin();COP.lkx=C.x;COP.lkz=C.z;for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);
+    const r=T3.ring,k=(T3.ring.n+Math.round(700/r.ds)+Math.round(r.n*.3))%r.n;RACER.carPlace(r.X[k],r.Z[k],0,r.Y[k]+.5);C.vx=C.vz=0;COP.callT=30;COP.sightT=1.5;
+    let spawnedOut=0,tFade=-1;const h0=COP.heat;for(let s=0;s<120*25;s++){C.vx=C.vz=0;RACER.worldStep(1/120);spawnedOut=Math.max(spawnedOut,chasers().length);if(tFade<0&&COP.heat<h0)tFade=s/120}
+    copSetDiff('forgiving');copClear(true);return{want,maxC,fresh,gone,spawnedOut,tFade:+tFade.toFixed(1),dz:Math.round(Math.hypot(C.x-COP.lkx,C.z-COP.lkz)),h0}});
+  ok(Z.maxC>=3&&Z.fresh==0&&Z.gone>=Z.maxC,'10 the chase filled up to '+Z.maxC+' of '+Z.want+'; all left a mile behind: '+Z.fresh+' new police cars in the next 30 s while still wanted (they are not replaced; '+Z.gone+' places stay used)');
+  ok(Z.spawnedOut==0&&Z.tFade>0&&Z.tFade<8,'10 '+Z.dz+' m from where they last saw you (outside the half-mile search area): '+Z.spawnedOut+' police cars turned up, the heat started to fade after '+Z.tFade+' s');
   const perf=await T.ev(()=>({ms:+TR.ms.toFixed(3),alive:TR.nAlive}));console.log('traffic+cops tick '+perf.ms+' ms with '+perf.alive+' cars');
   console.log('errs',T.errs);ok(T.errs.length==0,'no page errors');await T.close();process.exit(bad?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});

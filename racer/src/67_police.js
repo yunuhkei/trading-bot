@@ -27,15 +27,15 @@ function copHeliTick(dt){
   const active=HELI.list.filter(h=>!h.leave).length;if(active<want&&HELI.nextT<=0&&COP.sightT<2){heliSpawn(HELI.list.length);HELI.nextT=active+1<want?4:0}   /* (batch 68) a helicopter is only called in while a police car can see you: lose them while it refuels and none comes back */
   for(const h of HELI.list){h.px=h.x;h.py=h.y;h.pz=h.z;h.pyaw=h.yaw;h.fuel-=dt;if((h.fuel<=0||want==0)&&!h.leave){h.leave=1;if(want>0)HELI.nextT=25}
     const ps=C.speed,ux=ps>3?C.vx/ps:Math.sin(C.yaw),uz=ps>3?C.vz/ps:-Math.cos(C.yaw),side=h.slot%3==0?0:h.slot%3==1?-1:1;
-    let tx=C.x-ux*(22+8*(h.slot%3))+(-uz)*side*24+C.vx*.8,tz=C.z-uz*(22+8*(h.slot%3))+ux*side*24+C.vz*.8,ty=Math.max(terrainH(tx,tz),C.y)+32+5*(h.slot%3);
+    const sd2=side||(h.slot&1?1:-1);let tx=C.x+ux*(75+10*(h.slot%3))+(-uz)*sd2*20+C.vx*.4,tz=C.z+uz*(75+10*(h.slot%3))+ux*sd2*20+C.vz*.4,ty=Math.max(terrainH(tx,tz),C.y)+14+3*(h.slot%3);   /* (batch 69) lower (14-20 m, was 32-45) and ahead to one side, so you see it in the windscreen doing its job */
     if(h.leave){tx=h.x+h.vx*10+(h.slot&1?400:-400);tz=h.z+h.vz*10;ty=h.y+40}
     /* (batch 68) a spike run: fly out ahead of you, then throw a strip down onto your lane */
     if(!h.leave){h.dropT-=dt;if(!h.run&&h.dropT<=0){if(ps>14&&COP.t-(SPIKE.lastT||-99)>6){h.run=1;h.runT=0}else h.dropT=2}
-      if(h.run){h.runT+=dt;tx=C.x+ux*(90+ps*.6)+(-uz)*side*8;tz=C.z+uz*(90+ps*.6)+ux*side*8;ty=Math.max(terrainH(tx,tz),C.y)+26;
+      if(h.run){h.runT+=dt;tx=C.x+ux*(90+ps*.6)+(-uz)*side*8;tz=C.z+uz*(90+ps*.6)+ux*side*8;ty=Math.max(terrainH(tx,tz),C.y)+18;
         const ah=(h.x-C.x)*ux+(h.z-C.z)*uz;if(ah>50&&heliDrop(h,ux,uz)){h.run=0;h.dropT=13+TR.rng()*4}else if(h.runT>10||ps<8){h.run=0;h.dropT=6+TR.rng()*4}}}
     const dx=tx-h.x,dz=tz-h.z,d=Math.hypot(dx,dz),vmax=h.run?Math.min(120,ps*1.35+35):Math.min(85,ps*1.25+30),vw=Math.min(vmax,d*.9),ax=(dx/(d||1)*vw-h.vx)*1.3,az=(dz/(d||1)*vw-h.vz)*1.3,al=Math.hypot(ax,az),lim=h.run?24:14;
     h.vx+=(al>lim?ax/al*lim:ax)*dt;h.vz+=(al>lim?az/al*lim:az)*dt;h.vy+=((ty-h.y)*.8-h.vy)*Math.min(1,dt*2);h.x+=h.vx*dt;h.z+=h.vz*dt;h.y+=h.vy*dt;
-    const gy=terrainH(h.x,h.z)+18;if(h.y<gy)h.y=gy;
+    const gy=terrainH(h.x,h.z)+11;if(h.y<gy)h.y=gy;
     /* it faces you (the spotlight is in its nose), banked into its turns */
     const face=Math.atan2(C.x-h.x,-(C.z-h.z));h.yaw+=angd(h.leave?Math.atan2(h.vx,-h.vz):face,h.yaw)*Math.min(1,dt*1.5);h.rot+=dt*38;
     h.pitch=clamp((h.vx*Math.sin(h.yaw)-h.vz*Math.cos(h.yaw))*-.006,-.25,.25);h.roll=clamp((h.vx*Math.cos(h.yaw)+h.vz*Math.sin(h.yaw))*.006,-.3,.3);
