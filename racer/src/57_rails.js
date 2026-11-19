@@ -50,7 +50,7 @@ function railRacer(c){if(!RAILSEG.length)return false;const fx=Math.sin(c.yaw),f
     const mine=C.t-(c.pHitT??-99)<4;
     if(vn>(mine?8:16)){/* a hard hit: wrecked, through the rail if it was hard enough */if(vn>RAIL_BRK)railBreak(i,vn,cx,cz);else{c.x+=nx*_rl.pen;c.z+=nz*_rl.pen}
       if(typeof sparkAt=='function')sparkAt(cx-nx*r,c.y+.5,cz-nz*r,nx,nz,16,8);
-      c.state=1;c.wt=0;TR.stat.wrecks++;c.vx=vx+nx*vn*.5;c.vz=vz+nz*vn*.5;trFlipKick(c,Math.max(3e5,c.m*vn*vn*.5));
+      c.state=1;c.wt=0;TR.stat.wrecks++;c.vx=vx+nx*vn*.5;c.vz=vz+nz*vn*.5;trFlipKick(c,Math.max(1.6e5,c.m*vn*vn*.5));
       if(mine){c.byP=1;if(typeof evTakedown=='function')evTakedown(c);if(typeof boostTakedown=='function')boostTakedown(c)}return true}
     /* a scrape: kept off the rail, nudged back towards the road, a little speed lost */
     c.x+=nx*_rl.pen;c.z+=nz*_rl.pen;if(vn>0){c.kx=(c.kx||0)+nx*Math.min(4,vn*.8);c.kz=(c.kz||0)+nz*Math.min(4,vn*.8);c.v*=.985}

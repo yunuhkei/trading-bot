@@ -16,7 +16,7 @@ const L=require('./rlib.js');
   ok(c.turb>20&&c.gas>=3&&c.hv>10,'3 landmarks: '+c.turb+' wind turbines, '+c.gas+' gas stations, '+c.farm+' farmsteads, '+c.hv+' high-voltage pylons');
   ok(S.onRoad<=21,'4 the new scenery puts nothing solid on the asphalt: '+S.onRoad+' of '+S.colliders+' colliders sit on a road (21 is the old count, lamp posts and palms at junctions, before any scenery was added)'+(S.onRoad>21?' e.g. '+JSON.stringify(S.lim):''));
   /* furniture was under 200k before the guard rails (16,000 pieces of W-beam and their posts), the traffic lights (1,500 poles, 3,000 heads) and the bus shelters; what is DRAWN per frame is held by rbudget.js */
-  ok(S.tris[2]<1450000&&S.tris[0]<600000&&S.tris[1]<120000,'5 prop triangles (all of the map, only what is near is drawn): furniture '+(S.tris[0]/1000).toFixed(0)+'k, buildings '+(S.tris[1]/1000).toFixed(0)+'k, trees '+(S.tris[2]/1000).toFixed(0)+'k');
+  ok(S.tris[2]<1650000&&S.tris[0]<600000&&S.tris[1]<120000,'5 prop triangles (batch 76: trees up to 1.65M after the coast and trails grew the land; all of the map, only what is near is drawn): furniture '+(S.tris[0]/1000).toFixed(0)+'k, buildings '+(S.tris[1]/1000).toFixed(0)+'k, trees '+(S.tris[2]/1000).toFixed(0)+'k');
   ok(S.shops>=120,'6b shopfronts (glass band and awning) on the town and downtown shop buildings: '+S.shops);
   ok(S.boot<12000,'6 the world builds in '+(S.boot/1000).toFixed(1)+' s (software GL box, noisy: the same build measured 8.9-10.1 s on three runs; it was 4.5 s before the scenery, 8.6 s before the five towns, stops and repair shops of batches 7-8)');
   /* determinism: a second page load builds the identical numbers */
