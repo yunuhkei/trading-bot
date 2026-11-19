@@ -4947,7 +4947,7 @@ function safeHud(c,W_,H_,u){
 const COPD={
   /* top: the slowest a chaser's top speed can be; follow: chasers match your speed times this (up to 105 m/s) and get a rubber-band boost when they fall behind; accel: how hard they accelerate;
      loseT / loseD: you only lose them by being more than loseD metres from every chaser AND out of sight for loseT seconds; passV: speed at which blowing past a cop gets you chased (120 mph) */
-  forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,1,2,3,4,4],patrol:1,ramLevel:2,ramCd:4.2,ramV:10,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:10,loseD:170,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
+  forgiving:{name:'Forgiving',top:58,follow:1.1,accel:12,react:.9,chaseN:[0,1,2,4,5,5],patrol:1,ramLevel:2,ramCd:4.2,ramV:10,blockLevel:3,bustT:5,bustSpd:6,bustN:2,loseT:10,loseD:170,decay:10,ev:1,rbGap:6.5,chaseSpd:3.4,passV:53.64,thr:[0,28,80,160,280,450]},
   medium:{name:'Medium',top:72,follow:1.22,accel:16,react:.6,chaseN:[0,1,2,4,5,5],patrol:1,ramLevel:2,ramCd:2.6,ramV:13,blockLevel:3,bustT:3,bustSpd:7,bustN:2,loseT:14,loseD:230,decay:8,ev:1,rbGap:0,chaseSpd:3.6,passV:53.64,thr:[0,25,70,140,250,400]},
   /* (batch 63) the HARD difficulty's police */
   brutal:{name:'Brutal',top:92,follow:1.36,accel:20,react:.3,chaseN:[0,2,4,5,5,6],patrol:2,ramLevel:1,ramCd:1.4,ramV:18,blockLevel:2,bustT:1.6,bustSpd:8.5,bustN:2,loseT:18,loseD:290,decay:5,ev:1,rbGap:0,chaseSpd:4,passV:53.64,thr:[0,20,55,110,200,320]},
