@@ -44,13 +44,15 @@ const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'
     for(let s=0;s<120*8;s++)RACER.worldStep(1/120);return{st,card:EV.card&&EV.card.title,why:EV.card&&EV.card.lines[0][0],fine:m0-ECON.money,run:!!EV.run}});
   ok(F.st==2&&F.card=='FAILED'&&F.why=='BUSTED'&&!F.run&&F.fine>0,'5 busted during an escape: the event is failed ("'+F.why+'") and the fine is '+F.fine);
   /* 6 money: buying a car, a garage; the event list in your garage */
-  const G=await T.ev(()=>{const o={};EV.card=null;CAROWN.all=false;const i=CAR_ROSTER.findIndex(d=>d.id=='m1'),p=ECON.carPrice('m1');o.price=p;delete CAROWN.owned.m1;
-    ECON.money=p-1;menuOpen();menuPreview(i);menuChoose();o.poor=!CAROWN.owned.m1;ECON.money=p+500;menuChoose();o.bought=!!CAROWN.owned.m1&&ECON.money==500;menuClose();RACER.carSelect(carIndex('k1'));
-    o.free=ECON.carPrice('k1');o.cheap=ECON.carPrice(CAR_ROSTER[0].id);o.dear=ECON.carPrice(CAR_ROSTER[CAR_ROSTER.length-1].id);
+  const G=await T.ev(()=>{const o={};EV.card=null;CAROWN.all=false;/* (batch 71) the ladder: the Mac is far above a Warden-and-Kestrel garage, so it stays locked even with the money; the next rung up from the Warden is bought */const own0=Object.assign({},CAROWN.owned),rec0=Object.assign({},EV.rec);CAROWN.owned={cc_h_warden:true};EV.rec={};
+    {const im=CAR_ROSTER.findIndex(d=>d.id=='m1');ECON.money=1e6;menuOpen();menuPreview(im);menuChoose();o.macLocked=!CAROWN.owned.m1;menuClose()}
+    o.lockedNoWins=!carReach(carRanks().indexOf(1));EV.rec.__t={m:3};const i=carRanks().indexOf(1),id1=CAR_ROSTER[i].id,p=ECON.carPrice(id1);o.price=p;o.name=CAR_ROSTER[i].name;
+    ECON.money=p-1;menuOpen();menuPreview(i);menuChoose();o.poor=!CAROWN.owned[id1];ECON.money=p+500;menuChoose();o.bought=!!CAROWN.owned[id1]&&ECON.money==500;menuClose();CAROWN.owned=own0;EV.rec=rec0;RACER.carSelect(carIndex('k1'));
+    o.free=ECON.carPrice('cc_h_warden');o.cheap=ECON.carPrice(CAR_ROSTER[carRanks().indexOf(1)].id);o.dear=ECON.carPrice(CAR_ROSTER[CAR_ROSTER.length-1].id);
     const s=SAFE.pads.find(q=>!SAFE.owned[q.id]);ECON.money=20000;RACER.carPlace(s.pad.x,s.pad.z,s.yaw,s.y+.4);for(let k=0;k<120*3;k++){IN.thr=0;IN.brk=0;C.vx=C.vz=0;RACER.worldStep(1/120)}o.garage=SAFE.owned[s.id];o.left=ECON.money;
-    SAFE.visit=null;for(let k=0;k<120*3;k++){IN.thr=0;IN.brk=0;C.vx=C.vz=0;RACER.worldStep(1/120)}o.garage=EV.card&&EV.card.btns.map(q=>q.label).join('/');if(EV.card&&EV.card.btns[1])EV.card.btns[1].act();o.list=EV.card&&EV.card.title;o.dbg=[!!SAFE.at,SAFE.visit,SAFE.at&&SAFE.at.id,C.speed,EV.dismiss&&EV.dismiss.id,GAME.state];o.items=EV.card&&EV.card.btns.length;SAFE.owned[s.id]=false;delete CAROWN.owned.m1;EV.card=null;return o});
-  ok(G.poor&&G.bought,'6 a car costs money: the Mac Seven-Twenty is '+G.price+' (one short: still locked; with enough: bought, 500 left)');
-  ok(G.free==0&&G.cheap<G.dear,'6 prices follow speed: the starter is free, the slowest car '+G.cheap+', the fastest '+G.dear);
+    SAFE.visit=null;for(let k=0;k<120*3;k++){IN.thr=0;IN.brk=0;C.vx=C.vz=0;RACER.worldStep(1/120)}o.garage=EV.card&&EV.card.btns.map(q=>q.label).join('/');if(EV.card&&EV.card.btns[1])EV.card.btns[1].act();o.list=EV.card&&EV.card.title;o.dbg=[!!SAFE.at,SAFE.visit,SAFE.at&&SAFE.at.id,C.speed,EV.dismiss&&EV.dismiss.id,GAME.state];o.items=EV.card&&EV.card.btns.length;SAFE.owned[s.id]=false;EV.card=null;return o});
+  ok(G.macLocked&&G.lockedNoWins&&G.poor&&G.bought,'6 the car ladder: with only the Warden, the Mac Seven-Twenty is LOCKED even with a million; the next rung ('+G.name+', '+G.price+') is locked until you win an event, then one short: still not bought; with enough: bought, 500 left');
+  ok(G.free==0&&G.cheap<G.dear,'6 prices climb the ladder: the Warden is free, the next car '+G.cheap+', the fastest '+G.dear);
   ok(G.garage&&G.left==5000,'6 stopping on a locked garage with 20,000 buys it for 15,000');
   console.log(JSON.stringify(G.dbg));ok(G.garage=='ENTER GARAGE/EVENTS/DRIVE ON'&&G.list=='EVENTS'&&G.items>=51,'6 parked in your garage, the garage card ('+G.garage+'), EVENTS lists all '+(G.items-1)+' events (and BACK)');
   /* 7 TAKEDOWN (batch 27, it replaced road rage): a pack of 6 racers sets off ahead of you; only racers count, +5 s each; light traffic while it runs; a racer stuck for 2.4 s (batch 53; it was 5 s) is put back on the route */

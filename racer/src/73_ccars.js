@@ -190,7 +190,7 @@ TTYPES[4].cop=1;TTYPES[4].cc='t_cop';TTYPES[4].vtop=1;TTYPES[20].vtop=1.25;TTYPE
 /* batch 5: the car menu runs from the slowest car to the fastest (top speed, then 0-100 km/h). Saves keep the car by its id, so a saved choice survives the new order; the default car is still the Kestrel S */
 CAR_ROSTER.sort((a,b)=>(a.real.top-b.real.top)||(b.real.t100-a.real.t100)||(a.real.hp-b.real.hp));
 function carIndex(id){const i=CAR_ROSTER.findIndex(d=>d.id===id);return i<0?0:i}
-CARSEL.cur=carIndex('k1');
+CARSEL.cur=carIndex(typeof window!='undefined'&&window.__testK1?'k1':'cc_h_warden');   /* (batch 71) a new player starts in the slowest car, the Warden SUV (the tests keep the Kestrel S they were written for) */
 
 /* ===== (batch 53) THE RACERS DRIVE THE PLAYABLE CARS: twelve roster cars, from a hot hatch to the Bugatti-like hypercar, are traffic types of their own (built the first time one is seen); a racer is picked to be about as fast as your own car, and drives with that car's real figures (see 69_racers.js) ===== */
 const RACER_POOL=[];

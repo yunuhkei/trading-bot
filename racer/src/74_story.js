@@ -64,25 +64,25 @@ const STORY_CH={1:{name:'THE COAST',steps:[
   lose:[['STATIC',"Busted. In a Warden. That's a new low for this county. Try again."]]},
  {k:'ev',id:'deacon',obj:'Beat Deacon',need:'win',
   def:{type:'race',name:"Deacon's Run",diff:1,from:['cr',.5],to:['sh',.15],prize:8000,
-   lineup:[{car:'cc_n_magnet',name:'DEACON',who:'DEACON',sk:.79},{car:'cc_n_drifter',name:'LOOSE',sk:.75},{car:'cc_coupe',name:'KAHUNA',sk:.73}]},
+   lineup:[{car:'cc_n_drifter',name:'DEACON',who:'DEACON',sk:.79},{car:'cc_coupe',name:'LOOSE',sk:.75},{car:'cc_coupe',name:'KAHUNA',sk:.73}]},   /* (batch 71) Deacon drives the Drifter Roadster: the prize is one rung above your Warden (it was the Magnet Muscle, eight rungs up) */
   drive:[['MARGO',"Deacon's been racing the 1 since before you had a license. He'll lean on you in the corners.",{r:1}],
    ['MARGO',"Lean back.",{r:1}]],
   pre:[['DEACON',"You came up the 1 in a Warden? That's not a car, that's a mailbox.",{s:'grid',r:1}],
    ['STATIC',"Main event, county! Deacon versus Nobody. Winner runs the coast!"]],
-  winScene:{actor:{car:'k1',name:'JULES',place:'ahead'},lines:[['DEACON',"...Take the Magnet. Keys are in it.",{s:'front',r:1}],
+  winScene:{actor:{car:'k1',name:'JULES',place:'ahead'},lines:[['DEACON',"...Take the Drifter. Keys are in it.",{s:'front',r:1}],
    ['DEACON',"And tell Margo she still owes me twenty bucks.",{r:1}],
    ['DEACON',"Funny. Jules has been trying to take my car for two years. You did it in a week.",{r:1}],
    ['',"Up the road, a beat-up Kestrel sits idling. Then it pulls away.",{s:'actor',a:'actorLeave'}],
    ['STATIC',"THE MAFIA IS SINKING! Nobody takes the coast!",{s:'high'}],
    ['MARGO',"Not bad, kid. The Valley's next. They don't drive hatchbacks.",{s:'front',r:1}]]},
   lose:[['DEACON',"Hang ten, brah. Come back when that mailbox learns to turn.",{r:1}]]},
- {k:'unlock',car:'cc_n_magnet',name:'MAGNET MUSCLE'},
+ {k:'unlock',car:'cc_n_drifter',name:'DRIFTER ROADSTER'},
  {k:'end',next:'Chapter 2: The Valley'}]}};
 /* line ids for voices: c<chapter>_<step id>_<part>_<nn> */
 for(const ch in STORY_CH)for(const s of STORY_CH[ch].steps){const tag=(k,L)=>{if(L)L.forEach((l,i)=>{l[2]=l[2]||{};l[2].id='c'+ch+'_'+(s.id||s.k)+'_'+k+'_'+String(i+1).padStart(2,'0')})};
   tag('l',s.lines);tag('drive',s.drive);tag('pre',s.pre);tag('win',s.win);tag('lose',s.lose);if(s.winScene)tag('ws',s.winScene.lines)}
 /* ---- saving ---- */
-function storyLoad(){try{const j=JSON.parse(localStorage.getItem(STORY.key)||'null');if(j){STORY.ch=j.ch||1;STORY.step=j.step|0;STORY.car=j.car||'cc_h_warden';STORY.cars=j.cars||{cc_h_warden:1};STORY.pos=j.pos||null;STORY.done=!!j.done;STORY.open=!!j.open}}catch(e){}}
+function storyLoad(){try{const j=JSON.parse(localStorage.getItem(STORY.key)||'null');if(j){STORY.ch=j.ch||1;STORY.step=j.step|0;STORY.car=j.car||'cc_h_warden';STORY.cars=j.cars||{cc_h_warden:1};if(STORY.cars.cc_n_magnet){delete STORY.cars.cc_n_magnet;STORY.cars.cc_n_drifter=1;if(STORY.car=='cc_n_magnet')STORY.car='cc_n_drifter'}   /* (batch 71) the old prize */STORY.pos=j.pos||null;STORY.done=!!j.done;STORY.open=!!j.open}}catch(e){}}
 function storySave(){try{localStorage.setItem(STORY.key,JSON.stringify({ch:STORY.ch,step:STORY.step,car:STORY.car,cars:STORY.cars,pos:STORY.pos,done:STORY.done,open:STORY.open}))}catch(e){}}
 function storyReset(){STORY.ch=1;STORY.step=0;STORY.car='cc_h_warden';STORY.cars={cc_h_warden:1};STORY.pos=null;STORY.done=false;STORY.open=false;storySave()}
 const storyStep=()=>{const ch=STORY_CH[STORY.ch];return ch&&ch.steps[STORY.step]};

@@ -10,7 +10,7 @@ const ECON={money:5000,key:'racer.money',
   price(id){const p=SAFE.price[id];return p==null?null:p},canBuy(id){const p=this.price(id);return p!=null&&this.money>=p},
   buy(id){const p=this.price(id);if(p==null||this.money<p||SAFE.owned[id])return false;this.add(-p);safeUnlock(id);return true},
   repairCost(dmgTotal){return 0},
-  carPrice(id){const d=CAR_ROSTER.find(q=>q.id==id);if(!d||id=='k1')return 0;const t=Math.max(0,d.real.top-240);return Math.round((1500+6*t*t)/500)*500},
+  carPrice(id){const i=CAR_ROSTER.findIndex(q=>q.id==id);if(i<0)return 0;const r=carRank(i);if(r==0)return 0;return Math.round((2500+18*r*r)/500)*500},   /* (batch 71) by the car's rank on the ladder (51_garage.js) */
   buyCar(id){const p=this.carPrice(id);if(this.money<p)return false;this.add(-p);carUnlock(id);return true},
   onCarUnlock(id){},onBusted(){const f=Math.min(10000,Math.round(this.money*.08));if(f>0){this.add(-f);GAME.fine=f}},onWrecked(){GAME.fine=0},onRepair(cost){},onUnlock(id){}};
 const SAFE={owned:{},price:{},pads:[],t:0,svc:0,at:null,msg:'',msgT:0,last:'home',visit:null,key:'racer.save'};

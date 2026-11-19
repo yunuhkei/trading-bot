@@ -40,7 +40,7 @@ c1_deacon_drive_02,MARGO,radio while driving (on the radio),"Lean back.","gas st
 c1_deacon_pre_01,DEACON,scene before the race (on the radio),"You came up the 1 in a Warden? That's not a car, that's a mailbox.","surfer crew boss, laid-back, cocky, says brah"
 c1_deacon_pre_02,DJ STATIC,scene before the race,"Main event, county! Deacon versus Nobody. Winner runs the coast!","pirate radio DJ, loud, playful, fast; slight radio crackle"
 c1_deacon_lose_01,DEACON,radio after losing (on the radio),"Hang ten, brah. Come back when that mailbox learns to turn.","surfer crew boss, laid-back, cocky, says brah"
-c1_deacon_ws_01,DEACON,scene after winning (on the radio),"...Take the Magnet. Keys are in it.","surfer crew boss, laid-back, cocky, says brah"
+c1_deacon_ws_01,DEACON,scene after winning (on the radio),"...Take the Drifter. Keys are in it.","surfer crew boss, laid-back, cocky, says brah"
 c1_deacon_ws_02,DEACON,scene after winning (on the radio),"And tell Margo she still owes me twenty bucks.","surfer crew boss, laid-back, cocky, says brah"
 c1_deacon_ws_03,DEACON,scene after winning (on the radio),"Funny. Jules has been trying to take my car for two years. You did it in a week.","surfer crew boss, laid-back, cocky, says brah"
 c1_deacon_ws_05,DJ STATIC,scene after winning,"THE MAFIA IS SINKING! Nobody takes the coast!","pirate radio DJ, loud, playful, fast; slight radio crackle"

@@ -1,5 +1,5 @@
 // Story mode (batch 58): plays Chapter 1 with a route-following bot. The prologue scene runs and is skipped, every event is started from its card and driven,
-// and the story must move on after each one; at the end the Magnet Muscle is the car and the chapter card shows.  usage: node racer/tests/rstory.js
+// and the story must move on after each one; at the end the Drifter Roadster is the car and the chapter card shows.  usage: node racer/tests/rstory.js
 const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};const LAT=+(process.env.LAT||7.5)   /* (batch 67) 7.5 m/s² of cornering, no nitro: at 6.5 the boss won some runs on Easy by a few metres */,VMAX=+(process.env.VMAX||99);
 (async()=>{const T=await L.launch({q:'go=1&scale=.3&fixed=1&story=new'+'&diff='+(process.env.DIFFQ||'0'),w:300,h:200,mobile:false,traffic:true});
 await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:300000});
@@ -33,6 +33,6 @@ for(const l of out)console.log('     '+(process.env.RFULL?l:l.replace(/racers \[
   ok(/YOU WON/.test(g('test')),"3 Deacon's Test (time trial up the coast) gets a medal");
   ok(/ESCAPED/.test(g('heat')),'4 Heat Check (escape) starts where you are and moves the story on when the cops lose you');
   ok(/YOU WON/.test(g('deacon')),"5 Deacon's Run (the boss race) can be won");
-  ok(/Magnet Muscle/.test(out[out.length-1])&&/CHAPTER 1 COMPLETE/.test(out[out.length-1]),'6 the chapter ends with the Magnet Muscle and the CHAPTER 1 COMPLETE card');
+  ok(/Drifter Roadster/.test(out[out.length-1])&&/CHAPTER 1 COMPLETE/.test(out[out.length-1]),'6 the chapter ends with the Drifter Roadster and the CHAPTER 1 COMPLETE card');
   ok(!T.errs.length,'errors: '+T.errs.slice(0,2).join(' | '));
   console.log(bad?bad+' FAILED':'all passed');await T.close();process.exit(bad?1:0)})().catch(e=>{console.error(e);process.exit(1)});

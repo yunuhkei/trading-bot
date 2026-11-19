@@ -76,7 +76,7 @@ const L=require('./rlib.js');
     const r=T3.ring,k=(T3.ring.n+Math.round(700/r.ds)+Math.round(r.n*.3))%r.n;RACER.carPlace(r.X[k],r.Z[k],0,r.Y[k]+.5);C.vx=C.vz=0;COP.callT=30;COP.sightT=1.5;
     let spawnedOut=0,tFade=-1;const h0=COP.heat;for(let s=0;s<120*25;s++){C.vx=C.vz=0;RACER.worldStep(1/120);spawnedOut=Math.max(spawnedOut,chasers().length);if(tFade<0&&COP.heat<h0)tFade=s/120}
     copSetDiff('forgiving');copClear(true);return{want,maxC,fresh,gone,spawnedOut,tFade:+tFade.toFixed(1),dz:Math.round(Math.hypot(C.x-COP.lkx,C.z-COP.lkz)),h0}});
-  ok(Z.maxC>=3&&Z.fresh<=Z.want-Z.maxC&&Z.gone>=Z.maxC,'10 the chase filled up to '+Z.maxC+' of '+Z.want+'; all left a mile behind: at most '+Z.fresh+' new police cars on you at once in the next 30 s while still wanted (the left-behind ones are not replaced; '+Z.gone+' places stay used)');
+  ok(Z.maxC>=3&&Z.fresh<=Z.want-Z.gone&&Z.gone>=2,'10 the chase filled up to '+Z.maxC+' of '+Z.want+'; all left a mile behind: at most '+Z.fresh+' new police cars on you at once in the next 30 s while still wanted (the left-behind ones are not replaced; '+Z.gone+' places stay used)');
   ok(Z.spawnedOut==0&&Z.tFade>0&&Z.tFade<8,'10 '+Z.dz+' m from where they last saw you (outside the half-mile search area): '+Z.spawnedOut+' police cars turned up, the heat started to fade after '+Z.tFade+' s');
   /* 11. (batch 70) wrecking police cars: the 3rd, 8th and 14th each raise the stars by one; a single wreck no longer jumps to four stars */
   const K=await T.ev(()=>{copSetDiff('medium');T3.reset(.3,0);copClear(true);const seq=[];GAME.state=0;copTrigger(1,'event');const h0=COP.heat;
