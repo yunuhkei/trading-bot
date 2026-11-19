@@ -165,7 +165,7 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
 /* a car you wrecked (from trPlayerCollide): in road rage it counts and adds 4 s */
 function evTakedown(c){const r=EV.run;if(!r||r.t<0||c.kind!==2)return;if(r.ev.type=='death'){r.wrecks++;r.pop=1.2;evBeep(900,.15);safeToast('RACER WRECKED  +500',1.5,1);return}if(r.ev.type!='rage')return;r.wrecks++;r.bonus+=5;r.pop=1.2;evBeep(700+r.wrecks*20,.1)}   /* (batch 27) only racers count: a takedown adds 5 s */
 function evFinishFail(why){const r=EV.run;COP.on=r.copsWas;navClear();EV.run=null;racerClear();copClear(true);EV.card=evResultCard(r.ev,false,why);if(r.ev.story&&typeof storyEvDone=='function')storyEvDone(r.ev,false,{why})}
-function evPlace(r){return 1+r.racers.filter(c=>c.race&&c.race.done>=0).length}
+function evPlace(r){return 1+r.racers.filter(c=>c.race&&c.race.done>=0&&!c.race.ally).length}   /* (batch 73) a racer on your side (Jules in the finale) does not beat you */
 function evFinish(ok){const r=EV.run,ev=r.ev;COP.on=r.copsWas;navClear();EV.run=null;const place=r.racers&&r.racers.length?evPlace(r):0;racerClear();const rec=EV.rec[ev.id]||(EV.rec[ev.id]={});let pay=0,medal=0,best=false;
   if(ev.type=='trial'){medal=evMedal(ev,r.t);const was=rec.m|0,val=m=>m==3?ev.prize:m==2?ev.prize*.6:m==1?ev.prize*.35:0;pay=Math.round(Math.max(val(medal)-val(was),medal?val(medal)*.1:0)/50)*50;
     if(!rec.t||r.t<rec.t){best=!!rec.t;rec.t=r.t;rec.ghost={car:CARM.def.id,s:r.ghost}}if(medal>was)rec.m=medal}

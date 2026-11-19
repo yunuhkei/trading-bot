@@ -7,10 +7,10 @@
    Between steps the RADIO talks over your driving (a panel at the top, never stops the game). Progress is saved after every step (localStorage 'racer.story').
    VOICES: every line has an id (c1_prologue_03 ...); a recorded line in VOXB64 (racer/assets/vox/<id>.mp3, embedded by build.py) is played with it, radio lines through a radio filter;
    without one the text alone shows, timed by its length. tools/story_lines.js lists every line for recording (racer/story/lines.csv). */
-const STORY={on:false,open:false,prevCar:null,ch:1,step:0,car:'cc_h_warden',cars:{cc_h_warden:1},pos:null,key:'racer.story',
+const STORY={flags:{},on:false,open:false,prevCar:null,ch:1,step:0,car:'cc_h_warden',cars:{cc_h_warden:1},pos:null,key:'racer.story',
   dlg:null,radio:[],rcur:null,camOn:false,shot:'front',shotT:0,actor:null,st:{},curEv:null,title:0,done:false,vox:{},voxSrc:null};
 const VOXB64={/*VOXB64*/};
-const STORY_WHO={STATIC:{n:'DJ STATIC',c:'#ff8a2a',radio:1},MARGO:{n:'MARGO',c:'#5fd4c4'},JULES:{n:'JULES',c:'#ff5a6a'},DEACON:{n:'DEACON',c:'#ffc23d'},YOU:{n:'YOU',c:'#e8eef2'},FENNEC:{n:'FENNEC BOYS',c:'#9be070'},'':{n:'',c:'#cfe9f5'}};
+const STORY_WHO={STATIC:{n:'DJ STATIC',c:'#ff8a2a',radio:1},MARGO:{n:'MARGO',c:'#5fd4c4'},JULES:{n:'JULES',c:'#ff5a6a'},DEACON:{n:'DEACON',c:'#ffc23d'},YOU:{n:'YOU',c:'#e8eef2'},FENNEC:{n:'FENNEC BOYS',c:'#9be070'},KINGS:{n:'VALLEY KINGS',c:'#c78bff'},RAY:{n:'RAY',c:'#b06bff'},RUNNERS:{n:'RIDGE RUNNERS',c:'#7fc8ff'},CRANE:{n:'CRANE',c:'#9fd8ff'},DISCIPLES:{n:'DISCIPLES',c:'#ff9d6b'},SAINT:{n:'SAINT',c:'#ff6b3d'},HOUSE:{n:'THE HOUSE',c:'#ffe28a'},'':{n:'',c:'#cfe9f5'}};
 /* Chapter 1: THE COAST (Pacifica, Santa Cruz, Gilroy). Lines: [who, text, {s: camera shot, a: action, r: on the radio}] */
 const STORY_CH={1:{name:'THE COAST',steps:[
  {k:'scene',id:'prologue',at:'gas',actor:{car:'k1',name:'JULES',place:'behind'},obj:'',lines:[
@@ -77,14 +77,229 @@ const STORY_CH={1:{name:'THE COAST',steps:[
    ['MARGO',"Not bad, kid. The Valley's next. They don't drive hatchbacks.",{s:'front',r:1}]]},
   lose:[['DEACON',"Hang ten, brah. Come back when that mailbox learns to turn.",{r:1}]]},
  {k:'unlock',car:'cc_n_drifter',name:'DRIFTER ROADSTER'},
- {k:'end',next:'Chapter 2: The Valley'}]}};
+ {k:'end',next:'Chapter 2: The Valley',won:'You run the coast now.'}]},
+ 2:{name:'THE VALLEY',steps:[
+ {k:'scene',id:'intro',lines:[
+  ['STATIC',"KZRO 88.8, still on the air, still illegal. Big news, county: the coast has a new owner.",{s:'wide'}],
+  ['STATIC',"Nobody. In a roadster. Deacon's roadster. I'm framing the scanner log."],
+  ['MARGO',"Valley's next. Strip malls, cul-de-sacs, and the Valley Kings.",{s:'front',r:1}],
+  ['MARGO',"Their boss is Ray. Runs a tuned Fennec and a mouth twice its size.",{r:1}],
+  ['STATIC',"And word is somebody else wants a piece of you. Somebody in a Kestrel held together with zip ties.",{s:'high'}]]},
+ {k:'ev',id:'kings',obj:'Beat the Valley Kings across the Valley',need:'win',
+  def:{type:'race',name:'Kings of the Cul-de-sac',diff:1,from:['lap',.15],to:['bv',.85],prize:4000,
+   lineup:[{car:'cc_coupe',name:'MOTO',sk:.77,aggr:0},{car:'cc_coupe',name:'BIRDIE',sk:.76,aggr:0},{car:'cc_n_drifter',name:'LEFTY',sk:.75,aggr:1}]},
+  drive:[['STATIC',"The Kings race the Valley loop every night. Three of 'em, one of you."],
+   ['STATIC',"Pro tip from a man who's never driven: don't hit the strip mall."]],
+  pre:[['KINGS',"Coast kid! Heard you took Deacon's car. Cute. This is the Valley.",{s:'grid',r:1}],
+   ['STATIC',"Lights out, county!"]],
+  win:[['STATIC',"The Kings just got dethroned! Somebody tell Ray."],['KINGS',"...Ray's gonna hear about this.",{r:1}]],
+  lose:[['KINGS',"Go back to the beach, coast kid.",{r:1}]]},
+ {k:'ev',id:'mulholland',obj:'Run Mulholland under the Kings\' best time',need:'medal',
+  def:{type:'trial',name:'Mulholland Run',diff:1,from:['bv',.05],to:['mh',.95]},
+  drive:[['RAY',"Yo, Static. This is Ray. Put the coast kid on.",{r:1}],
+   ['RAY',"You wanna race me? Run Mulholland first. Kings' record. Beat it or go home.",{r:1}]],
+  win:[['RAY',"...Huh. Okay. You can drive.",{r:1}],['STATIC',"Ray said something nice! Mark the date!"]],
+  lose:[['RAY',"That's a Sunday drive, kid. Again.",{r:1}]]},
+ {k:'ev',id:'jules',obj:'Race Jules, one on one',need:'win',
+  def:{type:'race',name:'Northern Race',diff:1,from:['sjp',.2],to:['sacp',.6],prize:5000,
+   lineup:[{car:'k1',name:'JULES',who:'JULES',sk:.64,aggr:1}]},
+  drive:[['STATIC',"Message coming in. It's... Jules. Reading it on air, because I have no shame."],
+   ['JULES',"Northern Race. San Jose to Sacramento. Just you and me.",{r:1}],
+   ['JULES',"If I win, you go back to the coast. And stay there.",{r:1}]],
+  pre:[['JULES',"Three years. Three years I've been doing this.",{s:'front',r:1}],
+   ['JULES',"You show up and everybody acts like you invented driving.",{r:1}],
+   ['STATIC',"One on one, county. The tourist and the zip-tie Kestrel. Go!"]],
+  winScene:{lines:[['JULES',"...",{s:'front',r:1}],
+   ['JULES',"THREE YEARS. You know what that's like? No. You don't.",{r:1}],
+   ['MARGO',"Leave it, kid. Jules has been losing a long time. It gets heavy.",{r:1}],
+   ['STATIC',"Oof. The tourist beats the local. That's gonna sting for a while.",{s:'high'}]]},
+  lose:[['JULES',"Now you know how it feels.",{r:1}],['JULES',"...Rematch whenever. Don't make it easy.",{r:1}]]},
+ {k:'ev',id:'heat',obj:'Lose the Valley cops',need:'escape',here:1,
+  def:{type:'escape',name:'Valley Heat',stars:3,secs:200},
+  pre:[['STATIC',"Uh oh. Three stars, Nobody. Valley PD does NOT like the Kings losing.",{s:'high'}],
+   ['STATIC',"Remember: they go where they last saw you. Get out of the circle."]],
+  win:[['STATIC',"Gone! The scanner's just crying now."],['RAY',"Aight. You earned it. The Southern Highway. Tonight. You and me.",{r:1}]],
+  lose:[['STATIC',"Busted in the Valley. The Kings are gonna put that on a T-shirt."]]},
+ {k:'ev',id:'ray',obj:'Beat Ray',need:'win',
+  def:{type:'race',name:"Ray's Run",diff:1,from:['lap',.6],to:['sh',.3],prize:9000,
+   lineup:[{car:'cc_n_courier',name:'RAY',who:'RAY',sk:.81},{car:'cc_coupe',name:'MOTO',sk:.80},{car:'cc_n_drifter',name:'LEFTY',sk:.80}]},
+  drive:[['MARGO',"Ray brakes late and drives wide. Let him. Take the inside.",{r:1}]],
+  pre:[['RAY',"No offense, coast kid. But a roadster in the Valley? That's a beach toy.",{s:'grid',r:1}],
+   ['STATIC',"Main event! Ray and the Kings versus Nobody. Winner takes the Valley!"]],
+  winScene:{lines:[['RAY',"...Keys are in the Fennec. Don't scratch it. Actually, scratch it. I don't care anymore.",{s:'front',r:1}],
+   ['STATIC',"TWO crews down, county! The coast AND the Valley!",{s:'high'}],
+   ['MARGO',"Mountains next. That's Crane's road. Crane doesn't talk much. Crane doesn't need to.",{s:'front',r:1}]]},
+  lose:[['RAY',"Valley's mine, kid. Come back when you can turn.",{r:1}]]},
+ {k:'unlock',car:'cc_n_courier',name:'FENNEC HATCH'},
+ {k:'end',next:'Chapter 3: The Mountains',won:'The Valley is yours.'}]},
+ 3:{name:'THE MOUNTAINS',steps:[
+ {k:'scene',id:'intro',lines:[
+  ['STATIC',"KZRO 88.8, coming to you from a tower I definitely don't own. Mountain report, county.",{s:'wide'}],
+  ['STATIC',"Up north it's the Ridge Runners. Hairpins, cliffs, and their boss: Crane."],
+  ['MARGO',"Crane's been racing that pass for thirty years. Never wrecked once.",{s:'front',r:1}],
+  ['MARGO',"Watch the drops, kid. The mountain doesn't care who you beat down south.",{r:1}]]},
+ {k:'ev',id:'pass',obj:'Run the Mountain Pass for a medal',need:'medal',
+  def:{type:'trial',name:'Mountain Pass',diff:1,from:['mp',.15],to:['mp',.4]},
+  drive:[['STATIC',"Ridge Runners won't race a flatlander. Prove you can climb first."]],
+  win:[['STATIC',"Hold up, the Ridge Runners just called in. They want a race. Ooh."]],
+  lose:[['STATIC',"The mountain wins this round. It's undefeated, honestly."]]},
+ {k:'ev',id:'ridge',obj:'Beat the Ridge Runners up the pass',need:'win',
+  def:{type:'race',name:'Ridge Run',diff:1,from:['mp',.42],to:['mp',.68],prize:6000,
+   lineup:[{car:'cc_roadster',name:'PIKE',who:'RUNNERS',sk:.66,aggr:1},{car:'cc_roadster',name:'HOLLIS',sk:.65,aggr:1},{car:'cc_n_courier',name:'JUNE',sk:.71,aggr:0}]},
+  pre:[['RUNNERS',"Flatlander. You know these roads have edges, right?",{s:'grid',r:1}],['STATIC',"Up the pass, county! Go!"]],
+  win:[['STATIC',"Flatlander beats the Runners on their own road!"],
+   ['STATIC',"Wait. Somebody else just entered Crane's mountain event. Uninvited. In a Kestrel."]],
+  lose:[['RUNNERS',"Stick to the valley, flatlander.",{r:1}]]},
+ {k:'ev',id:'jules',obj:'Survive the mountain death race',need:'medal',
+  def:{type:'death',name:'Ridge Wreckers',diff:1,from:['mp',.72],to:['mp',.97],prize:7000,goals:[1500,3000,4500],
+   lineup:[{car:'k1',name:'JULES',who:'JULES',sk:.70,aggr:2},{car:'cc_roadster',name:'PIKE',sk:.75,aggr:2},{car:'cc_roadster',name:'HOLLIS',sk:.74,aggr:2}]},
+  drive:[['MARGO',"That's Jules behind you. That kid's not racing. That kid's angry. Be careful.",{r:1}]],
+  pre:[['JULES',"Everybody loves the tourist. Let's see how the tourist likes the guardrail.",{s:'rear',r:1}],
+   ['STATIC',"This is NOT a race anymore, county. Wreck or be wrecked!"]],
+  winScene:{lines:[['CRANE',"That one drives like they've got something to prove to a ghost.",{s:'front',r:1}],
+   ['CRANE',"You don't. Remember that.",{r:1}],
+   ['STATIC',"Crane spoke! Crane SPOKE! Thirty years, county. That's the third sentence ever."]]},
+  lose:[['STATIC',"Wrecked on the mountain. Jules is laughing on every channel. Run it back."]]},
+ {k:'ev',id:'heat',obj:'Lose the Highway Patrol',need:'escape',here:1,
+  def:{type:'escape',name:'Mountain Heat',stars:3,secs:200},
+  pre:[['STATIC',"All that wreckage brought the Highway Patrol up the hill. Three stars!",{s:'high'}]],
+  win:[['STATIC',"Lost 'em in the pines! Crane wants to see you. Northern Highway."]],
+  lose:[['STATIC',"Busted on a mountain. At least the view was nice."]]},
+ {k:'ev',id:'crane',obj:'Beat Crane',need:'win',
+  def:{type:'race',name:"Crane's Line",diff:1,from:['nt1',.1],to:['nt2',.9],prize:11000,
+   lineup:[{car:'cc_n_cruiser',name:'CRANE',who:'CRANE',sk:.80},{car:'cc_roadster',name:'PIKE',sk:.66},{car:'cc_n_courier',name:'JUNE',sk:.70}]},
+  drive:[['MARGO',"Crane drives a big old cruiser. Slow out of corners. Fast everywhere else.",{r:1}]],
+  pre:[['CRANE',"...",{s:'grid',r:1}],['STATIC',"That's all you get from Crane, county. Lights out!"]],
+  winScene:{lines:[['CRANE',"Thirty years.",{s:'front',r:1}],
+   ['CRANE',"Take the Parkway. It never let me down. It won't let you down.",{r:1}],
+   ['STATIC',"THREE crews, county! The coast, the Valley, the mountains! Nobody is SOMEBODY now.",{s:'high'}],
+   ['MARGO',"The desert's next. Saint's crew. They don't race clean, kid.",{s:'front',r:1}]]},
+  lose:[['CRANE',"...Again.",{r:1}]]},
+ {k:'unlock',car:'cc_n_cruiser',name:'PARKWAY CRUISER'},
+ {k:'end',next:'Chapter 4: The Desert',won:'The mountains are yours.'}]},
+ 4:{name:'THE DESERT',steps:[
+ {k:'scene',id:'intro',lines:[
+  ['STATIC',"KZRO 88.8! It's a hundred and nine degrees and the signal's cooking. Desert report.",{s:'wide'}],
+  ['STATIC',"Out here it's Saint and the Disciples. They don't race for turf. They race for blood."],
+  ['MARGO',"Saint runs everything from Palm Springs to Barstow. Every race is rigged.",{s:'front',r:1}],
+  ['MARGO',"Win anyway.",{r:1}]]},
+ {k:'ev',id:'dunes',obj:'Win the Palm Springs race',need:'win',
+  def:{type:'race',name:'Dune Line',diff:1,from:['psp',.2],to:['el',.8],prize:7000,
+   lineup:[{car:'cc_roadster',name:'ABEL',who:'DISCIPLES',sk:.73,aggr:1},{car:'cc_n_cruiser',name:'MARA',sk:.76,aggr:1},{car:'cc_roadster',name:'SILAS',sk:.72,aggr:1}]},
+  pre:[['DISCIPLES',"Saint says welcome to the desert. Saint says you won't leave it.",{s:'grid',r:1}],['STATIC',"Go!"]],
+  win:[['STATIC',"Disciples down! Saint is NOT gonna like that."]],
+  lose:[['DISCIPLES',"The desert keeps what it takes.",{r:1}]]},
+ {k:'ev',id:'canyon',obj:'Run the Canyon for a medal',need:'medal',
+  def:{type:'trial',name:'Canyon Run',diff:1,from:['cyr',.1],to:['cyr',.6]},
+  drive:[['STATIC',"The canyon road. Long drops, no rails. Saint's favorite place to lose people."]],
+  win:[['STATIC',"Clean run! Okay, Saint just called a death race. And guess who signed up. Jules."]],
+  lose:[['STATIC',"The canyon says no. Try again before Saint hears."]]},
+ {k:'ev',id:'ambush',obj:'Survive Saint\'s death race',need:'medal',
+  def:{type:'death',name:'Saint\'s Ambush',diff:1,from:['eh',.2],to:['barp',.5],prize:9000,goals:[1500,3000,4500],
+   lineup:[{car:'cc_roadster',name:'ABEL',sk:.79,aggr:2},{car:'cc_n_cruiser',name:'MARA',sk:.78,aggr:2},{car:'cc_roadster',name:'SILAS',sk:.77,aggr:2},{car:'k1',name:'JULES',who:'JULES',sk:.66,aggr:0}]},
+  drive:[['MARGO',"Saint's crew is going after Jules, not just you. Watch your back. Watch Jules's too.",{r:1}]],
+  pre:[['JULES',"Don't look at me like that. I need the money.",{s:'front',r:1}],['STATIC',"Death race in the desert, county. Good luck. Seriously."]],
+  win:[['STATIC',"You made it through! But... hold on. Jules didn't."]],
+  lose:[['STATIC',"The Disciples got you. Shake it off and run it back."]]},
+ {k:'scene',id:'wreck',lines:[
+  ['STATIC',"Saint's boys ran Jules off the highway outside Barstow. The Kestrel's on its roof.",{s:'high'}],
+  ['STATIC',"Saint's crew is still out there. If you go after them now, you catch them."],
+  ['',"Smoke on the shoulder. A beat-up Kestrel, upside down. Nobody else is stopping.",{s:'wide'}]]},
+ {k:'choice',id:'helped',title:'JULES IS DOWN',sub:'The Kestrel is on its roof. Saint\'s crew is getting away.',
+  opts:[{label:'STOP AND HELP',v:1},{label:'KEEP DRIVING',v:0}]},
+ {k:'scene',id:'help',if:'helped',lines:[
+  ['JULES',"...Why'd you stop?",{s:'front'}],
+  ['YOU',"Nobody else was going to."],
+  ['JULES',"...",{s:'side'}],
+  ['JULES',"Saint's crew cheats. Past Indio there's a dirt trail through the canyon. They cut the corner every race."],
+  ['JULES',"Use it. And... thanks. Don't tell anybody I said that."],
+  ['STATIC',"Did I just hear that? On my frequency? Jules said THANKS?",{s:'high'}]]},
+ {k:'radio',id:'nohelp',ifNot:'helped',lines:[
+  ['MARGO',"Jules is out. Whole car's gone. Can't say I'm surprised.",{r:1}],
+  ['STATIC',"Cold, Nobody. Cold. But Saint's still out there."]]},
+ {k:'ev',id:'saint',obj:'Beat Saint',need:'win',
+  def:{type:'race',name:'Saint\'s Road',diff:1,from:['mojp',.2],to:['psp',.5],prize:13000,
+   lineup:[{car:'b2',name:'SAINT',who:'SAINT',sk:.80},{car:'cc_roadster',name:'ABEL',sk:.72},{car:'cc_n_cruiser',name:'MARA',sk:.75}]},
+  drive:[['SAINT',"So you're the one they call Nobody. I'll make sure that's what you go back to being.",{r:1}]],
+  pre:[['SAINT',"Every road out here is mine, Nobody. Every single one.",{s:'grid',r:1}],
+   ['STATIC',"Main event! Saint versus Nobody! Winner takes the desert!"]],
+  winScene:{lines:[['SAINT',"...Take the Baron. It's cursed anyway.",{s:'front',r:1}],
+   ['STATIC',"FOUR CREWS, county! The coast, the Valley, the mountains, the desert!",{s:'high'}],
+   ['MARGO',"That leaves one, kid. Vegas. The House.",{s:'front',r:1}],
+   ['MARGO',"Nobody's ever beaten the House. Fitting, huh?",{r:1}]]},
+  lose:[['SAINT',"The desert keeps what it takes. Come back when you've got nothing left to lose.",{r:1}]]},
+ {k:'unlock',car:'b2',name:'BARON EIGHT'},
+ {k:'end',next:'Chapter 5: Las Vegas',won:'The desert is yours.'}]},
+ 5:{name:'LAS VEGAS',steps:[
+ {k:'scene',id:'intro',lines:[
+  ['STATIC',"KZRO 88.8. Final chapter, county. I can feel it in my antenna.",{s:'wide'}],
+  ['STATIC',"Four crews down. One left. The House runs Las Vegas, and the House never loses."],
+  ['DEACON',"Yo, Warden. It's Deacon. Heard you're going to Vegas.",{s:'front',r:1}],
+  ['DEACON',"Take the Magnet. Bring it back in one piece. Or don't. Just win, brah.",{r:1}],
+  ['MARGO',"Even Deacon's rooting for you now. Don't let it go to your head.",{r:1}]]},
+ {k:'unlock',car:'cc_n_magnet',name:'MAGNET MUSCLE'},
+ {k:'ev',id:'road',obj:'Race the House runners to Las Vegas',need:'win',
+  def:{type:'race',name:'Road to Vegas',diff:1,from:['eh',.8],to:['vegp',.5],prize:9000,
+   lineup:[{car:'cc_n_nitro',name:'ACE',who:'HOUSE',sk:.74,aggr:1},{car:'cc_rally',name:'KING',sk:.74,aggr:1},{car:'cc_n_magnet',name:'QUEEN',sk:.74,aggr:1}]},
+  pre:[['HOUSE',"The House sends its regards. And its runners.",{s:'grid',r:1}],['STATIC',"Mojave to Vegas, county! Go!"]],
+  win:[['STATIC',"You made it to Vegas! The House's runners are walking home!"]],
+  lose:[['STATIC',"The House wins this hand. Deal again."]]},
+ {k:'ev',id:'strip',obj:'Run the Vegas loop for a medal',need:'medal',
+  def:{type:'trial',name:'The Strip',diff:1,from:['mojp',.2],to:['vegp',.3]},
+  drive:[['STATIC',"The House wants to see what you've got before it sits down. Run the loop."]],
+  win:[['STATIC',"The House saw that. And now the House's cops saw that too. Uh oh."]],
+  lose:[['STATIC',"Not fast enough for Vegas. Again."]]},
+ {k:'ev',id:'heat',obj:'Lose the House\'s cops',need:'escape',here:1,
+  def:{type:'escape',name:'House Rules',stars:4,secs:220},
+  pre:[['STATIC',"FOUR STARS, Nobody! The House owns the cops out here! Helicopter and everything!",{s:'high'}]],
+  win:[['STATIC',"You lost them! In VEGAS! The House just put its cards down. It wants to race."]],
+  lose:[['STATIC',"Busted in Vegas. The House always wins. Prove it wrong."]]},
+ {k:'ev',id:'house',if:'helped',obj:'Beat the House',need:'win',
+  def:{type:'race',name:'The House',diff:1,from:['vegp',.7],to:['psp',.5],prize:25000,
+   lineup:[{car:'cc_n_nitro',name:'THE HOUSE',who:'HOUSE',sk:.79},{car:'cc_rally',name:'ACE',sk:.72},{car:'cc_n_magnet',name:'QUEEN',sk:.72},{car:'k1',name:'JULES',who:'JULES',sk:.74,aggr:0,ally:1}]},
+  drive:[['JULES',"Hey. Borrowed a car. I'm in the race. I'll keep the House's runners off you.",{r:1}],
+   ['JULES',"Go. I got your back. Don't make me regret it.",{r:1}]],
+  pre:[['HOUSE',"Everyone who came here to beat me came in something fast. What did you bring?",{s:'grid',r:1}],
+   ['YOU',"A friend."],
+   ['STATIC',"THE FINAL RACE, county! Nobody and Jules against the House! LIGHTS OUT!"]],
+  winScene:{lines:[['HOUSE',"...",{s:'front',r:1}],['HOUSE',"Take the Surge. The House is closed.",{r:1}],
+   ['JULES',"WE DID IT! I mean. YOU did it. But I helped.",{r:1}],
+   ['STATIC',"NOBODY BEAT THE HOUSE! FIVE CREWS, COUNTY! FIVE!",{s:'high'}]]},
+  lose:[['HOUSE',"The House always wins. Sit down. Deal again.",{r:1}]]},
+ {k:'ev',id:'house2',ifNot:'helped',obj:'Beat the House',need:'win',
+  def:{type:'race',name:'The House',diff:1,from:['vegp',.7],to:['psp',.5],prize:25000,
+   lineup:[{car:'cc_n_nitro',name:'THE HOUSE',who:'HOUSE',sk:.80},{car:'cc_rally',name:'ACE',sk:.75},{car:'cc_n_magnet',name:'QUEEN',sk:.74},{car:'cc_n_nitro',name:'KING',sk:.73}]},
+  pre:[['HOUSE',"Everyone who came here to beat me came in something fast. What did you bring?",{s:'grid',r:1}],
+   ['STATIC',"THE FINAL RACE, county! Nobody against the House! LIGHTS OUT!"]],
+  winScene:{lines:[['HOUSE',"...",{s:'front',r:1}],['HOUSE',"Take the Surge. The House is closed.",{r:1}],
+   ['STATIC',"NOBODY BEAT THE HOUSE! FIVE CREWS, COUNTY! FIVE!",{s:'high'}]]},
+  lose:[['HOUSE',"The House always wins. Sit down. Deal again.",{r:1}]]},
+ {k:'unlock',car:'cc_n_nitro',name:'SURGE SPORT'},
+ {k:'scene',id:'epilogue',at:'gas',if:'helped',actor:{car:'k1',name:'JULES',place:'behind'},lines:[
+  ['STATIC',"Gooood morning, county. KZRO 88.8. Quiet morning. Nobody's racing. Nobody needs to.",{s:'wide'}],
+  ['MARGO',"Five crews. Took you less than a summer.",{s:'side'}],
+  ['',"A beat-up Kestrel pulls in. Slowly, this time.",{s:'actor',a:'actorGo'}],
+  ['JULES',"Margo. Fill it. Paying cash.",{s:'two'}],
+  ['MARGO',"...Who are you and what did you do with Jules?"],
+  ['JULES',"Next summer I'm racing you for real. No crews. No Vegas. Just us."],
+  ['YOU',"You'll lose."],
+  ['JULES',"...Probably.",{s:'front'}],
+  ['STATIC',"That's the story, county. Nobody came up the coast in a mailbox and took everything. Stay tuned.",{s:'high'}]]},
+ {k:'scene',id:'epilogue2',at:'gas',ifNot:'helped',lines:[
+  ['STATIC',"Gooood morning, county. KZRO 88.8. Quiet morning. Nobody's racing. Nobody needs to.",{s:'wide'}],
+  ['MARGO',"Five crews. Took you less than a summer.",{s:'side'}],
+  ['MARGO',"Heard Jules left the county. Sold what was left of the Kestrel for parts."],
+  ['MARGO',"You won everything, kid. Hope it was worth it.",{s:'front'}],
+  ['STATIC',"That's the story, county. Nobody came up the coast in a mailbox and took everything. Stay tuned.",{s:'high'}]]},
+ {k:'end',next:'',won:'You run the whole county.'}]}
+};
 /* line ids for voices: c<chapter>_<step id>_<part>_<nn> */
 for(const ch in STORY_CH)for(const s of STORY_CH[ch].steps){const tag=(k,L)=>{if(L)L.forEach((l,i)=>{l[2]=l[2]||{};l[2].id='c'+ch+'_'+(s.id||s.k)+'_'+k+'_'+String(i+1).padStart(2,'0')})};
   tag('l',s.lines);tag('drive',s.drive);tag('pre',s.pre);tag('win',s.win);tag('lose',s.lose);if(s.winScene)tag('ws',s.winScene.lines)}
 /* ---- saving ---- */
-function storyLoad(){try{const j=JSON.parse(localStorage.getItem(STORY.key)||'null');if(j){STORY.ch=j.ch||1;STORY.step=j.step|0;STORY.car=j.car||'cc_h_warden';STORY.cars=j.cars||{cc_h_warden:1};if(STORY.cars.cc_n_magnet){delete STORY.cars.cc_n_magnet;STORY.cars.cc_n_drifter=1;if(STORY.car=='cc_n_magnet')STORY.car='cc_n_drifter'}   /* (batch 71) the old prize */STORY.pos=j.pos||null;STORY.done=!!j.done;STORY.open=!!j.open}}catch(e){}}
-function storySave(){try{localStorage.setItem(STORY.key,JSON.stringify({ch:STORY.ch,step:STORY.step,car:STORY.car,cars:STORY.cars,pos:STORY.pos,done:STORY.done,open:STORY.open}))}catch(e){}}
-function storyReset(){STORY.ch=1;STORY.step=0;STORY.car='cc_h_warden';STORY.cars={cc_h_warden:1};STORY.pos=null;STORY.done=false;STORY.open=false;storySave()}
+function storyLoad(){try{const j=JSON.parse(localStorage.getItem(STORY.key)||'null');if(j){STORY.ch=j.ch||1;STORY.step=j.step|0;STORY.car=j.car||'cc_h_warden';STORY.cars=j.cars||{cc_h_warden:1};if(STORY.cars.cc_n_magnet&&STORY.ch==1){delete STORY.cars.cc_n_magnet;STORY.cars.cc_n_drifter=1;if(STORY.car=='cc_n_magnet')STORY.car='cc_n_drifter'}   /* (batch 71) the old prize */STORY.pos=j.pos||null;STORY.done=!!j.done;STORY.open=!!j.open;STORY.flags=j.flags||{}}}catch(e){}}
+function storySave(){try{localStorage.setItem(STORY.key,JSON.stringify({ch:STORY.ch,step:STORY.step,car:STORY.car,cars:STORY.cars,pos:STORY.pos,done:STORY.done,open:STORY.open,flags:STORY.flags}))}catch(e){}}
+function storyReset(){STORY.ch=1;STORY.step=0;STORY.car='cc_h_warden';STORY.cars={cc_h_warden:1};STORY.pos=null;STORY.done=false;STORY.open=false;STORY.flags={};storySave()}
 const storyStep=()=>{const ch=STORY_CH[STORY.ch];return ch&&ch.steps[STORY.step]};
 function storyLabel(){storyLoad();const ch=STORY_CH[STORY.ch];if(!ch)return'STORY';const n=ch.steps.filter(s=>s.k=='ev').length,d=ch.steps.slice(0,STORY.step).filter(s=>s.k=='ev').length;
   return STORY.step==0?'Drive':'Continue'}
@@ -105,7 +320,9 @@ function storyBegin(fresh){storyLoad();if(fresh)storyReset();if(!STORY.on)STORY.
 /* (batch 61) back to free roam from the pause menu: the story is saved where it is; your free-roam car comes back */
 function storyLeave(){if(!STORY.on)return;if(EV.run&&EV.run.ev.story)evQuit();if(STORY.dlg){STORY.dlg=null;STORY.camOn=false;storyActorKill();voxStop()}STORY.radio=[];STORY.rcur=null;STORY.curEv=null;
   if(EV.card&&EV.card.story)EV.card=null;STORY.pos={x:C.x,z:C.z,y:C.y,yaw:C.yaw};storySave();STORY.on=false;navClear();if(STORY.freeCar!=null)carSelect(STORY.freeCar);safeToast('FREE ROAM  ·  story saved',2.5)}
-function storyAdvance(){STORY.step++;STORY.st={};STORY.pos={x:C.x,z:C.z,y:C.y,yaw:C.yaw};storySave()}
+/* (batch 73) a step can depend on a choice: if:'flag' (only when it was chosen) / ifNot:'flag' */
+const storyOk=s=>!s||((!s.if||STORY.flags[s.if])&&(!s.ifNot||!STORY.flags[s.ifNot]));
+function storyAdvance(){const ch=STORY_CH[STORY.ch];do{STORY.step++}while(ch&&ch.steps[STORY.step]&&!storyOk(ch.steps[STORY.step]));STORY.st={};STORY.pos={x:C.x,z:C.z,y:C.y,yaw:C.yaw};storySave()}
 /* ---- the radio: lines over your driving ---- */
 function storyRadio(lines){if(!lines)return;for(const l of lines)STORY.radio.push(l)}
 const storyDur=l=>{const v=STORY.vox[l[2]&&l[2].id];return v&&v.duration?v.duration+.35:Math.max(2.2,Math.min(6.5,1.3+l[1].length*.052))};
@@ -152,8 +369,8 @@ function storyEvDone(ev,ok,o){const step=storyStep();if(!STORY.on||!step||step.k
   else{if(card){if(ok)card.lines.unshift([step.need=='win'?'WIN THE RACE TO MOVE ON':'GET A MEDAL TO MOVE ON','#ffc23d']);card.title='TRY AGAIN';
       card.btns=[{label:'RETRY',col:'#ff7a1a',act:()=>{EV.card=null;storyStartEv(step,true)}},{label:'LATER',col:'#8a94a6',act:()=>{EV.card=null}}]}storyRadio(step.lose)}}
 function storyAfterWin(step){if(step.winScene)storyScene(step.winScene,()=>{});else storyRadio(step.win)}
-function storyBrief(step){const t={race:'RACE',trial:'TIME TRIAL',escape:'ESCAPE'}[step.def.type]||'EVENT',need={win:'Finish first',medal:'Get a medal (bronze or better)',escape:'Lose the cops'}[step.need]||'';
-  const lines=[[step.obj,'#fff'],['To move on: '+need,'#ffc23d']];if(step.def.lineup)lines.push(['Racers: '+step.def.lineup.map(l=>l.name).join(', '),'rgba(233,230,220,.75)']);
+function storyBrief(step){const t={race:'RACE',trial:'TIME TRIAL',escape:'ESCAPE',death:'DEATH RACE',rage:'TAKEDOWN'}[step.def.type]||'EVENT',need={win:'Finish first',medal:step.def.type=='death'?'Score a medal (wrecks and your place)':'Get a medal (bronze or better)',escape:'Lose the cops'}[step.need]||'';
+  const lines=[[step.obj,'#fff'],['To move on: '+need,'#ffc23d']];if(step.def.lineup)lines.push(['Racers: '+step.def.lineup.filter(l=>!l.ally).map(l=>l.name).join(', ')+(step.def.lineup.some(l=>l.ally)?'  ·  on your side: '+step.def.lineup.filter(l=>l.ally).map(l=>l.name).join(', '):''),'rgba(233,230,220,.75)']);
   return{offer:1,story:1,title:'STORY  ·  '+t,sub:step.def.name,lines,btns:[{label:'START',col:'#ff7a1a',act:()=>storyStartEv(step,false)},{label:'NOT NOW',col:'#8a94a6',act:()=>{EV.card=null;STORY.st.dismiss=1}}]}}
 /* ---- every step of the world ---- */
 function storyTick(dt){if(!STORY.on)return;if(STORY.title>0)STORY.title-=dt;
@@ -162,9 +379,14 @@ function storyTick(dt){if(!STORY.on)return;if(STORY.title>0)STORY.title-=dt;
     if(D.i>=0&&D.t>storyDur(D.lines[D.i]))storyLine(D.i+1);return}
   if(EV.run||GAME.state||MENU.open)return;if(EV.card&&!EV.card.offer&&!EV.card.garage)return;   /* a result card is open: wait for CONTINUE */const step=storyStep();if(!step)return;const st=STORY.st;
   if(step.k=='scene'){if(!st.started){st.started=1;if(step.at=='gas')storyPlace(storyGas());storyScene(step,()=>storyAdvance())}return}
+  if(step.k=='radio'){storyRadio(step.lines);storyAdvance();return}
+  if(step.k=='choice'){if(!st.shown){st.shown=1;EV.card={story:1,title:step.title,sub:step.sub,lines:[['Choose. It changes how the story ends.','rgba(233,230,220,.8)']],btns:step.opts.map((o,i)=>({label:o.label,col:i==0?'#ff7a1a':'#8a94a6',act:()=>{EV.card=null;STORY.flags[step.id]=o.v;storySave();storyAdvance()}}))}}return}
   if(step.k=='open'){STORY.open=true;storySave();storyRadio(step.lines);safeToast('FREE ROAM OPEN  ·  story jobs are gold on the map',4);storyAdvance();return}
   if(step.k=='unlock'){STORY.cars[step.car]=1;STORY.car=step.car;if(typeof carUnlock=='function')carUnlock(step.car);const i=CAR_ROSTER.findIndex(d=>d.id==step.car);if(i>=0)carSelect(i);safeToast('NEW CAR  ·  '+step.name,3.5);storyAdvance();return}
-  if(step.k=='end'){if(!st.shown){st.shown=1;STORY.done=true;storySave();EV.card={story:1,title:'CHAPTER '+STORY.ch+' COMPLETE',sub:STORY_CH[STORY.ch].name,lines:[['You run the coast now. The '+((STORY_CH[STORY.ch].steps.find(q=>q.k=='unlock')||{}).name||'new car').toLowerCase().replace(/\b\w/g,m=>m.toUpperCase())+' is yours.','#fff'],['Next: '+step.next+'  (coming soon)','#ffc23d'],['Keep driving: the map events are still open.','rgba(233,230,220,.75)']],btns:[{label:'OK',col:'#ff7a1a',act:()=>{EV.card=null}}]}}return}
+  if(step.k=='end'){if(!st.shown){st.shown=1;const nx=STORY_CH[STORY.ch+1],car=((STORY_CH[STORY.ch].steps.filter(q=>q.k=='unlock').pop()||{}).name||'new car').toLowerCase().replace(/\b\w/g,m=>m.toUpperCase());
+    if(nx){storySave();EV.card={story:1,title:'CHAPTER '+STORY.ch+' COMPLETE',sub:STORY_CH[STORY.ch].name,lines:[[(step.won||'')+' The '+car+' is yours.','#fff'],['Next: '+step.next,'#ffc23d']],
+      btns:[{label:'CHAPTER '+(STORY.ch+1),col:'#ff7a1a',act:()=>{EV.card=null;STORY.ch++;STORY.step=0;STORY.st={};STORY.title=3.2;storySave()}}]}}   /* (batch 73) on to the next chapter */
+    else{STORY.done=true;storySave();EV.card={story:1,title:'THE END',sub:'NOBODY\'S CAR',lines:[[(step.won||'')+' The '+car+' is yours.','#fff'],[STORY.flags.helped?'You stopped for Jules. Jules stopped for you.':'You never looked back.','#ffc23d'],['Free roam is all yours: every event, every car.','rgba(233,230,220,.75)']],btns:[{label:'OK',col:'#ff7a1a',act:()=>{EV.card=null}}]}}}return}
   if(step.k=='ev'){if(!st.init){st.init=1;storyRadio(step.drive)}
     if(step.here){if(!st.go&&!STORY.rcur&&!STORY.radio.length&&!EV.card){st.go=1;storyStartEv(step,false)}else if(st.go&&!STORY.curEv){if(C.speed>15)st.dismiss=0;if(!EV.card&&C.speed<2&&!st.dismiss)EV.card=storyBrief(step)}return}   /* failed and closed: stop anywhere and the card offers it again */
     if(!st.ev){st.ev=evBuild(Object.assign({id:'story_c'+STORY.ch+'_'+step.id,story:1,minLen:300},step.def))}const e=st.ev;if(!e)return;

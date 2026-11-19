@@ -4,7 +4,7 @@ const fs=require('fs'),path=require('path'),vm=require('vm');
 const src=fs.readFileSync(path.join(__dirname,'..','src','74_story.js'),'utf8');
 const ctx={console};vm.createContext(ctx);vm.runInContext(src.replace(/^'use strict';/,'')+'\nthis.STORY_CH=STORY_CH;this.STORY_WHO=STORY_WHO;',ctx);
 const DIR={STATIC:'pirate radio DJ, loud, playful, fast; slight radio crackle',MARGO:'gas station owner, 60s, dry, tired but warm',JULES:'rival, young, proud, bitter edge, never shouts unless it says so',
-  DEACON:'surfer crew boss, laid-back, cocky, says brah',FENNEC:'two or three teenage voices at once, hyped',YOU:'the player, few words, calm',"":'(narration, not voiced)'};
+  DEACON:'surfer crew boss, laid-back, cocky, says brah',FENNEC:'two or three teenage voices at once, hyped',KINGS:'valley crew, cocky, suburban swagger',RAY:'valley crew boss, fast talker, big mouth, secretly decent',RUNNERS:'mountain crew, dry, unimpressed',CRANE:'old mountain racer, 60s, very few words, slow and heavy',DISCIPLES:'desert crew, creepy calm, almost a chant',SAINT:'desert crew boss, quiet menace, never raises his voice',HOUSE:'Vegas boss, smooth, rich, amused, a dealer\'s calm',YOU:'the player, few words, calm',"":'(narration, not voiced)'};
 const where={l:'scene',drive:'radio while driving',pre:'scene before the race',win:'radio after winning',lose:'radio after losing',ws:'scene after winning'};
 const q=s=>'"'+String(s).replace(/"/g,'""')+'"';const rows=[['id','character','where','line','direction'].join(',')];
 for(const ch in ctx.STORY_CH)for(const s of ctx.STORY_CH[ch].steps){for(const [k,L] of [['l',s.lines],['drive',s.drive],['pre',s.pre],['win',s.win],['lose',s.lose],['ws',s.winScene&&s.winScene.lines]]){if(!L)continue;
