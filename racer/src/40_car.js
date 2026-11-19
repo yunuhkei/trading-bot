@@ -113,7 +113,7 @@ function carStep(dt){
   if(C.y<gy-.03)C.y=gy-.03;
   const gr=C.grounded;
   /* ---- inputs ---- */
-  let thr=IN.thr,brk=IN.brk;if(IN.auto&&!IN.brk)thr=1;
+  let thr=IN.thr,brk=IN.brk;if(IN.auto&&!IN.brk)thr=1;if(UI.mapOpen){thr=0;brk=(C.vx*Math.sin(C.yaw)-C.vz*Math.cos(C.yaw))>1.5?.45:0;IN.nitro=0;IN.hand=0}   /* (batch 70) map open: off the gas, brakes on, never into reverse */
   /* nitro is a latch: one tap starts it, it runs until the tank is empty (or you brake / tap again), and it pushes even if you are not on the gas */
   if(IN.nitro&&(C.nos<=.015||brk>0||(EV.run&&EV.run.t<0)))IN.nitro=0;   /* (batch 54) never during an event countdown */
   const nitroOn=IN.nitro?1:0;C.boosting=nitroOn;if(nitroOn){C.nos=Math.max(0,C.nos-dt*.30*UPG.nosDrain);thr=1}
@@ -129,7 +129,7 @@ function carStep(dt){
     if(!C.onRoad)a-=Math.sign(f)*(2.2+af*.035);        /* grass drag */
     a-=GRAV*slope/m2;                                  /* hills: gravity along the ground (climbing turns speed into height, descending turns height into speed) */
     s-=GRAV*mr/m2*dt;                                  /* and sideways down a camber */
-    f+=a*dt;
+    f+=a*dt;if(UI.mapOpen&&Math.abs(f)<2.5){f=0;s*=Math.pow(.01,dt)}   /* (batch 70) and a parking brake once nearly stopped (it rolled back down hills) */
     if(thr==0&&brk==0&&!IN.auto)f-=Math.sign(f)*Math.min(af,(HND.engBrk0+HND.engBrk1*af)*dt)}   /* (batch 28) off the gas the car COASTS like a real one: engine braking in gear (0.15 + 0.012 v m/s2) on top of the rolling and air drag above; it used to stop at 4.5 m/s2, nearly a brake */
   /* ---- lateral: grip first (the car runs wide before it slides), the handbrake starts a controlled drift ---- */
   const sp=Math.min(1,af/60);const steer=C.steer;

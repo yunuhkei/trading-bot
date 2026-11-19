@@ -17,7 +17,7 @@ const fmtMass=kg=>UNITS.imp?Math.round(kg*2.20462)+' lb':Math.round(kg)+' kg';
 
 /* ---------------- the map: what each icon is ---------------- */
 const MAPKEY=[['GARAGE (YOURS)','#3cf08c','dot'],['GARAGE (FOR SALE)','#8d97a3','dot'],['REPAIR SHOP','#2a6be0','cross'],['TIME TRIAL','#ffb000','flag'],['RACE','#2a9be0','flag'],['DEATH RACE','#e04a2a','flag'],
-  ['TAKEDOWN','#a050e0','flag'],['ESCAPE','#e03030','flag'],['SPEED TRAP','rgb(76,153,255)','dot'],['JUMP','rgb(76,255,115)','dot'],['STREET RACER','#ffd23a','dot']];
+  ['TAKEDOWN','#a050e0','flag'],['ESCAPE','#e03030','flag'],['SPEED TRAP','rgb(76,153,255)','dot'],['POLICE','#ff3a3a','dot'],['RACER','#ffd23a','dot']];   /* (batch 70) the police and the racers move on the map live; JUMP left out (the jumps are secrets) */
 function mapKeyIcon(c,x,y,r,col,shape){c.fillStyle=col;c.beginPath();c.arc(x,y,r,0,TAU);c.fill();if(shape=='flag'){c.fillStyle='#111';c.fillRect(x-r*.45,y-r*.45,r*.45,r*.45);c.fillRect(x,y,r*.45,r*.45)}
   else if(shape=='cross'){c.fillStyle='#fff';c.fillRect(x-r*.62,y-r*.18,r*1.24,r*.36);c.fillRect(x-r*.18,y-r*.62,r*.36,r*1.24)}}
 function mapLegend(c,W_,H_,u){const fs=u*.17,row=u*.27,cols=2,rows=Math.ceil(MAPKEY.length/cols),cw=u*2.15,pw=cw*cols+u*.3,ph=rows*row+u*.5,x=u*.3,y=H_-ph-u*.3;

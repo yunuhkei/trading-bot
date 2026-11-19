@@ -168,7 +168,7 @@ function drawWorldMap(c,W_,H_,u){
   evMapIcons(c,wpx,wpz,Math.max(3,u*.13)*sc);spotMapIcons(c,wpx,wpz,Math.max(3,u*.13)*sc);
   for(const p of REPAIRS){const r=Math.max(3,u*.12)*sc,x=wpx(p.x),z=wpz(p.z);c.beginPath();c.arc(x,z,r,0,TAU);c.fillStyle='#2a6be0';c.fill();c.fillStyle='#fff';c.fillRect(x-r*.62,z-r*.18,r*1.24,r*.36);c.fillRect(x-r*.18,z-r*.62,r*.36,r*1.24)}
   for(const h of SAFEHOUSES){c.beginPath();c.arc(wpx(h.x),wpz(h.z),Math.max(3,u*.11)*sc,0,TAU);c.fillStyle=SAFE.owned[h.id]?'#3cf08c':'#8d97a3';c.fill();c.lineWidth=1.5*sc;c.strokeStyle='#071018';c.stroke()}
-  copZoneDraw(c,wpx,wpz,sc);
+  copZoneDraw(c,wpx,wpz,sc);racerMapIcons(c,wpx,wpz,Math.max(3,u*.12)*sc);copMapDots(c,wpx,wpz,Math.max(3,u*.13)*sc);
   navMapOverlay(c,pxm,k);
   /* you */
   c.save();c.translate(wpx(C.x),wpz(C.z));c.scale(sc,sc);c.strokeStyle='rgba(255,122,26,'+(.75-.4*Math.sin(C.t*6))+')';c.lineWidth=2;c.beginPath();c.arc(0,0,9+3*Math.sin(C.t*6),0,TAU);c.stroke();c.rotate(C.yaw);c.fillStyle='#ff7a1a';c.strokeStyle='#fff';c.lineWidth=1.8;c.beginPath();c.moveTo(0,-10);c.lineTo(7,8);c.lineTo(0,3);c.lineTo(-7,8);c.closePath();c.fill();c.stroke();c.restore();

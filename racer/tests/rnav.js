@@ -87,7 +87,7 @@ let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};
         if(s>=120*60&&catchT<0&&md<25)catchT=t;if(nc==0)lostChasers++}
       t+=dt}
     return{h0,near,tot,minD,lost:lostChasers,drops:heatDrops,catchT,heat:COP.heat,speed:C.speed,endedAt}});
-  ok(ch.drops==0&&ch.lost<=4&&ch.near/ch.tot>.75,'a chase at 60 m/s for 100 s: the cops stay on you (within 300 m in '+Math.round(ch.near/ch.tot*100)+' % of the samples, never without a chaser for more than '+ch.lost+' s) and the heat never drops (stars '+ch.h0+' -> '+ch.heat+')'+(ch.endedAt>=0?'; the bot, which never swerves, was wrecked or busted by the cops after '+ch.endedAt.toFixed(0)+' s':''));
+  ok(ch.endedAt>=0||ch.heat<ch.h0,'(batch 69: they only know where you are while they can see you) a chase at 60 m/s (134 mph) for 100 s: you can outrun them (within 300 m in '+Math.round(ch.near/ch.tot*100)+' % of the samples, never without a chaser for more than '+ch.lost+' s), the heat drops (stars '+ch.h0+' -> '+ch.heat+')'+(ch.endedAt>=0?'; the bot, which never swerves, was wrecked or busted by the cops after '+ch.endedAt.toFixed(0)+' s':''));
   ok(ch.catchT>=0||ch.minD<30||ch.endedAt>=0,'and when you slow down they catch you (closest '+ch.minD.toFixed(0)+' m'+(ch.catchT>=0?', within 25 m '+(ch.catchT-60).toFixed(0)+' s after slowing':'')+')');
   console.log('errs',T.errs.slice(0,4));ok(T.errs.length==0,'no page errors');
   await T.close();process.exit(bad?1:0);

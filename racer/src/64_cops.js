@@ -34,9 +34,9 @@ function copSetDiff(n){if(COPD[n]){COP.D=COPD[n];COP.diff=n}}
 /* ---- heat ---- */
 function copLevelOf(){const t=COP.D.thr;let L=0;for(let i=1;i<6;i++)if(COP.w>=t[i]*(i<=COP.heat?.7:1))L=i;return L}
 /* what gets you chased (and nothing else does): you hit a cop car, you blow past a cop at 120 mph or more, you crash into another car. level = the number of stars it is worth at least */
-function copTrigger(level,why){
+function copTrigger(level,why,keep){
   if(!COP.on||GAME.state||!TR.on)return;if(why!=='hit a cop'&&why!=='event'&&!copWitness())return;(COP.crimes||(COP.crimes=[])).push({t:+C.t.toFixed(1),why:why||'?',level});if(COP.crimes.length>40)COP.crimes.shift();const t=COP.D.thr;
-  if(COP.w<t[level]+1)COP.w=t[level]+1;else COP.w+=(t[Math.min(5,level+1)]-t[level])*.3;
+  if(COP.w<t[level]+1)COP.w=t[level]+1;else if(!keep)COP.w+=(t[Math.min(5,level+1)]-t[level])*.3;   /* keep (batch 70): it holds the stars you have but adds nothing */
   if(COP.w>t[5]*1.3)COP.w=t[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=0;copCall()}
 /* how fast a chaser may go: it matches you (a little more), never less than the difficulty's top, and gets a boost the further behind it falls, so it keeps coming */
 /* how fast a police car can go (batch 5): its own top speed, the difficulty's top (Forgiving 58 m/s, 130 mph) times its type (interceptor 1.25, SUV 0.95, SWAT truck 0.8). They no longer match your speed: a fast car
@@ -44,7 +44,7 @@ function copTrigger(level,why){
 function copTop(c){const D=COP.D;let t=D.top*(c?(TTYPES[c.type]&&TTYPES[c.type].vtop)||1:1);if(c&&COP.sightT<1.5&&Math.hypot(c.x-C.x,c.z-C.z)<45)t=Math.max(t,Math.min(C.speed+6,t*1.12));return Math.min(115,t)}
 function heatAdd(p){if(!COP.on||GAME.state||!TR.on)return;COP.w+=p*COP.D.ev;if(COP.w>COP.D.thr[5]*1.3)COP.w=COP.D.thr[5]*1.3;const L=copLevelOf();if(L>COP.heat){COP.heat=L;COP.heatT=0}COP.sightT=Math.min(COP.sightT,.2);copCall()}
 /* wipe the heat and send the chasers home (full: they disappear, as when you reach a garage) */
-function copClear(full){COP.w=0;COP.heat=0;COP.bust=0;COP.sightT=99;COP.gone=0;COP.goneT=0;SPIKE.list.length=0;SPIKE.fall.length=0;if(full)HELI.list.length=0;
+function copClear(full){COP.w=0;COP.heat=0;COP.kills=0;COP.bust=0;COP.sightT=99;COP.gone=0;COP.goneT=0;SPIKE.list.length=0;SPIKE.fall.length=0;if(full)HELI.list.length=0;
   for(const c of TR.cars){if(!c.alive||c.kind!==1)continue;if(c.cm==3||(full&&c.cm>0))trKill(c,0);else if(c.cm>0)copStandDown(c)}}
 function copStandDown(c){c.cm=0;c.siren=0;c.v0f=1;c.A=2.2;if(c.state==3)copAttach(c)}
 function copAlert(c){c.cm=1;c.siren=1;c.v0f=COP.D.chaseSpd;c.A=COP.D.accel*.85;c.T=.7;c.pickJ=-1;c.role=0;c.rt=null}
@@ -198,6 +198,7 @@ function copTick(dt){
   if(COP.sightT<1||COP.lkx===undefined){COP.lkx=C.x;COP.lkz=C.z;COP.lkyaw=C.yaw;COP.lkPl=NAV.pl}   /* the last place they saw you */
   const inZone=COP.lkx===undefined||Math.hypot(C.x-COP.lkx,C.z-COP.lkz)<COP_ZR;if(COP.heat>0&&COP.sightT>2&&!inZone&&COP.inZone)safeToast('OUT OF THE SEARCH AREA',2.2);COP.inZone=inZone;
   if(COP.heat>0&&COP.sightT>(inZone?D.loseT*(.35+.1*COP.heat):3)){   /* (batch 69) out of the search area and unseen, the heat starts to fade after 3 s */   /* unseen for longer the more stars you have */COP.w=Math.max(0,COP.w-Math.max(D.decay*.6,COP.w*.35)*dt);if(COP.w<1)COP.w=0;COP.heat=copLevelOf()}   /* (batch 67) out of their sight for 7-9 s, then the heat fades over several seconds (it went in 3 s + 2 s once a mile clear) */
+  if(COP.heat==0&&(COP.kills||COP.gone)){COP.kills=0;COP.gone=0}   /* (batch 70) the wreck count and the used places end with the chase */
   /* spawns */
   if(COP.spawnT<=0){
     if(COP.heat>0){/* (batch 67) a few at a time, every 5-7 s: while they can see you a new car comes AT you from the road ahead (so you can dodge it or wreck it, whatever you drive); once they have lost you it turns up near the last place they saw you, not near you */
@@ -209,14 +210,22 @@ function copTick(dt){
   if(COP.heat>=D.blockLevel&&COP.t-COP.lastBlock>75&&COP.t-(COP.roadT||-99)>12&&COP.sightT<1.5&&ps>16){let nb=0;for(const c of cars)if(c.alive&&c.cm==3)nb++;if(nb<6)copRoadblock()}
   copHeliTick(dt);copSpikeTick(dt);
   /* boxed in: slow, with cops all round, for long enough */
-  if(COP.heat>0&&ps<D.bustSpd&&nNear>=D.bustN)COP.bust+=dt;else COP.bust=Math.max(0,COP.bust-dt*1.5);
+  if(COP.heat>0&&ps<D.bustSpd&&nNear>=D.bustN&&!UI.mapOpen)COP.bust+=dt;else COP.bust=Math.max(0,COP.bust-dt*1.5);
   if(COP.bust>=D.bustT){gameBusted();COP.bust=0}
   COP.sirenVol=COP.heat>0&&minChase<260?Math.pow(1-minChase/260,1.4):0}
 /* a ram or a collision with a cop: called from the player collision code */
 /* (batch 69) the search area on the map: while they can see you it rides with you, flashing red and blue; once they have lost you it stays where they last saw you, dashed */
+/* (batch 70) the police and the racers on the world map, live */
+function copMapDots(ctx,px,pz,r){if(!TR.on)return;const fl=((R.time*6)|0)&1;for(const c of TR.cars){if(!c.alive||c.state==1&&c.kind!==2)continue;if(c.kind===1){if(c.cm==0&&!c.siren)continue;ctx.fillStyle=c.cm==3?'#ff8a3a':(fl?'#ff3a3a':'#3a7aff');ctx.fillRect(px(c.x)-r*.55,pz(c.z)-r*.55,r*1.1,r*1.1)}else if(c.kind===2){ctx.beginPath();ctx.arc(px(c.x),pz(c.z),r*.6,0,TAU);ctx.fillStyle=c.state==1?'#6a6a6a':'#ffd23a';ctx.fill();ctx.lineWidth=r*.18;ctx.strokeStyle='#1a1200';ctx.stroke()}}
+  for(const h of HELI.list){ctx.strokeStyle=fl?'#ff3a3a':'#3a7aff';ctx.lineWidth=r*.3;ctx.beginPath();ctx.arc(px(h.x),pz(h.z),r*1.1,0,TAU);ctx.stroke()}}
 function copZoneDraw(ctx,px,pz,sc){if(!(COP.heat>0)||COP.lkx===undefined||!COP.on)return;const seen=COP.sightT<1,f=((R.time*3)|0)&1,x=px(COP.lkx),z=pz(COP.lkz),r=px(COP.lkx+COP_ZR)-x;
   ctx.save();ctx.beginPath();ctx.arc(x,z,r,0,TAU);ctx.fillStyle=f?'rgba(255,50,50,.15)':'rgba(60,110,255,.15)';ctx.fill();ctx.lineWidth=2.4*sc;if(!seen)ctx.setLineDash([8*sc,6*sc]);ctx.strokeStyle=f?'rgba(255,70,70,.95)':'rgba(80,130,255,.95)';ctx.stroke();ctx.restore()}
-function copRammed(c,e,fault){c.ramCd=COP.D.ramCd*((STARS[COP.heat]||STARS[1]).ramMul||1);if(fault)copTrigger(c.cm>0?Math.max(2,COP.heat):2,'hit a cop');if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;if(fault)copTrigger(4,'wrecked a cop')}}   /* (batch 15: only when it was your fault; a chaser that wrecks itself on you used to add two stars) */   /* a cop that runs into you is not your crime */
+function copRammed(c,e,fault){c.ramCd=COP.D.ramCd*((STARS[COP.heat]||STARS[1]).ramMul||1);if(fault){if(c.cm>0&&COP.heat>0)copTrigger(COP.heat,'hit a cop',1);else copTrigger(2,'hit a cop')}if(c.state==3&&e>130000){c.state=1;c.cm=2;c.siren=0;c.wt=0;c.block=0;TR.stat.wrecks++;if(fault)copKill()}}   /* (batch 70) ramming a car that is already after you holds your stars but adds none (each hit used to add almost a third of a star) */
+/* (batch 70) wrecking police cars: the 3rd raises the stars by one, 5 more (the 8th) by one more, 6 more (the 14th) by one more; a single wreck used to put you at four stars at once. Counted until the heat is gone */
+const COP_KILLS=[3,8,14];
+function copKill(){if(!COP.on||GAME.state||!TR.on)return;COP.kills=(COP.kills||0)+1;if(COP.heat==0){copTrigger(2,'wrecked a cop');return}copTrigger(COP.heat,'wrecked a cop',1);
+  if(COP_KILLS.includes(COP.kills)&&COP.heat<5){const t=COP.D.thr;COP.w=Math.max(COP.w,t[COP.heat+1]+1);COP.heat=copLevelOf();COP.heatT=0;safeToast('COPS WRECKED: '+COP.kills+'  ·  HEAT UP',2.4)}
+  else{const nx=COP_KILLS.find(k=>k>COP.kills);if(nx&&COP.heat<5)safeToast('COPS WRECKED: '+COP.kills+'  ·  '+(nx-COP.kills)+' MORE FOR A STAR',2)}}   /* (batch 15: only when it was your fault; a chaser that wrecks itself on you used to add two stars) */   /* a cop that runs into you is not your crime */
 /* ---- HUD: stars, the bust meter, the losing-them bar ---- */
 function copStar(c,x,y,r,fill,col){c.beginPath();for(let k=0;k<10;k++){const a=-PI/2+k*PI/5,rr=k&1?r*.45:r;k?c.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr):c.moveTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}c.closePath();if(fill){c.fillStyle=col;c.fill()}c.strokeStyle='rgba(255,255,255,.7)';c.lineWidth=1.4;c.stroke()}
 function copHud(c,W_,H_,u){

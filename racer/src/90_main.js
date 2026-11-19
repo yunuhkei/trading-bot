@@ -36,7 +36,7 @@ function startRun(){$('load').classList.add('off');running=true;last=performance
 function renderOnce(w,h){R.alpha=1;viewSet(CAM.x,CAM.y,CAM.z,CAM.tx,CAM.ty,CAM.tz,CAM.fov,w||UI.cw,h||UI.ch);renderFrame(w||UI.cw,h||UI.ch)}
 function frame(ms){
   gfxFrameStart();uiInputs(ms/1000);gfxUpdate(ms/1000);
-  const halt=UI.paused||UI.mapOpen||MENU.open;if(!halt)navUpdate(ms/1000);
+  const halt=UI.paused||MENU.open;   /* (batch 70) the world map no longer pauses the game: the cops, racers and traffic move on it live (your car brakes to a stop while it is open) */if(!halt)navUpdate(ms/1000);
   if(!halt){crashFrame(ms/1000);killCamFrame(ms/1000);acc+=Math.min(ms/1000,.1)*CC.scale*(KC.t>0?.3:1);let n=0;while(acc>=DT&&n<14){worldStep(DT);acc-=DT;n++}if(n==14)acc=0;fxUpdate(ms/1000)}
   R.alpha=halt?1:acc/DT;if(R.alpha>1)R.alpha=1;
   /* camera follows the interpolated state */

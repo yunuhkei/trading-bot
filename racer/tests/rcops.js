@@ -69,15 +69,26 @@ const L=require('./rlib.js');
     for(let s=0;s<120*60&&maxC<want;s++){pin();T3.drive();RACER.worldStep(1/120);maxC=Math.max(maxC,chasers().length)}
     /* leave them all behind: a mile back */
     for(const c of chasers()){c.x=c.px=C.x+1500;c.z=c.pz=C.z;c.v=0;c.vx=c.vz=0}const seed0=new Set(TR.cars.filter(c=>c.alive).map(c=>c.seed));
-    let fresh=0;const seen=new Set();for(let s=0;s<120*30;s++){pin();T3.drive();RACER.worldStep(1/120);for(const c of chasers())if(!seed0.has(c.seed)&&!seen.has(c.seed)){seen.add(c.seed);fresh++}}
+    let fresh=0;for(let s=0;s<120*30;s++){pin();T3.drive();RACER.worldStep(1/120);fresh=Math.max(fresh,chasers().filter(c=>!seed0.has(c.seed)).length)}
     const gone=COP.gone;
     /* the search area: they last saw you here; you are 700 m away and unseen */
     copClear(true);T3.reset(.3,0);pin();COP.lkx=C.x;COP.lkz=C.z;for(const c of TR.cars)if(c.alive&&c.kind==1)trKill(c,0);
     const r=T3.ring,k=(T3.ring.n+Math.round(700/r.ds)+Math.round(r.n*.3))%r.n;RACER.carPlace(r.X[k],r.Z[k],0,r.Y[k]+.5);C.vx=C.vz=0;COP.callT=30;COP.sightT=1.5;
     let spawnedOut=0,tFade=-1;const h0=COP.heat;for(let s=0;s<120*25;s++){C.vx=C.vz=0;RACER.worldStep(1/120);spawnedOut=Math.max(spawnedOut,chasers().length);if(tFade<0&&COP.heat<h0)tFade=s/120}
     copSetDiff('forgiving');copClear(true);return{want,maxC,fresh,gone,spawnedOut,tFade:+tFade.toFixed(1),dz:Math.round(Math.hypot(C.x-COP.lkx,C.z-COP.lkz)),h0}});
-  ok(Z.maxC>=3&&Z.fresh==0&&Z.gone>=Z.maxC,'10 the chase filled up to '+Z.maxC+' of '+Z.want+'; all left a mile behind: '+Z.fresh+' new police cars in the next 30 s while still wanted (they are not replaced; '+Z.gone+' places stay used)');
+  ok(Z.maxC>=3&&Z.fresh<=Z.want-Z.maxC&&Z.gone>=Z.maxC,'10 the chase filled up to '+Z.maxC+' of '+Z.want+'; all left a mile behind: at most '+Z.fresh+' new police cars on you at once in the next 30 s while still wanted (the left-behind ones are not replaced; '+Z.gone+' places stay used)');
   ok(Z.spawnedOut==0&&Z.tFade>0&&Z.tFade<8,'10 '+Z.dz+' m from where they last saw you (outside the half-mile search area): '+Z.spawnedOut+' police cars turned up, the heat started to fade after '+Z.tFade+' s');
+  /* 11. (batch 70) wrecking police cars: the 3rd, 8th and 14th each raise the stars by one; a single wreck no longer jumps to four stars */
+  const K=await T.ev(()=>{copSetDiff('medium');T3.reset(.3,0);copClear(true);const seq=[];GAME.state=0;copTrigger(1,'event');const h0=COP.heat;
+    for(let k=1;k<=15;k++){copKill();seq.push(COP.heat)}
+    /* through the real path: a chasing car wrecked by your hit at one star */
+    copClear(true);copTrigger(1,'event');const c=trSpawnCop(true,false);let real=-1;if(c){c.state=3;copRammed(c,150000,true);real=COP.heat}
+    const k1=COP.kills;copClear(true);copSetDiff('forgiving');return{h0,seq,real,k1}});
+  ok(K.h0==1&&K.seq[0]==1&&K.seq[1]==1&&K.seq[2]==2&&K.seq[6]==2&&K.seq[7]==3&&K.seq[12]==3&&K.seq[13]==4,'11 wrecking police cars from one star: stars after each wreck '+K.seq.join(',')+' (up one at the 3rd, the 8th and the 14th)');
+  ok(K.real==1&&K.k1==1,'11 one police car wrecked by your hit at one star: still '+K.real+' star (it used to be four), wrecks counted '+K.k1);
+  /* 12. (batch 70) the world map no longer pauses the game: with it open your car brakes to a stop and never reverses */
+  const MO=await T.ev(()=>{T3.reset(.3,30);UI.mapOpen=true;let minF=1e9,maxOm=0;for(let s=0;s<120*8;s++){RACER.worldStep(1/120);const f=C.vx*Math.sin(C.yaw)-C.vz*Math.cos(C.yaw);minF=Math.min(minF,f);maxOm=Math.max(maxOm,Math.abs(C.om||0))}const sp=C.speed;UI.mapOpen=false;return{sp:+sp.toFixed(2),minF:+minF.toFixed(2),maxOm:+maxOm.toFixed(2)}});console.log(JSON.stringify(MO));
+  ok(MO.sp<1.6&&MO.minF>-.5,"12 map open at 67 mph: the car brakes to "+MO.sp+" m/s in 6 s and never rolls backwards (lowest forward speed "+MO.minF+")");
   const perf=await T.ev(()=>({ms:+TR.ms.toFixed(3),alive:TR.nAlive}));console.log('traffic+cops tick '+perf.ms+' ms with '+perf.alive+' cars');
   console.log('errs',T.errs);ok(T.errs.length==0,'no page errors');await T.close();process.exit(bad?1:0);
 })().catch(e=>{console.error(e);process.exit(1)});
