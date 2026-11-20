@@ -320,7 +320,7 @@ function storyBegin(fresh){storyLoad();if(fresh)storyReset();if(!STORY.on)STORY.
   STORY.title=3.2;COP.on=true}
 /* (batch 61) back to free roam from the pause menu: the story is saved where it is; your free-roam car comes back */
 function storyLeave(){if(!STORY.on)return;if(EV.run&&EV.run.ev.story)evQuit();if(STORY.dlg){STORY.dlg=null;STORY.camOn=false;storyActorKill();voxStop()}STORY.radio=[];STORY.rcur=null;STORY.curEv=null;
-  if(EV.card&&EV.card.story)EV.card=null;STORY.pos={x:C.x,z:C.z,y:C.y,yaw:C.yaw};storySave();STORY.on=false;navClear();if(STORY.freeCar!=null)carSelect(STORY.freeCar);safeToast('FREE ROAM  ·  story saved',2.5)}
+  if(EV.card&&EV.card.story)EV.card=null;STORY.pos={x:C.x,z:C.z,y:C.y,yaw:C.yaw};storySave();STORY.on=false;navClear();if(STORY.freeCar!=null){carSelect(STORY.freeCar);carSave()}safeToast('FREE ROAM  ·  story saved',2.5)}
 /* (batch 73) a step can depend on a choice: if:'flag' (only when it was chosen) / ifNot:'flag' */
 const storyOk=s=>!s||((!s.if||STORY.flags[s.if])&&(!s.ifNot||!STORY.flags[s.ifNot]));
 function storyAdvance(){const ch=STORY_CH[STORY.ch];do{STORY.step++}while(ch&&ch.steps[STORY.step]&&!storyOk(ch.steps[STORY.step]));STORY.st={};STORY.pos={x:C.x,z:C.z,y:C.y,yaw:C.yaw};storySave()}
@@ -364,7 +364,7 @@ function voxStop(){if(STORY.voxSrc){try{STORY.voxSrc.stop()}catch(e){}STORY.voxS
 function storyStartEv(step,retry){const d=Object.assign({id:'story_c'+STORY.ch+'_'+step.id,story:1,minLen:300},step.def);if(step.here)d.at={x:C.x,z:C.z,y:C.y,yaw:C.yaw};if(typeof DIFF!='undefined'&&d.type=='escape')d.stars=Math.min(5,d.stars+(DIFF.lv==2?1:0));
   const ev=evBuild(d);if(!ev){safeToast('ROUTE NOT FOUND',2);return}{const si=CAR_ROSTER.findIndex(q=>q.id==STORY.car);if(si>=0&&si!=CARSEL.cur){if(STORY.prevCar==null)STORY.prevCar=CARSEL.cur;carSelect(si)}}   /* (batch 63) story jobs are driven in your story car */if(d.medalK){ev.gold*=d.medalK;ev.silver*=d.medalK;ev.bronze*=d.medalK}STORY.curEv=ev;EV.card=null;evStart(ev);
   if(step.pre&&!retry&&EV.run){EV.run.hold=true;storyScene({lines:step.pre},()=>{if(EV.run)EV.run.hold=false})}}
-function storyEvDone(ev,ok,o){const step=storyStep();if(!STORY.on||!step||step.k!='ev'||ev!==STORY.curEv)return;STORY.curEv=null;if(STORY.prevCar!=null&&STORY.open){carSelect(STORY.prevCar);STORY.prevCar=null}const card=EV.card||EV.pending;
+function storyEvDone(ev,ok,o){const step=storyStep();if(!STORY.on||!step||step.k!='ev'||ev!==STORY.curEv)return;STORY.curEv=null;if(STORY.prevCar!=null&&STORY.open){carSelect(STORY.prevCar);STORY.prevCar=null;carSave()}const card=EV.card||EV.pending;
   const pass=ok&&(step.need=='win'?o.place==1:step.need=='medal'?o.medal>=1:true);
   if(pass){storyAdvance();if(card){card.title=step.need=='escape'?'ESCAPED':'YOU WON';card.btns=[{label:'CONTINUE',col:'#ff7a1a',act:()=>{EV.card=null;storyAfterWin(step)}}]}else storyAfterWin(step)}
   else{if(card){if(ok)card.lines.unshift([step.need=='win'?'WIN THE RACE TO MOVE ON':'GET A MEDAL TO MOVE ON','#ffc23d']);card.title='TRY AGAIN';
@@ -383,7 +383,7 @@ function storyTick(dt){if(!STORY.on)return;if(STORY.title>0)STORY.title-=dt;
   if(step.k=='radio'){storyRadio(step.lines);storyAdvance();return}
   if(step.k=='choice'){if(!st.shown){st.shown=1;EV.card={story:1,title:step.title,sub:step.sub,lines:[['Choose. It changes how the story ends.','rgba(233,230,220,.8)']],btns:step.opts.map((o,i)=>({label:o.label,col:i==0?'#ff7a1a':'#8a94a6',act:()=>{EV.card=null;STORY.flags[step.id]=o.v;storySave();storyAdvance()}}))}}return}
   if(step.k=='open'){STORY.open=true;storySave();storyRadio(step.lines);safeToast('FREE ROAM OPEN  ·  story jobs are gold on the map',4);storyAdvance();return}
-  if(step.k=='unlock'){STORY.cars[step.car]=1;STORY.car=step.car;if(typeof carUnlock=='function')carUnlock(step.car);const i=CAR_ROSTER.findIndex(d=>d.id==step.car);if(i>=0)carSelect(i);safeToast('NEW CAR  ·  '+step.name,3.5);storyAdvance();return}
+  if(step.k=='unlock'){STORY.cars[step.car]=1;STORY.car=step.car;if(typeof carUnlock=='function')carUnlock(step.car);const i=CAR_ROSTER.findIndex(d=>d.id==step.car);if(i>=0){carSelect(i);STORY.prevCar=null;STORY.freeCar=i;carSave()}   /* (batch 77) the new car is the one you drive from now on, in free roam too, and it is saved as such (the save kept the OLD car, so after leaving and coming back you were switched between the two) */safeToast('NEW CAR  ·  '+step.name,3.5);storyAdvance();return}
   if(step.k=='end'){if(!st.shown){st.shown=1;const nx=STORY_CH[STORY.ch+1],car=((CAR_ROSTER.find(d=>d.id==(STORY_CH[STORY.ch].steps.filter(q=>q.k=='unlock').pop()||{}).car))||{name:'new car'}).name;
     if(nx){storySave();EV.card={story:1,title:'CHAPTER '+STORY.ch+' COMPLETE',sub:STORY_CH[STORY.ch].name,lines:[[(step.won||'')+' The '+car+' is yours.','#fff'],['Next: '+step.next,'#ffc23d']],
       btns:[{label:'CHAPTER '+(STORY.ch+1),col:'#ff7a1a',act:()=>{EV.card=null;STORY.ch++;STORY.step=0;STORY.st={};STORY.title=3.2;storySave()}}]}}   /* (batch 73) on to the next chapter */
