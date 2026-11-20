@@ -45,6 +45,7 @@ timezone: America/Chicago
 # secrets. Only one strategy, small bets, and hard stops; every practice account above keeps running untouched.
 real:
   enabled: false
+  dry_run: true           # first: uses your real account to read cash and plan bets, sends NO orders (pings "would buy")
   strategy: G             # the cheaper favorites (60-65c), the same ideas as its practice accounts
   bankroll: 100           # what you put in Kalshi for this
   per_trade: 10           # dollars a bet, fees included; filled against the real order book, never above its limit

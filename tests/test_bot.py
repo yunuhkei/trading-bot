@@ -4716,15 +4716,24 @@ def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch
               "fair": None} for i in range(8)]
     monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
 
-    class Client:
-        def __init__(self): self.orders, self.cancels = [], 0
+    class Client:                                         # a stand-in Kalshi account: $100 cash, positions it holds
+        def __init__(self, cash=100.0):
+            self.orders, self.cancels, self.cash, self.pos = [], 0, cash, {}
         def buy(self, ticker, side, count, price):
             self.orders.append((ticker, count, price))
-            return {"fill_count": count, "order_id": ticker}
+            self.pos[ticker] = self.pos.get(ticker, 0) + count
+            self.cash -= count * price + k.fee(price, count)
+            return {"order_id": ticker}                   # no fill count in the reply: it must read the position
         def cancel_resting(self): self.cancels += 1
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": round(self.cash * 100)}
+            if path == "/portfolio/positions":
+                return {"market_positions": [{"ticker": t, "position_fp": str(n)} for t, n in self.pos.items() if n]}
+            raise AssertionError(path)
     c = Client()
     told = []
-    settings = {"real": {"enabled": True}}
+    settings = {"real": {"enabled": True, "dry_run": False}}
     strats = {"G": {"rules": {"pick": "favorite", "max_price": 0.65}}}
     book = lambda t: {"yes": [(0.63, 500.0)]}
     p = tmp_path / "r.json"
@@ -4735,15 +4744,31 @@ def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch
     assert all(price <= 0.65 for _, _, price in c.orders) and c.cancels == 3
     cache = {f"T{i}": {"result": "no", "status": "finalized"} for i in range(3)}     # all three lose
     kr.real_step(settings, [], strats, cache, 2000.0, lambda t, m: told.append(t), client=c, book_of=book, path=p)
+    # (Kalshi still lists them for a while after settling: that's not "a bet it didn't record")
+    assert not any("didn't record" in t for t in told)
     a = json.loads(p.read_text())["acct"]
     assert round(kr.money_now(a, kr.config(settings)), 2) >= 70.0 - 0.01 and a["stopped"]    # ended at the floor, stopped
     assert any("stopped at its floor" in t for t in told) and len(c.orders) == 3              # and never bought again
     q = tmp_path / "r2.json"                              # the daily stop
-    kr.real_step({"real": {"enabled": True, "floor": 0, "max_day_loss": 15}}, [], strats, {}, 1000.0, lambda t, m: None,
-                 client=Client(), book_of=book, path=q)
+    kr.real_step({"real": {"enabled": True, "dry_run": False, "floor": 0, "max_day_loss": 15}}, [], strats, {}, 1000.0,
+                 lambda t, m: None, client=Client(), book_of=book, path=q)
     s = json.loads(q.read_text())
     s["acct"]["day_pnl"] = -16.0
     q.write_text(json.dumps(s))
-    out = kr.real_step({"real": {"enabled": True, "floor": 0, "max_day_loss": 15}}, [], strats, {}, 1000.0,
-                       lambda t, m: None, client=Client(), book_of=book, path=q)
+    out = kr.real_step({"real": {"enabled": True, "dry_run": False, "floor": 0, "max_day_loss": 15}}, [], strats, {},
+                       1000.0, lambda t, m: None, client=Client(), book_of=book, path=q)
     assert "daily stop" in out
+    d = Client()                                          # the dry run: reads the real account, sends nothing
+    r = tmp_path / "r3.json"
+    out = kr.real_step({"real": {"enabled": True}}, [], strats, {}, 1000.0, lambda t, m: told.append(t), client=d,
+                       book_of=book, path=r)
+    assert d.orders == [] and "dry run" in out and any("would buy" in t for t in told)
+    e = Client(cash=72.0)                                 # real cash near the floor: its own record says $100, Kalshi
+    s2 = tmp_path / "r4.json"                             # says $72 -> it bets no more than the real $2 of room allows
+    kr.real_step(settings, [], strats, {}, 1000.0, lambda t, m: None, client=e, book_of=book, path=s2)
+    assert e.orders == []
+    f = Client()                                          # a bet on Kalshi it never recorded: it stops
+    f.pos["STRAY"] = 5
+    out = kr.real_step(settings, [], strats, {}, 1000.0, lambda t, m: told.append(t), client=f, book_of=book,
+                       path=tmp_path / "r5.json")
+    assert "unrecorded" in out and f.orders == []
