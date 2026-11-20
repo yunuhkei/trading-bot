@@ -29,7 +29,7 @@ arb_margin: 0.02          # arbitrage: the set must pay at least 2¢ more than i
 # the $100 / $5 ones above (those are untouched). Fills walk Kalshi's real order book (never the top price for the whole
 # $100), with Kalshi's real fees; a thin book means a smaller fill or no trade.
 big_accounts:
-  strategies: [F, G, C]
+  strategies: [F, G, C, H, J]
   cash: 1000
   per_trade: 100
   max_slip: 0.03          # pay at most 3c over the best ask (and never past the strategy's own price limits)

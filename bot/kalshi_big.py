@@ -27,7 +27,7 @@ from . import kalshi as k
 
 log = logging.getLogger("kalshi_big")
 STATE = Path("kalshi_state_big.json")
-DEFAULTS = {"strategies": ["F", "G", "C"], "cash": 1000.0, "per_trade": 100.0, "max_slip": 0.03, "min_fill": 10.0,
+DEFAULTS = {"strategies": ["F", "G", "C", "H", "J"], "cash": 1000.0, "per_trade": 100.0, "max_slip": 0.03, "min_fill": 10.0,
             "max_trades_per_day": 10, "max_trades_per_check": 3, "report_at": "15:00"}
 
 
@@ -179,7 +179,7 @@ def big_step(settings: dict, views: list, strats: dict, cache: dict, now: float,
         books, taken = {}, {}
         for key in keys:
             rules = strats[key]["rules"]
-            ideas = k.ideas_from_views(views, rules)
+            ideas = k.ideas_from_views(views, rules, now)
             big_trade(account(state, key, cfg), ideas, rules, cfg, book_of, books, taken,
                       lambda t, m, n=name(key, cfg): quiet(f"[{n}] {t}", m), "PRACTICE ", now)
         from .solbot import report_due
