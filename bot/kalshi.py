@@ -51,6 +51,24 @@ def kget(path: str, params: dict | None = None) -> dict:
     return r.json()
 
 
+def clean_pem(text: str) -> str:
+    """The private key as a proper PEM, however it was pasted: line breaks lost or turned into spaces or literal "\\n"
+    (common copying it on a phone), quotes around it, or only the middle part without the BEGIN/END lines. Raises a
+    ValueError (never showing the key) if it's the PUBLIC key or not a key at all."""
+    import re
+
+    t = text.strip().strip('"').strip("'").replace("\\n", "\n").replace("\r", "")
+    if "PUBLIC KEY" in t:
+        raise ValueError("KALSHI_PRIVATE_KEY holds the PUBLIC key; it needs the private one")
+    d = "[-\u2010-\u2015\u2212]+"                       # dashes, or the long ones a phone turns "--" into
+    m = re.search(rf"{d}\s*BEGIN ([A-Z ]+?)\s*{d}(.*?)(?:{d}\s*END\b|$)", t, re.S)
+    kind, body = (m.group(1).strip(), m.group(2)) if m else ("PRIVATE KEY", t)
+    body = re.sub(r"\s+", "", body)
+    if not body or not re.fullmatch(r"[A-Za-z0-9+/=]+", body):
+        raise ValueError("KALSHI_PRIVATE_KEY doesn't look like a private key")
+    return f"-----BEGIN {kind}-----\n" + "\n".join(body[i:i + 64] for i in range(0, len(body), 64)) + f"\n-----END {kind}-----\n"
+
+
 class Kalshi:
     """Signed requests with your API key (only for live mode)."""
 
@@ -58,7 +76,7 @@ class Kalshi:
         from cryptography.hazmat.primitives import serialization
 
         self.key_id = key_id
-        self.key = serialization.load_pem_private_key(private_key_pem.replace("\\n", "\n").encode(), password=None)
+        self.key = serialization.load_pem_private_key(clean_pem(private_key_pem).encode(), password=None)
 
     @classmethod
     def from_env(cls) -> "Kalshi | None":
