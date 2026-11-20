@@ -1566,7 +1566,7 @@ def test_kalshi_strategies_follow_their_own_rules_and_keep_their_own_accounts(tm
     told = []
     k.step({"mode": "practice", "practice_cash": 100}, lambda t, m: told.append(t), events=[ev])
     state = json.loads(Path("kalshi_state_practice.json").read_text())
-    assert state["positions"] and set(state["variants"]) == {"B", "C", "D", "E", "F", "G", "R", "M"}
+    assert state["positions"] and set(state["variants"]) == {"B", "C", "D", "E", "F", "G", "H", "J", "R", "M"}
     assert state["variants"]["E"]["positions"] and all(p["side"] == "no" for p in state["variants"]["E"]["positions"].values())
     assert sum("Kalshi: bought" in t for t in told) == len(state["positions"])        # only A pings per trade
     title, msg = k.scoreboard(state, k.strategies({}))
@@ -4714,7 +4714,7 @@ def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch
 
     ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"City {i}",
               "fair": None} for i in range(8)]
-    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: ideas)
 
     class Client:                                         # a stand-in Kalshi account: $100 cash, positions it holds
         def __init__(self, cash=100.0, fill_at=0.62):
@@ -4828,7 +4828,7 @@ def test_real_kalshi_second_review_cases(tmp_path, monkeypatch):
     assert kr.config({"real": {"enabled": "yes"}}) is None                                   # only `true` turns it on
     ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"C{i}",
               "fair": None} for i in range(8)]
-    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: ideas)
     strats = {"G": {"rules": {"pick": "favorite", "max_price": 0.65}}}
     book = lambda t: {"yes": [(0.63, 500.0)]}
 
@@ -4932,7 +4932,7 @@ def test_real_kalshi_stops_on_a_stuck_bet_and_sizes_fees_per_contract(tmp_path, 
                                       "results": [], "started": 0.0, "stopped": None, "day": None, "day_pnl": 0.0,
                                       "trades_today": 0, "bankroll": 100.0}}))
     told = []
-    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: [])
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: [])
     out = kr.real_step({"real": {"enabled": True, "dry_run": False}}, [], {"G": {"rules": {}}}, {}, 8000.0,
                        lambda t, m: told.append(t), client=Quiet(), book_of=lambda t: {}, path=p)
     assert "unconfirmed" in out and any("can't confirm" in t for t in told)
@@ -4943,7 +4943,7 @@ def test_real_kalshi_says_when_the_key_works_or_doesnt(tmp_path, monkeypatch):
     from bot import kalshi as k
     from bot import kalshi_real as kr
 
-    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: [])
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: [])
 
     class Down:
         def call(self, method, path, body=None, params=None):
@@ -4974,7 +4974,7 @@ def test_real_kalshi_twenty_dollar_setup_from_yaml_bets_small(tmp_path, monkeypa
     settings["real"].update(enabled=True, dry_run=False)
     ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"C{i}",
               "fair": None} for i in range(8)]
-    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: ideas)
 
     class Acct:
         def __init__(self): self.orders = []
@@ -5005,7 +5005,7 @@ def test_real_kalshi_dry_run_plans_like_the_real_one(tmp_path, monkeypatch):
     settings["real"].update(enabled=True, dry_run=True)
     ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.68, "title": f"C{i}",
               "fair": None} for i in range(8)]
-    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: ideas)
 
     class Acct:
         def call(self, method, path, body=None, params=None):
@@ -5067,7 +5067,7 @@ def test_real_kalshi_stops_when_orders_keep_getting_refused(tmp_path, monkeypatc
 
     ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"C{i}",
               "fair": None} for i in range(6)]
-    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: ideas)
 
     class Gone(Exception):
         response = type("R", (), {"status_code": 410})()
@@ -5094,3 +5094,29 @@ def test_real_kalshi_stops_when_orders_keep_getting_refused(tmp_path, monkeypatc
     kr.real_step({"real": {"enabled": True, "dry_run": False}}, [], {"G": {"rules": {}}}, {}, 1600.0,
                  lambda a, b: told.append(a), client=Refuses(), book_of=lambda t: {}, path=p)
     assert Refuses.posts == 3                             # stopped: no more tries
+
+
+def test_kalshi_evening_and_cheaper_favorite_strategies():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from bot import kalshi as k
+
+    rules = {key: v["rules"] for key, v in k.strategies({}).items()}
+    ev = {"event_ticker": "KXHIGHCHI-26NOV21", "title": "Highest temperature in Chicago on Nov 21?",
+          "markets": [{"ticker": "MID", "yes_ask_dollars": "0.62", "no_ask_dollars": "0.40", "yes_ask_size_fp": "50",
+                       "yes_sub_title": "68-69"},
+                      {"ticker": "LOW", "yes_ask_dollars": "0.20", "no_ask_dollars": "0.82", "yes_ask_size_fp": "50",
+                       "yes_sub_title": "66-67"}]}
+    view = {"mu": 68.5, "sigma": 2.0, "floor": None, "tomorrow": True, "late": False, "why": "test"}
+    at = lambda h: datetime(2026, 11, 20, h, 30, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    assert k.ideas_from_views([(ev, view)], rules["G"], at(15))                   # G buys any time
+    assert not k.ideas_from_views([(ev, view)], rules["H"], at(15))               # H: not at 3:30 pm
+    assert not k.ideas_from_views([(ev, view)], rules["H"], at(20))
+    assert k.ideas_from_views([(ev, view)], rules["H"], at(21))                   # 9:30 pm: yes
+    assert k.ideas_from_views([(ev, view)], rules["H"], at(23))
+    assert not k.ideas_from_views([(ev, view)], rules["J"], at(21))               # 62c: outside 55-60c
+    cheap = {**ev, "markets": [{**ev["markets"][0], "yes_ask_dollars": "0.57", "no_ask_dollars": "0.45"},
+                               ev["markets"][1]]}
+    assert k.ideas_from_views([(cheap, view)], rules["J"], at(10))
+    assert not k.ideas_from_views([(cheap, view)], rules["G"], at(10))

@@ -534,6 +534,16 @@ STRATEGIES = {
                                                                "min_price": 0.60, "max_price": 0.80, "hit_rate": 0.68}},
     "G": {"label": "Cheaper favorites (60-65c)", "rules": {"pick": "favorite", "when": "tomorrow", "min_price": 0.60,
                                                          "max_price": 0.65, "hit_rate": 0.65}},
+    # Nov 20 checks of G (scratch backtest on the saved Sep 7 - Nov 5 hourly prices, 1,423 city-days; and G's live
+    # practice bets). By the hour it buys (Central, the day before): 9 pm - midnight made +4.8% on 312 (up in both
+    # halves), 3-6 pm -3.7%; live, 9 pm - midnight +11% on 24 bets. H tests buying only then.
+    "H": {"label": "Cheaper favorites, 9 pm - midnight only", "rules": {"pick": "favorite", "when": "tomorrow",
+                                                                       "min_price": 0.60, "max_price": 0.65,
+                                                                       "hit_rate": 0.67, "hours": [21, 24]}},
+    # Favorites at 55-60c: +0.8% on 750 (first half -2.5%, second +3.3%). Daily lows' favorites lost at every price
+    # (60-65c: -14% on 567, both halves), so they're not traded.
+    "J": {"label": "Favorites at 55-60c", "rules": {"pick": "favorite", "when": "tomorrow", "min_price": 0.55,
+                                                   "max_price": 0.60, "hit_rate": 0.59}},
     # Sure-profit sets anywhere on Kalshi (arb_scan), not just weather: rare, so it has its own account to show it.
     "R": {"label": "Arbitrage anywhere on Kalshi", "rules": {"family": "arb"}},
     # Be the house (the research's #1, reports/What profitable day traders know.md): instead of paying the ask, rest a
@@ -573,8 +583,21 @@ def favorite_idea(e: dict, rules: dict, view: dict | None = None) -> list[dict]:
              "title": f"{e.get('title', '').replace('?', '')}: {f.get('yes_sub_title')}", "why": why}]
 
 
-def ideas_from_views(views: list[tuple[dict, dict]], rules: dict) -> list[dict]:
+def in_hours(rules: dict, now: float | None = None) -> bool:
+    """Whether it's inside the strategy's buying hours (`hours`: [from, to) o'clock Central), if it has any."""
+    from zoneinfo import ZoneInfo
+
+    hrs = rules.get("hours")
+    if not hrs:
+        return True
+    h = datetime.fromtimestamp(time.time() if now is None else now, ZoneInfo("America/Chicago")).hour
+    return int(hrs[0]) <= h < int(hrs[1])
+
+
+def ideas_from_views(views: list[tuple[dict, dict]], rules: dict, now: float | None = None) -> list[dict]:
     """The trades one strategy would make: its chance beats the price by `min_edge` after fees, within its rules."""
+    if not in_hours(rules, now):
+        return []
     min_edge, max_gap = float(rules.get("min_edge", 0.10)), float(rules.get("max_disagree", 0.30))
     lo_p, hi_p = float(rules.get("min_price", 0.10)), float(rules.get("max_price", 0.97))
     mult, only_side = float(rules.get("sigma_mult", 1.0)), rules.get("side")
@@ -1003,7 +1026,7 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
                     n = 0
                 summary.append(f"{k}:{n}")
                 continue
-            ideas = extra.get(fam, []) if fam else ideas_from_views(views, v["rules"])
+            ideas = extra.get(fam, []) if fam else ideas_from_views(views, v["rules"], now)
             if k == "A":
                 ideas = arb_ideas(events, settings) + ideas
                 bought = trade(state, ideas, settings, tell, tag, now, live, client)

@@ -333,7 +333,7 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
         acct["dry"] = dry
         held = {p["event"] for p in acct["positions"].values()} | {d["event"] for d in dry.values()}
         bought = 0
-        for i in k.ideas_from_views(views, rules):
+        for i in k.ideas_from_views(views, rules, now):
             if acct["trades_today"] >= int(cfg["max_trades_per_day"]):
                 break
             if i.get("kind") != "weather" or i["event"] in held or i.get("side") != "yes":
