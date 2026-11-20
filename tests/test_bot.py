@@ -4867,3 +4867,67 @@ def test_real_kalshi_second_review_cases(tmp_path, monkeypatch):
     q.write_text(json.dumps(state))
     out = kr.real_step(settings, [], strats, {}, 3000.0, lambda t, m: None, client=More(), book_of=book, path=q)
     assert "unrecorded" in out
+
+
+def test_real_kalshi_never_loses_track_of_a_bet():
+    from bot import kalshi_real as kr
+
+    class Fills:                                          # fills come back empty, or unreadable
+        def __init__(self, broken=False): self.broken = broken
+        def call(self, method, path, body=None, params=None):
+            if self.broken:
+                raise RuntimeError("timeout")
+            return {"fills": []}
+
+    def bet(**kw):
+        return {"positions": {"T0": {"event": "E0", "side": "yes", "count": 10, "price": 0.66, "cost": 6.6,
+                                     "opened": 0.0, "est": True, **kw}}}
+    a = bet()                                             # Kalshi holds it, its fills don't show: the position counts
+    assert kr.reconcile(a, {"T0": 8}, Fills(), 400.0) == ([], [])
+    assert a["positions"]["T0"]["count"] == 8 and not a["positions"]["T0"]["est"]
+    assert abs(a["positions"]["T0"]["cost"] - 5.28) < 1e-9
+    a = bet()                                             # nothing filled, nothing held: kept for 30 minutes...
+    kr.reconcile(a, {}, Fills(), 400.0)
+    assert "T0" in a["positions"]
+    kr.reconcile(a, {}, Fills(), 2000.0)                  # ...then dropped as "no bet"
+    assert "T0" not in a["positions"]
+    a = bet()                                             # once Kalshi showed it, it's never dropped
+    kr.reconcile(a, {"T0": 10}, Fills(broken=True), 100.0)
+    kr.reconcile(a, {}, Fills(), 5000.0)
+    assert "T0" in a["positions"]
+    assert kr.reconcile(a, {}, Fills(), 8000.0) == ([], ["T0"])      # 2 hours unconfirmed: it stops
+    a = bet()                                             # fills unreadable for 2 hours: it stops too
+    assert kr.reconcile(a, {}, Fills(broken=True), 8000.0) == ([], ["T0"]) and "T0" in a["positions"]
+
+
+def test_real_kalshi_stops_on_a_stuck_bet_and_sizes_fees_per_contract(tmp_path, monkeypatch):
+    import json
+
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    for budget in (10.0, 7.3, 3.0):                       # a cent a contract kept for fees rounding up on every fill
+        n = kr.affordable(budget, 0.66, 10_000)
+        assert n * 0.66 + k.fee(0.65, n) <= budget + 1e-9
+
+    class Quiet:
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 10000}
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            if path == "/portfolio/fills":
+                raise RuntimeError("down")
+            raise AssertionError(path)
+    p = tmp_path / "s.json"
+    p.write_text(json.dumps({"acct": {"pnl": 0.0, "positions": {"T0": {"event": "E0", "side": "yes", "count": 10,
+                                                                       "price": 0.66, "cost": 6.6, "opened": 0.0,
+                                                                       "title": "C0", "order": None, "est": True}},
+                                      "results": [], "started": 0.0, "stopped": None, "day": None, "day_pnl": 0.0,
+                                      "trades_today": 0, "bankroll": 100.0}}))
+    told = []
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: [])
+    out = kr.real_step({"real": {"enabled": True, "dry_run": False}}, [], {"G": {"rules": {}}}, {}, 8000.0,
+                       lambda t, m: told.append(t), client=Quiet(), book_of=lambda t: {}, path=p)
+    assert "unconfirmed" in out and any("can't confirm" in t for t in told)
+    assert json.loads(p.read_text())["acct"]["positions"]["T0"]["est"]          # kept, never dropped
