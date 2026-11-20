@@ -4800,3 +4800,59 @@ def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch
     kr.real_step(settings, [], strats, cache, 1000.0 + 3600, lambda t, m: None, client=h, book_of=book, path=hp)
     a = json.loads(hp.read_text())["acct"]
     assert a["results"] == [] and a["pnl"] == 0.0                     # never landed: no fake loss, and dropped
+
+
+def test_real_kalshi_second_review_cases(tmp_path, monkeypatch):
+    import json
+
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    assert kr.config({"real": {"enabled": True, "dry_run": None}})["dry_run"] is True     # blank = still a dry run
+    assert kr.config({"real": {"enabled": "yes"}}) is None                                   # only `true` turns it on
+    ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"C{i}",
+              "fair": None} for i in range(8)]
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+    strats = {"G": {"rules": {"pick": "favorite", "max_price": 0.65}}}
+    book = lambda t: {"yes": [(0.63, 500.0)]}
+
+    class Lagging:                                        # fills land, but neither fills nor positions show them yet
+        def __init__(self): self.orders, self.cash = [], 100.0
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": round(self.cash * 100)}
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            if path == "/portfolio/orders" and method == "POST":
+                self.orders.append(body)
+                assert body["yes_price"] == 65                    # a whole cent, never above its limit
+                return {"order": {"order_id": f"o{len(self.orders)}", "status": "executed"}}
+            if path == "/portfolio/fills":
+                return {"fills": []}
+            return {}
+    c = Lagging()
+    settings = {"real": {"enabled": True, "dry_run": False}}
+    p = tmp_path / "a.json"
+    kr.real_step(settings, [], strats, {}, 1000.0, lambda t, m: None, client=c, book_of=book, path=p)
+    a = json.loads(p.read_text())["acct"]
+    worst = sum(b["count"] * 0.65 + k.fee(0.65, b["count"]) for b in c.orders)
+    assert worst <= 30.0 + 1e-9 and len(a["positions"]) == len(c.orders)     # still inside the cushion: all counted
+    assert all(pos["est"] for pos in a["positions"].values())
+    kr.real_step({"real": {"enabled": True, "dry_run": False, "bankroll": 80}}, [], strats, {}, 2000.0,
+                 lambda t, m: None, client=c, book_of=book, path=p)
+    assert json.loads(p.read_text())["acct"]["bankroll"] == 80.0              # follows kalshi.yaml
+
+    class More(Lagging):                                  # Kalshi holds more than it recorded
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/positions":
+                return {"market_positions": [{"ticker": "T0", "position_fp": "999"}]}
+            return super().call(method, path, body, params)
+    q = tmp_path / "b.json"
+    state = {"acct": {"pnl": 0.0, "positions": {"T0": {"event": "E0", "side": "yes", "count": 10, "price": 0.65,
+                                                       "cost": 6.6, "opened": 0.0, "title": "C0", "order": None,
+                                                       "est": True}},
+                      "results": [], "started": 0.0, "stopped": None, "day": None, "day_pnl": 0.0, "trades_today": 0,
+                      "bankroll": 100.0}}
+    q.write_text(json.dumps(state))
+    out = kr.real_step(settings, [], strats, {}, 3000.0, lambda t, m: None, client=More(), book_of=book, path=q)
+    assert "unrecorded" in out

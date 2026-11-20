@@ -35,8 +35,14 @@ FINAL = ("finalized", "settled", "determined")
 
 
 def config(settings: dict) -> dict | None:
+    """Its settings, or None when it's off. Only `enabled: true` exactly turns it on, and only `dry_run: false` exactly
+    sends real orders (a blank or anything else stays a dry run)."""
     c = settings.get("real") or {}
-    return {**DEFAULTS, **c} if c.get("enabled") else None
+    if c.get("enabled") is not True:
+        return None
+    cfg = {**DEFAULTS, **{key: v for key, v in c.items() if v is not None}}
+    cfg["dry_run"] = c.get("dry_run") is not False
+    return cfg
 
 
 def _num(d: dict, *keys) -> float | None:
@@ -107,11 +113,10 @@ def order_fills(client, order_id: str, side: str) -> tuple[int, float] | None:
     return count, round(cost, 2)
 
 
-def place(client, ticker: str, side: str, count: int, price: float) -> dict:
-    """One limit buy, immediate-or-cancel, tagged as this module's (never pays more than `price` a contract)."""
-    cents = int(round(price * 100))
+def place(client, ticker: str, side: str, count: int, price: float, coid: str) -> dict:
+    """One limit buy, immediate-or-cancel, tagged as this module's (`price` is already a whole cent: never more)."""
     body = {"ticker": ticker, "action": "buy", "side": side, "count": int(count), "type": "limit",
-            f"{side}_price": cents, "client_order_id": f"real-{uuid.uuid4()}", "time_in_force": "immediate_or_cancel"}
+            f"{side}_price": int(round(price * 100)), "client_order_id": coid, "time_in_force": "immediate_or_cancel"}
     return client.call("POST", "/portfolio/orders", body).get("order", {}) or {}
 
 
@@ -176,22 +181,24 @@ def reconcile(acct: dict, held_real: dict, client, now: float) -> list[str]:
     tickers where Kalshi holds MORE than it recorded (those stop it)."""
     over = []
     for ticker, p in list(acct["positions"].items()):
+        real_n = held_real.get(ticker)
         if p.get("est") and not p.get("order"):          # an order whose reply never came: Kalshi's positions decide
-            if ticker in held_real:
-                p.update(seen=True, count=min(p["count"], int(round(held_real[ticker]))))
+            if real_n is not None:
+                p["seen"] = True
+                if real_n < p["count"] - 1e-9:
+                    p.update(count=int(round(real_n)), cost=round(p["cost"] * real_n / p["count"], 2))
             elif not p.get("seen") and now - p["opened"] > 1800:
                 acct["positions"].pop(ticker)            # it never landed: no bet
-            continue
-        if p.get("est") and p.get("order"):
+                continue
+        elif p.get("est") and p.get("order"):
             got = order_fills(client, p["order"], p["side"])
             if got and got[0] >= 1:
                 p.update(count=got[0], cost=got[1], price=got[1] / got[0], est=False)
-            elif got and got[0] == 0 and ticker not in held_real:
-                acct["positions"].pop(ticker)            # nothing filled: no bet
+            elif got and got[0] == 0 and real_n is None and now - p["opened"] > 1800:
+                acct["positions"].pop(ticker)            # nothing ever filled: no bet
                 continue
-        real_n = held_real.get(ticker)
         if real_n is not None and real_n > p["count"] + 1e-9:
-            over.append(ticker)
+            over.append(ticker)                          # Kalshi holds more than it recorded: that stops it
         elif real_n is not None and real_n < p["count"] - 1e-9 and p.get("est"):
             share = real_n / p["count"]
             p.update(count=int(round(real_n)), cost=round(p["cost"] * share, 2))
@@ -235,8 +242,10 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
         day = time.strftime("%Y-%m-%d", time.gmtime(now))
         if acct["day"] != day:                           # a new day first, so today's settled losses count today
             acct.update(day=day, day_pnl=0.0, trades_today=0, day_stop_told=False)
+        acct["bankroll"] = float(cfg["bankroll"])         # what kalshi.yaml says it may use, every check
         held_real = real_positions(client)
         settle_real(acct, cache, tell, now, held_real)
+        over = reconcile(acct, held_real, client, now) if held_real is not None else []    # even while stopped
         have = money_now(acct)
         if acct["stopped"]:
             return f"REAL Kalshi: STOPPED ({acct['stopped_why']}); about {k.money(have)}."
@@ -246,7 +255,6 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
         closed = {t for t, at in (acct.get("closed") or {}).items() if now - at < 3 * 86400}
         acct["closed"] = {t: at for t, at in (acct.get("closed") or {}).items() if now - at < 3 * 86400}
         unknown = sorted(t for t in held_real if t not in acct["positions"] and t not in closed)
-        over = reconcile(acct, held_real, client, now)
         if unknown or over:                              # Kalshi holds something it didn't place: stop, the owner checks
             acct.update(stopped=now, stopped_why="Kalshi shows bets it didn't record: " + ", ".join(unknown + over)[:120])
             tell("🛑 REAL Kalshi stopped: bets it didn't record", f"Kalshi shows {len(unknown) + len(over)} position(s) "
@@ -288,9 +296,10 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
             except Exception as e:
                 log.warning("order book %s: %s", i["ticker"], e)
                 continue
-            lim = kb.limit_price(i, rules, float(cfg["max_slip"]))
-            available = int(sum(size for price, size in asks if price <= lim + 1e-9))
-            count = affordable(budget, lim, available)    # sized at the limit price: never over budget
+            lim = int(kb.limit_price(i, rules, float(cfg["max_slip"])) * 100 + 1e-9) / 100      # a whole cent, down
+            levels = [(price, size) for price, size in asks if price <= lim + 1e-9]
+            available = int(sum(size for _, size in levels))
+            count = affordable(budget - 0.01 * len(levels), lim, available)   # at the limit price, fee margin kept
             worst = count * lim + k.fee(lim, count) if count else 0.0
             if count < 1 or worst < float(cfg["min_fill"]):
                 continue
@@ -306,9 +315,9 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
             acct["trades_today"] += 1
             held.add(i["event"])
             cash -= worst
-            order = {}
+            order, coid = {}, f"real-{uuid.uuid4()}"
             try:
-                order = place(client, i["ticker"], i["side"], count, lim)
+                order = place(client, i["ticker"], i["side"], count, lim, coid)
             except Exception as e:
                 code = getattr(getattr(e, "response", None), "status_code", None)
                 log.warning("REAL order %s failed (%s): %s", i["ticker"], code, e)
@@ -319,13 +328,17 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
                 # no clear answer (a timeout): it counts as placed, at its worst case, until Kalshi's positions say
             cancel(client, order.get("order_id"))
             got = order_fills(client, order["order_id"], i["side"]) if order.get("order_id") else None
-            if got is not None and got[0] < 1:           # Kalshi says nothing filled: no bet (the day's count stays)
-                cash += worst
+            said = _num(order, "fill_count_fp", "fill_count", "taker_fill_count")
+            if (got is None or got[0] < 1) and said == 0 and str(order.get("status", "")).startswith("cancel"):
+                cash += worst                            # Kalshi's own reply: cancelled, nothing filled: no bet
                 continue
-            n, cost, est = (got[0], got[1], False) if got else (count, round(worst, 2), True)
+            if got and got[0] >= 1:
+                n, cost, est = got[0], got[1], False
+            else:                                        # not confirmed yet: counts at its worst case till reconciled
+                n, cost, est = count, round(worst, 2), True
             acct["positions"][i["ticker"]] = {"event": i["event"], "side": i["side"], "count": n, "price": cost / n,
                                               "cost": cost, "opened": now, "title": i["title"],
-                                              "order": order.get("order_id"), "est": est}
+                                              "order": order.get("order_id"), "coid": coid, "est": est}
             cash += worst - cost
             bought += 1
             tell(f"💵 REAL Kalshi bought {n} {i['side'].upper()} for {k.money(cost)}" + (" (est.)" if est else ""),

@@ -22,7 +22,7 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: kalshi_state_*.json
-          key: kalshi-state-${{ github.run_id }}
+          key: kalshi-state-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: kalshi-state-
       - name: Check Kalshi
         env:
@@ -34,4 +34,4 @@ jobs:
         if: always()
         with:
           path: kalshi_state_*.json
-          key: kalshi-state-${{ github.run_id }}
+          key: kalshi-state-${{ github.run_id }}-${{ github.run_attempt }}
