@@ -259,7 +259,20 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
             return f"REAL Kalshi: STOPPED ({acct['stopped_why']}); about {k.money(have)}."
         cash = real_cash(client)
         if cash is None or held_real is None:
+            acct["fails"] = acct.get("fails", 0) + 1
+            if acct["fails"] == 3:                       # half an hour of no answer: say so once (a wrong key, or Kalshi down)
+                tell("⚠️ REAL Kalshi can't read your account", "For 30 minutes it couldn't read your Kalshi cash or "
+                     "positions, so it isn't betting. If you just added the key, check the KALSHI_KEY_ID and "
+                     "KALSHI_PRIVATE_KEY secrets. Otherwise Kalshi may be down; it keeps trying.")
             return "REAL Kalshi: couldn't read the real account; no new bets this check."
+        acct["fails"] = 0
+        if not acct.get("connected"):                    # the first good read: the key works
+            acct["connected"] = now
+            tell("✅ REAL Kalshi connected", f"Your key works. Kalshi cash: {k.money(cash)}. "
+                 + ("DRY RUN: it only says what it would buy." if cfg["dry_run"] else "It's live: real bets, up to "
+                    f"{k.money(cfg['per_trade'])} each, never below the {k.money(cfg['floor'])} cushion.")
+                 + (f" Note: under the {k.money(cfg['bankroll'])} it's set for; it only bets what's there."
+                    if cash < cfg["bankroll"] - 0.005 else ""))
         closed = {t for t, at in (acct.get("closed") or {}).items() if now - at < 3 * 86400}
         acct["closed"] = {t: at for t, at in (acct.get("closed") or {}).items() if now - at < 3 * 86400}
         unknown = sorted(t for t in held_real if t not in acct["positions"] and t not in closed)

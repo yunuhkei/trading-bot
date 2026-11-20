@@ -4931,3 +4931,27 @@ def test_real_kalshi_stops_on_a_stuck_bet_and_sizes_fees_per_contract(tmp_path, 
                        lambda t, m: told.append(t), client=Quiet(), book_of=lambda t: {}, path=p)
     assert "unconfirmed" in out and any("can't confirm" in t for t in told)
     assert json.loads(p.read_text())["acct"]["positions"]["T0"]["est"]          # kept, never dropped
+
+
+def test_real_kalshi_says_when_the_key_works_or_doesnt(tmp_path, monkeypatch):
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: [])
+
+    class Down:
+        def call(self, method, path, body=None, params=None):
+            raise RuntimeError("401 Unauthorized")
+
+    class Up:
+        def call(self, method, path, body=None, params=None):
+            return {"balance": 10000} if path == "/portfolio/balance" else {"market_positions": []}
+    told, p = [], tmp_path / "k.json"
+    run = lambda c, t: kr.real_step({"real": {"enabled": True}}, [], {"G": {"rules": {}}}, {}, t,
+                                    lambda a, b: told.append(a), client=c, book_of=lambda x: {}, path=p)
+    for t in range(5):
+        run(Down(), 1000.0 + t * 600)
+    assert sum("can't read" in x for x in told) == 1          # once, after 30 minutes
+    run(Up(), 5000.0)
+    run(Up(), 5600.0)
+    assert sum("connected" in x for x in told) == 1           # once, the first time the key works
