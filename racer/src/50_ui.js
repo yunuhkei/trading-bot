@@ -153,11 +153,10 @@ function holoPanel(c,x,y,w,h,r,a){const t=performance.now()/1000;a=a==null?.5:a;
   c.save();rr(c,x,y,w,h,r);c.clip();
   {const g=c.createLinearGradient(x,y,x+w*.4,y+h);g.addColorStop(0,'rgba(70,210,255,.13)');g.addColorStop(.6,'rgba(70,120,255,.04)');g.addColorStop(1,'rgba(190,70,255,.09)');c.fillStyle=g;c.fillRect(x,y,w,h)}
   c.fillStyle='rgba(140,230,255,.05)';const sp=3;for(let yy=y+((t*14)%(sp*2));yy<y+h;yy+=sp*2)c.fillRect(x,yy,w,1);
-  {const by=y+((t*.28)%1)*(h+60)-30,bg=c.createLinearGradient(0,by-24,0,by+24);bg.addColorStop(0,'rgba(120,235,255,0)');bg.addColorStop(.5,'rgba(120,235,255,.10)');bg.addColorStop(1,'rgba(120,235,255,0)');c.fillStyle=bg;c.fillRect(x,by-24,w,48)}
-  {const f=Math.floor(t*9),q=n=>{const v=Math.sin(f*12.9898+n*78.233+x*.01)*43758.5453;return v-Math.floor(v)};if(q(1)<.22){for(let k=0;k<2;k++){const gy=y+q(2+k)*h,gh=2+q(4+k)*h*.05,off=(q(6+k)-.5)*w*.05;
-      c.fillStyle='rgba(0,240,255,.16)';c.fillRect(x+off,gy,w,gh);c.fillStyle='rgba(255,40,170,.12)';c.fillRect(x-off*.7,gy+gh*.4,w,gh*.6)}}}
+  {const by=y+((t*.28)%1)*(h+60)-30,bg=c.createLinearGradient(0,by-24,0,by+24);bg.addColorStop(0,'rgba(120,235,255,0)');bg.addColorStop(.5,'rgba(120,235,255,.05)');bg.addColorStop(1,'rgba(120,235,255,0)');c.fillStyle=bg;c.fillRect(x,by-24,w,48)}
+  /* (batch 78) the random glitch bars (a cyan and a pink strip flickering in at any height) are gone: they read as a stray underline under the pop-ups */
   c.restore();
-  const lw=Math.max(1,Math.round(r*.07));c.lineWidth=lw;c.strokeStyle='rgba(255,50,160,.45)';rr(c,x-1.5,y+.5,w,h,r);c.stroke();c.strokeStyle='rgba(60,235,255,.75)';rr(c,x+1,y-.5,w,h,r);c.stroke();
+  const lw=Math.max(1,Math.round(r*.07));c.lineWidth=lw;c.strokeStyle='rgba(60,235,255,.6)';rr(c,x,y,w,h,r);c.stroke();   /* (batch 78) one border: the pink and cyan copies, offset by a pixel or two, read as a stray underline under every pop-up */
   {const L=Math.min(w,h)*.12,o=lw*2;c.strokeStyle='rgba(170,245,255,.95)';c.lineWidth=lw*2;c.beginPath();
     c.moveTo(x-o,y+L);c.lineTo(x-o,y-o);c.lineTo(x+L,y-o);c.moveTo(x+w-L,y-o);c.lineTo(x+w+o,y-o);c.lineTo(x+w+o,y+L);c.moveTo(x+w+o,y+h-L);c.lineTo(x+w+o,y+h+o);c.lineTo(x+w-L,y+h+o);c.moveTo(x+L,y+h+o);c.lineTo(x-o,y+h+o);c.lineTo(x-o,y+h-L);c.stroke()}
   c.restore()}

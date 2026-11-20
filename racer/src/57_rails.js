@@ -47,7 +47,7 @@ function railCollide(dt){if(C.railT>0)C.railT-=dt;if(C.railCd>0)C.railCd-=dt;if(
 /* A RACER against the rails (from racerStep). Returns true when it was wrecked. */
 function railRacer(c){if(!RAILSEG.length)return false;const fx=Math.sin(c.yaw),fz=-Math.cos(c.yaw),r=c.hw+.05;
   for(const off of[c.hl*.55,-c.hl*.55]){const cx=c.x+fx*off,cz=c.z+fz*off,i=railHit(cx,cz,c.y,r);if(i<0)continue;const nx=_rl.nx,nz=_rl.nz,vx=c.vx||fx*c.v,vz=c.vz||fz*c.v,vn=-(vx*nx+vz*nz);
-    const mine=C.t-(c.pHitT??-99)<4;
+    const mine=C.t-(c.pHitT??-99)<2;   /* (batch 78) 2 s after a real slam of yours (was 4 s after any tap) */
     if(vn>(mine?8:16)){/* a hard hit: wrecked, through the rail if it was hard enough */if(vn>RAIL_BRK)railBreak(i,vn,cx,cz);else{c.x+=nx*_rl.pen;c.z+=nz*_rl.pen}
       if(typeof sparkAt=='function')sparkAt(cx-nx*r,c.y+.5,cz-nz*r,nx,nz,16,8);
       c.state=1;c.wt=0;TR.stat.wrecks++;c.vx=vx+nx*vn*.5;c.vz=vz+nz*vn*.5;trFlipKick(c,Math.max(1.6e5,c.m*vn*vn*.5));
