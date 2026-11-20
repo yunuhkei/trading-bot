@@ -4696,3 +4696,54 @@ def test_brain_finds_an_edge_that_exists_only_on_news_named_coins():
     tm = brain.timing_map(rows, dict(brain.DEFAULTS))
     assert tm["approved"] == ["s1|news"]
     assert brain.window_label("news", brain.DEFAULTS).startswith("on coins named after")
+
+
+def test_real_kalshi_is_off_by_default_and_needs_keys(tmp_path, monkeypatch):
+    from bot import kalshi_real as kr
+
+    assert kr.real_step({}, [], {}, {}, 1000.0, print, path=tmp_path / "r.json") is None
+    monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
+    monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+    out = kr.real_step({"real": {"enabled": True}}, [], {}, {}, 1000.0, print, path=tmp_path / "r.json")
+    assert "no API key" in out
+
+
+def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch):
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"City {i}",
+              "fair": None} for i in range(8)]
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+
+    class Client:
+        def __init__(self): self.orders, self.cancels = [], 0
+        def buy(self, ticker, side, count, price):
+            self.orders.append((ticker, count, price))
+            return {"fill_count": count, "order_id": ticker}
+        def cancel_resting(self): self.cancels += 1
+    c = Client()
+    told = []
+    settings = {"real": {"enabled": True}}
+    strats = {"G": {"rules": {"pick": "favorite", "max_price": 0.65}}}
+    book = lambda t: {"yes": [(0.63, 500.0)]}
+    p = tmp_path / "r.json"
+    kr.real_step(settings, [], strats, {}, 1000.0, lambda t, m: told.append(t), client=c, book_of=book, path=p)
+    import json
+    a = json.loads(p.read_text())["acct"]
+    assert len(a["positions"]) == 3 and kr.at_risk(a) <= 30.0 + 1e-9    # $100 - $70 floor = $30 at risk at most
+    assert all(price <= 0.65 for _, _, price in c.orders) and c.cancels == 3
+    cache = {f"T{i}": {"result": "no", "status": "finalized"} for i in range(3)}     # all three lose
+    kr.real_step(settings, [], strats, cache, 2000.0, lambda t, m: told.append(t), client=c, book_of=book, path=p)
+    a = json.loads(p.read_text())["acct"]
+    assert round(kr.money_now(a, kr.config(settings)), 2) >= 70.0 - 0.01 and a["stopped"]    # ended at the floor, stopped
+    assert any("stopped at its floor" in t for t in told) and len(c.orders) == 3              # and never bought again
+    q = tmp_path / "r2.json"                              # the daily stop
+    kr.real_step({"real": {"enabled": True, "floor": 0, "max_day_loss": 15}}, [], strats, {}, 1000.0, lambda t, m: None,
+                 client=Client(), book_of=book, path=q)
+    s = json.loads(q.read_text())
+    s["acct"]["day_pnl"] = -16.0
+    q.write_text(json.dumps(s))
+    out = kr.real_step({"real": {"enabled": True, "floor": 0, "max_day_loss": 15}}, [], strats, {}, 1000.0,
+                       lambda t, m: None, client=Client(), book_of=book, path=q)
+    assert "daily stop" in out

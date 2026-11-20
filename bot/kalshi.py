@@ -991,6 +991,13 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
             big_step(settings, views, strats, cache, now, quiet, None if scan_all else (lambda t: {}), tell=tell)
         except Exception as e:
             log.warning("$1,000 accounts failed: %s", e)
+        real_line = None
+        try:                                              # REAL money, only if kalshi.yaml `real: enabled: true`
+            from .kalshi_real import real_step
+
+            real_line = real_step(settings, views, strats, cache, now, tell)
+        except Exception as e:
+            log.warning("REAL Kalshi failed: %s", e)
         due = None
         try:
             from .solbot import report_due
@@ -1010,7 +1017,7 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
         mc = state.get("models", {})
         with_models = sum(1 for v in mc.values() if (v.get("data") or {}).get("daily"))
         graded = sum(len(v.get("d1", [])) + len(v.get("d0", [])) for v in state.get("calib", {}).values())
-        return (f"{tag}Kalshi: cash {money(state['cash'])}, {len(state.get('positions', {}))} open ({money(held)}"
+        return ((real_line + " " if real_line else "") + f"{tag}Kalshi: cash {money(state['cash'])}, {len(state.get('positions', {}))} open ({money(held)}"
                 + (f", worth {money(worth)} if sold now" if open_now else "") + "), "
                 f"bought {bought}; other strategies bought {' '.join(summary)}. Weather models for {with_models}/{len(mc)} "
                 f"cities; {graded} forecasts graded so far.")
@@ -1041,6 +1048,12 @@ def status_text(settings: dict) -> str:
         lines += status_rows(settings)
     except Exception as e:
         lines.append(f"($1,000 accounts unreadable: {e})")
+    try:
+        from .kalshi_real import status_rows as real_rows
+
+        lines += real_rows()
+    except Exception as e:
+        lines.append(f"(REAL Kalshi unreadable: {e})")
     graded = {st: {h: v for h, v in c.items()} for st, c in (state.get("calib") or {}).items()}
     lines.append("GRADED " + json.dumps(graded))
     return "\n".join(lines)

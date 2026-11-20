@@ -40,3 +40,17 @@ big_accounts:
 report_at: "15:00"        # the scoreboard: every Thursday at 3 pm Milwaukee time
 report_days: [Thursday]
 timezone: America/Chicago
+
+# --- REAL MONEY (bot/kalshi_real.py): OFF until you set enabled: true AND add the KALSHI_KEY_ID / KALSHI_PRIVATE_KEY
+# secrets. Only one strategy, small bets, and hard stops; every practice account above keeps running untouched.
+real:
+  enabled: false
+  strategy: G             # the cheaper favorites (60-65c), the same ideas as its practice accounts
+  bankroll: 100           # what you put in Kalshi for this
+  per_trade: 10           # dollars a bet, fees included; filled against the real order book, never above its limit
+  floor: 70               # the cushion: never more at risk than (money - 70); at $70 it stops for good and pings you
+  max_day_loss: 15        # down $15 in a day: no new bets until tomorrow
+  max_trades_per_day: 5
+  max_slip: 0.02          # pay at most 2c over the best ask
+  check_after: 20         # after 20 settled real bets: stop if real runs 10c+ a bet below its practice account
+  max_gap: 0.10
