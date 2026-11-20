@@ -4731,13 +4731,14 @@ def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch
                 self.orders.append((body["ticker"], n, price))
                 self.pos[body["ticker"]] = self.pos.get(body["ticker"], 0) + n
                 self.cash -= n * at + k.fee(at, n)
-                self.fills[body["ticker"]] = [{"count_fp": str(n), "yes_price_dollars": str(at)}]
+                self.fills[body["ticker"]] = [{"count_fp": str(n), "yes_price_dollars": str(at), "action": "buy",
+                                               "side": body["side"]}]
                 return {"order": {"order_id": body["ticker"]}}   # no fill count in the reply: it reads the fills
             if method == "DELETE":
                 self.cancels += 1
                 return {}
             if path == "/portfolio/fills":
-                return {"fills": self.fills.get(params["order_id"], [])}
+                return {"fills": self.fills.get(params["ticker"], [])}
             raise AssertionError(path)
     c = Client()
     told = []
@@ -4750,15 +4751,25 @@ def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch
     a = json.loads(p.read_text())["acct"]
     assert len(a["positions"]) == 3 and kr.at_risk(a) <= 30.0 + 1e-9    # $100 - $70 floor = $30 at risk at most
     assert all(price <= 0.65 for _, _, price in c.orders) and c.cancels == 3
-    assert all(not p["est"] and abs(p["price"] - (0.62 * p["count"] + k.fee(0.62, p["count"])) / p["count"]) < 1e-6
-               for p in a["positions"].values())                      # its record uses the real fills
+    assert all(p["est"] for p in a["positions"].values())    # counted at the worst case until confirmed
+    kr.real_step(settings, [], strats, {}, 1000.0 + 400, lambda t, m: told.append(t), client=c, book_of=book, path=p)
+    a = json.loads(p.read_text())["acct"]
+    assert all(not p_["est"] and abs(p_["price"] - (0.62 * p_["count"] + k.fee(0.62, p_["count"])) / p_["count"]) < 1e-6
+               for p_ in a["positions"].values())             # 5 minutes on: the real fills
     cache = {f"T{i}": {"result": "no", "status": "finalized"} for i in range(3)}     # all three lose
     kr.real_step(settings, [], strats, cache, 2000.0, lambda t, m: told.append(t), client=c, book_of=book, path=p)
     # (Kalshi still lists them for a while after settling: that's not "a bet it didn't record")
     assert not any("didn't record" in t for t in told)
     a = json.loads(p.read_text())["acct"]
-    assert round(kr.money_now(a), 2) >= 70.0 - 0.01 and a["stopped"]    # ended at the floor, stopped
-    assert any("stopped at its floor" in t for t in told) and len(c.orders) == 3              # and never bought again
+    assert round(kr.money_now(a), 2) >= 70.0 - 0.01                      # all three lost: still not below the floor
+    s_ = json.loads(p.read_text())
+    s_["acct"]["pnl"] = -29.5                                               # under $3 of room left, nothing open:
+    s_["acct"]["positions"] = {}
+    p.write_text(json.dumps(s_))
+    n_orders = len(c.orders)
+    kr.real_step(settings, [], strats, {}, 3000.0, lambda t, m: told.append(t), client=c, book_of=book, path=p)
+    assert json.loads(p.read_text())["acct"]["stopped"] and any("stopped at its floor" in t for t in told)
+    assert len(c.orders) == n_orders                                        # it stops, and never buys again
     q = tmp_path / "r2.json"                              # the daily stop
     kr.real_step({"real": {"enabled": True, "dry_run": False, "floor": 0, "max_day_loss": 15}}, [], strats, {}, 1000.0,
                  lambda t, m: None, client=Client(), book_of=book, path=q)

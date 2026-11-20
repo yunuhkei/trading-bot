@@ -32,6 +32,7 @@ DEFAULTS = {"enabled": False, "dry_run": True, "strategy": "G", "bankroll": 100.
             "max_day_loss": 15.0, "max_trades_per_day": 5, "max_slip": 0.02, "min_fill": 3.0, "check_after": 20,
             "max_gap": 0.10}
 FINAL = ("finalized", "settled", "determined")
+CONFIRM_AFTER = 300                                      # an order is confirmed from Kalshi's fills only after 5 minutes
 
 
 def config(settings: dict) -> dict | None:
@@ -91,15 +92,19 @@ def real_positions(client) -> dict[str, float] | None:
     return out
 
 
-def order_fills(client, order_id: str, side: str) -> tuple[int, float] | None:
-    """(contracts, cost with fees) Kalshi really filled for one order, from its fills; None if it can't tell."""
+def market_fills(client, ticker: str, side: str, since: float) -> tuple[int, float] | None:
+    """(contracts, cost with fees) it really bought on this market since `since`, from Kalshi's fills (it places one
+    bet per market, so they're all that bet's, whatever happened to the order's reply); None if it can't tell."""
     try:
-        fills = client.call("GET", "/portfolio/fills", params={"order_id": order_id, "limit": 200}).get("fills") or []
+        fills = client.call("GET", "/portfolio/fills",
+                            params={"ticker": ticker, "min_ts": int(since) - 60, "limit": 200}).get("fills") or []
     except Exception as e:
-        log.warning("REAL fills %s: %s", order_id, e)
+        log.warning("REAL fills %s: %s", ticker, e)
         return None
     count, cost = 0, 0.0
     for f in fills:
+        if f.get("action") not in (None, "buy") or f.get("side") not in (None, side):
+            continue
         n = _num(f, "count_fp", "count")
         p = _num(f, f"{side}_price_dollars")
         if p is None:
@@ -155,8 +160,8 @@ def settle_real(acct: dict, cache: dict, tell, now: float, held_real: dict | Non
                 log.warning("market %s: %s", ticker, e)
                 continue
         m = cache[ticker]
-        if m.get("status") not in FINAL or (p.get("est") and not p.get("order") and not p.get("seen")):
-            continue                                     # (an order whose fate is unclear never books a result)
+        if m.get("status") not in FINAL or p.get("est"):
+            continue                                     # (a bet not yet confirmed from Kalshi's fills never settles)
         if m.get("result") in ("yes", "no"):
             won = m["result"] == p["side"]
             profit = (p["count"] if won else 0.0) - p["cost"]
@@ -177,31 +182,21 @@ def settle_real(acct: dict, cache: dict, tell, now: float, held_real: dict | Non
 
 
 def reconcile(acct: dict, held_real: dict, client, now: float) -> list[str]:
-    """Bring its record in line with Kalshi: real fills for estimated bets, fewer contracts if fewer filled. Returns
-    tickers where Kalshi holds MORE than it recorded (those stop it)."""
+    """Confirm bets from Kalshi's own fills, once they're at least 5 minutes old (no lag then): the real count and
+    cost, or no bet if nothing filled. Until then a bet counts as fully filled at its limit. Returns tickers where
+    Kalshi holds MORE than it recorded (those stop it)."""
     over = []
     for ticker, p in list(acct["positions"].items()):
-        real_n = held_real.get(ticker)
-        if p.get("est") and not p.get("order"):          # an order whose reply never came: Kalshi's positions decide
-            if real_n is not None:
-                p["seen"] = True
-                if real_n < p["count"] - 1e-9:
-                    p.update(count=int(round(real_n)), cost=round(p["cost"] * real_n / p["count"], 2))
-            elif not p.get("seen") and now - p["opened"] > 1800:
-                acct["positions"].pop(ticker)            # it never landed: no bet
-                continue
-        elif p.get("est") and p.get("order"):
-            got = order_fills(client, p["order"], p["side"])
-            if got and got[0] >= 1:
+        if p.get("est") and now - p["opened"] >= CONFIRM_AFTER:
+            got = market_fills(client, ticker, p["side"], p["opened"])
+            if got is not None and got[0] >= 1:
                 p.update(count=got[0], cost=got[1], price=got[1] / got[0], est=False)
-            elif got and got[0] == 0 and real_n is None and now - p["opened"] > 1800:
+            elif got is not None and got[0] == 0 and ticker not in held_real:
                 acct["positions"].pop(ticker)            # nothing ever filled: no bet
                 continue
+        real_n = held_real.get(ticker)
         if real_n is not None and real_n > p["count"] + 1e-9:
             over.append(ticker)                          # Kalshi holds more than it recorded: that stops it
-        elif real_n is not None and real_n < p["count"] - 1e-9 and p.get("est"):
-            share = real_n / p["count"]
-            p.update(count=int(round(real_n)), cost=round(p["cost"] * share, 2))
     return over
 
 
@@ -244,8 +239,8 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
             acct.update(day=day, day_pnl=0.0, trades_today=0, day_stop_told=False)
         acct["bankroll"] = float(cfg["bankroll"])         # what kalshi.yaml says it may use, every check
         held_real = real_positions(client)
+        over = reconcile(acct, held_real, client, now) if held_real is not None else []    # first, even while stopped
         settle_real(acct, cache, tell, now, held_real)
-        over = reconcile(acct, held_real, client, now) if held_real is not None else []    # even while stopped
         have = money_now(acct)
         if acct["stopped"]:
             return f"REAL Kalshi: STOPPED ({acct['stopped_why']}); about {k.money(have)}."
@@ -299,8 +294,9 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
             lim = int(kb.limit_price(i, rules, float(cfg["max_slip"])) * 100 + 1e-9) / 100      # a whole cent, down
             levels = [(price, size) for price, size in asks if price <= lim + 1e-9]
             available = int(sum(size for _, size in levels))
-            count = affordable(budget - 0.01 * len(levels), lim, available)   # at the limit price, fee margin kept
-            worst = count * lim + k.fee(lim, count) if count else 0.0
+            margin = 0.01 * max(len(levels), 1) * 2      # fees round up per fill: a couple of cents per level
+            count = affordable(budget - margin, lim, available)      # at the limit price, the fee margin kept
+            worst = count * lim + k.fee(lim, count) + margin if count else 0.0
             if count < 1 or worst < float(cfg["min_fill"]):
                 continue
             if cfg["dry_run"]:                           # practice run on the real account: nothing is sent
@@ -327,22 +323,16 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
                     continue
                 # no clear answer (a timeout): it counts as placed, at its worst case, until Kalshi's positions say
             cancel(client, order.get("order_id"))
-            got = order_fills(client, order["order_id"], i["side"]) if order.get("order_id") else None
-            said = _num(order, "fill_count_fp", "fill_count", "taker_fill_count")
-            if (got is None or got[0] < 1) and said == 0 and str(order.get("status", "")).startswith("cancel"):
-                cash += worst                            # Kalshi's own reply: cancelled, nothing filled: no bet
-                continue
-            if got and got[0] >= 1:
-                n, cost, est = got[0], got[1], False
-            else:                                        # not confirmed yet: counts at its worst case till reconciled
-                n, cost, est = count, round(worst, 2), True
+            # counted as fully filled at its limit (the worst case) until it's confirmed from Kalshi's fills, at least
+            # 5 minutes from now: nothing goes back into this check's budget, whatever a quick read would say
+            n, cost = count, round(worst, 2)
             acct["positions"][i["ticker"]] = {"event": i["event"], "side": i["side"], "count": n, "price": cost / n,
                                               "cost": cost, "opened": now, "title": i["title"],
-                                              "order": order.get("order_id"), "coid": coid, "est": est}
-            cash += worst - cost
+                                              "order": order.get("order_id"), "coid": coid, "est": True}
             bought += 1
-            tell(f"💵 REAL Kalshi bought {n} {i['side'].upper()} for {k.money(cost)}" + (" (est.)" if est else ""),
-                 f"{i['title']} (avg {cost / n * 100:.0f}¢). Pays {k.money(n)} if right. Account about "
+            tell(f"💵 REAL Kalshi bought up to {n} {i['side'].upper()} for at most {k.money(cost)}",
+                 f"{i['title']} (at most {lim * 100:.0f}¢ each; the real fill is confirmed in 5 minutes). Pays up to "
+                 f"{k.money(n)} if right. Account about "
                  f"{k.money(have)}, {k.money(at_risk(acct))} in open bets, floor {k.money(cfg['floor'])}.")
         return (f"REAL Kalshi ({key}{', dry run' if cfg['dry_run'] else ''}): about {k.money(have)} (real cash "
                 f"{k.money(cash)}), {len(acct['positions'])} open ({k.money(at_risk(acct))}), "
