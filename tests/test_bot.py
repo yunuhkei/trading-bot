@@ -4696,3 +4696,323 @@ def test_brain_finds_an_edge_that_exists_only_on_news_named_coins():
     tm = brain.timing_map(rows, dict(brain.DEFAULTS))
     assert tm["approved"] == ["s1|news"]
     assert brain.window_label("news", brain.DEFAULTS).startswith("on coins named after")
+
+
+def test_real_kalshi_is_off_by_default_and_needs_keys(tmp_path, monkeypatch):
+    from bot import kalshi_real as kr
+
+    assert kr.real_step({}, [], {}, {}, 1000.0, print, path=tmp_path / "r.json") is None
+    monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
+    monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+    out = kr.real_step({"real": {"enabled": True}}, [], {}, {}, 1000.0, print, path=tmp_path / "r.json")
+    assert "no API key" in out
+
+
+def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch):
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"City {i}",
+              "fair": None} for i in range(8)]
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+
+    class Client:                                         # a stand-in Kalshi account: $100 cash, positions it holds
+        def __init__(self, cash=100.0, fill_at=0.62):
+            self.orders, self.cancels, self.cash, self.pos, self.fills, self.fill_at = [], 0, cash, {}, {}, fill_at
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": round(self.cash * 100)}
+            if path == "/portfolio/positions":
+                return {"market_positions": [{"ticker": t, "position_fp": str(n)} for t, n in self.pos.items() if n]}
+            if path == "/portfolio/orders" and method == "POST":
+                assert body["time_in_force"] == "immediate_or_cancel" and "buy_max_cost" not in body
+                price = body[f"{body['side']}_price"] / 100
+                n, at = body["count"], min(self.fill_at, price)          # fills at the ask, never above the limit
+                self.orders.append((body["ticker"], n, price))
+                self.pos[body["ticker"]] = self.pos.get(body["ticker"], 0) + n
+                self.cash -= n * at + k.fee(at, n)
+                self.fills[body["ticker"]] = [{"count_fp": str(n), "yes_price_dollars": str(at), "action": "buy",
+                                               "side": body["side"]}]
+                return {"order": {"order_id": body["ticker"]}}   # no fill count in the reply: it reads the fills
+            if method == "DELETE":
+                self.cancels += 1
+                return {}
+            if path == "/portfolio/fills":
+                return {"fills": self.fills.get(params["ticker"], [])}
+            raise AssertionError(path)
+    c = Client()
+    told = []
+    settings = {"real": {"enabled": True, "dry_run": False}}
+    strats = {"G": {"rules": {"pick": "favorite", "max_price": 0.65}}}
+    book = lambda t: {"yes": [(0.63, 500.0)]}
+    p = tmp_path / "r.json"
+    kr.real_step(settings, [], strats, {}, 1000.0, lambda t, m: told.append(t), client=c, book_of=book, path=p)
+    import json
+    a = json.loads(p.read_text())["acct"]
+    assert len(a["positions"]) == 3 and kr.at_risk(a) <= 30.0 + 1e-9    # $100 - $70 floor = $30 at risk at most
+    assert all(price <= 0.65 for _, _, price in c.orders) and c.cancels == 3
+    assert all(p["est"] for p in a["positions"].values())    # counted at the worst case until confirmed
+    kr.real_step(settings, [], strats, {}, 1000.0 + 400, lambda t, m: told.append(t), client=c, book_of=book, path=p)
+    a = json.loads(p.read_text())["acct"]
+    assert all(not p_["est"] and abs(p_["price"] - (0.62 * p_["count"] + k.fee(0.62, p_["count"])) / p_["count"]) < 1e-6
+               for p_ in a["positions"].values())             # 5 minutes on: the real fills
+    cache = {f"T{i}": {"result": "no", "status": "finalized"} for i in range(3)}     # all three lose
+    kr.real_step(settings, [], strats, cache, 2000.0, lambda t, m: told.append(t), client=c, book_of=book, path=p)
+    # (Kalshi still lists them for a while after settling: that's not "a bet it didn't record")
+    assert not any("didn't record" in t for t in told)
+    a = json.loads(p.read_text())["acct"]
+    assert round(kr.money_now(a), 2) >= 70.0 - 0.01                      # all three lost: still not below the floor
+    s_ = json.loads(p.read_text())
+    s_["acct"]["pnl"] = -29.5                                               # under $3 of room left, nothing open:
+    s_["acct"]["positions"] = {}
+    p.write_text(json.dumps(s_))
+    n_orders = len(c.orders)
+    kr.real_step(settings, [], strats, {}, 3000.0, lambda t, m: told.append(t), client=c, book_of=book, path=p)
+    assert json.loads(p.read_text())["acct"]["stopped"] and any("stopped at its floor" in t for t in told)
+    assert len(c.orders) == n_orders                                        # it stops, and never buys again
+    q = tmp_path / "r2.json"                              # the daily stop
+    kr.real_step({"real": {"enabled": True, "dry_run": False, "floor": 0, "max_day_loss": 15}}, [], strats, {}, 1000.0,
+                 lambda t, m: None, client=Client(), book_of=book, path=q)
+    s = json.loads(q.read_text())
+    s["acct"]["day_pnl"] = -16.0
+    q.write_text(json.dumps(s))
+    out = kr.real_step({"real": {"enabled": True, "dry_run": False, "floor": 0, "max_day_loss": 15}}, [], strats, {},
+                       1000.0, lambda t, m: None, client=Client(), book_of=book, path=q)
+    assert "daily stop" in out
+    d = Client()                                          # the dry run: reads the real account, sends nothing
+    r = tmp_path / "r3.json"
+    out = kr.real_step({"real": {"enabled": True}}, [], strats, {}, 1000.0, lambda t, m: told.append(t), client=d,
+                       book_of=book, path=r)
+    assert d.orders == [] and "dry run" in out and any("would buy" in t for t in told)
+    e = Client(cash=72.0)                                 # real cash near the floor: its own record says $100, Kalshi
+    s2 = tmp_path / "r4.json"                             # says $72 -> it bets no more than the real $2 of room allows
+    kr.real_step(settings, [], strats, {}, 1000.0, lambda t, m: None, client=e, book_of=book, path=s2)
+    assert e.orders == []
+    f = Client()                                          # a bet on Kalshi it never recorded: it stops
+    f.pos["STRAY"] = 5
+    out = kr.real_step(settings, [], strats, {}, 1000.0, lambda t, m: told.append(t), client=f, book_of=book,
+                       path=tmp_path / "r5.json")
+    assert "unrecorded" in out and f.orders == []
+    g = Client()                                          # the older "mode: live" on: it doesn't run at all
+    assert "not running" in kr.real_step({"mode": "live", **settings}, [], strats, {}, 1000.0, lambda t, m: None,
+                                         client=g, book_of=book, path=tmp_path / "r6.json") and g.orders == []
+
+    class Timeout(Client):                                # an order whose reply never comes
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/orders" and method == "POST":
+                raise TimeoutError("no reply")
+            return super().call(method, path, body, params)
+    h = Timeout()
+    hp = tmp_path / "r7.json"
+    kr.real_step(settings, [], strats, {}, 1000.0, lambda t, m: None, client=h, book_of=book, path=hp)
+    a = json.loads(hp.read_text())["acct"]
+    assert a["positions"] and kr.at_risk(a) <= 30.0 + 1e-9 and all(p["est"] for p in a["positions"].values())
+    cache = {t: {"result": "no", "status": "finalized"} for t in a["positions"]}
+    kr.real_step(settings, [], strats, cache, 1000.0 + 3600, lambda t, m: None, client=h, book_of=book, path=hp)
+    a = json.loads(hp.read_text())["acct"]
+    assert a["results"] == [] and a["pnl"] == 0.0                     # never landed: no fake loss, and dropped
+
+
+def test_real_kalshi_second_review_cases(tmp_path, monkeypatch):
+    import json
+
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    assert kr.config({"real": {"enabled": True, "dry_run": None}})["dry_run"] is True     # blank = still a dry run
+    assert kr.config({"real": {"enabled": "yes"}}) is None                                   # only `true` turns it on
+    ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"C{i}",
+              "fair": None} for i in range(8)]
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+    strats = {"G": {"rules": {"pick": "favorite", "max_price": 0.65}}}
+    book = lambda t: {"yes": [(0.63, 500.0)]}
+
+    class Lagging:                                        # fills land, but neither fills nor positions show them yet
+        def __init__(self): self.orders, self.cash = [], 100.0
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": round(self.cash * 100)}
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            if path == "/portfolio/orders" and method == "POST":
+                self.orders.append(body)
+                assert body["yes_price"] == 65                    # a whole cent, never above its limit
+                return {"order": {"order_id": f"o{len(self.orders)}", "status": "executed"}}
+            if path == "/portfolio/fills":
+                return {"fills": []}
+            return {}
+    c = Lagging()
+    settings = {"real": {"enabled": True, "dry_run": False}}
+    p = tmp_path / "a.json"
+    kr.real_step(settings, [], strats, {}, 1000.0, lambda t, m: None, client=c, book_of=book, path=p)
+    a = json.loads(p.read_text())["acct"]
+    worst = sum(b["count"] * 0.65 + k.fee(0.65, b["count"]) for b in c.orders)
+    assert worst <= 30.0 + 1e-9 and len(a["positions"]) == len(c.orders)     # still inside the cushion: all counted
+    assert all(pos["est"] for pos in a["positions"].values())
+    kr.real_step({"real": {"enabled": True, "dry_run": False, "bankroll": 80}}, [], strats, {}, 2000.0,
+                 lambda t, m: None, client=c, book_of=book, path=p)
+    assert json.loads(p.read_text())["acct"]["bankroll"] == 80.0              # follows kalshi.yaml
+
+    class More(Lagging):                                  # Kalshi holds more than it recorded
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/positions":
+                return {"market_positions": [{"ticker": "T0", "position_fp": "999"}]}
+            return super().call(method, path, body, params)
+    q = tmp_path / "b.json"
+    state = {"acct": {"pnl": 0.0, "positions": {"T0": {"event": "E0", "side": "yes", "count": 10, "price": 0.65,
+                                                       "cost": 6.6, "opened": 0.0, "title": "C0", "order": None,
+                                                       "est": True}},
+                      "results": [], "started": 0.0, "stopped": None, "day": None, "day_pnl": 0.0, "trades_today": 0,
+                      "bankroll": 100.0}}
+    q.write_text(json.dumps(state))
+    out = kr.real_step(settings, [], strats, {}, 3000.0, lambda t, m: None, client=More(), book_of=book, path=q)
+    assert "unrecorded" in out
+
+
+def test_real_kalshi_never_loses_track_of_a_bet():
+    from bot import kalshi_real as kr
+
+    class Fills:                                          # fills come back empty, or unreadable
+        def __init__(self, broken=False): self.broken = broken
+        def call(self, method, path, body=None, params=None):
+            if self.broken:
+                raise RuntimeError("timeout")
+            return {"fills": []}
+
+    def bet(**kw):
+        return {"positions": {"T0": {"event": "E0", "side": "yes", "count": 10, "price": 0.66, "cost": 6.6,
+                                     "opened": 0.0, "est": True, **kw}}}
+    a = bet()                                             # Kalshi holds it, its fills don't show: the position counts
+    assert kr.reconcile(a, {"T0": 8}, Fills(), 400.0) == ([], [])
+    assert a["positions"]["T0"]["count"] == 8 and not a["positions"]["T0"]["est"]
+    assert abs(a["positions"]["T0"]["cost"] - 5.28) < 1e-9
+    a = bet()                                             # nothing filled, nothing held: kept for 30 minutes...
+    kr.reconcile(a, {}, Fills(), 400.0)
+    assert "T0" in a["positions"]
+    kr.reconcile(a, {}, Fills(), 2000.0)                  # ...then dropped as "no bet"
+    assert "T0" not in a["positions"]
+    a = bet()                                             # once Kalshi showed it, it's never dropped
+    kr.reconcile(a, {"T0": 10}, Fills(broken=True), 100.0)
+    kr.reconcile(a, {}, Fills(), 5000.0)
+    assert "T0" in a["positions"]
+    assert kr.reconcile(a, {}, Fills(), 8000.0) == ([], ["T0"])      # 2 hours unconfirmed: it stops
+    a = bet()                                             # fills unreadable for 2 hours: it stops too
+    assert kr.reconcile(a, {}, Fills(broken=True), 8000.0) == ([], ["T0"]) and "T0" in a["positions"]
+
+
+def test_real_kalshi_stops_on_a_stuck_bet_and_sizes_fees_per_contract(tmp_path, monkeypatch):
+    import json
+
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    for budget in (10.0, 7.3, 3.0):                       # a cent a contract kept for fees rounding up on every fill
+        n = kr.affordable(budget, 0.66, 10_000)
+        assert n * 0.66 + k.fee(0.65, n) <= budget + 1e-9
+
+    class Quiet:
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 10000}
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            if path == "/portfolio/fills":
+                raise RuntimeError("down")
+            raise AssertionError(path)
+    p = tmp_path / "s.json"
+    p.write_text(json.dumps({"acct": {"pnl": 0.0, "positions": {"T0": {"event": "E0", "side": "yes", "count": 10,
+                                                                       "price": 0.66, "cost": 6.6, "opened": 0.0,
+                                                                       "title": "C0", "order": None, "est": True}},
+                                      "results": [], "started": 0.0, "stopped": None, "day": None, "day_pnl": 0.0,
+                                      "trades_today": 0, "bankroll": 100.0}}))
+    told = []
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: [])
+    out = kr.real_step({"real": {"enabled": True, "dry_run": False}}, [], {"G": {"rules": {}}}, {}, 8000.0,
+                       lambda t, m: told.append(t), client=Quiet(), book_of=lambda t: {}, path=p)
+    assert "unconfirmed" in out and any("can't confirm" in t for t in told)
+    assert json.loads(p.read_text())["acct"]["positions"]["T0"]["est"]          # kept, never dropped
+
+
+def test_real_kalshi_says_when_the_key_works_or_doesnt(tmp_path, monkeypatch):
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: [])
+
+    class Down:
+        def call(self, method, path, body=None, params=None):
+            raise RuntimeError("401 Unauthorized")
+
+    class Up:
+        def call(self, method, path, body=None, params=None):
+            return {"balance": 10000} if path == "/portfolio/balance" else {"market_positions": []}
+    told, p = [], tmp_path / "k.json"
+    run = lambda c, t: kr.real_step({"real": {"enabled": True}}, [], {"G": {"rules": {}}}, {}, t,
+                                    lambda a, b: told.append(a), client=c, book_of=lambda x: {}, path=p)
+    for t in range(5):
+        run(Down(), 1000.0 + t * 600)
+    assert sum("can't read" in x for x in told) == 1          # once, after 30 minutes
+    run(Up(), 5000.0)
+    run(Up(), 5600.0)
+    assert sum("connected" in x for x in told) == 1           # once, the first time the key works
+
+
+def test_real_kalshi_twenty_dollar_setup_from_yaml_bets_small(tmp_path, monkeypatch):
+    import json
+
+    import yaml
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    settings = yaml.safe_load(open("kalshi.yaml"))
+    settings["real"].update(enabled=True, dry_run=False)
+    ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"C{i}",
+              "fair": None} for i in range(8)]
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+
+    class Acct:
+        def __init__(self): self.orders = []
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 2000}
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            if method == "POST":
+                self.orders.append(body)
+                return {"order": {"order_id": f"o{len(self.orders)}"}}
+            return {"fills": []} if path == "/portfolio/fills" else {}
+    c, p = Acct(), tmp_path / "t.json"
+    kr.real_step(settings, [], {"G": {"rules": {"pick": "favorite", "max_price": 0.65}}}, {}, 1000.0,
+                 lambda a, b: None, client=c, book_of=lambda t: {"yes": [(0.63, 500.0)]}, path=p)
+    a = json.loads(p.read_text())["acct"]
+    assert len(c.orders) == 3 and all(b["count"] == 4 for b in c.orders)       # 3 bets of ~$2.70: $10 at risk at most
+    assert kr.at_risk(a) <= 10.0 + 1e-9
+
+
+def test_real_kalshi_dry_run_plans_like_the_real_one(tmp_path, monkeypatch):
+    import yaml
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    settings = yaml.safe_load(open("kalshi.yaml"))
+    settings["real"]["enabled"] = True                    # dry run, as it ships
+    ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.68, "title": f"C{i}",
+              "fair": None} for i in range(8)]
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+
+    class Acct:
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 2000}
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            raise AssertionError(f"a dry run sent {method} {path}")
+    told, p = [], tmp_path / "d.json"
+    msgs = []
+    for t in (1000.0, 1600.0, 2200.0):                    # three checks, ten minutes apart
+        kr.real_step(settings, [], {"G": {"rules": {"pick": "favorite", "max_price": 0.70}}}, {}, t,
+                     lambda a, b: (told.append(a), msgs.append(b)), client=Acct(),
+                     book_of=lambda x: {"yes": [(0.68, 500.0)]}, path=p)
+    would = [m for a, m in zip(told, msgs) if "would buy" in a]
+    assert len(would) == 3                                 # $10 of room / ~$2.90 a bet: 3, and never repeated
+    assert len({m.split(" of ")[1].split(" at ")[0] for m in would}) == 3
