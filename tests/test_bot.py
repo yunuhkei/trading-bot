@@ -5016,3 +5016,37 @@ def test_real_kalshi_dry_run_plans_like_the_real_one(tmp_path, monkeypatch):
     would = [m for a, m in zip(told, msgs) if "would buy" in a]
     assert len(would) == 3                                 # $10 of room / ~$2.90 a bet: 3, and never repeated
     assert len({m.split(" of ")[1].split(" at ")[0] for m in would}) == 3
+
+
+def test_kalshi_private_key_survives_a_bad_paste(tmp_path):
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
+
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    for key in (ed25519.Ed25519PrivateKey.generate(), rsa.generate_private_key(public_exponent=65537, key_size=2048)):
+        fmt = serialization.PrivateFormat.PKCS8 if isinstance(key, ed25519.Ed25519PrivateKey) else \
+            serialization.PrivateFormat.TraditionalOpenSSL
+        pem = key.private_bytes(serialization.Encoding.PEM, fmt, serialization.NoEncryption()).decode()
+        lines = pem.strip().splitlines()
+        for pasted in (pem, " ".join(lines), "".join(lines), "\\n".join(lines), f'"{pem}"', "".join(lines[1:-1]),
+                       pem.replace("-----", "——-"), pem.replace("-----", "—–"), pem.replace("\n", "\r\n")):
+            c = k.Kalshi("id", pasted)
+            assert c._sign("GET", "/portfolio/balance")["KALSHI-ACCESS-SIGNATURE"]
+        pub = key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+        try:
+            k.Kalshi("id", pub.decode())
+            raise AssertionError("took a public key")
+        except ValueError as e:
+            assert "PUBLIC" in str(e)
+    told, p = [], tmp_path / "s.json"
+    import os
+    os.environ.update(KALSHI_KEY_ID="id", KALSHI_PRIVATE_KEY="not a key at all!")
+    try:
+        for t in (1000.0, 1600.0):
+            out = kr.real_step({"real": {"enabled": True, "dry_run": False}}, [], {"G": {"rules": {}}}, {}, t,
+                               lambda a, b: told.append(a + b), path=p)
+    finally:
+        del os.environ["KALSHI_KEY_ID"], os.environ["KALSHI_PRIVATE_KEY"]
+    assert "can't read the private key" in out and len(told) == 1 and "not a key at all" not in told[0]

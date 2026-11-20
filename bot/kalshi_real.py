@@ -239,7 +239,18 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
         return None
     if settings.get("mode") == "live":
         return "REAL Kalshi: not running, because the older 'mode: live' is on (they'd trade the same account)."
-    client = client or k.Kalshi.from_env()
+    try:
+        client = client or k.Kalshi.from_env()
+    except Exception as e:                               # a key it can't read: say so once (never showing the key)
+        why = str(e) if isinstance(e, ValueError) and "KALSHI_PRIVATE_KEY" in str(e) else type(e).__name__
+        state = json.loads(path.read_text()) if path.exists() else {}
+        if state.get("key_error_told") != why:
+            state["key_error_told"] = why
+            path.write_text(json.dumps(state, indent=1, default=str))
+            tell("⚠️ REAL Kalshi can't read your private key", "The KALSHI_PRIVATE_KEY secret isn't a key it can "
+                 "read, so it isn't betting. Paste the whole private key again (from -----BEGIN to -----END, those "
+                 f"lines included) as the secret's new value. ({why})")
+        return f"REAL Kalshi: can't read the private key ({why}); no bets."
     if client is None:
         return "REAL Kalshi: no API key yet (KALSHI_KEY_ID and KALSHI_PRIVATE_KEY secrets)."
     book_of = book_of or kb.fetch_book
