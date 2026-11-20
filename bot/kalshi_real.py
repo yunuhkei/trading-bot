@@ -105,7 +105,11 @@ def market_fills(client, ticker: str, side: str, since: float) -> tuple[int, flo
         return None
     count, cost = 0, 0.0
     for f in fills:
+        # only its own kind of fill: a buy of `side` (the older fields action/side, or the newer outcome_side and
+        # book_side, where buying YES takes the bid side of the YES book)
         if f.get("action") not in (None, "buy") or f.get("side") not in (None, side):
+            continue
+        if f.get("outcome_side") not in (None, side) or (side == "yes" and f.get("book_side") not in (None, "bid")):
             continue
         n = _num(f, "count_fp", "count")
         p = _num(f, f"{side}_price_dollars")
@@ -115,23 +119,30 @@ def market_fills(client, ticker: str, side: str, since: float) -> tuple[int, flo
         if not n or p is None:
             return None                                  # a fill it can't read: keep the safe estimate
         n = int(round(n))
+        paid_fee = _num(f, "fee_cost")
         count += n
-        cost += n * p + k.fee(p, n)
+        cost += n * p + (paid_fee if paid_fee is not None else k.fee(p, n))
     return count, round(cost, 2)
 
 
 def place(client, ticker: str, side: str, count: int, price: float, coid: str) -> dict:
-    """One limit buy, immediate-or-cancel, tagged as this module's (`price` is already a whole cent: never more)."""
-    body = {"ticker": ticker, "action": "buy", "side": side, "count": int(count), "type": "limit",
-            f"{side}_price": int(round(price * 100)), "client_order_id": coid, "time_in_force": "immediate_or_cancel"}
-    return client.call("POST", "/portfolio/orders", body).get("order", {}) or {}
+    """One limit buy of YES, immediate-or-cancel, tagged as this module's (`price` is already a whole cent: never
+    more). Kalshi's current order API (POST /portfolio/events/orders; the old /portfolio/orders is gone): "bid" buys
+    YES at up to `price`; nothing rests, whatever doesn't fill at once is cancelled."""
+    if side != "yes":
+        raise ValueError("it only buys YES")
+    body = {"ticker": ticker, "client_order_id": coid, "side": "bid", "count": f"{int(count)}.00",
+            "price": f"{price:.4f}", "time_in_force": "immediate_or_cancel", "self_trade_prevention_type": "taker_at_cross",
+            "post_only": False, "reduce_only": False}
+    j = client.call("POST", "/portfolio/events/orders", body) or {}
+    return j.get("order", j) or {}
 
 
-def cancel(client, order_id: str | None):
+def cancel(client, order_id: str | None, ticker: str | None = None):
     if not order_id:
         return
     try:
-        client.call("DELETE", f"/portfolio/orders/{order_id}")
+        client.call("DELETE", f"/portfolio/events/orders/{order_id}", params={"market_ticker": ticker} if ticker else None)
     except Exception as e:                               # already filled or cancelled: fine
         log.info("REAL cancel %s: %s", order_id, e)
 
@@ -325,7 +336,7 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
         for i in k.ideas_from_views(views, rules):
             if acct["trades_today"] >= int(cfg["max_trades_per_day"]):
                 break
-            if i.get("kind") != "weather" or i["event"] in held:
+            if i.get("kind") != "weather" or i["event"] in held or i.get("side") != "yes":
                 continue
             # the cushion, two ways: by its own record, and by the real cash on Kalshi
             pretend = sum(d["cost"] for d in dry.values())
@@ -366,11 +377,20 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
                 code = getattr(getattr(e, "response", None), "status_code", None)
                 log.warning("REAL order %s failed (%s): %s", i["ticker"], code, e)
                 if code is not None and 400 <= code < 500:      # Kalshi refused it: nothing was placed
-                    tell("⚠️ REAL Kalshi: an order was refused", f"{i['title']}: {str(e)[:150]}")
                     cash += worst
+                    acct["trades_today"] -= 1
+                    acct["refused"] = acct.get("refused", 0) + 1
+                    if acct["refused"] >= 3:                 # refused again and again: something's wrong, stop
+                        acct.update(stopped=now, stopped_why=f"Kalshi refused 3 orders in a row ({code})")
+                        tell("🛑 REAL Kalshi stopped: orders keep getting refused", f"Kalshi refused 3 orders in a "
+                             f"row (last: {i['title']}: {str(e)[:120]}). Nothing was bought. No new bets until Claude "
+                             "checks.")
+                        break
+                    tell("⚠️ REAL Kalshi: an order was refused", f"{i['title']}: {str(e)[:150]}. Nothing was bought.")
                     continue
                 # no clear answer (a timeout): it counts as placed, at its worst case, until Kalshi's positions say
-            cancel(client, order.get("order_id"))
+            acct["refused"] = 0
+            cancel(client, order.get("order_id"), i["ticker"])
             # counted as fully filled at its limit (the worst case) until it's confirmed from Kalshi's fills, at least
             # 5 minutes from now: nothing goes back into this check's budget, whatever a quick read would say
             n, cost = count, round(worst, 2)

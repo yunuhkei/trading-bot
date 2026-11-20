@@ -4724,16 +4724,21 @@ def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch
                 return {"balance": round(self.cash * 100)}
             if path == "/portfolio/positions":
                 return {"market_positions": [{"ticker": t, "position_fp": str(n)} for t, n in self.pos.items() if n]}
-            if path == "/portfolio/orders" and method == "POST":
-                assert body["time_in_force"] == "immediate_or_cancel" and "buy_max_cost" not in body
-                price = body[f"{body['side']}_price"] / 100
-                n, at = body["count"], min(self.fill_at, price)          # fills at the ask, never above the limit
+            if path == "/portfolio/events/orders" and method == "POST":     # Kalshi's current order API
+                assert body["time_in_force"] == "immediate_or_cancel" and body["side"] == "bid"
+                assert body["self_trade_prevention_type"] == "taker_at_cross" and isinstance(body["count"], str)
+                price = float(body["price"])
+                assert len(body["price"].split(".")[1]) == 4 and round(price, 2) == price
+                n, at = int(float(body["count"])), min(self.fill_at, price)   # fills at the ask, never above the limit
                 self.orders.append((body["ticker"], n, price))
                 self.pos[body["ticker"]] = self.pos.get(body["ticker"], 0) + n
                 self.cash -= n * at + k.fee(at, n)
-                self.fills[body["ticker"]] = [{"count_fp": str(n), "yes_price_dollars": str(at), "action": "buy",
-                                               "side": body["side"]}]
-                return {"order": {"order_id": body["ticker"]}}   # no fill count in the reply: it reads the fills
+                self.fills[body["ticker"]] = [{"count_fp": f"{n}.00", "yes_price_dollars": f"{at:.4f}",
+                                               "outcome_side": "yes", "book_side": "bid",
+                                               "fee_cost": f"{k.fee(at, n):.4f}"},
+                                              {"count_fp": "3.00", "yes_price_dollars": "0.9000",  # someone's sale:
+                                               "outcome_side": "yes", "book_side": "ask"}]          # not its buy
+                return {"order_id": body["ticker"], "fill_count": "0.00", "remaining_count": "0.00"}
             if method == "DELETE":
                 self.cancels += 1
                 return {}
@@ -4799,7 +4804,7 @@ def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch
 
     class Timeout(Client):                                # an order whose reply never comes
         def call(self, method, path, body=None, params=None):
-            if path == "/portfolio/orders" and method == "POST":
+            if path == "/portfolio/events/orders" and method == "POST":
                 raise TimeoutError("no reply")
             return super().call(method, path, body, params)
     h = Timeout()
@@ -4834,10 +4839,11 @@ def test_real_kalshi_second_review_cases(tmp_path, monkeypatch):
                 return {"balance": round(self.cash * 100)}
             if path == "/portfolio/positions":
                 return {"market_positions": []}
-            if path == "/portfolio/orders" and method == "POST":
+            if path == "/portfolio/events/orders" and method == "POST":
                 self.orders.append(body)
-                assert body["yes_price"] == 65                    # a whole cent, never above its limit
-                return {"order": {"order_id": f"o{len(self.orders)}", "status": "executed"}}
+                assert body["price"] == "0.6500"                  # a whole cent, never above its limit
+                body["count"] = int(float(body["count"]))
+                return {"order_id": f"o{len(self.orders)}", "fill_count": "0.00", "remaining_count": "0.00"}
             if path == "/portfolio/fills":
                 return {"fills": []}
             return {}
@@ -4978,8 +4984,9 @@ def test_real_kalshi_twenty_dollar_setup_from_yaml_bets_small(tmp_path, monkeypa
             if path == "/portfolio/positions":
                 return {"market_positions": []}
             if method == "POST":
-                self.orders.append(body)
-                return {"order": {"order_id": f"o{len(self.orders)}"}}
+                assert path == "/portfolio/events/orders"
+                self.orders.append({**body, "count": int(float(body["count"]))})
+                return {"order_id": f"o{len(self.orders)}"}
             return {"fills": []} if path == "/portfolio/fills" else {}
     c, p = Acct(), tmp_path / "t.json"
     kr.real_step(settings, [], {"G": {"rules": {"pick": "favorite", "max_price": 0.65}}}, {}, 1000.0,
@@ -5050,3 +5057,40 @@ def test_kalshi_private_key_survives_a_bad_paste(tmp_path):
     finally:
         del os.environ["KALSHI_KEY_ID"], os.environ["KALSHI_PRIVATE_KEY"]
     assert "can't read the private key" in out and len(told) == 1 and "not a key at all" not in told[0]
+
+
+def test_real_kalshi_stops_when_orders_keep_getting_refused(tmp_path, monkeypatch):
+    import json
+
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"C{i}",
+              "fair": None} for i in range(6)]
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+
+    class Gone(Exception):
+        response = type("R", (), {"status_code": 410})()
+
+    class Refuses:
+        posts = 0
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 2000}
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            if method == "POST":
+                Refuses.posts += 1
+                raise Gone("410 Client Error: Gone")
+            return {}
+    told, p = [], tmp_path / "x.json"
+    out = kr.real_step({"real": {"enabled": True, "dry_run": False, "bankroll": 20, "per_trade": 3, "floor": 10,
+                                 "min_fill": 1.5}}, [], {"G": {"rules": {"pick": "favorite", "max_price": 0.65}}}, {},
+                       1000.0, lambda a, b: told.append(a), client=Refuses(), book_of=lambda t: {"yes": [(0.63, 500.0)]},
+                       path=p)
+    a = json.loads(p.read_text())["acct"]
+    assert Refuses.posts == 3 and a["stopped"] and a["trades_today"] == 0 and not a["positions"]
+    assert sum("refused" in t for t in told) == 3 and any("stopped" in t for t in told)
+    kr.real_step({"real": {"enabled": True, "dry_run": False}}, [], {"G": {"rules": {}}}, {}, 1600.0,
+                 lambda a, b: told.append(a), client=Refuses(), book_of=lambda t: {}, path=p)
+    assert Refuses.posts == 3                             # stopped: no more tries
