@@ -47,11 +47,12 @@ real:
   enabled: false
   dry_run: true           # first: uses your real account to read cash and plan bets, sends NO orders (pings "would buy")
   strategy: G             # the cheaper favorites (60-65c), the same ideas as its practice accounts
-  bankroll: 100           # what you put in Kalshi for this
-  per_trade: 10           # dollars a bet, fees included; filled against the real order book, never above its limit
-  floor: 70               # the cushion: never more at risk than (money - 70); at $70 it stops for good and pings you
-  max_day_loss: 15        # down $15 in a day: no new bets until tomorrow
+  bankroll: 20            # what you put in Kalshi for this
+  per_trade: 3            # dollars a bet, fees included; filled against the real order book, never above its limit
+  floor: 10               # the cushion: never more at risk than (money - 10); at $10 it stops for good and pings you
+  max_day_loss: 6         # down $6 in a day: no new bets until tomorrow
   max_trades_per_day: 5
+  min_fill: 1.5           # skip a bet if the book has under $1.50 at acceptable prices
   max_slip: 0.02          # pay at most 2c over the best ask
   check_after: 20         # after 20 settled real bets: stop if real runs 10c+ a bet below its practice account
   max_gap: 0.10

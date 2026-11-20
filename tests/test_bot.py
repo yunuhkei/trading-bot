@@ -4955,3 +4955,35 @@ def test_real_kalshi_says_when_the_key_works_or_doesnt(tmp_path, monkeypatch):
     run(Up(), 5000.0)
     run(Up(), 5600.0)
     assert sum("connected" in x for x in told) == 1           # once, the first time the key works
+
+
+def test_real_kalshi_twenty_dollar_setup_from_yaml_bets_small(tmp_path, monkeypatch):
+    import json
+
+    import yaml
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    settings = yaml.safe_load(open("kalshi.yaml"))
+    settings["real"].update(enabled=True, dry_run=False)
+    ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"C{i}",
+              "fair": None} for i in range(8)]
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+
+    class Acct:
+        def __init__(self): self.orders = []
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 2000}
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            if method == "POST":
+                self.orders.append(body)
+                return {"order": {"order_id": f"o{len(self.orders)}"}}
+            return {"fills": []} if path == "/portfolio/fills" else {}
+    c, p = Acct(), tmp_path / "t.json"
+    kr.real_step(settings, [], {"G": {"rules": {"pick": "favorite", "max_price": 0.65}}}, {}, 1000.0,
+                 lambda a, b: None, client=c, book_of=lambda t: {"yes": [(0.63, 500.0)]}, path=p)
+    a = json.loads(p.read_text())["acct"]
+    assert len(c.orders) == 3 and all(b["count"] == 4 for b in c.orders)       # 3 bets of ~$2.70: $10 at risk at most
+    assert kr.at_risk(a) <= 10.0 + 1e-9
