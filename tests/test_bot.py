@@ -4717,19 +4717,27 @@ def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch
     monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
 
     class Client:                                         # a stand-in Kalshi account: $100 cash, positions it holds
-        def __init__(self, cash=100.0):
-            self.orders, self.cancels, self.cash, self.pos = [], 0, cash, {}
-        def buy(self, ticker, side, count, price):
-            self.orders.append((ticker, count, price))
-            self.pos[ticker] = self.pos.get(ticker, 0) + count
-            self.cash -= count * price + k.fee(price, count)
-            return {"order_id": ticker}                   # no fill count in the reply: it must read the position
-        def cancel_resting(self): self.cancels += 1
+        def __init__(self, cash=100.0, fill_at=0.62):
+            self.orders, self.cancels, self.cash, self.pos, self.fills, self.fill_at = [], 0, cash, {}, {}, fill_at
         def call(self, method, path, body=None, params=None):
             if path == "/portfolio/balance":
                 return {"balance": round(self.cash * 100)}
             if path == "/portfolio/positions":
                 return {"market_positions": [{"ticker": t, "position_fp": str(n)} for t, n in self.pos.items() if n]}
+            if path == "/portfolio/orders" and method == "POST":
+                assert body["time_in_force"] == "immediate_or_cancel" and "buy_max_cost" not in body
+                price = body[f"{body['side']}_price"] / 100
+                n, at = body["count"], min(self.fill_at, price)          # fills at the ask, never above the limit
+                self.orders.append((body["ticker"], n, price))
+                self.pos[body["ticker"]] = self.pos.get(body["ticker"], 0) + n
+                self.cash -= n * at + k.fee(at, n)
+                self.fills[body["ticker"]] = [{"count_fp": str(n), "yes_price_dollars": str(at)}]
+                return {"order": {"order_id": body["ticker"]}}   # no fill count in the reply: it reads the fills
+            if method == "DELETE":
+                self.cancels += 1
+                return {}
+            if path == "/portfolio/fills":
+                return {"fills": self.fills.get(params["order_id"], [])}
             raise AssertionError(path)
     c = Client()
     told = []
@@ -4742,12 +4750,14 @@ def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch
     a = json.loads(p.read_text())["acct"]
     assert len(a["positions"]) == 3 and kr.at_risk(a) <= 30.0 + 1e-9    # $100 - $70 floor = $30 at risk at most
     assert all(price <= 0.65 for _, _, price in c.orders) and c.cancels == 3
+    assert all(not p["est"] and abs(p["price"] - (0.62 * p["count"] + k.fee(0.62, p["count"])) / p["count"]) < 1e-6
+               for p in a["positions"].values())                      # its record uses the real fills
     cache = {f"T{i}": {"result": "no", "status": "finalized"} for i in range(3)}     # all three lose
     kr.real_step(settings, [], strats, cache, 2000.0, lambda t, m: told.append(t), client=c, book_of=book, path=p)
     # (Kalshi still lists them for a while after settling: that's not "a bet it didn't record")
     assert not any("didn't record" in t for t in told)
     a = json.loads(p.read_text())["acct"]
-    assert round(kr.money_now(a, kr.config(settings)), 2) >= 70.0 - 0.01 and a["stopped"]    # ended at the floor, stopped
+    assert round(kr.money_now(a), 2) >= 70.0 - 0.01 and a["stopped"]    # ended at the floor, stopped
     assert any("stopped at its floor" in t for t in told) and len(c.orders) == 3              # and never bought again
     q = tmp_path / "r2.json"                              # the daily stop
     kr.real_step({"real": {"enabled": True, "dry_run": False, "floor": 0, "max_day_loss": 15}}, [], strats, {}, 1000.0,
@@ -4772,3 +4782,21 @@ def test_real_kalshi_keeps_to_its_cushion_limits_and_stops(tmp_path, monkeypatch
     out = kr.real_step(settings, [], strats, {}, 1000.0, lambda t, m: told.append(t), client=f, book_of=book,
                        path=tmp_path / "r5.json")
     assert "unrecorded" in out and f.orders == []
+    g = Client()                                          # the older "mode: live" on: it doesn't run at all
+    assert "not running" in kr.real_step({"mode": "live", **settings}, [], strats, {}, 1000.0, lambda t, m: None,
+                                         client=g, book_of=book, path=tmp_path / "r6.json") and g.orders == []
+
+    class Timeout(Client):                                # an order whose reply never comes
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/orders" and method == "POST":
+                raise TimeoutError("no reply")
+            return super().call(method, path, body, params)
+    h = Timeout()
+    hp = tmp_path / "r7.json"
+    kr.real_step(settings, [], strats, {}, 1000.0, lambda t, m: None, client=h, book_of=book, path=hp)
+    a = json.loads(hp.read_text())["acct"]
+    assert a["positions"] and kr.at_risk(a) <= 30.0 + 1e-9 and all(p["est"] for p in a["positions"].values())
+    cache = {t: {"result": "no", "status": "finalized"} for t in a["positions"]}
+    kr.real_step(settings, [], strats, cache, 1000.0 + 3600, lambda t, m: None, client=h, book_of=book, path=hp)
+    a = json.loads(hp.read_text())["acct"]
+    assert a["results"] == [] and a["pnl"] == 0.0                     # never landed: no fake loss, and dropped
