@@ -305,7 +305,11 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
             return f"REAL Kalshi: daily stop; about {k.money(have)}."
         key = cfg["strategy"]
         rules = strats[key]["rules"]
-        held = {p["event"] for p in acct["positions"].values()}
+        # a dry run keeps its pretend bets for 36 hours (they've settled by then) so it plans like the real one would:
+        # inside the same cushion, and never the same city-day twice; going live drops them
+        dry = {t: d for t, d in (acct.get("dry") or {}).items() if cfg["dry_run"] and now - d["opened"] < 36 * 3600}
+        acct["dry"] = dry
+        held = {p["event"] for p in acct["positions"].values()} | {d["event"] for d in dry.values()}
         bought = 0
         for i in k.ideas_from_views(views, rules):
             if acct["trades_today"] >= int(cfg["max_trades_per_day"]):
@@ -313,7 +317,8 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
             if i.get("kind") != "weather" or i["event"] in held:
                 continue
             # the cushion, two ways: by its own record, and by the real cash on Kalshi
-            room = min(have - at_risk(acct) - float(cfg["floor"]), cash - float(cfg["floor"]))
+            pretend = sum(d["cost"] for d in dry.values())
+            room = min(have - at_risk(acct) - pretend - float(cfg["floor"]), cash - pretend - float(cfg["floor"]))
             budget = min(float(cfg["per_trade"]), room)
             if budget < float(cfg["min_fill"]):
                 break
@@ -333,6 +338,7 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
             if cfg["dry_run"]:                           # practice run on the real account: nothing is sent
                 acct["trades_today"] += 1
                 held.add(i["event"])
+                dry[i["ticker"]] = {"event": i["event"], "cost": round(worst, 2), "opened": now}
                 bought += 1
                 tell("🧪 REAL Kalshi (dry run, nothing sent): would buy",
                      f"{count} {i['side'].upper()} of {i['title']} at up to {lim * 100:.0f}¢ (at most {k.money(worst)}). "

@@ -4987,3 +4987,32 @@ def test_real_kalshi_twenty_dollar_setup_from_yaml_bets_small(tmp_path, monkeypa
     a = json.loads(p.read_text())["acct"]
     assert len(c.orders) == 3 and all(b["count"] == 4 for b in c.orders)       # 3 bets of ~$2.70: $10 at risk at most
     assert kr.at_risk(a) <= 10.0 + 1e-9
+
+
+def test_real_kalshi_dry_run_plans_like_the_real_one(tmp_path, monkeypatch):
+    import yaml
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    settings = yaml.safe_load(open("kalshi.yaml"))
+    settings["real"]["enabled"] = True                    # dry run, as it ships
+    ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.68, "title": f"C{i}",
+              "fair": None} for i in range(8)]
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
+
+    class Acct:
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 2000}
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            raise AssertionError(f"a dry run sent {method} {path}")
+    told, p = [], tmp_path / "d.json"
+    msgs = []
+    for t in (1000.0, 1600.0, 2200.0):                    # three checks, ten minutes apart
+        kr.real_step(settings, [], {"G": {"rules": {"pick": "favorite", "max_price": 0.70}}}, {}, t,
+                     lambda a, b: (told.append(a), msgs.append(b)), client=Acct(),
+                     book_of=lambda x: {"yes": [(0.68, 500.0)]}, path=p)
+    would = [m for a, m in zip(told, msgs) if "would buy" in a]
+    assert len(would) == 3                                 # $10 of room / ~$2.90 a bet: 3, and never repeated
+    assert len({m.split(" of ")[1].split(" at ")[0] for m in would}) == 3
