@@ -5032,8 +5032,6 @@ def test_kalshi_private_key_survives_a_bad_paste(tmp_path):
         lines = pem.strip().splitlines()
         for pasted in (pem, " ".join(lines), "".join(lines), "\\n".join(lines), f'"{pem}"', "".join(lines[1:-1]),
                        pem.replace("-----", "——-"), pem.replace("-----", "—–"), pem.replace("\n", "\r\n")):
-            if "".join(lines[1:-1]) == pasted and "RSA" in pem:
-                continue                                  # only the middle of an RSA key: can't tell its type
             c = k.Kalshi("id", pasted)
             assert c._sign("GET", "/portfolio/balance")["KALSHI-ACCESS-SIGNATURE"]
         pub = key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)

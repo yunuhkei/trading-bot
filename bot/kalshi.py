@@ -76,7 +76,14 @@ class Kalshi:
         from cryptography.hazmat.primitives import serialization
 
         self.key_id = key_id
-        self.key = serialization.load_pem_private_key(clean_pem(private_key_pem).encode(), password=None)
+        pem = clean_pem(private_key_pem)
+        try:
+            self.key = serialization.load_pem_private_key(pem.encode(), password=None)
+        except ValueError:
+            if "BEGIN" in private_key_pem:
+                raise
+            # pasted without its BEGIN/END lines: it was read as the usual kind; an RSA key has its own lines
+            self.key = serialization.load_pem_private_key(pem.replace("PRIVATE KEY", "RSA PRIVATE KEY").encode(), password=None)
 
     @classmethod
     def from_env(cls) -> "Kalshi | None":
