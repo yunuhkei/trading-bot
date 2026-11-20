@@ -4995,7 +4995,7 @@ def test_real_kalshi_dry_run_plans_like_the_real_one(tmp_path, monkeypatch):
     from bot import kalshi_real as kr
 
     settings = yaml.safe_load(open("kalshi.yaml"))
-    settings["real"]["enabled"] = True                    # dry run, as it ships
+    settings["real"].update(enabled=True, dry_run=True)
     ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.68, "title": f"C{i}",
               "fair": None} for i in range(8)]
     monkeypatch.setattr(k, "ideas_from_views", lambda views, rules: ideas)
