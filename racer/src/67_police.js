@@ -19,8 +19,10 @@ function heliMesh(){const b=new CGB(),M=CGM,k=1/3,box=(x,y,z,hx,hy,hz,m)=>cgBox(
   box(0,.95,-2.7,.18,.14,.16,M.head);box(0,.45,-1.6,.14,.1,.14,M.chrome);box(0,3.0,1.6,.05,.05,.05,M.tail);box(0,1.0,1.0,.05,.05,.05,M.amber);              /* searchlight, camera ball, beacons */
   return b}
 function heliInit(){if(!G.gl)return;const B=heliMesh();HELI.mesh=_mkMesh(G.gl,B,m=>m==CGM.paint?[255,255,255]:CGCOL[m])}
+/* (batch 79) what the helicopter can do: lose you beyond HELI_LOSE m, pick you up again within HELI_FIND m, fly at HELI_VMAX */
+const HELI_LOSE=230,HELI_FIND=160,HELI_VMAX=()=>COP.heat>=5?64:56;
 function heliSpawn(i){const ux=C.speed>3?C.vx/C.speed:Math.sin(C.yaw),uz=C.speed>3?C.vz/C.speed:-Math.cos(C.yaw);
-  HELI.list.push({x:C.x-ux*260+(i&1?60:-60),z:C.z-uz*260,y:C.y+60,yaw:Math.atan2(ux,-uz),vx:ux*40,vz:uz*40,vy:0,rot:0,fuel:COP.heat>=5?75:55,slot:i,px:0,py:0,pz:0,pyaw:0,leave:0,dropT:10+i*5,run:0});HELI.made++}
+  HELI.list.push({x:C.x-ux*150+(i&1?40:-40),z:C.z-uz*150,   /* (batch 79) arrives 150 m behind you, inside the distance at which it can see you (it came from 260 m) */y:C.y+60,yaw:Math.atan2(ux,-uz),vx:ux*40,vz:uz*40,vy:0,rot:0,fuel:COP.heat>=5?75:55,slot:i,px:0,py:0,pz:0,pyaw:0,leave:0,dropT:10+i*5,run:0,lock:1,lx:C.x,lz:C.z});HELI.made++}
 function copHeliTick(dt){
   const want=COP.heat>0?((STARS[COP.heat]||{}).heli||0):0;HELI.want=want;let near=1e9;
   if(HELI.nextT>0)HELI.nextT-=dt;
@@ -28,18 +30,21 @@ function copHeliTick(dt){
   for(const h of HELI.list){h.px=h.x;h.py=h.y;h.pz=h.z;h.pyaw=h.yaw;h.fuel-=dt;if((h.fuel<=0||want==0)&&!h.leave){h.leave=1;if(want>0)HELI.nextT=25}
     const ps=C.speed,ux=ps>3?C.vx/ps:Math.sin(C.yaw),uz=ps>3?C.vz/ps:-Math.cos(C.yaw),side=h.slot%3==0?0:h.slot%3==1?-1:1;
     const sd2=side||(h.slot&1?1:-1);let tx=C.x+ux*(75+10*(h.slot%3))+(-uz)*sd2*20+C.vx*.4,tz=C.z+uz*(75+10*(h.slot%3))+ux*sd2*20+C.vz*.4,ty=Math.max(terrainH(tx,tz),C.y)+14+3*(h.slot%3);   /* (batch 69) lower (14-20 m, was 32-45) and ahead to one side, so you see it in the windscreen doing its job */
+    /* (batch 79) it has to SEE you: while it does (you within 230 m) it follows you; out of its sight it flies to the last place it saw you and circles there, its light sweeping the ground; it finds you again within 160 m */
+    const dd0=Math.hypot(h.x-C.x,h.z-C.z);if(h.lock&&dd0>HELI_LOSE)h.lock=0;else if(!h.lock&&dd0<HELI_FIND)h.lock=1;if(h.lock){h.lx=C.x;h.lz=C.z}
+    if(!h.lock){const a=COP.t*.5+h.slot*2.1;tx=h.lx+Math.cos(a)*70;tz=h.lz+Math.sin(a)*70;ty=Math.max(terrainH(tx,tz),C.y)+20;h.run=0}
     if(h.leave){tx=h.x+h.vx*10+(h.slot&1?400:-400);tz=h.z+h.vz*10;ty=h.y+40}
     /* (batch 68) a spike run: fly out ahead of you, then throw a strip down onto your lane */
-    if(!h.leave){h.dropT-=dt;if(!h.run&&h.dropT<=0){if(ps>14&&COP.t-(SPIKE.lastT||-99)>6){h.run=1;h.runT=0}else h.dropT=2}
+    if(!h.leave&&h.lock){h.dropT-=dt;if(!h.run&&h.dropT<=0){if(ps>14&&COP.t-(SPIKE.lastT||-99)>6){h.run=1;h.runT=0}else h.dropT=2}
       if(h.run){h.runT+=dt;tx=C.x+ux*(90+ps*.6)+(-uz)*side*8;tz=C.z+uz*(90+ps*.6)+ux*side*8;ty=Math.max(terrainH(tx,tz),C.y)+18;
         const ah=(h.x-C.x)*ux+(h.z-C.z)*uz;if(ah>50&&heliDrop(h,ux,uz)){h.run=0;h.dropT=13+TR.rng()*4}else if(h.runT>10||ps<8){h.run=0;h.dropT=6+TR.rng()*4}}}
-    const dx=tx-h.x,dz=tz-h.z,d=Math.hypot(dx,dz),vmax=h.run?Math.min(120,ps*1.35+35):Math.min(85,ps*1.25+30),vw=Math.min(vmax,d*.9),ax=(dx/(d||1)*vw-h.vx)*1.3,az=(dz/(d||1)*vw-h.vz)*1.3,al=Math.hypot(ax,az),lim=h.run?24:14;
+    const dx=tx-h.x,dz=tz-h.z,d=Math.hypot(dx,dz),vmax=Math.min(h.run?HELI_VMAX()+10:HELI_VMAX(),h.lock?ps*1.25+30:42),   /* (batch 79) a top speed a fast car can beat (125 mph at four stars, 143 at five; it was 190-270 mph) */vw=Math.min(vmax,d*.9),ax=(dx/(d||1)*vw-h.vx)*1.3,az=(dz/(d||1)*vw-h.vz)*1.3,al=Math.hypot(ax,az),lim=h.run?24:14;
     h.vx+=(al>lim?ax/al*lim:ax)*dt;h.vz+=(al>lim?az/al*lim:az)*dt;h.vy+=((ty-h.y)*.8-h.vy)*Math.min(1,dt*2);h.x+=h.vx*dt;h.z+=h.vz*dt;h.y+=h.vy*dt;
     const gy=terrainH(h.x,h.z)+11;if(h.y<gy)h.y=gy;
     /* it faces you (the spotlight is in its nose), banked into its turns */
-    const face=Math.atan2(C.x-h.x,-(C.z-h.z));h.yaw+=angd(h.leave?Math.atan2(h.vx,-h.vz):face,h.yaw)*Math.min(1,dt*1.5);h.rot+=dt*38;
+    const face=h.lock?Math.atan2(C.x-h.x,-(C.z-h.z)):Math.atan2(h.vx,-h.vz);h.yaw+=angd(h.leave?Math.atan2(h.vx,-h.vz):face,h.yaw)*Math.min(1,dt*1.5);h.rot+=dt*38;
     h.pitch=clamp((h.vx*Math.sin(h.yaw)-h.vz*Math.cos(h.yaw))*-.006,-.25,.25);h.roll=clamp((h.vx*Math.cos(h.yaw)+h.vz*Math.sin(h.yaw))*.006,-.3,.3);
-    const dd=Math.hypot(h.x-C.x,h.z-C.z);if(!h.leave){near=Math.min(near,dd);if(dd<220){COP.sightT=0;COP.heliSeen=1}}}
+    const dd=Math.hypot(h.x-C.x,h.z-C.z);if(!h.leave){near=Math.min(near,dd);if(h.lock&&dd<HELI_LOSE){COP.sightT=0;COP.heliSeen=1}}}
   HELI.list=HELI.list.filter(h=>!(h.leave&&Math.hypot(h.x-C.x,h.z-C.z)>700));HELI.near=near;if(COP.heat==0&&!HELI.list.length)HELI.nextT=0}
 function heliDraw(){
   if(!HELI.list.length||!HELI.mesh)return;const gl=G.gl,P=G.P.car,a=R.alpha,S=3/8192,M=new Float32Array(16);
@@ -52,8 +57,8 @@ function heliFx(quad,flat,stage){
   for(const h of HELI.list){const x=lerp(h.px,h.x,a),y=lerp(h.py,h.y,a),z=lerp(h.pz,h.z,a),yaw=h.pyaw+angd(h.yaw,h.pyaw)*a,fx=Math.sin(yaw),fz=-Math.cos(yaw);
     if(stage==0){const ry=y+3.35,R0=6.2;quad(x-R0,ry,z-R0,x+R0,ry,z-R0,x+R0,ry,z+R0,x-R0,ry,z+R0,0,0,0,.32);
       const tx=x-fx*5.5+Math.cos(yaw)*.75,tz=z-fz*5.5+Math.sin(yaw)*.75,ty=y+2.25,r=1.1;quad(tx,ty-r,tz-fz*r,tx,ty-r,tz+fz*r,tx,ty+r,tz+fz*r,tx,ty+r,tz-fz*r,0,0,0,.28)}
-    else if(!h.leave&&stage==5){const gy=C.gs+.06;flat(C.x+C.vx*.1,gy,C.z+C.vz*.1,8,8,1,.97,.85,.5)}
-    else if(!h.leave&&stage==6){const sx=x+fx*2.6,sz=z+fz*2.6,sy=y+.3,gx=C.x,gz=C.z,gy=C.gs+.1,dx=gx-sx,dz=gz-sz,l=Math.hypot(dx,dz)||1,px=-dz/l,pz=dx/l;
+    else if(!h.leave&&stage==5){if(h.lock){const gy=C.gs+.06;flat(C.x+C.vx*.1,gy,C.z+C.vz*.1,8,8,1,.97,.85,.5)}else{const gx=x+fx*18,gz=z+fz*18;flat(gx,terrainH(gx,gz)+.06,gz,8,8,1,.97,.85,.35)}}   /* (batch 79) searching: the light sweeps the ground ahead of it, not you */
+    else if(!h.leave&&stage==6){const sx=x+fx*2.6,sz=z+fz*2.6,sy=y+.3,gx=h.lock?C.x:x+fx*18,gz=h.lock?C.z:z+fz*18,gy=h.lock?C.gs+.1:terrainH(gx,gz)+.1,dx=gx-sx,dz=gz-sz,l=Math.hypot(dx,dz)||1,px=-dz/l,pz=dx/l;
       quad(sx-px*.3,sy,sz-pz*.3,sx+px*.3,sy,sz+pz*.3,gx+px*6,gy,gz+pz*6,gx-px*6,gy,gz-pz*6,1,.96,.85,.16)}}
   /* a spike strip: a dark mat 2 m wide across the whole road with a pale steel ridge of teeth standing on it */
   if(stage==2)for(const s of SPIKE.list){const L=s.hw,nx=s.nx,nz=s.nz,tx=-nz,tz=nx,w=1.1,y=s.y+.05;quad(s.x-tx*w-nx*L,y,s.z-tz*w-nz*L,s.x+tx*w-nx*L,y,s.z+tz*w-nz*L,s.x+tx*w+nx*L,y,s.z+tz*w+nz*L,s.x-tx*w+nx*L,y,s.z-tz*w+nz*L,.03,.03,.035,.95);
