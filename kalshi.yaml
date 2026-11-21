@@ -54,5 +54,5 @@ real:
   max_trades_per_day: 5
   min_fill: 1.5           # skip a bet if the book has under $1.50 at acceptable prices
   max_slip: 0.02          # pay at most 2c over the best ask
-  check_after: 20         # after 20 settled real bets: stop if real runs 10c+ a bet below its practice account
-  max_gap: 0.10
+  check_after: 10         # once 10 markets match its practice account's: stop if real paid
+  max_price_gap: 0.03     # 3c+ more a contract than practice did (fees included); wins and losses aren't compared
