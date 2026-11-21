@@ -244,7 +244,7 @@ const STORY_CH={1:{name:'THE COAST',steps:[
   win:[['STATIC',"You made it to Vegas! The House's runners are walking home!"]],
   lose:[['STATIC',"The House wins this hand. Deal again."]]},
  {k:'ev',id:'strip',obj:'Run the Vegas loop for a medal',need:'medal',
-  def:{type:'trial',name:'The Strip',diff:1,from:['mojp',.2],to:['vegp',.3]},
+  def:{type:'trial',name:'The Strip',diff:1,from:['mojp',.45],to:['vegp',.3]}   /* (batch 80) its start sat on a map race's start (the race's card came up instead) */,
   drive:[['STATIC',"The House wants to see what you've got before it sits down. Run the loop."]],
   win:[['STATIC',"The House saw that. And now the House's cops saw that too. Uh oh."]],
   lose:[['STATIC',"Not fast enough for Vegas. Again."]]},
