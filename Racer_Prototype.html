@@ -5940,10 +5940,10 @@ function racerStep(c,dt){
       R.rdT=(R.rdT||0)-dt;if(R.rdT<=0){R.rdT=.15;if(R.off!==0&&!(roadAt(tx-dz/l*R.off,tz+dx/l*R.off,c.y+1)&&Math.abs(RQ.lat)<RQ.hw-1.1)){R.offT*=.4;R.off*=.6;R.launch=0}}
       tx+=-dz/l*R.off;tz+=dx/l*R.off}
     /* (batch 80) THE AMBUSH: now and then (one racer at a time; every 20-28 s on Easy, 14-22 s on Normal, 10-16 s on Hard) a racer AHEAD of you pulls into your lane in front of you, eases off to let you
-       draw level (it starts 15-60 m ahead and eases off harder the further ahead it is), then slams into you (the fight below); a clean racer (aggr 0) never does. A call-out names it. It gives up after 9 s, or once it has hit you. */
+       draw level (it starts 15-60 m ahead and eases off harder the further ahead it is), then slams into you (the fight below); a clean racer (aggr 0) never does. No warning (batch 81). It gives up after 9 s, or once it has hit you. */
     if(R.aggr&&EV.run&&EV.run.t>2&&!TUM.on&&!CC.on){const dpx=C.x-c.x,dpz=C.z-c.z,fy=dpx*sy+dpz*cy,ly=dpx*-cy+dpz*sy,dl=typeof DIFF!='undefined'?DIFF.lv:1;
       if(R.ambCd==null)R.ambCd=6+((c.seed|0)%9);R.ambCd-=dt;
-      if(!(R.amb>0)&&R.ambCd<=0&&(!RACE.amb||!RACE.amb.alive||!(RACE.amb.race&&RACE.amb.race.amb>0))&&fy<-15&&fy>-60&&Math.abs(ly)<12&&C.speed>16&&!(c.spinT>0)){R.amb=9;R.ambHit=0;RACE.amb=c;RACE.ambN=(RACE.ambN||0)+1;R.ambCd=[20,14,10][dl]+TR.rng()*[8,8,6][dl];if(typeof safeToast=='function')safeToast((R.name||'A RACER').toUpperCase()+' IS COMING FOR YOU',1.6,1)}
+      if(!(R.amb>0)&&R.ambCd<=0&&(!RACE.amb||!RACE.amb.alive||!(RACE.amb.race&&RACE.amb.race.amb>0))&&fy<-15&&fy>-60&&Math.abs(ly)<12&&C.speed>16&&!(c.spinT>0)){R.amb=9;R.ambHit=0;RACE.amb=c;RACE.ambN=(RACE.ambN||0)+1;R.ambCd=[20,14,10][dl]+TR.rng()*[8,8,6][dl];}   /* (batch 81) no call-out: the ambush comes without warning */
       else if(R.ambCd<=0)R.ambCd=1.5;
       if(R.amb>0){R.amb-=dt;if(fy<-5){/* still ahead of you: into your lane, easing off so you catch it */vt=Math.min(vt,Math.max(12,C.speed-4+fy*.15));R.offT=Math.max(-4.5,Math.min(4.5,R.off+Math.max(-1.6,Math.min(1.6,-ly*.5))))}else R.ramCd=Math.min(R.ramCd,0);
         if(C.t-(C.hitByT||-99)<.2&&C.hitBy===R.name)R.ambHit=1;if(R.ambHit||fy>14)R.amb=0}}
