@@ -5120,3 +5120,27 @@ def test_kalshi_evening_and_cheaper_favorite_strategies():
                                ev["markets"][1]]}
     assert k.ideas_from_views([(cheap, view)], rules["J"], at(10))
     assert not k.ideas_from_views([(cheap, view)], rules["G"], at(10))
+
+
+def test_real_kalshi_reality_check_compares_prices_not_luck(tmp_path, monkeypatch):
+    import json
+
+    from bot import kalshi_big as kb
+    from bot import kalshi_real as kr
+
+    big = tmp_path / "big.json"
+    monkeypatch.setattr(kb, "STATE", big)
+    cfg = {**kr.DEFAULTS, "strategy": "G"}
+    prac = {f"T{i}": {"count": 50, "cost": 50 * 0.64} for i in range(12)}
+    big.write_text(json.dumps({"G1000": {"results": [], "positions": prac}}))
+
+    def acct(per, n=12, won=False):
+        return {"results": [{"ticker": f"T{i}", "count": 4, "cost": 4 * per, "won": won, "profit": -4 * per}
+                            for i in range(n)], "positions": {}}
+    assert kr.reality_gap(acct(0.65, n=9), cfg, {}) is None                  # under 10 shared markets: no verdict
+    gap = kr.reality_gap(acct(0.655), cfg, {})                                # 1.5c more (small-order fee rounding)
+    assert gap[1] == 12 and gap[0] < cfg["max_price_gap"]                     # all 12 lost: luck, not a reason to stop
+    assert kr.reality_gap(acct(0.68), cfg, {})[0] > cfg["max_price_gap"]      # 4c more a contract: stop
+    a = acct(0.68)
+    a["results"][0]["est"] = True                                             # unconfirmed costs don't count
+    assert kr.reality_gap(a, cfg, {})[1] == 11

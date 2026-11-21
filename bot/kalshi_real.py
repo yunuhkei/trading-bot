@@ -9,8 +9,8 @@ It trades ONE strategy (G by default, the same ideas as its practice accounts), 
 - the cushion: it never has more at risk than (its money - `floor`), checked against its own record AND the real cash
   on Kalshi. Every order counts as fully filled at its limit price the moment it's sent (the worst case); Kalshi's own
   fills and positions then correct that down. If every open bet lost at once, the account would end at the floor;
-- at the floor it stops for good and pings the owner; a daily stop after `max_day_loss`; after `check_after` settled
-  real bets it stops if real results run more than `max_gap` a bet below the same strategy's $1,000 practice account;
+- at the floor it stops for good and pings the owner; a daily stop after `max_day_loss`; once `check_after` markets
+  match its $1,000 practice account's, it stops if a real contract cost more than `max_price_gap` above practice's;
 - anything on Kalshi it didn't place (or more contracts than it recorded) stops it, and pings the owner;
 - at most `max_trades_per_day` bets a day and one bet per city per day. It won't run if the older `mode: live` is on.
 Kalshi pays out winnings itself; this file keeps the record and the limits (kalshi_state_real.json).
@@ -29,8 +29,8 @@ from . import kalshi_big as kb
 log = logging.getLogger("kalshi_real")
 STATE = Path("kalshi_state_real.json")
 DEFAULTS = {"enabled": False, "dry_run": True, "strategy": "G", "bankroll": 100.0, "per_trade": 10.0, "floor": 70.0,
-            "max_day_loss": 15.0, "max_trades_per_day": 5, "max_slip": 0.02, "min_fill": 3.0, "check_after": 20,
-            "max_gap": 0.10}
+            "max_day_loss": 15.0, "max_trades_per_day": 5, "max_slip": 0.02, "min_fill": 3.0, "check_after": 10,
+            "max_price_gap": 0.03}
 FINAL = ("finalized", "settled", "determined")
 CONFIRM_AFTER = 300                                      # an order is confirmed from Kalshi's fills only after 5 minutes
 DROP_AFTER = 1800                                        # ...and dropped as "nothing filled" only after 30 minutes
@@ -223,21 +223,30 @@ def reconcile(acct: dict, held_real: dict, client, now: float) -> tuple[list[str
     return over, stuck
 
 
-def reality_gap(acct: dict, cfg: dict, settings: dict) -> tuple[float, float] | None:
-    """(real average per bet, the practice account's average) over the real bets' time, or None if too few yet."""
-    res = [r for r in acct["results"] if r["cost"] and r.get("won") is not None]
-    if len(res) < int(cfg["check_after"]):
-        return None
-    real = sum(r["profit"] / r["cost"] for r in res) / len(res)
+def reality_gap(acct: dict, cfg: dict, settings: dict) -> tuple[float, int] | None:
+    """Whether real money gets the prices practice gets: on the markets both bet on, how much more a contract cost for
+    real than in the strategy's $1,000 practice account (fees included, both from real fills). Returns (that average
+    gap in dollars, how many markets), or None until `check_after` markets match. Wins and losses aren't compared:
+    with a few bets a day they're mostly luck, and on the same market they're the same anyway."""
+    mine_by = {}
+    for r in acct["results"]:
+        if r.get("count") and not r.get("est") and not r.get("cost_est"):
+            mine_by[r["ticker"]] = r["cost"] / r["count"]
+    for t, q in acct["positions"].items():
+        if q.get("count") and not q.get("est") and not q.get("cost_est"):
+            mine_by[t] = q["cost"] / q["count"]
     try:
         big = json.loads(kb.STATE.read_text())
         name = kb.name(cfg["strategy"], kb.config(settings) or kb.DEFAULTS)
-        prac = [r for r in (big.get(name) or {}).get("results", []) if r.get("t", 0) >= acct["started"] and r.get("cost")]
+        a = big.get(name) or {}
+        prac = {r["ticker"]: r["cost"] / r["count"] for r in a.get("results", []) if r.get("count") and r.get("ticker")}
+        prac.update({t: q["cost"] / q["count"] for t, q in (a.get("positions") or {}).items() if q.get("count")})
     except Exception:
         return None
-    if len(prac) < 10:
+    both = [t for t in mine_by if t in prac]
+    if len(both) < int(cfg["check_after"]):
         return None
-    return real, sum(r["profit"] / r["cost"] for r in prac) / len(prac)
+    return sum(mine_by[t] - prac[t] for t in both) / len(both), len(both)
 
 
 def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float, tell, client=None, book_of=None,
@@ -315,10 +324,11 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
                  "bets; open ones still settle. Tell Claude when you've looked.")
             return f"REAL Kalshi: stopped at its floor; about {k.money(have)}."
         gap = reality_gap(acct, cfg, settings)
-        if gap and gap[0] < gap[1] - float(cfg["max_gap"]):
-            acct.update(stopped=now, stopped_why="real results fell well below practice")
-            tell("🛑 REAL Kalshi stopped: real results fell below practice",
-                 f"Real: {gap[0]:+.1%} a bet; its practice account over the same time: {gap[1]:+.1%}. No new bets.")
+        if gap and gap[0] > float(cfg["max_price_gap"]):
+            acct.update(stopped=now, stopped_why="real bets cost more than practice")
+            tell("🛑 REAL Kalshi stopped: real bets cost more than practice",
+                 f"On the {gap[1]} markets both bet on, a real contract cost {gap[0] * 100:.1f}¢ more than in practice "
+                 "(fees included), so practice's results wouldn't carry over. No new bets until Claude checks.")
             return "REAL Kalshi: stopped (reality check)."
         if acct["day_pnl"] <= -float(cfg["max_day_loss"]):
             if not acct.get("day_stop_told"):
