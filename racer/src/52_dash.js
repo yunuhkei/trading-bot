@@ -84,8 +84,11 @@ function dashMapRing(c,mm){c.save();c.lineWidth=mm.r*.1;const g=c.createLinearGr
 /* ---------- the whole driving HUD's instruments and controls (from hudDraw) ---------- */
 function dashDraw(c,W_,H_,u){const dt=dashDt();
   dashSpeedo(c,u,dt);const G=UI.gg,hp=typeof dmgHp=='function'?dmgHp():1;
-  dashGauge(c,G.x,G.y1,G.w,G.h,hp,'HEALTH',hp>.25?DASH.ink:DASH.red,hp<.25);dashGauge(c,G.x,G.y2,G.w,G.h,C.nos,'NITRO',DASH.amber,UI.nosFlash>C.t);
+  dashGauge(c,G.x,G.y1,G.w,G.h,hp,'HEALTH',hp>.3?DASH.ink:DASH.red,hp<.3);dashGauge(c,G.x,G.y2,G.w,G.h,C.nos,'NITRO',DASH.amber,UI.nosFlash>C.t);
   dashMapRing(c,UI.mm);
+  /* (batch 89) the damage stage over the health gauge, and the WEAK CAR warning */
+  {const st=typeof dmgStage=='function'?dmgStage(hp):0;if(st>0&&!CC.on){const px=u*.2,ly=G.y1-(IN.lane?u*.62:u*.1);   /* above the LANE box when it is shown */c.save();if(st>=3){const on=((C.t*3)|0)%2==0;c.globalAlpha=on?1:.45;fxText(c,'WEAK CAR',G.x,ly,px*1.25,'#ff3b30','left','rgba(255,40,30,.6)')}else fxText(c,DMG_SN[st],G.x,ly,px,st==2?'#ffb02e':'#e8e8e8','left','rgba(0,0,0,.5)');c.restore()}
+    if(DMG.weakT!=null&&C.t-DMG.weakT<3.5&&C.t>=DMG.weakT&&!CC.on&&!GAME.state){const k=C.t-DMG.weakT,al=Math.min(1,k*4,(3.5-k)*2);c.save();c.globalAlpha=al;fxText(c,'WEAK CAR',W_/2,H_*.6,u*.62,'#ff3b30','center','rgba(255,40,30,.6)');fxText(c,EV.run?'ONE MORE BIG HIT COULD WRECK YOU':'GET TO A GARAGE TO REPAIR',W_/2,H_*.6+u*.42,u*.26,'#ffffff','center','rgba(0,0,0,.6)');c.restore()}}
   if(IN.lane){const G2=UI.gg,lw=u*.78,lh=u*.32,lx=G2.x+G2.w-lw,ly=G2.y1-lh-u*.12;dLcdBox(c,lx,ly,lw,lh,u*.05);c.save();c.globalAlpha=C.laneOn?1:.35;dLcdText(c,'LANE',lx+lw/2,ly+lh*.74,lh*.62,'center');c.restore()}   /* (batch 22: bright while lane assist is steering) */
   for(const b of UI.btn){if(b.arrow){if(IN.arrows)dashArrow(c,b,u)}else if(b.pedal)dashPedal(c,b,u);else if(b.circle&&b.id=='drift')dashRound(c,b,u);else if(b.guard)dashGuard(c,b,u,dt);else if(b.haz)dashHazard(c,b,u)}}
 /* the toast (from safeHud): an amber trip-computer line */

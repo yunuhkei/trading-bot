@@ -14,11 +14,23 @@ function dmgInit(){const B=CARM.body;if(!B||!B.ab)return;DMG.pris=new Uint8Array
   /* the four lamps: the body vertex nearest each (their dent moves the glow with them) */
   const L=[[-CARL.hx,CARL.hy,CARL.hz],[CARL.hx,CARL.hy,CARL.hz],[-CARL.tx,CARL.ty,CARL.tz],[CARL.tx,CARL.ty,CARL.tz]],pf=DMG.pf16;DMG.lampV=L.map(p=>{let bi=0,bd=1e9;for(let v=0;v<B.nv;v++){const o=v*8,dx=pf[o]/8192-p[0],dy=pf[o+1]/8192-p[1],dz=pf[o+2]/8192-p[2],d=dx*dx+dy*dy+dz*dz;if(d<bd){bd=d;bi=v}}return bi});DMG.lampD.fill(0)}
 function dmgLamps(){const B=CARM.body;if(!DMG.lampV||!B||!B.f16)return;for(let i=0;i<4;i++){const o=DMG.lampV[i]*8;for(let a=0;a<3;a++)DMG.lampD[i*3+a]=(B.f16[o+a]-DMG.pf16[o+a])/8192}}
+/* (batch 89) THREE DAMAGE STAGES, from the health bar: LIGHT (below 97 %: dents and scuffs, panels at most a little loose, no smoke), MEDIUM (below 60 %: the side that has taken
+   the most is properly bent - a bumper or the bonnet hanging, cracked glass, a lamp can go out, grey steam from the engine), HEAVY (below 30 %: that side is smashed and the next one loose,
+   the glass badly cracked, lamps out, thick dark smoke, a hanging bumper drags sparks, and a WEAK CAR warning). The looks follow the stage, whatever single hit got you there:
+   a big first hit no longer leaves the bonnet flapping on a nearly healthy car, and a car worn down by many small hits looks like it. Driving is still never affected. */
+const DMG_ST=[.97,.6,.3],DMG_SN=['','LIGHT DAMAGE','MEDIUM DAMAGE','HEAVY DAMAGE'];
+function dmgStage(hp){hp=hp==null?DMG.hp:hp;return hp>DMG_ST[0]?0:hp>DMG_ST[1]?1:hp>DMG_ST[2]?2:3}
+function dmgZv(){const z=DMG.z;if(typeof CC!='undefined'&&CC.on)return z;const st=dmgStage(),zv=DMG.zv||(DMG.zv=[0,0,0,0,0]),cap=[.1,.4,.72,1][st];
+  let w=0,w2=1;for(let i=0;i<4;i++)if(z[i]>z[w])w=i;w2=w==0?1:0;for(let i=0;i<4;i++)if(i!=w&&z[i]>z[w2])w2=i;
+  for(let i=0;i<5;i++)zv[i]=Math.min(z[i],cap);if(st==2)zv[w]=Math.max(zv[w],.5);if(st==3){zv[w]=Math.max(zv[w],.85);zv[w2]=Math.max(zv[w2],.55)}return zv}
 function dmgHp(){return Math.max(0,1-DMG.total/(DMG_POOL*(typeof UPG!='undefined'?UPG.arm:1)))}   /* (batch 20: armour makes the pool bigger) */
 /* damage is health and looks (dents, smoke) only: it NEVER changes how the car drives. The multipliers stay at 1 / 0 so the physics code does not have to know. */
 function dmgEffects(){const z=DMG.z,f=z[0],r=z[1];DMG.hp=dmgHp();
   DMG.spd=1;DMG.acc=1;DMG.pull=0;DMG.leak=0;DMG.fire=DMG.hp<.3?1:0;
-  DMG.wrecked=DMG.hp<=.03?1:0}
+  DMG.wrecked=DMG.hp<=.03?1:0;
+  /* (batch 89) dropping into heavy damage: the WEAK CAR warning (a banner for 3.5 s and two warning beeps) */
+  {const st=dmgStage();if(st>=3&&(DMG.stPrev|0)<3&&!DMG.wrecked&&!(typeof CC!='undefined'&&CC.on)){DMG.weakT=C.t;dmgBeep()}DMG.stPrev=st}}
+function dmgBeep(){try{if(!AU.ready||!AU.master)return;const x=AU.ctx,t=x.currentTime;for(let i=0;i<2;i++){const o=x.createOscillator(),g=x.createGain();o.type='square';o.frequency.value=880;g.gain.setValueAtTime(0,t+i*.22);g.gain.linearRampToValueAtTime(.12,t+i*.22+.01);g.gain.setValueAtTime(.12,t+i*.22+.12);g.gain.linearRampToValueAtTime(0,t+i*.22+.14);o.connect(g);g.connect(AU.master);o.start(t+i*.22);o.stop(t+i*.22+.16)}}catch(e){}}
 function dmgReset(){DMG.z.fill(0);DMG.pend.length=0;DMG.cur=IMP.n;DMG.total=0;DMG.crashE=0;dmgEffects();DMG.wrecked=0;if(typeof partsReset==='function'&&CARM.parts)partsReset();
   if(DMG.ready&&DMG.dirty){const B=CARM.body;new Uint8Array(B.ab).set(DMG.pris);dentUpload();DMG.dirty=0}DMG.lampD.fill(0)}
 /* read the new impacts and turn them into damage */
@@ -77,11 +89,15 @@ function dentUpload(){const B=CARM.body;if(!B||!B.vb)return;const gl=G.gl;gl.bin
 /* ---- smoke and fire from the engine ---- */
 let _dmgCool=0;
 function dmgFx(dt){
-  const f=Math.max(DMG.z[0]*.8,1-DMG.hp);if(f<.3&&!DMG.wrecked)return;_dmgCool-=dt;
+  const st=dmgStage(),cc0=typeof CC!='undefined'&&CC.on;dmgSparks(dt,st);if(st<2&&!DMG.wrecked&&!cc0)return;
+  const f=cc0?Math.max(DMG.z[0]*.8,1-DMG.hp):st==2?.3:Math.max(.62,1-DMG.hp);if(f<.3&&!DMG.wrecked)return;_dmgCool-=dt;
   const rate=(DMG.fire||DMG.wrecked)&&typeof CC!='undefined'&&CC.on?.05:f>.6?.11:.16;
   while(_dmgCool<=0){_dmgCool+=rate;const s=SMOKE[smokeHead++%SMOKE.length],sy=Math.sin(C.yaw),cy=Math.cos(C.yaw);
     s.x=C.x+sy*1.5+cy*(Math.random()-.5)*.6;s.z=C.z-cy*1.5+sy*(Math.random()-.5)*.6;s.y=C.y+.8;s.vx=C.vx*.3+(Math.random()-.5)*.8;s.vz=C.vz*.3+(Math.random()-.5)*.8;s.vy=1.6+Math.random()*1.4;s.age=0;s.life=.9+Math.random()*.7;
-    const cc=typeof CC!='undefined'&&CC.on;s.k=0;s.sz=(.4+f*.35)*(cc?1:.75);s.a=(.2+f*.18)*(cc?1:.6);s.fire=cc&&(DMG.fire||DMG.wrecked)&&Math.random()<.4?1:0;s.dark=1}}   /* (batch 23: fire only in the crash cam) */
+    const cc=typeof CC!='undefined'&&CC.on;s.k=0;s.sz=(.4+f*.35)*(cc?1:.75)*(st==3&&!cc?1.25:1);s.a=(.2+f*.18)*(cc?1:st==3?.85:.45);s.fire=cc&&(DMG.fire||DMG.wrecked)&&Math.random()<.4?1:0;s.dark=cc||st>=3?1:0}}   /* (batch 89) medium: light grey steam; heavy: thick dark smoke */
+/* (batch 89) heavy damage: a bumper hanging low drags on the road and throws sparks */
+function dmgSparks(dt,st){if(st<3||!PP.length||!C.grounded||C.speed<8||typeof CC!='undefined'&&CC.on)return;for(const k of[5,6]){const P=PP[k];if(!P||!P.d||P.off||Math.abs(P.a)<.25)continue;if(Math.random()>dt*30)continue;
+  const fx=Math.sin(C.yaw),fz=-Math.cos(C.yaw),rx=Math.cos(C.yaw),rz=Math.sin(C.yaw),f=k==5?(CARM.hl||2.2)*.95:-(CARM.hl||2.2)*.95,sd=P.side*.7;sparkAt(C.x+fx*f+rx*sd,C.gs+.08,C.z+fz*f+rz*sd,-fx*.8,-fz*.8,2,3+C.speed*.12)}}   /* (batch 23: fire only in the crash cam) */
 /* ---- the health bar (one bar for the whole car; the five zones only decide where the dents go) ---- */
 function dmgHud(c,x,y,w,u){
   const h=u*.17,hp=Math.max(0,Math.min(1,DMG.hp)),col=hp>.5?'#4be07a':hp>.25?'#ffc23d':'#ff4a3a';

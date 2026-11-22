@@ -28,7 +28,7 @@ function _plim(k,P){const L=_plim0(k,P);if(typeof CC!='undefined'&&CC.on)return 
 function _plim0(k,P){switch(k){case 1:return[0,1.1];case 2:return[-1,0];case 3:return[0,1.4];case 4:return[-1.4,0];case 5:return P.side>0?[0,.55]:[-.55,0];case 6:return P.side>0?[-.55,0]:[0,.55];case 7:return[-1.35,0];default:return[0,1.35]}}
 /* where each part wants to be, from the damage so far */
 function partTarget(k){
-  const z=DMG.z,P=PP[k],r=P.r,sp=Math.min(1,C.speed/45);let t=0;
+  const z=dmgZv(),P=PP[k],r=P.r,sp=Math.min(1,C.speed/45);let t=0;
   switch(k){
    case 1:t=sstep(.2+.12*r[0],.85,z[0])*.95*(1-.1*sp);break;
    case 2:t=-sstep(.24+.12*r[0],.85,z[1])*.8;break;
@@ -72,7 +72,7 @@ function _rot(R,wx,wy,wz,dt){const w=Math.hypot(wx,wy,wz);if(w<1e-5)return;const
   for(let col=0;col<3;col++)for(let r=0;r<3;r++)R[col*3+r]=m[r]*o[col*3]+m[3+r]*o[col*3+1]+m[6+r]*o[col*3+2]}
 /* every frame: parts follow their targets on a spring, the pieces that came off fall and bounce, windows and lights follow the zones */
 function partsStep(dt){
-  if(!PP.length||!CARM.parts)return;const z=DMG.z,sp=Math.min(1,C.speed/45);
+  if(!PP.length||!CARM.parts)return;const z=dmgZv(),sp=Math.min(1,C.speed/45);
   for(let k=1;k<=8;k++){const P=PP[k];if(!P.d||P.off)continue;const tg=partTarget(k);
     let acc=(tg-P.a)*(k>=7?120:k>=5?90:60)-P.v*(k>=7?9:7.5);
     if(k<=4&&Math.abs(P.a)>.08)acc+=Math.sin(C.t*(14+k*3)+k)*sp*(k<=2?22:9);                            /* wind flutter */
@@ -84,7 +84,7 @@ function partsStep(dt){
     const g=groundAt(d.x,d.z,d.y+1.5)+d.hr;if(d.y<g){d.y=g;if(d.vy<-1.5)d.vy=-d.vy*.32;else d.vy=0;d.vx*=.86;d.vz*=.86;d.wx*=.7;d.wy*=.7;d.wz*=.7;
       if(Math.hypot(d.vx,d.vz)<.6&&Math.abs(d.vy)<.3&&d.t>.6){d.rest=1;d.vx=d.vz=d.vy=0}}}
   /* windows: cracks from the zone beside them; the roof adds to all */
-  const cr=PDM.cr;cr[0]=sstep(.08,.95,z[0]*.9+z[4]*.4);cr[1]=sstep(.08,.95,z[1]*.9+z[4]*.4);cr[2]=sstep(.1,1,z[2]+z[4]*.3);cr[3]=sstep(.1,1,z[3]+z[4]*.3);if(!(typeof CC!='undefined'&&CC.on))for(let i=0;i<4;i++)cr[i]=Math.min(cr[i],.45);   /* (batch 23: on the road the glass is cracked, never shattered) */
+  const cr=PDM.cr;cr[0]=sstep(.08,.95,z[0]*.9+z[4]*.4);cr[1]=sstep(.08,.95,z[1]*.9+z[4]*.4);cr[2]=sstep(.1,1,z[2]+z[4]*.3);cr[3]=sstep(.1,1,z[3]+z[4]*.3);if(!(typeof CC!='undefined'&&CC.on)){const cm=dmgStage()>=3?.75:.45;for(let i=0;i<4;i++)cr[i]=Math.min(cr[i],cm)}   /* (batch 23: on the road the glass is cracked, never shattered) */
   /* lights go out one side at a time; they are in the bumper, so they leave with it */
   PDM.head[0]=z[0]>.38+.25*PP[1].r[1]||PP[5].off?1:0;PDM.head[1]=z[0]>.5+.25*PP[1].r[2]||PP[5].off?1:0;PDM.tail[0]=z[1]>.38+.25*PP[2].r[1]||PP[6].off?1:0;PDM.tail[1]=z[1]>.5+.25*PP[2].r[2]||PP[6].off?1:0}
 function partsReset(){partsInit()}
