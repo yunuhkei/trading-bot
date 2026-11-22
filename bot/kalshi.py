@@ -1046,6 +1046,12 @@ def step(settings: dict, tell=print, now: float | None = None, events: list[dict
             real_line = real_step(settings, views, strats, cache, now, tell)
         except Exception as e:
             log.warning("REAL Kalshi failed: %s", e)
+        try:                                              # yesterday's results, once each morning
+            from .kalshi_report import morning
+
+            morning(settings, now, tell)
+        except Exception as e:
+            log.warning("morning report failed: %s", e)
         due = None
         try:
             from .solbot import report_due
