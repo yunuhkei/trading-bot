@@ -20,7 +20,7 @@ function heliMesh(){const b=new CGB(),M=CGM,k=1/3,box=(x,y,z,hx,hy,hz,m)=>cgBox(
   return b}
 function heliInit(){if(!G.gl)return;const B=heliMesh();HELI.mesh=_mkMesh(G.gl,B,m=>m==CGM.paint?[255,255,255]:CGCOL[m])}
 /* (batch 79) what the helicopter can do: lose you beyond HELI_LOSE m, pick you up again within HELI_FIND m, fly at HELI_VMAX */
-const HELI_LOSE=230,HELI_FIND=160,HELI_VMAX=()=>COP.heat>=5?64:56;
+const HELI_LOSE=260,HELI_FIND=190,HELI_VMAX=()=>COP.heat>=5?68:60;   /* (batch 83) a little keener: 260 / 190 m, 134 mph (152 at five stars); it was 230 / 160 m and 125 / 143 mph */
 function heliSpawn(i){const ux=C.speed>3?C.vx/C.speed:Math.sin(C.yaw),uz=C.speed>3?C.vz/C.speed:-Math.cos(C.yaw);
   HELI.list.push({x:C.x-ux*150+(i&1?40:-40),z:C.z-uz*150,   /* (batch 79) arrives 150 m behind you, inside the distance at which it can see you (it came from 260 m) */y:C.y+60,yaw:Math.atan2(ux,-uz),vx:ux*40,vz:uz*40,vy:0,rot:0,fuel:COP.heat>=5?75:55,slot:i,px:0,py:0,pz:0,pyaw:0,leave:0,dropT:10+i*5,run:0,lock:1,lx:C.x,lz:C.z});HELI.made++}
 function copHeliTick(dt){

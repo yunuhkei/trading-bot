@@ -197,7 +197,7 @@ function copTick(dt){
   if(seen)COP.sightT=0;else COP.sightT+=dt;
   if(COP.sightT<1||COP.lkx===undefined){COP.lkx=C.x;COP.lkz=C.z;COP.lkyaw=C.yaw;COP.lkPl=NAV.pl}   /* the last place they saw you */
   const inZone=COP.lkx===undefined||Math.hypot(C.x-COP.lkx,C.z-COP.lkz)<COP_ZR;if(COP.heat>0&&COP.sightT>2&&!inZone&&COP.inZone)safeToast('OUT OF THE SEARCH AREA',2.2);COP.inZone=inZone;
-  if(COP.heat>0&&COP.sightT>(inZone?D.loseT*(.35+.1*COP.heat):3)){   /* (batch 69) out of the search area and unseen, the heat starts to fade after 3 s */   /* unseen for longer the more stars you have */COP.w=Math.max(0,COP.w-Math.max(D.decay*.6,COP.w*.35)*dt);if(COP.w<1)COP.w=0;COP.heat=copLevelOf()}   /* (batch 67) out of their sight for 7-9 s, then the heat fades over several seconds (it went in 3 s + 2 s once a mile clear) */
+  if(COP.heat>0&&COP.sightT>(inZone?D.loseT*(.35+.1*COP.heat):5)){   /* (batch 83) 5 s out of the search area before it fades (was 3) */   /* (batch 69) out of the search area and unseen, the heat starts to fade after 3 s */   /* unseen for longer the more stars you have */COP.w=Math.max(0,COP.w-Math.max(D.decay*.6,COP.w*.35)*dt);if(COP.w<1)COP.w=0;COP.heat=copLevelOf()}   /* (batch 67) out of their sight for 7-9 s, then the heat fades over several seconds (it went in 3 s + 2 s once a mile clear) */
   if(COP.heat==0&&(COP.kills||COP.gone)){COP.kills=0;COP.gone=0}   /* (batch 70) the wreck count and the used places end with the chase */
   /* spawns */
   if(COP.spawnT<=0){

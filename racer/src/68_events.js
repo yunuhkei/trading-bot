@@ -37,16 +37,16 @@ const EV_DEF=[
 {const P=n=>(PLACES.find(q=>q.name==n)||{}).road,UZ={},FR=[.5,.22,.78,.36,.64,.1,.9],E=(id,type,name,diff,a,b,x)=>{const k=UZ[a]=(UZ[a]||0)+1;EV_DEF.push(Object.assign({id,type,name,diff,from:[P(a),FR[(k-1)%FR.length]],to:b?[P(b),.5]:undefined},x||{}))};   /* several events in one town start at different points along its main street */
   const RC={n:4},DR={n:5,goals:[1000,2000,3200]},TK=(secs)=>({secs,goals:[2,4,6],n:6});
   /* races */
-  E('x_vegas','race','Vegas Strip Sprint',2,'Las Vegas','Barstow',Object.assign({prize:9000},RC));
+  E('x_vegas','race','Vegas Strip Circuit',2,'Las Vegas','Barstow',Object.assign({prize:12000,laps:4},RC));
   E('x_mojave','race','Mojave Run',1,'Mojave Works','Indio',Object.assign({prize:6000},RC));
   E('x_hesp','race','Hesperia Dash',2,'Hesperia','Palm Springs',Object.assign({prize:8500},RC));
   E('x_bishop','race','Bishop Descent',3,'Bishop','Tahoe',Object.assign({prize:12000},RC));
-  E('x_down','race','Downtown Grand Prix',2,'Downtown','San Jose',Object.assign({prize:9000},RC));
-  E('x_harbor','race','Harbor Rush',1,'Harbor','The Valley',Object.assign({prize:6000},RC));
+  E('x_down','race','Downtown Grand Prix',2,'Downtown','San Jose',Object.assign({prize:13000,laps:3},RC));
+  E('x_harbor','race','Harbor Circuit',1,'Harbor','The Valley',Object.assign({prize:8000,laps:5},RC));
   E('x_fresno','race','Fresno Express',1,'Fresno','Big Pines',Object.assign({prize:6000},RC));
   E('x_pacif','race','Pacifica Coast Run',2,'Pacifica','Gilroy',Object.assign({prize:8000},RC));
   E('x_sacra','race','Sacramento Night Run',3,'Sacramento','Hesperia',Object.assign({prize:13000},RC));
-  E('x_palm','race','Palm Springs Loop',1,'Palm Springs','Harbor',Object.assign({prize:6000},RC));
+  E('x_palm','race','Palm Springs Loop',1,'Palm Springs','Harbor',Object.assign({prize:8000,laps:4},RC));
   /* death races */
   E('d_vegas','death','Death Race: Vegas',3,'Las Vegas','Mojave Works',Object.assign({prize:14000},DR));
   E('d_barst','death','Death Race: Barstow',2,'Barstow','Hesperia',Object.assign({prize:11000},DR));
@@ -90,10 +90,25 @@ function evRoute(s,gx,gz){const sn=navSnap(s.x,s.z,40);if(!sn)return null;const 
 function evRefTime(R,cap){cap=cap||72;const n=R.n,p=R.pts,v=new Float32Array(n);for(let i=0;i<n;i++){const a=Math.max(0,i-4),b=Math.min(n-1,i+4),c=Math.min(n-1,i+8);const h1=Math.atan2(p[b*3]-p[a*3],p[b*3+2]-p[a*3+2]),h2=Math.atan2(p[c*3]-p[b*3],p[c*3+2]-p[b*3+2]),ds=Math.max(1,R.S[c]-R.S[a]),k=Math.abs(angd(h2,h1))/ds;v[i]=Math.min(cap,k>1e-4?Math.sqrt(9.5/k):cap)}
   v[0]=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];v[i]=Math.min(v[i],Math.sqrt(v[i-1]*v[i-1]+2*6*ds))}for(let i=n-2;i>=0;i--){const ds=R.S[i+1]-R.S[i];v[i]=Math.min(v[i],Math.sqrt(v[i+1]*v[i+1]+2*11*ds))}
   let t=0;for(let i=1;i<n;i++){const ds=R.S[i]-R.S[i-1];t+=ds/Math.max(2,(v[i]+v[i-1])/2)}return t}
+/* (batch 83) LONGER RACES. A lap race goes round a town's boulevard (a closed road) d.laps times, in the right-hand lane. A point-to-point race or death race shorter than 5.5 km
+   carries on through another town further along (one or two more legs, each a new route from where the last ended), so a race lasts 2.5-4 minutes, long enough to fight the racers. */
+function evLapRoute(d,s){const r=ROADS.find(q=>q.id==d.from[0]);if(!r||!r.closed)return null;let i0=0,bd=1e18;for(let i=0;i<r.n;i++){const q=(r.X[i]-s.x)**2+(r.Z[i]-s.z)**2;if(q<bd){bd=q;i0=i}}
+  const t0=_tan(r,i0),dir=(t0[0]*Math.sin(s.yaw)-t0[1]*Math.cos(s.yaw))>=0?1:-1,off=r.hw*.45,P=[];
+  for(let l=0;l<d.laps;l++)for(let k=0;k<r.n;k++){const i=((i0+dir*k)%r.n+r.n)%r.n,t=_tan(r,i),tx=t[0]*dir,tz=t[1]*dir;P.push(r.X[i]+(-tz)*off,r.Y[i],r.Z[i]+tx*off)}
+  {const t=_tan(r,i0);P.push(r.X[i0]+(-t[1]*dir)*off,r.Y[i0],r.Z[i0]+t[0]*dir*off)}
+  const n=P.length/3,pts=new Float32Array(P),S=new Float32Array(n);for(let i=1;i<n;i++)S[i]=S[i-1]+Math.hypot(pts[i*3]-pts[i*3-3],pts[i*3+2]-pts[i*3-1]);
+  if(typeof groundAt=='function')for(let i=0;i<n;i++){const y=pts[i*3+1],g=groundAt(pts[i*3],pts[i*3+2],y+1.2);if(g>y&&g<y+1.2)pts[i*3+1]=g}
+  s.x=pts[0];s.z=pts[2];s.yaw=Math.atan2(pts[3]-pts[0],-(pts[5]-pts[2]));return{pts,n,S,len:S[n-1],laps:d.laps,lapLen:S[n-1]/d.laps}}
+function evJoin(A,B){const n=A.n+B.n-1,pts=new Float32Array(n*3),S=new Float32Array(n);pts.set(A.pts,0);pts.set(B.pts.subarray(3),A.n*3);S.set(A.S,0);for(let i=1;i<B.n;i++)S[A.n-1+i]=A.len+B.S[i];return{pts,n,S,len:S[n-1]}}
+function evExtend(d,s,R){let legs=0;const used=new Set([d.from&&d.from[0],d.to&&d.to[0]]);
+  while(R&&R.len<5500&&legs<2){const p=R.pts,n=R.n,ex=p[n*3-3],ez=p[n*3-1],k=Math.max(0,n-8),hx=ex-p[k*3],hz=ez-p[k*3+2],hl=Math.hypot(hx,hz)||1;let best=null,bs=-1e9;
+    for(const pl of PLACES){const rd=ROADS.find(q=>q.id==pl.road);if(!rd||used.has(rd.id))continue;const m=roadPt(rd,.5),dx=m[0]-ex,dz=m[1]-ez,dl=Math.hypot(dx,dz);if(dl<1200||dl>4500||R.len+dl*1.25>9000)continue;   /* (batch 83) never past about 9 km (5.6 mi) in all */const dot=(dx*hx+dz*hz)/(dl*hl);if(dot<.1)continue;const sc=dot*2000-Math.abs(dl-2600);if(sc>bs){bs=sc;best={rd,x:m[0],z:m[1]}}}
+    if(!best)break;const s2={x:ex,z:ez,yaw:Math.atan2(hx,-hz)},R2=evRoute(s2,best.x,best.z);used.add(best.rd.id);legs++;if(!R2||R2.len<500)continue;R=evJoin(R,R2)}
+  return R}
 /* (batch 58) one event built from its definition (the map events, and the story's own events) */
 function evBuild(d){let s=d.at?Object.assign({},d.at):evAt(d.from[0],d.from[1]);if(!d.at){/* (batch 54) never on top of a garage pad or a repair shop (the marker used to hide the garage card): slide along the street */const busy=q=>q&&((SAFE.pads||[]).some(p=>Math.hypot(p.pad.x-q.x,p.pad.z-q.z)<70)||(typeof REPAIRS!='undefined'&&REPAIRS.some(p=>Math.hypot(p.x-q.x,p.z-q.z)<70))||(!d.story&&EV.list.some(e=>Math.hypot(e.s.x-q.x,e.s.z-q.z)<40)));
       for(let k=1;k<12&&busy(s);k++){const f=d.from[1]+(k&1?1:-1)*Math.ceil(k/2)*.07;if(f<.03||f>.97)continue;const s2=evAt(d.from[0],f);if(s2)s=s2}}if(!s)return null;const ev=Object.assign({},d,{s});
-    if(d.type=='trial'||d.type=='race'||d.type=='death'||d.type=='rage'){const t=evAt(d.to[0],d.to[1]);if(!t)return null;let R=evRoute(s,t.x,t.z);{/* (batch 53) start facing whichever way along the road gives the shorter route: one event set off the wrong way and made a U-turn after 280 m */const s2=Object.assign({},s,{yaw:s.yaw+Math.PI}),R2=evRoute(s2,t.x,t.z);if(R2&&(!R||R2.len<R.len-30)){R=R2;s.yaw=s2.yaw;ev.s=s}}if(!R||R.len<(d.minLen||500))return null;ev.len=R.len;ev.cps=[];
+    if(d.type=='trial'||d.type=='race'||d.type=='death'||d.type=='rage'){let R=null;if(d.laps&&!d.at){R=evLapRoute(d,s);ev.s=s}if(R){}else{const t=evAt(d.to[0],d.to[1]);if(!t)return null;R=evRoute(s,t.x,t.z);{/* (batch 53) start facing whichever way along the road gives the shorter route: one event set off the wrong way and made a U-turn after 280 m */const s2=Object.assign({},s,{yaw:s.yaw+Math.PI}),R2=evRoute(s2,t.x,t.z);if(R2&&(!R||R2.len<R.len-30)){R=R2;s.yaw=s2.yaw;ev.s=s}}if(R&&(d.type=='race'||d.type=='death')&&!d.short)R=evExtend(d,s,R);if(R&&R.len<4000&&(d.type=='race'||d.type=='death')&&!d.story&&!d.at){/* (batch 83) nowhere further to go: laps of its own town instead */const rd=ROADS.find(q=>q.id==d.from[0]);if(rd&&rd.closed){const s3=Object.assign({},s),R3=evLapRoute(Object.assign({},d,{laps:Math.min(5,Math.max(3,Math.ceil(5500/rd.len)))}),s3);if(R3){R=R3;Object.assign(s,s3);ev.s=s}}}}if(!R||R.len<(d.minLen||500))return null;if(R.laps){ev.laps=R.laps;ev.lapLen=R.lapLen}ev.len=R.len;ev.cps=[];
       const n=Math.max(2,Math.round(R.len/300));for(let k=1;k<=n;k++){const S=R.len*k/n;let j=0;while(j<R.n-2&&R.S[j+1]<S)j++;const a=Math.min(R.n-2,j),x=R.pts[a*3],y=R.pts[a*3+1],z=R.pts[a*3+2],dx=R.pts[a*3+3]-x,dz=R.pts[a*3+5]-z,l=Math.hypot(dx,dz)||1;
         ev.cps.push({x,y,z,nx:-dz/l,nz:dx/l})}
       ev.ref=evRefTime(R,d.type=='trial'?EV_DCAP[evDiff(d)]:72);ev.gold=ev.ref*1.06+2;ev.silver=ev.ref*1.2+3;ev.bronze=ev.ref*1.4+4;ev.R=R;if(d.type=='trial')ev.prize=Math.max(1500,Math.round(ev.len/1000*2600/100)*100);ev.prize=Math.round(ev.prize*[1,.7,1,1.4][evDiff(d)]/100)*100}
@@ -128,7 +143,7 @@ function evCrashMark(r){if(!r||!r.ev.R)return;r.crashPs=r.ps;r.crashGaps=new Map
 /* (batch 54) after a crash the racers are put back round you IN THE ORDER THEY HAD when you crashed: the ones that were ahead are 30-80 m ahead (spread out, at least 22 m apart),
    the ones that were behind are 30-80 m behind (it used to put every racer ahead of you); crash again before you have caught up and the 80 m doubles (160, 320, at most 480) */
 function evPullRacers(r){if(!r||!r.racers||!r.racers.length||!r.ev.R)return;const R=r.ev.R,p=R.pts;
-  if(r.crashPs==null){let bi=0,bd=1e18;for(let k=0;k<R.n;k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
+  if(r.crashPs==null){let bi=0,bd=1e18;const k0=R.laps?Math.max(0,(r.fi||0)-150):0,k1=R.laps?Math.min(R.n,(r.fi||0)+400):R.n;for(let k=k0;k<k1;k++){   /* (batch 83) on a lap route only near where you are (the same spot is on every lap) */const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}r.fi=bi;r.ps=R.S[bi]}
   r.crashN=(r.crashN||0)+1;const D=Math.min(480,80*Math.pow(2,r.crashN-1)),G=r.crashGaps||new Map();
   const list=r.racers.filter(c=>c.alive&&c.race&&c.state==3&&c.race.done<0).map(c=>{const g0=G.has(c)?G.get(c):c.race.s-r.ps;return{c,g:g0>=-45?Math.max(30,Math.min(D,Math.max(g0,30))):Math.min(-30,Math.max(-D,g0))}});   /* (batch 65) a racer that was close behind or beside you when you crashed (the one that took you down) got past while you were wrecked: it comes back ahead of you */
   const ah=list.filter(q=>q.g>=0).sort((a,b)=>a.g-b.g),bh=list.filter(q=>q.g<0).sort((a,b)=>b.g-a.g);
@@ -150,7 +165,7 @@ function evTick(dt){EV.t+=dt;const r=EV.run;
   /* (batch 53) the GPS never drops out in an event: if the route to the next checkpoint (or the end) could not be found, or got lost, it is looked for again every half second */
   if(ev.cps&&ev.type!='escape'){r.navT=(r.navT||0)-dt;if((!NAV.wp||!NAV.route)&&r.navT<=0){r.navT=.5;const q=ev.type=='rage'?ev.cps[ev.cps.length-1]:ev.cps[Math.min(r.cp,ev.cps.length-1)];if(q)navSetPt(q)}}
   if(ev.R){/* your progress along the route (for the order, and for the guide painted on the road: (batch 54) every route event, time trials too, which never moved it, so their guide vanished behind you after the first checkpoint) */const R=ev.R,p=R.pts;let bi=r.fi,bd=1e18;for(let k=Math.max(0,bi-4);k<Math.min(R.n,bi+60);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;bi=k}}
-    if(bd>35*35){/* lost (a respawn, a shortcut, a long slide): look along the whole route, preferring the stretch at or after the next checkpoint */for(let k=0;k<R.n;k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2+(k<bi-40?2500:0);if(d<bd){bd=d;bi=k}}}r.fi=bi;r.ps=R.S[bi]}
+    if(bd>35*35){/* lost (a respawn, a shortcut, a long slide): look along the whole route, preferring the stretch at or after the next checkpoint */for(let k=R.laps?Math.max(0,bi-150):0;k<(R.laps?Math.min(R.n,bi+Math.round(R.n/R.laps*.6)):R.n);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2+(k<bi-40?2500:0);if(d<bd){bd=d;bi=k}}}r.fi=bi;r.ps=R.S[bi]}
   if(ev.type=='race'||ev.type=='death'){const p=ev.cps[r.cp],R=Math.max(14,(ROADS[navSnap(p.x,p.z,40)?.ri]||{hw:9}).hw+5);if(Math.hypot(C.x-p.x,C.z-p.z)<R&&Math.abs(C.y-p.y)<6){r.cp++;if(r.cp>=ev.cps.length){evFinish(true);return}evBeep(660,.08);navSetPt(ev.cps[r.cp])}
     if(r.t>Math.max(ev.bronze*2.4,ev.bronze+150))evFinishFail('TOO SLOW')}
   else if(ev.type=='trial'){r.gt+=dt;if(r.gt>=.1){r.gt-=.1;r.ghost.push(+C.x.toFixed(1),+C.y.toFixed(2),+C.z.toFixed(1),+C.yaw.toFixed(3))}
@@ -199,7 +214,7 @@ const EV_DIFF=['','EASY','MEDIUM','HARD'],EV_DCOL=['#fff','#3ddc84','#ffc23a','#
 const evDiff=ev=>ev.diff||(ev.stars?(ev.stars<=2?1:ev.stars==3?2:3):2);
 function evDiffNote(ev){const d=evDiff(ev);return EV_DIFF[d]+'  ·  '+(ev.type=='trial'?['','medal times for a 124 mph car','medal times for a 160 mph car','medal times for a 200 mph car'][d]:ev.type=='escape'?ev.stars+' stars of police':['','slower cars, up to 160 mph','cars from 160 to 200 mph','the fastest cars, 200 mph and up'][d])}
 function evInfo(ev){const rec=EV.rec[ev.id]||{};if(ev.type=='trial')return[fmtLen(ev.len)+'  ·  gold '+evFmt(ev.gold)+'  ·  prize '+evMoney(ev.prize),rec.t?'best '+evFmt(rec.t)+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not run yet'];
-  if(ev.type=='race')return[fmtLen(ev.len)+' against '+ev.n+' racers  ·  1st wins '+evMoney(ev.prize),rec.m?'best: '+['','3rd','2nd','1st'][rec.m]:'not raced yet'];
+  if(ev.type=='race')return[(ev.laps?ev.laps+' laps, ':'')+fmtLen(ev.len)+' against '+ev.n+' racers  ·  1st wins '+evMoney(ev.prize),rec.m?'best: '+['','3rd','2nd','1st'][rec.m]:'not raced yet'];
   if(ev.type=='death')return[fmtLen(ev.len)+', '+ev.n+' racers who ram you  ·  500 a wreck  ·  gold '+ev.goals[2]+' pts  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' pts'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not raced yet'];
   if(ev.type=='rage')return['wreck the '+ev.n+' racers before they get away  ·  '+Math.round(ev.secs)+' s, +5 s a takedown  ·  bronze '+ev.goals[0]+' / silver '+ev.goals[1]+' / gold '+ev.goals[2]+'  ·  prize '+evMoney(ev.prize),rec.w?'best '+rec.w+' takedowns'+(rec.m?'  ·  '+EV_MEDAL[rec.m]:''):'not done yet'];
   return[ev.stars+' stars  ·  lose them within '+evFmt(ev.secs).replace(/\.00$/,'')+'  ·  prize '+evMoney(ev.prize),rec.done?'escaped '+rec.done+'x, best '+evFmt(rec.t):'not done yet']}
@@ -227,7 +242,7 @@ function evHud(c,W_,H_,u){const fs=(k,w)=>(w||700)+' '+Math.round(u*k)+'px '+UIF
     else if(r.t<.8){fxText(c,'GO!',W_/2,H_*.42,u*1.4,'#7dffb0','center','rgba(80,255,160,.6)')}
     c.font=fs(.55,800);c.fillStyle='#fff';
     if(ev.type=='race'||ev.type=='death'){c.fillText(evFmt(Math.max(0,r.t)),W_/2,u*1.35);const pos=1+r.racers.filter(q=>q.race&&(q.race.done>=0||q.race.s>r.ps)).length,n=r.racers.filter(q=>q.race).length+1;
-      c.font=fs(.42,900);c.fillStyle=pos==1?'#ffd23a':'#fff';c.fillText('POS '+pos+' / '+n,W_/2,u*1.82);c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(EV_DIFF[evDiff(ev)]+'  ·  '+ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(ev.type=='death'?'  ·  wrecked '+r.wrecks:''),W_/2,u*2.1)}
+      c.font=fs(.42,900);c.fillStyle=pos==1?'#ffd23a':'#fff';c.fillText('POS '+pos+' / '+n+(ev.laps?'   LAP '+Math.min(ev.laps,1+Math.floor(Math.max(0,r.ps||0)/ev.lapLen))+' / '+ev.laps:''),W_/2,u*1.82);c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(EV_DIFF[evDiff(ev)]+'  ·  '+ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(ev.type=='death'?'  ·  wrecked '+r.wrecks:''),W_/2,u*2.1)}
     else if(ev.type=='trial'){c.fillText(evFmt(Math.max(0,r.t)),W_/2,u*1.35);c.font=fs(.24,700);c.fillStyle='rgba(255,255,255,.85)';c.fillText(EV_DIFF[evDiff(ev)]+'  ·  '+ev.name+'  ·  checkpoint '+Math.min(r.cp+1,ev.cps.length)+' / '+ev.cps.length+(r.best?'  ·  best '+evFmt(r.best):''),W_/2,u*1.7);
       const m=evMedal(ev,Math.max(0,r.t));c.fillStyle=EV_MCOL[m];c.fillText(m?EV_MEDAL[m]+' PACE':'NO MEDAL PACE',W_/2,u*2.0)}
     else if(ev.type=='rage'){const left=ev.secs+r.bonus-Math.max(0,r.t);c.fillStyle=left<10?'#ff6a4a':'#fff';c.fillText(evFmt(left),W_/2,u*1.35);c.font=fs(.36,900);c.fillStyle='#ffb04a';c.fillText('TAKEDOWNS '+r.wrecks+' / '+ev.n,W_/2,u*1.8);{const away=r.racers.filter(q=>q.race&&q.race.done>=0).length;if(away){c.font=fs(.22,700);c.fillStyle='rgba(255,255,255,.75)';c.fillText(away+' GOT AWAY',W_/2,u*2.12)}}if(r.pop>0){r.pop-=1/60;c.font=fs(.45,900);c.fillStyle='#7dffb0';c.globalAlpha=Math.min(1,r.pop);c.fillText('+5 s',W_/2+u*2.4,u*1.35);c.globalAlpha=1}}
