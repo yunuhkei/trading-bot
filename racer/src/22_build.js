@@ -182,7 +182,12 @@ function buildRoadMeshes(){
 /* ---------- barriers, bridge decks + piers, lamp posts ---------- */
 const COLC=[],COLR=[],COLO=[];
 /* lights that glow: street lamp heads (x,y,z) and neon signs (x,y,z,r,g,b,size); the renderer draws a glow for the ones near the car and lights the wet road with them */
-const LAMPS=[],NEONS=[],LPOST=[],LPOSTC=[];let PROP_TAG=0;   /* batch 6: street lamp posts that can be knocked down: LPOST[lamp] = [x, z, base y, circle], LPOSTC[circle] = lamp; the post's vertices carry 10000 + lamp in u (PROP_TAG while it is built) */
+const LAMPS=[],NEONS=[],LPOST=[],LPOSTC=[];let PROP_TAG=0;
+/* (batch 90) EVERY STREET POLE CAN BE KNOCKED DOWN, not only the lamp posts: traffic light poles, telegraph poles (with their wires), sign poles. They use the lamp posts' machinery
+   (tagged vertices the shader swings down about the foot, the collider switched off, stood up again once far behind you), with ids from 20000 so they never clash with a lamp's light. */
+let KPOLE_N=0;const KPOLE0=20000;
+function kpoleBegin(){const id=KPOLE0+KPOLE_N++;PROP_TAG=10000+id;return id}
+function kpoleEnd(id,px,pz,gy,r,top){PROP_TAG=0;LPOST[id]=[px,pz,gy,COLC.length/5];LPOSTC[COLC.length/5]=id;COLC.push(px,pz,r,gy-.5,top)}   /* batch 6: street lamp posts that can be knocked down: LPOST[lamp] = [x, z, base y, circle], LPOSTC[circle] = lamp; the post's vertices carry 10000 + lamp in u (PROP_TAG while it is built) */
 /* colliders: circles [x,z,r], rects [x0,z0,x1,z1,top], rotated rects [cx,z,hx,hz,cos,sin,top] */
 function buildFurniture(){
   if(typeof cityInit=='function'){cityInit();cityBuild()}   /* (batch 54) ramps and tokens in town */
@@ -390,7 +395,7 @@ function buildCity(){LMK.clear();buildGarageRoom();
       const palm=(x,z)=>{const y=terrainH(x,z);if(y<1.5)return;ppalm(x,z,rng,y);COLC.push(x,z,.5,y-.5,y+12)};
       forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,r=rng();
         if(r<.22){const [px,pz]=B.W(cu,cv),hx0=wu*.42,hz0=Math.min(7,wv*.2),c=BUN[(rng()*BUN.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,4.6,c,true);
-          const [sx,sz]=B.W(B.u0+5,B.v1-6);pbox(1,sx,gy,sz,.25,gy+9,.25,200,200,205,false,.7);pbox(1,sx,gy+7,sz,1.7,gy+9.2,.22,255,90,120,false,1);COLC.push(sx,sz,.4,gy-.5,gy+9);
+          const [sx,sz]=B.W(B.u0+5,B.v1-6);const kid=kpoleBegin();pbox(1,sx,gy,sz,.25,gy+9,.25,200,200,205,false,.7);pbox(1,sx,gy+7,sz,1.7,gy+9.2,.22,255,90,120,false,1);kpoleEnd(kid,sx,sz,gy,.4,gy+9);
           const [qx,qz]=B.W(cu,cv+hz0+8);palm(qx,qz)}
         else{const lw=wu/2,ld=wv/2;for(let a=0;a<2;a++)for(let b=0;b<2;b++){const u=B.u0+lw*(a+.5),v=B.v0+ld*(b+.5),[px,pz]=B.W(u,v),hx0=Math.min(8.5,lw*.36),hz0=Math.min(6.5,ld*.34),h=3.1+rng()*1.3,c=BUN[(rng()*BUN.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,c,true);
           proofR(1,px,pz,hx0,hz0,cs,sn,gy+h,1.8+rng()*.8,[196,90,74,120][(rng()*4)|0],110,92,rng()<.5);if(rng()<.65){const [qx,qz]=B.W(u+hx0+3,v+hz0+2.5);palm(qx,qz)}}}});
@@ -605,7 +610,7 @@ function buildCity(){LMK.clear();buildGarageRoom();
     /* a concrete apron from the door to the road */
     for(let b=B1+1;b<B1+6;b+=2){const q=Wd(0,b),t=terrainH(q[0],q[1]);pboxR(1,q[0],q[1],DW+.6,1,cs,sn,t+.015,t+.045,112,112,116,false,1)}
     /* the tall green sign you can see from far away */
-    const pq=Wd(HA+3.5,B1-2),px=pq[0],pz=pq[1],y=terrainH(px,pz);pbox(1,px,y-.4,pz,.3,y+13,.3,200,200,206,false,.8);pbox(1,px,y+10,pz,2.4,y+14,.45,60,235,130,false,1);COLC.push(px,pz,.5,y-.5,y+13);
+    const pq=Wd(HA+3.5,B1-2),px=pq[0],pz=pq[1],y=terrainH(px,pz);const kid=kpoleBegin();pbox(1,px,y-.4,pz,.3,y+13,.3,200,200,206,false,.8);pbox(1,px,y+10,pz,2.4,y+14,.45,60,235,130,false,1);kpoleEnd(kid,px,pz,y,.5,y+13);
     s.gy=gy}
   /* drive-through repair shops (batch 7): two long walls and a roof over a bay you drive straight through, a blue and white striped front, a big glowing white cross on a blue sign, a dark floor */
   for(const p of REPAIRS){const cs=p.cs,sn=p.sn,nx=-sn,nz=cs,hl=p.L/2,hw=p.W/2,Wd=(a,b)=>[p.x+cs*a+nx*b,p.z+sn*a+nz*b];let gy=1e9;for(const a of[-hl,0,hl])for(const b of[-hw,hw]){const q=Wd(a,b);gy=Math.min(gy,terrainH(q[0],q[1]))}
@@ -618,8 +623,8 @@ function buildCity(){LMK.clear();buildGarageRoom();
     /* two gravel aprons: from the road shoulder to each opening */
     for(const e of[-1,1])for(let k=0;k<6;k++){const f=k/5,a=e*(hl+2+f*9),b=-p.side*(hw+3)*f*0+(-p.side)*(f*(hw+5.5)),q=Wd(a,b);pboxR(1,q[0],q[1],1.6,2.4,cs,sn,terrainH(q[0],q[1])+.015,terrainH(q[0],q[1])+.04,88,86,80,false,1)}
     /* the sign: a blue board on a post by the road with a white cross that glows */
-    {const q=Wd(0,-p.side*(hw+3.5)),y=terrainH(q[0],q[1]);pbox(1,q[0],y-.4,q[1],.2,y+7.5,.2,200,200,206,false,.8);COLC.push(q[0],q[1],.35,y-.5,y+7.5);
-     pboxR(1,q[0],q[1],2.2,.18,cs,sn,y+6,y+9.2,30,90,220,false,1);const f=[nx*-p.side*.2,nz*-p.side*.2];pboxR(1,q[0]+f[0],q[1]+f[1],1.3,.1,cs,sn,y+7.35,y+7.85,250,252,255,2,1);pboxR(1,q[0]+f[0],q[1]+f[1],.25,.1,cs,sn,y+6.4,y+8.8,250,252,255,2,1);
+    {const q=Wd(0,-p.side*(hw+3.5)),y=terrainH(q[0],q[1]);const kid=kpoleBegin();pbox(1,q[0],y-.4,q[1],.2,y+7.5,.2,200,200,206,false,.8);
+     pboxR(1,q[0],q[1],2.2,.18,cs,sn,y+6,y+9.2,30,90,220,false,1);const f=[nx*-p.side*.2,nz*-p.side*.2];pboxR(1,q[0]+f[0],q[1]+f[1],1.3,.1,cs,sn,y+7.35,y+7.85,250,252,255,2,1);pboxR(1,q[0]+f[0],q[1]+f[1],.25,.1,cs,sn,y+6.4,y+8.8,250,252,255,2,1);kpoleEnd(kid,q[0],q[1],y,.35,y+7.5);
      NEONS.push(q[0],y+7.6,q[1],.7,.85,1,4)}
     p.gy=gy}
   /* roadside stops (batch 8): u along the road, v away from it (v 0 is the middle of the lot, the road is at v = -(hw+9)) */
@@ -700,8 +705,9 @@ function buildScenery(){
       let tx=r.X[inn]-r.X[ip],tz=r.Z[inn]-r.Z[ip];const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;const nx=-tz,nz=tx,cx=r.X[i],cz=r.Z[i],Y=r.Y[i],hwl=r.hw*r.wk[i];
       /* telegraph poles with two wires along one side of the two-lane roads */
       if(!hwy&&r.hw<=11&&d>=nx_.pole){nx_.pole=d+52;const[px,pz,ty]=sideAt(r,i,tx,tz,poleSide,3.6);
-        if(free(px,pz,Y,2,3.5)){ptrunk(0,px,ty-.2,pz,.17,9.2,92,72,52);pboxR(0,px,pz,1.15,.07,nx,nz,ty+8.2,ty+8.45,70,58,44,false,1);COLC.push(px,pz,.3,ty-.5,ty+9);St.poles++;
-          if(pp&&Math.hypot(px-pp[0],pz-pp[1])<80)for(const o of[-.95,.95]){const a=[pp[0]+pp[3]*o,pp[2]+8.5,pp[1]+pp[4]*o],b=[px+nx*o,ty+8.5,pz+nz*o],mid=[(a[0]+b[0])/2,(a[1]+b[1])/2-.75,(a[2]+b[2])/2];pbar(0,a[0],a[1],a[2],mid[0],mid[1],mid[2],.05,24,24,28);pbar(0,mid[0],mid[1],mid[2],b[0],b[1],b[2],.05,24,24,28)}
+        if(free(px,pz,Y,2,3.5)){const kid=kpoleBegin();ptrunk(0,px,ty-.2,pz,.17,9.2,92,72,52);pboxR(0,px,pz,1.15,.07,nx,nz,ty+8.2,ty+8.45,70,58,44,false,1);St.poles++;
+          if(pp&&Math.hypot(px-pp[0],pz-pp[1])<80)for(const o of[-.95,.95]){const a=[pp[0]+pp[3]*o,pp[2]+8.5,pp[1]+pp[4]*o],b=[px+nx*o,ty+8.5,pz+nz*o],mid=[(a[0]+b[0])/2,(a[1]+b[1])/2-.75,(a[2]+b[2])/2];pbar(0,a[0],a[1],a[2],mid[0],mid[1],mid[2],.05,24,24,28);pbar(0,mid[0],mid[1],mid[2],b[0],b[1],b[2],.05,24,24,28)}   /* the wires to the last pole come down with this one */
+          kpoleEnd(kid,px,pz,ty,.3,ty+9);
           pp=[px,pz,ty,nx,nz]}else pp=null}
       /* white reflector posts along the edge of the highways */
       if(hwy&&d>=nx_.del){nx_.del=d+44;for(const sd of[-1,1]){const[px,pz,ty]=sideAt(r,i,tx,tz,sd,.45);if(free(px,pz,Y,.5,2)){ptrunk(0,px,ty-.1,pz,.05,1.05,238,238,232);St.delin++}}}

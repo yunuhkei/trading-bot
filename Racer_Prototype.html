@@ -299,8 +299,8 @@ const SH={
  prV:'attribute vec3 aP;attribute vec4 aN;attribute vec4 aC;attribute vec2 aU;uniform mat4 uVP;uniform float uT;varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;'+
   /* wind: foliage (flag .5) sways by the weight kept in the colour alpha */
   /* knocked-down lamp posts (batch 6): a vertex tagged 10000 + lamp turns about the post's foot when that lamp is in the list (uKO: lamp, foot x, foot z, -; uKO2: direction, angle, foot y, -) */
-  'uniform vec4 uKO[8],uKO2[8];'+
-  'void main(){vec3 p=aP;vec3 nn=aN.xyz;if(aU.x>9999.){float id=aU.x-10000.;for(int i=0;i<8;i++){if(abs(uKO[i].x-id)<.5){vec3 b=vec3(uKO[i].y,uKO2[i].z,uKO[i].z),q=p-b;vec2 d=vec2(cos(uKO2[i].x),sin(uKO2[i].x));float a=uKO2[i].y,c=cos(a),s=sin(a);'+
+  'uniform vec4 uKO[16],uKO2[16];'+
+  'void main(){vec3 p=aP;vec3 nn=aN.xyz;if(aU.x>9999.){float id=aU.x-10000.;for(int i=0;i<16;i++){if(abs(uKO[i].x-id)<.5){vec3 b=vec3(uKO[i].y,uKO2[i].z,uKO[i].z),q=p-b;vec2 d=vec2(cos(uKO2[i].x),sin(uKO2[i].x));float a=uKO2[i].y,c=cos(a),s=sin(a);'+
   'float h=dot(q.xz,d),h2=h*c+q.y*s;q.y=-h*s+q.y*c;q.xz+=d*(h2-h);p=b+q;float nh=dot(nn.xz,d),nh2=nh*c+nn.y*s;nn.y=-nh*s+nn.y*c;nn.xz+=d*(nh2-nh);}}}'+
   'float sw=aC.a*step(.3,aN.w)*step(aN.w,.7);p.x+=(sin(uT*1.9+aP.x*.31+aP.z*.17)*.11+sin(uT*3.7+aP.z*.9)*.03)*sw;p.z+=cos(uT*1.6+aP.z*.27+aP.x*.1)*.09*sw;p.y+=sin(uT*2.3+aP.x*.5)*.025*sw;vW=p;vN=nn;vC=aC.rgb*aC.rgb;vU=aU;vE=aN.w;gl_Position=uVP*vec4(p,1.);}',
  prF:PRE+'varying vec3 vW;varying vec3 vN;varying vec3 vC;varying vec2 vU;varying float vE;uniform sampler2D uWin,uFol,uFc;uniform float uNight;uniform vec2 uFd;\n'+ENVSRC+
@@ -1455,7 +1455,12 @@ function buildRoadMeshes(){
 /* ---------- barriers, bridge decks + piers, lamp posts ---------- */
 const COLC=[],COLR=[],COLO=[];
 /* lights that glow: street lamp heads (x,y,z) and neon signs (x,y,z,r,g,b,size); the renderer draws a glow for the ones near the car and lights the wet road with them */
-const LAMPS=[],NEONS=[],LPOST=[],LPOSTC=[];let PROP_TAG=0;   /* batch 6: street lamp posts that can be knocked down: LPOST[lamp] = [x, z, base y, circle], LPOSTC[circle] = lamp; the post's vertices carry 10000 + lamp in u (PROP_TAG while it is built) */
+const LAMPS=[],NEONS=[],LPOST=[],LPOSTC=[];let PROP_TAG=0;
+/* (batch 90) EVERY STREET POLE CAN BE KNOCKED DOWN, not only the lamp posts: traffic light poles, telegraph poles (with their wires), sign poles. They use the lamp posts' machinery
+   (tagged vertices the shader swings down about the foot, the collider switched off, stood up again once far behind you), with ids from 20000 so they never clash with a lamp's light. */
+let KPOLE_N=0;const KPOLE0=20000;
+function kpoleBegin(){const id=KPOLE0+KPOLE_N++;PROP_TAG=10000+id;return id}
+function kpoleEnd(id,px,pz,gy,r,top){PROP_TAG=0;LPOST[id]=[px,pz,gy,COLC.length/5];LPOSTC[COLC.length/5]=id;COLC.push(px,pz,r,gy-.5,top)}   /* batch 6: street lamp posts that can be knocked down: LPOST[lamp] = [x, z, base y, circle], LPOSTC[circle] = lamp; the post's vertices carry 10000 + lamp in u (PROP_TAG while it is built) */
 /* colliders: circles [x,z,r], rects [x0,z0,x1,z1,top], rotated rects [cx,z,hx,hz,cos,sin,top] */
 function buildFurniture(){
   if(typeof cityInit=='function'){cityInit();cityBuild()}   /* (batch 54) ramps and tokens in town */
@@ -1663,7 +1668,7 @@ function buildCity(){LMK.clear();buildGarageRoom();
       const palm=(x,z)=>{const y=terrainH(x,z);if(y<1.5)return;ppalm(x,z,rng,y);COLC.push(x,z,.5,y-.5,y+12)};
       forBlocks(g,B=>{const cu=(B.u0+B.u1)/2,cv=(B.v0+B.v1)/2,cs=g.cs,sn=g.sn,wu=B.u1-B.u0,wv=B.v1-B.v0,r=rng();
         if(r<.22){const [px,pz]=B.W(cu,cv),hx0=wu*.42,hz0=Math.min(7,wv*.2),c=BUN[(rng()*BUN.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,4.6,c,true);
-          const [sx,sz]=B.W(B.u0+5,B.v1-6);pbox(1,sx,gy,sz,.25,gy+9,.25,200,200,205,false,.7);pbox(1,sx,gy+7,sz,1.7,gy+9.2,.22,255,90,120,false,1);COLC.push(sx,sz,.4,gy-.5,gy+9);
+          const [sx,sz]=B.W(B.u0+5,B.v1-6);const kid=kpoleBegin();pbox(1,sx,gy,sz,.25,gy+9,.25,200,200,205,false,.7);pbox(1,sx,gy+7,sz,1.7,gy+9.2,.22,255,90,120,false,1);kpoleEnd(kid,sx,sz,gy,.4,gy+9);
           const [qx,qz]=B.W(cu,cv+hz0+8);palm(qx,qz)}
         else{const lw=wu/2,ld=wv/2;for(let a=0;a<2;a++)for(let b=0;b<2;b++){const u=B.u0+lw*(a+.5),v=B.v0+ld*(b+.5),[px,pz]=B.W(u,v),hx0=Math.min(8.5,lw*.36),hz0=Math.min(6.5,ld*.34),h=3.1+rng()*1.3,c=BUN[(rng()*BUN.length)|0],gy=bld(px,pz,hx0,hz0,cs,sn,h,c,true);
           proofR(1,px,pz,hx0,hz0,cs,sn,gy+h,1.8+rng()*.8,[196,90,74,120][(rng()*4)|0],110,92,rng()<.5);if(rng()<.65){const [qx,qz]=B.W(u+hx0+3,v+hz0+2.5);palm(qx,qz)}}}});
@@ -1878,7 +1883,7 @@ function buildCity(){LMK.clear();buildGarageRoom();
     /* a concrete apron from the door to the road */
     for(let b=B1+1;b<B1+6;b+=2){const q=Wd(0,b),t=terrainH(q[0],q[1]);pboxR(1,q[0],q[1],DW+.6,1,cs,sn,t+.015,t+.045,112,112,116,false,1)}
     /* the tall green sign you can see from far away */
-    const pq=Wd(HA+3.5,B1-2),px=pq[0],pz=pq[1],y=terrainH(px,pz);pbox(1,px,y-.4,pz,.3,y+13,.3,200,200,206,false,.8);pbox(1,px,y+10,pz,2.4,y+14,.45,60,235,130,false,1);COLC.push(px,pz,.5,y-.5,y+13);
+    const pq=Wd(HA+3.5,B1-2),px=pq[0],pz=pq[1],y=terrainH(px,pz);const kid=kpoleBegin();pbox(1,px,y-.4,pz,.3,y+13,.3,200,200,206,false,.8);pbox(1,px,y+10,pz,2.4,y+14,.45,60,235,130,false,1);kpoleEnd(kid,px,pz,y,.5,y+13);
     s.gy=gy}
   /* drive-through repair shops (batch 7): two long walls and a roof over a bay you drive straight through, a blue and white striped front, a big glowing white cross on a blue sign, a dark floor */
   for(const p of REPAIRS){const cs=p.cs,sn=p.sn,nx=-sn,nz=cs,hl=p.L/2,hw=p.W/2,Wd=(a,b)=>[p.x+cs*a+nx*b,p.z+sn*a+nz*b];let gy=1e9;for(const a of[-hl,0,hl])for(const b of[-hw,hw]){const q=Wd(a,b);gy=Math.min(gy,terrainH(q[0],q[1]))}
@@ -1891,8 +1896,8 @@ function buildCity(){LMK.clear();buildGarageRoom();
     /* two gravel aprons: from the road shoulder to each opening */
     for(const e of[-1,1])for(let k=0;k<6;k++){const f=k/5,a=e*(hl+2+f*9),b=-p.side*(hw+3)*f*0+(-p.side)*(f*(hw+5.5)),q=Wd(a,b);pboxR(1,q[0],q[1],1.6,2.4,cs,sn,terrainH(q[0],q[1])+.015,terrainH(q[0],q[1])+.04,88,86,80,false,1)}
     /* the sign: a blue board on a post by the road with a white cross that glows */
-    {const q=Wd(0,-p.side*(hw+3.5)),y=terrainH(q[0],q[1]);pbox(1,q[0],y-.4,q[1],.2,y+7.5,.2,200,200,206,false,.8);COLC.push(q[0],q[1],.35,y-.5,y+7.5);
-     pboxR(1,q[0],q[1],2.2,.18,cs,sn,y+6,y+9.2,30,90,220,false,1);const f=[nx*-p.side*.2,nz*-p.side*.2];pboxR(1,q[0]+f[0],q[1]+f[1],1.3,.1,cs,sn,y+7.35,y+7.85,250,252,255,2,1);pboxR(1,q[0]+f[0],q[1]+f[1],.25,.1,cs,sn,y+6.4,y+8.8,250,252,255,2,1);
+    {const q=Wd(0,-p.side*(hw+3.5)),y=terrainH(q[0],q[1]);const kid=kpoleBegin();pbox(1,q[0],y-.4,q[1],.2,y+7.5,.2,200,200,206,false,.8);
+     pboxR(1,q[0],q[1],2.2,.18,cs,sn,y+6,y+9.2,30,90,220,false,1);const f=[nx*-p.side*.2,nz*-p.side*.2];pboxR(1,q[0]+f[0],q[1]+f[1],1.3,.1,cs,sn,y+7.35,y+7.85,250,252,255,2,1);pboxR(1,q[0]+f[0],q[1]+f[1],.25,.1,cs,sn,y+6.4,y+8.8,250,252,255,2,1);kpoleEnd(kid,q[0],q[1],y,.35,y+7.5);
      NEONS.push(q[0],y+7.6,q[1],.7,.85,1,4)}
     p.gy=gy}
   /* roadside stops (batch 8): u along the road, v away from it (v 0 is the middle of the lot, the road is at v = -(hw+9)) */
@@ -1973,8 +1978,9 @@ function buildScenery(){
       let tx=r.X[inn]-r.X[ip],tz=r.Z[inn]-r.Z[ip];const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;const nx=-tz,nz=tx,cx=r.X[i],cz=r.Z[i],Y=r.Y[i],hwl=r.hw*r.wk[i];
       /* telegraph poles with two wires along one side of the two-lane roads */
       if(!hwy&&r.hw<=11&&d>=nx_.pole){nx_.pole=d+52;const[px,pz,ty]=sideAt(r,i,tx,tz,poleSide,3.6);
-        if(free(px,pz,Y,2,3.5)){ptrunk(0,px,ty-.2,pz,.17,9.2,92,72,52);pboxR(0,px,pz,1.15,.07,nx,nz,ty+8.2,ty+8.45,70,58,44,false,1);COLC.push(px,pz,.3,ty-.5,ty+9);St.poles++;
-          if(pp&&Math.hypot(px-pp[0],pz-pp[1])<80)for(const o of[-.95,.95]){const a=[pp[0]+pp[3]*o,pp[2]+8.5,pp[1]+pp[4]*o],b=[px+nx*o,ty+8.5,pz+nz*o],mid=[(a[0]+b[0])/2,(a[1]+b[1])/2-.75,(a[2]+b[2])/2];pbar(0,a[0],a[1],a[2],mid[0],mid[1],mid[2],.05,24,24,28);pbar(0,mid[0],mid[1],mid[2],b[0],b[1],b[2],.05,24,24,28)}
+        if(free(px,pz,Y,2,3.5)){const kid=kpoleBegin();ptrunk(0,px,ty-.2,pz,.17,9.2,92,72,52);pboxR(0,px,pz,1.15,.07,nx,nz,ty+8.2,ty+8.45,70,58,44,false,1);St.poles++;
+          if(pp&&Math.hypot(px-pp[0],pz-pp[1])<80)for(const o of[-.95,.95]){const a=[pp[0]+pp[3]*o,pp[2]+8.5,pp[1]+pp[4]*o],b=[px+nx*o,ty+8.5,pz+nz*o],mid=[(a[0]+b[0])/2,(a[1]+b[1])/2-.75,(a[2]+b[2])/2];pbar(0,a[0],a[1],a[2],mid[0],mid[1],mid[2],.05,24,24,28);pbar(0,mid[0],mid[1],mid[2],b[0],b[1],b[2],.05,24,24,28)}   /* the wires to the last pole come down with this one */
+          kpoleEnd(kid,px,pz,ty,.3,ty+9);
           pp=[px,pz,ty,nx,nz]}else pp=null}
       /* white reflector posts along the edge of the highways */
       if(hwy&&d>=nx_.del){nx_.del=d+44;for(const sd of[-1,1]){const[px,pz,ty]=sideAt(r,i,tx,tz,sd,.45);if(free(px,pz,Y,.5,2)){ptrunk(0,px,ty-.1,pz,.05,1.05,238,238,232);St.delin++}}}
@@ -2305,15 +2311,16 @@ function sigState(s,t){const I=s.I,k=((((t==null?SIG.t:t)+I.off)%I.T)+I.T)%I.T,a
   return k<a?2:k<a+I.g1?0:k<a+I.g1+I.Y?1:2}
 /* the poles and heads, placed once the props are being built: a pole on the right-hand corner of each approach at the stop line with a head at 2.8 m, and an arm reaching over the road with a
    second head at 5.6 m. heads: [x,y,z, facing x,z, intersection, phase] (two per approach) for the lit lamps */
-function sigProps(){SIG.heads.length=0;
+function sigProps(){SIG.heads.length=0;SIG.hpole=[];
   for(const I of SIG.I)for(const p of I.ap){const r=p.r,ix=p.di==0?p.su:r.n-1-p.su;if(ix<0||ix>=r.n)continue;const nx=-p.tz,nz=p.tx,hw=r.hw*r.wk[ix],off=hw+(r.sw?.9:RSH*.75),y=r.Y[ix]+(r.sw?CURB_H:-.1);
     const px=r.X[ix]+nx*off,pz=r.Z[ix]+nz*off;if(otherAsphalt(px,pz,r,r.Y[ix],.2))continue;if(SAFEHOUSES.some(h=>Math.hypot(h.x-px,h.z-pz)<24))continue;   /* never a pole in a garage's driveway (the light still works, it just has no head there) */
     const fx=-p.tx,fz=-p.tz,arm=clamp(off-hw*.45,2,8),ax=px-nx*arm,az=pz-nz*arm;
-    ptrunk(0,px,y-.3,pz,.11,6.1,96,100,104);pbar(0,px,y+5.95,pz,ax,y+5.95,az,.12,96,100,104);COLC.push(px,pz,.25,y-.5,y+6);
+    const kid=kpoleBegin();ptrunk(0,px,y-.3,pz,.11,6.1,96,100,104);pbar(0,px,y+5.95,pz,ax,y+5.95,az,.12,96,100,104);   /* (batch 90) the pole and its heads can be knocked down */
     for(const[hx,hy,hz]of[[ax,y+5.35,az],[px-nx*.25,y+2.8,pz-nz*.25]]){
       pboxR(0,hx,hz,.15,.19,-nz,nx,hy-.55,hy+.55,30,32,34,false,1);                                   /* the housing: 0.38 m wide, 1.1 m tall */
       for(const dy of[.34,0,-.34])pboxR(0,hx+fx*.15,hz+fz*.15,.03,.13,-nz,nx,hy+dy-.13,hy+dy+.13,14,14,16,false,1);   /* three dark lenses (the lit one is a glow sprite) */
-      SIG.heads.push(hx+fx*.24,hy,hz+fz*.24,fx,fz,I.id,p.ph)}}
+      SIG.heads.push(hx+fx*.24,hy,hz+fz*.24,fx,fz,I.id,p.ph);SIG.hpole.push(kid)}
+    kpoleEnd(kid,px,pz,y,.25,y+6)}
   return SIG.heads.length/7}
 
 'use strict';
@@ -3076,7 +3083,7 @@ function fxDraw(){
       if(c.siren){const ph=Math.sin(R.time*12)>0;SRN.push(px+rr*(ph?-.45:.45),py+1.6,pz+rs*(ph?-.45:.45),2.6+d*.016,ph?1:.1,ph?.08:.3,ph?.06:1,Math.min(1,k*2.6))}}}
   /* police lights are drawn with plain blending (a saturated red or blue even against the bright sky), the other glows are added */
   /* traffic lights: the lit lamp of every head that faces the camera, within 220 m (plain blending, so red, yellow and green read in bright sun) */
-  {let k=0;const H=SIG.heads,cx2=CAM.x,cz2=CAM.z;for(let i=0;i<H.length&&k<64;i+=7){const dx=H[i]-cx2,dz=H[i+2]-cz2,d2=dx*dx+dz*dz;if(d2>48400||dx*H[i+3]+dz*H[i+4]>0)continue;if(dx*R.fw[0]+dz*R.fw[2]<-3)continue;
+  {let k=0;const H=SIG.heads,cx2=CAM.x,cz2=CAM.z;for(let i=0;i<H.length&&k<64;i+=7){if(SIG.hpole&&KO.dark[SIG.hpole[i/7]])continue;   /* (batch 90) a knocked-down signal is dark */const dx=H[i]-cx2,dz=H[i+2]-cz2,d2=dx*dx+dz*dz;if(d2>48400||dx*H[i+3]+dz*H[i+4]>0)continue;if(dx*R.fw[0]+dz*R.fw[2]<-3)continue;
     const I=SIG.I[H[i+5]],st=sigState({I,ph:H[i+6]}),d=Math.sqrt(d2),dy=st==2?.34:st==1?0:-.34,c=st==2?[1,.07,.04]:st==1?[1,.62,.04]:[.1,1,.45];SRN.push(H[i],H[i+1]+dy,H[i+2],.5+d*.011,c[0],c[1],c[2],Math.min(1,1.25-d/260));k++}}
   batch(8);for(let q=0;q<SRN.length;q+=8)sprite(SRN[q],SRN[q+1],SRN[q+2],SRN[q+3],SRN[q+4],SRN[q+5],SRN[q+6],SRN[q+7]);SRN.length=0;
   /* a lit garage door sign etc. could go here */
@@ -3213,15 +3220,15 @@ function trTumble(c,dt){const g=groundAt(c.x,c.z,c.y+.5);
 /* ---- lamp posts you can knock down (batch 6) ----
    Hitting a street lamp post at more than 15 km/h knocks it over instead of stopping the car: it falls the way you were going (it swings down over about 0.7 s and lies on the ground), its light goes out,
    the car loses a little speed and takes a small knock. Up to 8 fallen posts are kept (the vertex shader turns the post's own vertices: no extra draw call); one that is far behind you is stood up again. */
-const KO={list:[],U1:new Float32Array(32),U2:new Float32Array(32),dark:new Uint8Array(65536),n:0};
+const KO={list:[],U1:new Float32Array(64),U2:new Float32Array(64),dark:new Uint8Array(65536),n:0};
 function lampHit(j,nx,nz){const lid=LPOSTC[j];if(lid===undefined||C.speed<4.2)return false;const L=LPOST[lid];if(!L)return false;
-  if(KO.list.length>=8){let bi=-1,bd=-1;for(let i=0;i<KO.list.length;i++){const q=KO.list[i],d=Math.hypot(LPOST[q.lid][0]-C.x,LPOST[q.lid][1]-C.z);if(d>bd){bd=d;bi=i}}lampRestore(KO.list[bi]);KO.list.splice(bi,1)}
+  if(KO.list.length>=16){let bi=-1,bd=-1;for(let i=0;i<KO.list.length;i++){const q=KO.list[i],d=Math.hypot(LPOST[q.lid][0]-C.x,LPOST[q.lid][1]-C.z);if(d>bd){bd=d;bi=i}}lampRestore(KO.list[bi]);KO.list.splice(bi,1)}
   const dir=Math.atan2(C.vz,C.vx);KO.list.push({lid,j,dir,a:0,w:.4+C.speed*.04,t:0,top:QH.CC[j*5+4]});QH.CC[j*5+4]=-1e4;KO.dark[lid]=1;KO.n++;
   const v0=C.speed,k=Math.max(.78,1-1.4/Math.max(v0,1));C.vx*=k;C.vz*=k;C.shake=Math.min(1,C.shake+.25);C.bob=Math.min(C.bob,-.04);impactAdd(0,v0*.3,0,0,L[0],L[1],nx,nz);if(typeof sparkAt==='function')sparkAt(L[0],L[2]+.6,L[1],C.vx*.05,C.vz*.05,10,5);if(typeof audioBang==='function')audioBang(.5);return true}
 function lampRestore(q){QH.CC[q.j*5+4]=q.top;KO.dark[q.lid]=0}
 function lampTick(dt){const L=KO.list;for(let i=L.length-1;i>=0;i--){const q=L[i];q.t+=dt;if(q.a<1.48){q.w+=dt*7*Math.sin(Math.max(.15,q.a));q.a=Math.min(1.48,q.a+q.w*dt)}
     const P=LPOST[q.lid];if(q.t>25&&Math.hypot(P[0]-C.x,P[1]-C.z)>320){lampRestore(q);L.splice(i,1)}}
-  KO.U1.fill(-1);KO.U2.fill(0);for(let i=0;i<L.length&&i<8;i++){const q=L[i],P=LPOST[q.lid];KO.U1[i*4]=q.lid;KO.U1[i*4+1]=P[0];KO.U1[i*4+2]=P[1];KO.U2[i*4]=q.dir;KO.U2[i*4+1]=q.a;KO.U2[i*4+2]=P[2]}}
+  KO.U1.fill(-1);KO.U2.fill(0);for(let i=0;i<L.length&&i<16;i++){const q=L[i],P=LPOST[q.lid];KO.U1[i*4]=q.lid;KO.U1[i*4+1]=P[0];KO.U1[i*4+2]=P[1];KO.U2[i*4]=q.dir;KO.U2[i*4+1]=q.a;KO.U2[i*4+2]=P[2]}}
 function lampReset(){for(const q of KO.list)lampRestore(q);KO.list.length=0;lampTick(0)}
 'use strict';
 /* ===== crash cam and reset (batch 17) =====
@@ -6033,7 +6040,7 @@ function racerStep(c,dt){
     vt=Math.min(vt,cornerV);   /* (batch 54) the catch-up boost is for the straights only: it used to be applied after the corner limit, so a racer catching up took bends up to 46 % too fast and ran wide off the road */   /* (batch 53) it really comes back at you after you knock it out or leave it behind */   /* (batch 53) it chases harder when it is behind you, and eases off only when it is a long way ahead */
     /* traffic in the way: overtake on the free side */
     const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),look=Math.max(40,v*1.6),lat2=(o,dx,dz)=>{const ovx=Math.sin(o.yaw)*o.v,ovz=-Math.cos(o.yaw)*o.v,lt=dx*-cy+dz*sy,lv=ovx*-cy+ovz*sy;return[lt,lt+lv*.9]},   /* where it is across our path now and in 0.9 s (a car changing lanes) */
-      inLane=(o,off)=>{const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<2||f>look)return -1;const L=lat2(o,dx,dz),q=off-R.off;return Math.min(Math.abs(L[0]-q),Math.abs(L[1]-q),(L[0]-q)*(L[1]-q)<0?0:9)<2.6?f:-1};   /* L is measured from this car; off is from the route centre, where this car is R.off */
+      inLane=(o,off)=>{const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<2||f>look)return -1;const L=lat2(o,dx,dz),q=off-R.off;return Math.min(Math.abs(L[0]-q),Math.abs(L[1]-q),(L[0]-q)*(L[1]-q)<0?0:9)<2.3?f:-1};   /* (batch 90) a car only blocks it when really in its line (2.3 m, was 2.6) */   /* L is measured from this car; off is from the route centre, where this car is R.off */
     /* (batch 53) a civilian car in a racer's way that you cannot see (more than 140 m from you) simply turns off the road: racers no longer queue behind traffic out of your sight */
     for(const o of TR.cars){if(!o.alive||o===c||o.kind!=0||(o.state!=0&&o.state!=1))continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<0||f>70)continue;   /* (batch 88) a wreck too */if(Math.abs(dx*-cy+dz*sy-0)>9)continue;if(Math.hypot(o.x-C.x,o.z-C.z)>140)trKill(o,0)}
     /* (batch 88) GOING ROUND: a stopped or crawling car (a wreck, a car pulling out) close ahead in its path: it picks the side with room and drives round it at a speed it can
@@ -6051,7 +6058,7 @@ function racerStep(c,dt){
       if(ad>.12)vt=Math.min(vt,Math.max(o.v*Math.cos(angd(o.yaw,c.yaw)),0)+Math.max(0,f-12)*.5)}
     if(block&&block.kind===2&&block.race&&!(block.v<vtFree-1.5)){const gap=v*.38+7;if(bdist<gap)vt=Math.min(vt,block.v+(bdist-gap)*.6)}   /* (batch 65) a racer ahead in its lane: hang back a car length or two (at the same speed they used to drive bumper to bumper and keep touching) */
     if(block&&(block.v<v-1||block.v<vtFree-1.5)){/* (batch 88) it also goes past a car (a racer too) that is slower than it wants to go, instead of queueing behind it */ /* overtake on whichever side is clear; if neither is, slow down behind it in good time */
-      let moved=false;for(const side of[R.off<=0?3.6:-3.6,R.off<=0?-3.6:3.6]){const off=Math.max(-6,Math.min(6,R.off+side));let clear=true;for(const o of TR.cars){if(!o.alive||o===c)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f>-8&&f<bdist+15){const L=lat2(o,dx,dz),q=off-R.off;if(Math.min(Math.abs(L[0]-q),Math.abs(L[1]-q))<2.9||(L[0]-q)*(L[1]-q)<0){clear=false;break}}}if(clear){R.offT=off;moved=true;break}}
+      let moved=false;for(const side of[R.off<=0?3.6:-3.6,R.off<=0?-3.6:3.6]){const off=Math.max(-6,Math.min(6,R.off+side));let clear=true;for(const o of TR.cars){if(!o.alive||o===c)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f>-8&&f<bdist+15){const L=lat2(o,dx,dz),q=off-R.off;if(Math.min(Math.abs(L[0]-q),Math.abs(L[1]-q))<2.5||(L[0]-q)*(L[1]-q)<0){clear=false;break}   /* (batch 90) it squeezes past with 2.5 m (was 2.9) */}}if(clear){R.offT=off;moved=true;break}}
       const closing=v-block.v,need=moved?8:closing*closing/(2*12)+6;if(!moved||bdist<need)vt=Math.min(vt,block.v+Math.max(0,bdist-7)*.6)}   /* (batch 89) pulling out to pass, it keeps its speed (it used to hang back until it was alongside); boxed in, it sits closer behind */ /* until it is actually beside it, it keeps a speed it can still stop from */
     else if(!block){if(R.pref==null)R.pref=Math.max(-3.2,Math.min(3.2,R.off*.85));if(R.launch>0)R.launch-=dt;else{const lt=R.pref*(R.line?.3:1)+(R.line||0);R.offT+=(lt-R.offT)*(1-Math.exp(-dt*(R.line?1.8:.4)))}   /* (batch 65) back to a lane of its own (its grid side), not the middle: they all used to converge on the route's centre line and drive on top of each other */   /* for the first 4 s it holds its grid lane (they used to dive for the middle together and crash) */
       /* (batch 53) defending: a car right behind you in a race gets its nose across your line (a move every 1.2 s, never more than 4 m off the route) */
@@ -6121,7 +6128,7 @@ function racerCarNear(want,used){let b=null;const T=_rTier;if(T)want=Math.max(T[
 /* (batch 72) a racer's nitro shows as a flame from its exhausts; (batch 84) +26 % top speed, as yours, from a tank it has to earn (see racerStep) */
 const RACER_NZ=1.26;   /* (batch 84) exactly yours (it was 18 %) */
 function racerSkillFor(pc,sk,nitro){const r=pc.def.real,vm=1+(r.top/308-1)*.75,gr=Math.pow(r.lat/1.05,.9),ac=Math.pow(3.7/r.t100,.8),br=Math.pow(34/r.brk,.9);
-  const ak=Math.max(.7,Math.min(2,1+(r.lat-1.05)*2.2)),gk=[.7,.94,1][typeof DIFF!='undefined'?DIFF.lv:1]||.94;   /* (batch 87) Easy racers take a bend ~16 % slower than you can, Normal ~3 %, Hard on your limit */
+  const ak=Math.max(.7,Math.min(2,1+(r.lat-1.05)*2.2)),gk=[.7,.97,1.04][typeof DIFF!='undefined'?DIFF.lv:1]||.97;   /* (batch 87) Easy racers take a bend ~16 % slower than you can, Normal ~1.5 %, Hard 2 % past your limit (batch 90) */
   return{grip:15*gr*sk,a0:22*gr*sk*gk,a1:.0042*ak*sk*gk,vmax:r.top/3.6*sk,vtop:r.top/3.6,acc:12*ac*sk,brk:21*br,type:pc.type,col:pc.col,car:pc.id,nitro:nitro?1:0}}
 const racerMyTop=()=>{const d=CAR_ROSTER[CARSEL.cur];return d?(typeof upgReal=='function'?upgReal(d).top:d.real.top):300};
 const racerDiff=()=>{const ev=EV.run&&EV.run.ev||EV._starting;return ev&&typeof evDiff=='function'?evDiff(ev):2};

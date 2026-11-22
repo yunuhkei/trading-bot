@@ -116,13 +116,13 @@ function trTumble(c,dt){const g=groundAt(c.x,c.z,c.y+.5);
 /* ---- lamp posts you can knock down (batch 6) ----
    Hitting a street lamp post at more than 15 km/h knocks it over instead of stopping the car: it falls the way you were going (it swings down over about 0.7 s and lies on the ground), its light goes out,
    the car loses a little speed and takes a small knock. Up to 8 fallen posts are kept (the vertex shader turns the post's own vertices: no extra draw call); one that is far behind you is stood up again. */
-const KO={list:[],U1:new Float32Array(32),U2:new Float32Array(32),dark:new Uint8Array(65536),n:0};
+const KO={list:[],U1:new Float32Array(64),U2:new Float32Array(64),dark:new Uint8Array(65536),n:0};
 function lampHit(j,nx,nz){const lid=LPOSTC[j];if(lid===undefined||C.speed<4.2)return false;const L=LPOST[lid];if(!L)return false;
-  if(KO.list.length>=8){let bi=-1,bd=-1;for(let i=0;i<KO.list.length;i++){const q=KO.list[i],d=Math.hypot(LPOST[q.lid][0]-C.x,LPOST[q.lid][1]-C.z);if(d>bd){bd=d;bi=i}}lampRestore(KO.list[bi]);KO.list.splice(bi,1)}
+  if(KO.list.length>=16){let bi=-1,bd=-1;for(let i=0;i<KO.list.length;i++){const q=KO.list[i],d=Math.hypot(LPOST[q.lid][0]-C.x,LPOST[q.lid][1]-C.z);if(d>bd){bd=d;bi=i}}lampRestore(KO.list[bi]);KO.list.splice(bi,1)}
   const dir=Math.atan2(C.vz,C.vx);KO.list.push({lid,j,dir,a:0,w:.4+C.speed*.04,t:0,top:QH.CC[j*5+4]});QH.CC[j*5+4]=-1e4;KO.dark[lid]=1;KO.n++;
   const v0=C.speed,k=Math.max(.78,1-1.4/Math.max(v0,1));C.vx*=k;C.vz*=k;C.shake=Math.min(1,C.shake+.25);C.bob=Math.min(C.bob,-.04);impactAdd(0,v0*.3,0,0,L[0],L[1],nx,nz);if(typeof sparkAt==='function')sparkAt(L[0],L[2]+.6,L[1],C.vx*.05,C.vz*.05,10,5);if(typeof audioBang==='function')audioBang(.5);return true}
 function lampRestore(q){QH.CC[q.j*5+4]=q.top;KO.dark[q.lid]=0}
 function lampTick(dt){const L=KO.list;for(let i=L.length-1;i>=0;i--){const q=L[i];q.t+=dt;if(q.a<1.48){q.w+=dt*7*Math.sin(Math.max(.15,q.a));q.a=Math.min(1.48,q.a+q.w*dt)}
     const P=LPOST[q.lid];if(q.t>25&&Math.hypot(P[0]-C.x,P[1]-C.z)>320){lampRestore(q);L.splice(i,1)}}
-  KO.U1.fill(-1);KO.U2.fill(0);for(let i=0;i<L.length&&i<8;i++){const q=L[i],P=LPOST[q.lid];KO.U1[i*4]=q.lid;KO.U1[i*4+1]=P[0];KO.U1[i*4+2]=P[1];KO.U2[i*4]=q.dir;KO.U2[i*4+1]=q.a;KO.U2[i*4+2]=P[2]}}
+  KO.U1.fill(-1);KO.U2.fill(0);for(let i=0;i<L.length&&i<16;i++){const q=L[i],P=LPOST[q.lid];KO.U1[i*4]=q.lid;KO.U1[i*4+1]=P[0];KO.U1[i*4+2]=P[1];KO.U2[i*4]=q.dir;KO.U2[i*4+1]=q.a;KO.U2[i*4+2]=P[2]}}
 function lampReset(){for(const q of KO.list)lampRestore(q);KO.list.length=0;lampTick(0)}
