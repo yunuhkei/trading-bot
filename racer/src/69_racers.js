@@ -17,6 +17,30 @@ function racerSpawn(Rt,S,lat,k,skill,aggr){let j=0;while(j<Rt.n-2&&Rt.S[j+1]<S)j
   c.x=c.px=x-uz*lat;c.z=c.pz=z+ux*lat;c.y=c.py=groundAt(c.x,c.z,p[j*3+1]+1);c.yaw=c.pyaw=Math.atan2(ux,-uz);c.v=0;c.vx=c.vz=c.om=0;c.state=3;c.kind=2;c.cm=0;c.siren=0;c.L=null;c.stk=0;c.rev=0;c.hn=0;
   c.race={Rt,fi:j,s:S,go:false,done:-1,skill,aggr:aggr||0,off:lat,offT:lat,launch:4,ramCd:aggr==2?1.2:3.5,name:['Viper','Blaze','Ghost','Nova','Rook','Jinx','Vandal','Comet'][k%8]};return c}
 const _ra=(Rt,bi,s)=>{let k=bi;while(k<Rt.n-1&&Rt.S[k]<s)k++;return k};
+/* (batch 87) a racer's tyres are YOUR tyres: the same sideways grip as your car (a base grip and the aero grip that grows with speed), not a flat 1.5 g (half of yours at speed, so they crawled round every bend) */
+const racerA=(sk,v)=>sk.a0!=null?sk.a0+sk.a1*v*v:sk.grip;
+const racerVc=(sk,kc)=>sk.a0!=null?(kc>sk.a1+1e-5?Math.sqrt(sk.a0/(kc-sk.a1)):1e9):Math.sqrt(sk.grip/kc);
+/* (batch 87) a short cut: is the straight line from the car to (x,z) drivable? On the asphalt, or across open ground (no wall, tree, pole or rail, no big bump) for at most a third of it, and never more than 16 m from the route */
+/* (batch 87) DRIFTING: a racer or a chasing cop that takes a bend near the limit of its tyres hangs its tail out, like you do: the body turns into the bend by up to ~23 degrees
+   while the car travels round its line, and it straightens out on the way out (tyre smoke and black marks behind it). c.yaw is the body; the driving (racerStep, copFree) is done along
+   the line it travels (c.yaw - c.dA), so the slide costs nothing: it is the look of a car on the limit. Some racers slide more than others. */
+function aiDrive(c,dt){const d0=c.dA||0;if(d0)c.yaw-=d0;const x0=c.x,z0=c.z;if(c.kind==2)racerStep(c,dt);else copFree(c,dt);if(d0)c.pyaw+=d0;
+  if(Math.hypot(c.x-x0,c.z-z0)>15){c.dA=0;return}   /* put back on the route: a fresh start */
+  if(!c.alive||c.state!==3||c.spinT>0||c.air||c.rev>0){if(d0)c.yaw+=d0;c.dA=0;return}
+  const v=c.v,A=c.kind==2&&c.race&&c.race.skill?racerA(c.race.skill,v):copA(v),r=v*Math.abs(c.om||0)/Math.max(1,A),sty=c.kind==2?.75+.55*(((c.seed|0)%5)/4):.85;
+  const tA=v>15&&r>.45?Math.sign(c.om)*Math.min(.4,(r-.45)*1.1*sty):0;
+  let d=d0+(tA-d0)*(1-Math.exp(-dt*(Math.abs(tA)>Math.abs(d0)?3.2:2.4)));if(Math.abs(d)<.003)d=0;c.dA=d;c.yaw+=d}
+/* (batch 87) how much road a racer has to straighten a bend with, along a route (the road's width less a car's width either side), worked out once per route point */
+function racerRoom(Rt,k){if(!Rt.room){Rt.room=new Float32Array(Rt.n).fill(-1)}let w=Rt.room[k];if(w<0){const p=Rt.pts;w=roadAt(p[k*3],p[k*3+2],p[k*3+1]+1.5)?Math.max(0,Math.min(12,2*RQ.hw-4.5)):2;Rt.room[k]=w}return w}
+/* the bend it really drives: the route's own radius plus what the width of the road lets it open the line out by (the line cuts across the inside at the apex) */
+const racerKc=(Rt,k,kc)=>kc/(1+kc*racerRoom(Rt,k)*1.5);
+function racerCutOK(c,Rt,bi,j,x,z,y1){const dx=x-c.x,dz=z-c.z,d=Math.hypot(dx,dz),n=Math.max(2,Math.ceil(d/4)),p=Rt.pts;let off=0;
+  for(let k=1;k<n;k++){const t=k/n,sx=c.x+dx*t,sz=c.z+dz*t,sy=c.y+(y1-c.y)*t;
+    if(roadAt(sx,sz,sy+1.5)&&Math.abs(RQ.lat)<RQ.hw-.9){if(Math.abs(RQ.y-sy)>2.2)return false}
+    else{if(++off>n*.34)return false;const g=terrainH(sx,sz);if(Math.abs(g-sy)>1.6||trStatic(sx,sz,1.3,sy))return false}
+    if(railHit(sx,sz,sy,1.3)>=0)return false;
+    let md=1e9;for(let q=bi;q<=j;q++){const e=(p[q*3]-sx)**2+(p[q*3+2]-sz)**2;if(e<md)md=e}if(md>256)return false}
+  return true}
 function racerStep(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;const R=c.race;if(!R){c.state=1;return}const Rt=R.Rt,p=Rt.pts;
   /* where it is along the route */
@@ -32,8 +56,17 @@ function racerStep(c,dt){
     /* the tightest bend in the next stretch: the curvature of the circle through three points of it (Menger), at two distances, and the speed its grip allows there */
     let cornerV=1e9;
     /* (batch 53) corners: the speed the tightest bend in the next ~3 s allows, looked at every 9 m (the two coarse samples above smoothed a 90-degree turn away), with the braking it takes to get there */
-    {const bk=(sk.brk||9)*.72,maxD=Math.max(90,v*3.2),hd=q=>{const a=_ra(Rt,bi,q),b=_ra(Rt,bi,q+10);return Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2]))};let h0=hd(R.s-8);
-      for(let d=-2;d<maxD;d+=6){const h1=hd(R.s+d),kc=Math.abs(angd(h1,h0))/6;h0=h1;   /* (batch 54) from where it is now, every 6 m: the scan began 12 m ahead, so a car already in a tight turn stopped seeing it and accelerated out wide */if(kc>1e-3){const vc=Math.sqrt(sk.grip*1.05/kc);cornerV=Math.min(cornerV,Math.sqrt(vc*vc+2*bk*Math.max(0,d)))}}}
+    {const bk=(sk.brk||9)*.9,maxD=Math.max(90,v*3.2),hd=q=>{const a=_ra(Rt,bi,q),b=_ra(Rt,bi,q+10);return Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2]))};let h0=hd(R.s-8);
+      for(let d=-2;d<maxD;d+=6){const h1=hd(R.s+d),kc0=Math.abs(angd(h1,h0))/6;h0=h1;const kc=kc0>1e-3?racerKc(Rt,_ra(Rt,bi,R.s+d),kc0):0;   /* (batch 54) from where it is now, every 6 m: the scan began 12 m ahead, so a car already in a tight turn stopped seeing it and accelerated out wide */if(kc>1e-3){const vc=racerVc(sk,kc);cornerV=Math.min(cornerV,Math.sqrt(vc*vc+2*bk*Math.max(0,d)))}}}
+    /* (batch 87) THE RACING LINE: into a bend it runs out wide, clips the inside at the apex and lets the car run out wide again, like you do (the road's full width, less a car's
+       width): the bend it drives is much wider than the route's own centre line, so it carries more speed (the corner speeds above count on it) */
+    R.lnT=(R.lnT||0)-dt;if(R.lnT<=0){R.lnT=.1;const hd2=q=>{const a=_ra(Rt,bi,q),b=_ra(Rt,bi,q+8);return Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2]))};
+      const n1=Math.max(22,v*.9),hn=hd2(R.s+n1),tn=angd(hn,hd2(R.s)),tf=angd(hd2(R.s+n1+Math.max(30,v*1.4)),hn);
+      /* the road's real edges where it is heading (the route is not always on the road's centre line; on a divided road it keeps to its own side of the median), as offsets from the route */
+      R.oMin=-4.5;R.oMax=4.5;{const a2=Math.min(Rt.n-1,ahead+1),rx=p[a2*3]-p[ahead*3],rz=p[a2*3+2]-p[ahead*3+2];if(roadAt(p[ahead*3],p[ahead*3+2],p[ahead*3+1]+1.5)){const sg=(RQ.tx*rx+RQ.tz*rz)>=0?1:-1,la=RQ.lat,e=RQ.hw-1.9;let lo=-e,hi=e;
+        if(RQ.mm>.5){if(la>=0)lo=Math.min(e,MEDW+1.6);else hi=-Math.min(e,MEDW+1.6)}if(hi>lo){const A=sg*(lo-la),B=sg*(hi-la);R.oMin=Math.min(A,B);R.oMax=Math.max(A,B)}}}
+      const mid=(R.oMin+R.oMax)/2,W=Math.max(0,(R.oMax-R.oMin)/2);
+      let L=0;if(Math.abs(tn)>.16)L=mid+Math.sign(tn)*W*Math.min(1,Math.abs(tn)/.6);else if(Math.abs(tf)>.3)L=mid-Math.sign(tf)*W*.6*Math.min(1,Math.abs(tf)/.8);R.line=v>14?L:0}
     /* (batch 84) NITRO, EARNED AND SPENT LIKE YOURS: a tank (R.nos) that fills the way yours does (a slow trickle, the slipstream, holding top speed, near misses, the oncoming lane,
        taking you down) and empties at your rate while it burns (+26 % top speed, as yours). It goes for it: with the tank low it tucks into the slipstream of the car ahead. It burns it
        when it is losing (you ahead of it: by 60 m on Easy, 25 m on Normal, 10 m on Hard), to pass a racer just ahead, to hold you off when you close in (Normal, Hard), in the last
@@ -58,7 +91,7 @@ function racerStep(c,dt){
           if(tg)R.offT=Math.max(-4.5,Math.min(4.5,R.off+tg.l*.8))}}}
     const vLim=(sk.vtop||sk.vmax)*(R.nzT>0?RACER_NZ:1);   /* (batch 54) the car's real top speed, +26 % while its nitro burns: exactly what your boost gives you (it was +8 % all the time and +20 % on nitro) */
     let vt=sk.vmax*(R.nzT>0?RACER_NZ:1);for(const L of[Math.max(40,v*1.4),Math.max(80,v*2.6)]){const A=_ra(Rt,bi,R.s+10),B=_ra(Rt,bi,R.s+10+L/2),Cc=_ra(Rt,bi,R.s+10+L);const ax=p[A*3],az=p[A*3+2],bx=p[B*3],bz=p[B*3+2],cx=p[Cc*3],cz=p[Cc*3+2];
-      const ar=Math.abs((bx-ax)*(cz-az)-(bz-az)*(cx-ax)),dd=Math.hypot(bx-ax,bz-az)*Math.hypot(cx-bx,cz-bz)*Math.hypot(cx-ax,cz-az),kc=dd>1e-3?2*ar/dd:0;if(kc>1e-4){const vb=Math.sqrt(sk.grip/kc),dist=Math.max(0,Rt.S[A]-R.s);vt=Math.min(vt,Math.sqrt(vb*vb+2*(sk.brk||9)*.72*dist))}}
+      const ar=Math.abs((bx-ax)*(cz-az)-(bz-az)*(cx-ax)),dd=Math.hypot(bx-ax,bz-az)*Math.hypot(cx-bx,cz-bz)*Math.hypot(cx-ax,cz-az),kc=dd>1e-3?2*ar/dd:0;if(kc>1e-4){const vb=racerVc(sk,racerKc(Rt,B,kc)),dist=Math.max(0,Rt.S[A]-R.s);vt=Math.min(vt,Math.sqrt(vb*vb+2*(sk.brk||9)*.9*dist))}}
     /* catch-up: a little faster when far behind you, a little slower when far ahead */
     const gap=(EV.run&&EV.run.ps!=null)?EV.run.ps-R.s:0;vt*=gap>300?1.3:gap>150?1.18:gap>60?1.08:gap<-320?.93:1;if(R.catchT>0){R.catchT-=dt;if(gap>20)vt*=1.12}
     {const sf=slipRacer(c),rb=gap>40?[1,1.03,1.08][typeof DIFF!='undefined'?DIFF.lv:1]:1;vt=Math.min(vt*sf,vLim*sf*rb)}   /* (batch 83) with you ahead, a racer may push past its car's top speed: 3 % on Normal, 8 % on Hard (it never could, so a quick player left the Hard racers behind) */   /* catch-up brings it up to its car's limit, never past it (a slipstream adds up to 6 %, as yours adds 8 %) */
@@ -75,7 +108,7 @@ function racerStep(c,dt){
     if(block&&block.v<v-1){/* overtake on whichever side is clear; if neither is, slow down behind it in good time */
       let moved=false;for(const side of[R.off<=0?3.6:-3.6,R.off<=0?-3.6:3.6]){const off=Math.max(-6,Math.min(6,R.off+side));let clear=true;for(const o of TR.cars){if(!o.alive||o===c)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f>-8&&f<bdist+15){const L=lat2(o,dx,dz),q=off-R.off;if(Math.min(Math.abs(L[0]-q),Math.abs(L[1]-q))<2.9||(L[0]-q)*(L[1]-q)<0){clear=false;break}}}if(clear){R.offT=off;moved=true;break}}
       const closing=v-block.v,need=closing*closing/(2*7)+12;if(!moved||bdist<need)vt=Math.min(vt,block.v+Math.max(0,bdist-10)*.45)}   /* until it is actually beside it, it keeps a speed it can still stop from */
-    else if(!block){if(R.pref==null)R.pref=Math.max(-3.2,Math.min(3.2,R.off*.85));if(R.launch>0)R.launch-=dt;else R.offT+=(R.pref-R.offT)*(1-Math.exp(-dt*.4));   /* (batch 65) back to a lane of its own (its grid side), not the middle: they all used to converge on the route's centre line and drive on top of each other */   /* for the first 4 s it holds its grid lane (they used to dive for the middle together and crash) */
+    else if(!block){if(R.pref==null)R.pref=Math.max(-3.2,Math.min(3.2,R.off*.85));if(R.launch>0)R.launch-=dt;else{const lt=R.pref*(R.line?.3:1)+(R.line||0);R.offT+=(lt-R.offT)*(1-Math.exp(-dt*(R.line?1.8:.4)))}   /* (batch 65) back to a lane of its own (its grid side), not the middle: they all used to converge on the route's centre line and drive on top of each other */   /* for the first 4 s it holds its grid lane (they used to dive for the middle together and crash) */
       /* (batch 53) defending: a car right behind you in a race gets its nose across your line (a move every 1.2 s, never more than 4 m off the route) */
       if(EV.run&&EV.run.ev&&EV.run.t>=0&&!(c.spinT>0)){R.defT=(R.defT||0)-dt;const dpx=C.x-c.x,dpz=C.z-c.z,fd=dpx*sy+dpz*cy,lt=dpx*-cy+dpz*sy;
         /* (batch 64) racing you for position (every racer event, takedowns too): with you close behind or alongside it floors it, lights its nitro when you draw level, and once its nose is ahead of yours it cuts across in front of you (a move every second, never more than 4.5 m off the route) */
@@ -85,11 +118,18 @@ function racerStep(c,dt){
     /* (batch 66) any racer close ahead and not clearly to one side: ease off to keep 5.5 m + 0.22 s (the inLane test above can miss a car merging diagonally where the road narrows) */
     for(const o of TR.cars){if(!o.alive||o===c||o.kind!==2||!o.race||o.state!==3)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<=0||f>16)continue;const lt=dx*-cy+dz*sy;if(Math.abs(lt-(R.offT-R.off))<2.9&&Math.abs(lt)<3.2)vt=Math.min(vt,o.v+(f-(5.5+v*.22))*.7)}
     R.sepT=(R.sepT||0)-dt;if(R.sepT<=0){for(const o of TR.cars){if(!o.alive||o===c||o.kind!==2||!o.race||o.state!==3)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy,lt=dx*-cy+dz*sy;if(Math.abs(f)<6&&Math.abs(lt)<3.6){R.offT=Math.max(-4.5,Math.min(4.5,R.off+(lt>0?-1:1)*(3.8-Math.abs(lt))));if(f>0)vt=Math.min(vt,o.v-1.5);R.sepT=.35;break}}}   /* the one behind yields */
+    if(R.oMax>R.oMin)R.offT=Math.max(R.oMin,Math.min(R.oMax,R.offT));   /* (batch 87) never aim past the road's edge */
     R.off+=(R.offT-R.off)*Math.min(1,dt*2.6);
     let tx=p[ahead*3],tz=p[ahead*3+2];{const a2=Math.min(Rt.n-1,ahead+1),dx=p[a2*3]-tx,dz=p[a2*3+2]-tz,l=Math.hypot(dx,dz)||1;
       /* (batch 53) never aim off the asphalt: an offset that would put the car on the verge or into the barrier is pulled back towards the route */
       R.rdT=(R.rdT||0)-dt;if(R.rdT<=0){R.rdT=.15;if(R.off!==0&&!(roadAt(tx-dz/l*R.off,tz+dx/l*R.off,c.y+1)&&Math.abs(RQ.lat)<RQ.hw-1.1)){R.offT*=.4;R.off*=.6;R.launch=0}}
       tx+=-dz/l*R.off;tz+=dx/l*R.off}
+    /* (batch 87) SHORT CUTS: it looks further along the route (up to ~1.5 s ahead) and, where the straight line there is drivable (across a junction, the inside of a bend, the corner
+       of a lot), it aims straight for it instead of following the road round, as you would */
+    if(v>14&&R.go&&!(R.amb>0)&&!(c.spinT>0)){R.cutT=(R.cutT||0)-dt;if(R.cutT<=0){R.cutT=.15;R.cut=-1;for(const m of[2.2,1.7,1.3]){const D=Math.min(95,Math.max(22,v*.7*m)),j=_ra(Rt,bi,R.s+D);if(j<=ahead+1)continue;
+        const j2=Math.min(Rt.n-1,j+1),ex=p[j2*3]-p[j*3],ez=p[j2*3+2]-p[j*3+2],el=Math.hypot(ex,ez)||1,ox=p[j*3]-ez/el*R.off*.5,oz=p[j*3+2]+ex/el*R.off*.5;
+        if(racerCutOK(c,Rt,bi,j,ox,oz,p[j*3+1]||c.y)){R.cut=j;R.cx=ox;R.cz=oz;break}}}
+      if(R.cut>ahead&&R.cut>bi){tx=R.cx;tz=R.cz}}else R.cut=-1
     /* (batch 80) THE AMBUSH: now and then (one racer at a time; every 20-28 s on Easy, 14-22 s on Normal, 10-16 s on Hard) a racer AHEAD of you pulls into your lane in front of you, eases off to let you
        draw level (it starts 15-60 m ahead and eases off harder the further ahead it is), then slams into you (the fight below); a clean racer (aggr 0) never does. No warning (batch 81). It gives up after 9 s, or once it has hit you. */
     if(R.aggr&&EV.run&&EV.run.t>2&&!TUM.on&&!CC.on){const dpx=C.x-c.x,dpz=C.z-c.z,fy=dpx*sy+dpz*cy,ly=dpx*-cy+dpz*sy,dl=typeof DIFF!='undefined'?DIFF.lv:1;
@@ -107,9 +147,9 @@ function racerStep(c,dt){
     if(c.rev>0){c.rev-=dt;c.yaw+=c.revS*1.1*dt;c.v=0;c.x-=sy*4*dt;c.z-=cy*4*dt;c.vx=-sy*4;c.vz=-cy*4;if(trStatic(c.x,c.z,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz}const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);return}
     if(c.stk>.8&&c.v<2){c.rev=1;c.revS=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw)>0?-1:1;c.stk=.3}
     if(c.spinT>0){c.spinT-=dt;c.v*=Math.exp(-dt*.75);c.ks=c.ks||0;if(c.spinT<=0){c.yaw=c.yaw;c.ks*=.3}}   /* spinning out: no steering, it slides on and loses speed */
-    const err=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw),maxYr=Math.min(2.4,sk.grip*1.3/Math.max(v,4)),yr=(c.spinT>0||c.air)?0:Math.max(-maxYr,Math.min(maxYr,err*3))*(c.loose>0?Math.max(.2,1-c.loose*.9):1);c.om=yr;c.yaw+=yr*dt;
-    {const ea=Math.abs(angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw));if(ea>.3&&!(c.spinT>0))vt=Math.min(vt,v*(ea>.6?.97:1))}   /* (batch 54) still turning in (pointing well away from where it is going): it does not put the power down yet */
-    R.cv=cornerV;R.vt=vt;const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?RACER_NZ:1))),1.6))*(R.nzT>0?1.9:1),a=Math.max(-(sk.brk||11),Math.min(accNow,(vt-v)*1.6));if(!(c.spinT>0)&&!c.air)c.v=Math.max(0,Math.min(vLim*(1+.06*(c.slip||0)),v+a*dt));c.brake=a<-2.5?1:0;
+    const err=angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw),maxYr=Math.min(2.4,racerA(sk,v)*1.2/Math.max(v,4)),yr=(c.spinT>0||c.air)?0:Math.max(-maxYr,Math.min(maxYr,err*3))*(c.loose>0?Math.max(.2,1-c.loose*.9):1);c.om=yr;c.yaw+=yr*dt;
+    {const ea=Math.abs(angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw));if(ea>.75&&!(c.spinT>0))vt=Math.min(vt,v*.98)}   /* (batch 54) still turning in (pointing well away from where it is going): it does not put the power down yet */
+    R.cv=cornerV;R.vt=vt;const accNow=sk.acc*(1-.8*Math.pow(Math.min(1,v/(sk.vmax*(R.nzT>0?RACER_NZ:1))),1.6))*(R.nzT>0?1.9:1),a=vt<v?Math.max(-(sk.brk||11),(vt-v)*5):Math.min(accNow,(vt-v)*1.6);   /* (batch 87) it brakes as hard as its plan counts on (the brake used to come on in proportion to the overspeed, at about a third of what the corner speeds assumed, so it arrived at tight turns 20-25 mph too fast) */if(!(c.spinT>0)&&!c.air)c.v=Math.max(0,Math.min(vLim*(1+.06*(c.slip||0)),v+a*dt));c.brake=a<-2.5?1:0;
     if(c.v<1.5)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
   const mvy=c.spinT>0&&c.sdir!=null?c.sdir+angd(c.yaw,c.sdir)*Math.max(0,1-c.spinT/.45):c.yaw,sy=Math.sin(mvy),cy=Math.cos(mvy);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
   /* (batch 53) a knock: a sideways drift and a spin that die away in about half a second */if(c.kx||c.kz){c.x+=c.kx*dt;c.z+=c.kz*dt;c.vx+=c.kx;c.vz+=c.kz;const kl=Math.hypot(c.kx,c.kz),nk=Math.max(0,kl-dt*(c.loose>0?6.5:14)-kl*dt*.8);c.kx*=nk/kl;c.kz*=nk/kl;if(nk<.15)c.kx=c.kz=0}if(c.ks){c.yaw+=c.ks*dt;c.ks*=Math.exp(-dt*(c.spinT>0?.8:c.loose>0?1.6:4));if(Math.abs(c.ks)<.02)c.ks=0}   /* (batch 54) the sideways slide is scrubbed off by the tyres (a steady ~0.7 g while they are loose), so a shove carries it several metres across: off the road if you push it there */if(c.loose>0)c.loose-=dt;
@@ -132,7 +172,8 @@ function racerCarNear(want,used){let b=null;const T=_rTier;if(T)want=Math.max(T[
 /* (batch 72) a racer's nitro shows as a flame from its exhausts; (batch 84) +26 % top speed, as yours, from a tank it has to earn (see racerStep) */
 const RACER_NZ=1.26;   /* (batch 84) exactly yours (it was 18 %) */
 function racerSkillFor(pc,sk,nitro){const r=pc.def.real,vm=1+(r.top/308-1)*.75,gr=Math.pow(r.lat/1.05,.9),ac=Math.pow(3.7/r.t100,.8),br=Math.pow(34/r.brk,.9);
-  return{grip:15*gr*sk,vmax:r.top/3.6*sk,vtop:r.top/3.6,acc:12*ac*sk,brk:19*br,type:pc.type,col:pc.col,car:pc.id,nitro:nitro?1:0}}
+  const ak=Math.max(.7,Math.min(2,1+(r.lat-1.05)*2.2)),gk=[.74,.94,1][typeof DIFF!='undefined'?DIFF.lv:1]||.94;   /* (batch 87) Easy racers take a bend ~14 % slower than you can, Normal ~3 %, Hard on your limit */
+  return{grip:15*gr*sk,a0:22*gr*sk*gk,a1:.0042*ak*sk*gk,vmax:r.top/3.6*sk,vtop:r.top/3.6,acc:12*ac*sk,brk:21*br,type:pc.type,col:pc.col,car:pc.id,nitro:nitro?1:0}}
 const racerMyTop=()=>{const d=CAR_ROSTER[CARSEL.cur];return d?(typeof upgReal=='function'?upgReal(d).top:d.real.top):300};
 const racerDiff=()=>{const ev=EV.run&&EV.run.ev||EV._starting;return ev&&typeof evDiff=='function'?evDiff(ev):2};
 let _rUsed=null;const racerSkill=(k,n,hard)=>{if(k==0)_rUsed=new Set();const d=racerDiff();_rTier=EV_DTOP[d];const dl=typeof DIFF!='undefined'?DIFF.lv:1,pc=racerCarNear(racerMyTop()*(hard?1.07:1.03)*(1-.032*k)*(typeof DIFF!='undefined'?DIFF.car[dl]:1),_rUsed);_rTier=null;return racerSkillFor(pc,Math.min(1.02,((hard?1:.99)-.018*k-[0,.07,.025,0][d])*(typeof DIFF!='undefined'?DIFF.racer[dl]:1)),1)};   /* (batch 63) the difficulty setting */   /* (batch 54) easy racers drive a little below their best too */   /* (batch 53) they drive their cars almost flat out */

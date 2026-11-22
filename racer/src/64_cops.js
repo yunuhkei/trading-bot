@@ -56,12 +56,20 @@ function copLos(c){
 /* ---- free chase: a cop that steers at its slot round the player ---- */
 function copHorizon(c){const hs=c.hs=Math.min(10,Math.max(6,2+c.v*.33)),sx=Math.sin(c.yaw),sz=-Math.cos(c.yaw);for(let k=0;k<HN;k++){c.hx[k]=c.x+sx*k*hs;c.hz[k]=c.z+sz*k*hs;c.hv[k]=c.v}c.hn=HN;c.hend=0}
 const _ct={x:0,z:0,v:0};
+/* (batch 87) a cop's tyres: the same sideways grip as a player's car (a base grip and aero grip that grows with speed), a little less (they used to turn on 1.3 g at any speed and ran wide everywhere) */
+const copA=v=>.95*(22+.0042*v*v);
+/* (batch 87) YOUR TRAIL: where you have driven (a point every 6 m, the last ~300 m). A cop whose straight line to you runs into a building follows your trail round the corner, cutting as much of it as it can */
+const COPBC={x:new Float32Array(52),z:new Float32Array(52),n:0,h:0,t:-1};
+function copCrumb(){if(COPBC.t===C.t)return;COPBC.t=C.t;const L=(COPBC.h+51)%52;if(COPBC.n&&Math.hypot(C.x-COPBC.x[L],C.z-COPBC.z[L])<6)return;COPBC.x[COPBC.h]=C.x;COPBC.z[COPBC.h]=C.z;COPBC.h=(COPBC.h+1)%52;COPBC.n=Math.min(52,COPBC.n+1)}
+function copLine(c,x,z){const dx=x-c.x,dz=z-c.z,d=Math.hypot(dx,dz),n=Math.ceil(d/5);for(let k=1;k<n;k++){const t=k/n;if(trStatic(c.x+dx*t,c.z+dz*t,c.hw+.4,c.y+.5))return false}return true}
+function copVia(c,tx,tz){if(C.t-(c.viaAt??-9)<.25)return c.via;c.viaAt=C.t;c.via=null;if(copLine(c,tx,tz))return null;
+  for(let i=1;i<=COPBC.n;i++){const k=(COPBC.h-i+52)%52,x=COPBC.x[k],z=COPBC.z[k];if(Math.hypot(x-c.x,z-c.z)>140)break;if(Math.hypot(x-c.x,z-c.z)>5&&copLine(c,x,z)){c.via=[x,z];break}}return c.via}
 function copTarget(c){
   /* out of sight (no cop and no helicopter has seen you for 2.5 s) they drive to the LAST PLACE they saw you, not to where you are: that is how you lose them */
   const T=COP.sightT<2.5?{x:C.x,z:C.z,vx:C.vx,vz:C.vz,yaw:C.yaw}:{x:COP.lkx,z:COP.lkz,vx:0,vz:0,yaw:COP.lkyaw};
   const D=COP.D,ps=Math.hypot(T.vx,T.vz);let fx,fz;if(ps>3){fx=T.vx/ps;fz=T.vz/ps}else{fx=Math.sin(T.yaw);fz=-Math.cos(T.yaw)}const rx=-fz,rz=fx,slow=ps<14;let b=0,s=0;     /* b: metres behind the player, s: metres to the right */
   switch(c.role){case 0:b=slow?7:6+ps*.1;break;case 1:b=slow?0:5;s=slow?-4.1:-3.8;break;case 2:b=slow?0:5;s=slow?4.1:3.8;break;case 3:if(slow){b=-7}else b=18;break;case 4:b=slow?10:18;break;case 5:b=9;s=-3.6;break;default:b=9;s=3.6}
-  let tx=T.x-fx*b+rx*s,tz=T.z-fz*b+rz*s,ram=false;
+  let tx=T.x-fx*b+rx*s,tz=T.z-fz*b+rz*s,ram=false;const slx=tx,slz=tz;
   /* ramming / PIT: aim at the player's rear quarter, faster than the player, then back off for a while */
   const dist=Math.hypot(T.x-c.x,T.z-c.z);
   const ST=STARS[COP.heat]||STARS[0];
@@ -69,23 +77,35 @@ function copTarget(c){
     /* a ram goes for your back bumper; a PIT (from 3 stars) for the rear corner, from the side, so your tail is pushed round */
     if(ST.pit){tx=C.x-fx*1.9+rx*sd*1.25;tz=C.z-fz*1.9+rz*sd*1.25}else{tx=C.x-fx*1.7+rx*sd*.6;tz=C.z-fz*1.7+rz*sd*.6}}
   else{/* lead the target: aim where you will be (up to 1.2 s ahead), so they cut corners instead of following your tail round them */const lt=Math.min(1.2,dist/60);tx+=T.vx*lt;tz+=T.vz*lt}
-  const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),dl=(tx-c.x)*sy+(tz-c.z)*cy,dd=Math.hypot(tx-c.x,tz-c.z);let tv=ps+Math.max(-12,Math.min(22,dl*.9));
-  if(ram)tv=ps+D.ramV;else{const cl=Math.min(34,Math.sqrt(2*8*Math.max(0,dd-2)));tv=ps+(dl>=0?cl:-cl)}     /* come up to the slot at a speed it can still stop from */
+  if(COP.sightT<2.5&&dist>12){copCrumb();const w=copVia(c,tx,tz);if(w){tx=w[0];tz=w[1];ram=false}}
+  /* (batch 87) how fast to close in is worked out on its real place in the chase (the slot), not on the point it steers at (that is led ahead of you): it used to arrive 25-30 mph too fast and shoot past you */
+  const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),qx=ram?tx:slx,qz=ram?tz:slz,dl=(qx-c.x)*sy+(qz-c.z)*cy,dd=Math.hypot(qx-c.x,qz-c.z);let tv=ps+Math.max(-12,Math.min(22,dl*.9));
+  if(ram)tv=ps+Math.sqrt(D.ramV*D.ramV+2*9*Math.max(0,dist-4));else{   /* (batch 87) a ram arrives at its ram speed (it used to hit you at whatever speed it came in at, 30+ mph faster than you, and wreck itself) */const cl=Math.min(34,Math.sqrt(2*8*Math.max(0,dd-2)));tv=ps+(dl>=0?cl:-cl)}     /* come up to the slot at a speed it can still stop from */
+  /* (batch 87) the turn it needs to make to get there: no faster than its tyres can take it round (the circle from its nose through the target), so it brakes for a bend instead of running wide */
+  {const er=Math.abs(angd(Math.atan2(tx-c.x,-(tz-c.z)),c.yaw)),de=Math.hypot(tx-c.x,tz-c.z);if(er>.1&&er<1.57&&de>8){const rr=de/(2*Math.sin(er));tv=Math.min(tv,Math.max(Math.sqrt(copA(c.v)*rr)*1.08,10))}}
   _ct.x=tx;_ct.z=tz;_ct.v=Math.max(0,Math.min(copTop(c),tv))}
 function copFree(c,dt){
   c.px=c.x;c.pz=c.z;c.py=c.y;c.pyaw=c.yaw;c.age+=dt;const D=COP.D;if(c.ramCd>0)c.ramCd-=dt;
-  copTarget(c);
+  copTarget(c);copAvoid(c);
   /* stuck against something: back off for a moment, turning away, then go again (it used to grind into the wall until it was replaced) */
   if(c.rev>0){c.rev-=dt;const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw);c.yaw+=c.revS*1.2*dt;c.v=0;c.x-=sy*4.5*dt;c.z+=cy*4.5*dt;c.vx=-sy*4.5;c.vz=cy*4.5;if(trStatic(c.x,c.z,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz}const g=groundAt(c.x,c.z,c.y+.5);c.y+=(g-c.y)*Math.min(1,dt*18);return}
   if(c.stk>1.1&&c.v<2){c.rev=.9;c.revS=angd(Math.atan2(_ct.x-c.x,-(_ct.z-c.z)),c.yaw)>0?-1:1;c.stk=.4}
-  const dx=_ct.x-c.x,dz=_ct.z-c.z,err=angd(Math.atan2(dx,-dz),c.yaw),v=c.v,maxYr=Math.min(2.6,13/Math.max(v,4));
+  const dx=_ct.x-c.x,dz=_ct.z-c.z,err=angd(Math.atan2(dx,-dz),c.yaw),v=c.v,maxYr=Math.min(2.6,copA(v)*1.15/Math.max(v,4));
   const yr=Math.max(-maxYr,Math.min(maxYr,err*3.2));c.om=yr;c.yaw+=yr*dt;
-  const a=Math.max(-12,Math.min(D.accel,(_ct.v-v)*1.6)),top=copTop(c);c.v=Math.max(0,Math.min(top,v+a*dt));c.brake=a<-2.5?1:0;
+  const a=_ct.v<v?Math.max(-12,(_ct.v-v)*4):Math.min(D.accel,(_ct.v-v)*1.6),top=copTop(c);   /* (batch 87) it brakes as hard as it needs to (the brake used to come on in proportion to the overspeed) */c.v=Math.max(0,Math.min(top,v+a*dt));c.brake=a<-2.5?1:0;
   const sy=Math.sin(c.yaw),cy=Math.cos(c.yaw);c.vx=sy*c.v;c.vz=-cy*c.v;c.x+=c.vx*dt;c.z+=c.vz*dt;
   for(const o of[-1,1]){const px=c.x+sy*o*c.hl*.55,pz=c.z-cy*o*c.hl*.55;if(trStatic(px,pz,c.hw+.1,c.y)){c.x+=_sx;c.z+=_sz;c.v*=.55;c.vx=sy*c.v;c.vz=-cy*c.v;c.stk+=.3}}
   const g=groundAt(c.x,c.z,c.y+.5);{const gv=Math.max(26,(HND.vmaxG||40)*.9);if(!RQ.on&&c.v>gv)c.v=gv}   /* (batch 30) off the road nearly as fast as you are on grass (it was 26 m/s) */c.y+=(g-c.y)*Math.min(1,dt*18);if(c.y<g)c.y=g;
   const gf=groundAt(c.x+sy*1.6,c.z-cy*1.6,c.y+.5),gb=groundAt(c.x-sy*1.6,c.z+cy*1.6,c.y+.5);c.pitch+=(Math.atan2(gf-gb,3.2)-c.pitch)*Math.min(1,dt*10);c.roll*=.9;
   if(c.v<1.5&&Math.hypot(C.x-c.x,C.z-c.z)>14)c.stk+=dt;else if(c.stk>0)c.stk=Math.max(0,c.stk-dt*.5)}
+/* (batch 87) a car in its way (traffic, a wreck, another cop): it steers round it on the side with more room, and only slows to its speed when it cannot get past (it used to drive
+   straight into it, and at chase speeds that wrecked it) */
+function copAvoid(c){const v=c.v;if(v<6)return;const sy=Math.sin(c.yaw),cy=-Math.cos(c.yaw),look=Math.max(22,v*1.3);let ob=null,bf=1e9,bl=0;
+  for(const o of TR.cars){if(!o.alive||o===c)continue;const dx=o.x-c.x,dz=o.z-c.z,f=dx*sy+dz*cy;if(f<2||f>look||f>bf)continue;const l=dx*-cy+dz*sy,ow=(o.hw||1)+(c.hw||1)+.7;if(Math.abs(l)>ow)continue;
+    const ov=o.state==1?0:(o.v||0)*Math.cos(angd(o.yaw,c.yaw));if(ov>v-2)continue;ob=o;bf=f;bl=l}
+  if(!ob)return;const tl=(_ct.x-c.x)*-cy+(_ct.z-c.z)*sy;if(Math.hypot(_ct.x-c.x,_ct.z-c.z)<bf-3)return;   /* the place it is going to is before the car: nothing to go round */
+  const side=Math.abs(bl)>.4?-Math.sign(bl):(tl>=0?1:-1),off=bl+side*((ob.hw||1)+(c.hw||1)+1.6),px=c.x+sy*bf+-cy*off,pz=c.z+cy*bf+sy*off;
+  if(!trStatic(px,pz,(c.hw||1)+.3,c.y+.5)){_ct.x=px;_ct.z=pz}else{const ov=ob.state==1?0:Math.max(0,(ob.v||0)*Math.cos(angd(ob.yaw,c.yaw)));_ct.v=Math.min(_ct.v,ov+Math.max(0,bf-8)*.7)}}
 /* between the two worlds: lane graph <-> free driving */
 function copDetach(c){c.state=3;c.cm=2;c.L=null;c.vx=Math.sin(c.yaw)*c.v;c.vz=-Math.cos(c.yaw)*c.v;c.stk=0;c.hn=0}
 function copAttach(c){

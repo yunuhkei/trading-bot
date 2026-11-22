@@ -2,7 +2,7 @@
 /* ===== effects: shadow blob, skid marks, smoke, tyre spray, sparks, and the lights (glow sprites, headlight beams, light pools, sirens) ===== */
 /* Everything is camera-facing or ground-lying quads written into one dynamic buffer and drawn in batches (one draw per mode): alpha-blended (shadow, skids, pads, smoke/spray), then additive
    (light pools and beams, glows, sparks). The number of glows, pools and particles scales with the graphics tier (GFX.cur). */
-const SKID=[],SKMAX=240;let skidHead=0;
+const SKID=[],SKMAX=400;let skidHead=0;
 const SMOKE=[];for(let i=0;i<160;i++)SMOKE.push({x:0,y:0,z:0,vx:0,vy:0,vz:0,age:9,life:1,sz:1,a:0,k:0,id:i});let smokeHead=0;
 const SPARK=[];for(let i=0;i<96;i++)SPARK.push({x:0,y:0,z:0,vx:0,vy:0,vz:0,age:9,life:1});let sparkHead=0,_spCur=0;
 const lastSk=[[0,0,0,0],[0,0,0,0]];let skCool=0,spCool=0;
@@ -17,6 +17,11 @@ function fxUpdate(dt){
   for(let w=0;w<2;w++){const sd=w?1:-1,px=C.x-sy*1.3+cy*sd*.8,pz=C.z+cy*1.3+sy*sd*.8;
     if(act){const L=lastSk[w];if(L[3]){const k=SKID[skidHead%SKMAX]=SKID[skidHead%SKMAX]||new Float32Array(8);k[0]=L[0];k[1]=L[1];k[2]=px;k[3]=pz;k[4]=C.y;k[5]=C.t;k[6]=Math.min(1,Math.max(C.drift,C.slip*3));skidHead++}L[0]=px;L[1]=pz;L[3]=1}else lastSk[w][3]=0}
   if(act||C.boosting){skCool-=dt;while(skCool<=0){skCool+=.035/Math.max(.5,q);const s=SMOKE[smokeHead++%SMOKE.length],sd=Math.random()<.5?-1:1;s.x=C.x-sy*1.4+cy*sd*.8;s.z=C.z+cy*1.4+sy*sd*.8;s.y=C.y+.25;s.vx=C.vx*.25+(Math.random()-.5)*1.5;s.vz=C.vz*.25+(Math.random()-.5)*1.5;s.vy=1+Math.random()*1.2;s.age=0;s.life=.9+Math.random()*.6;s.sz=.9;s.a=act?.5:.3;s.fire=!act;s.dark=0;s.k=0}}
+  /* (batch 87) racers and cops sliding through a bend: black marks from the rear tyres and a little smoke (only near you) */
+  if(TR.on){for(const c of TR.cars){if(!c.alive||c.state!==3||!(Math.abs(c.dA||0)>.12)||c.air){if(c.lsk)c.lsk[0][3]=c.lsk[1][3]=0;continue}const dx=c.x-C.x,dz=c.z-C.z;if(dx*dx+dz*dz>150*150)continue;
+    const ys=Math.sin(c.yaw),yc=Math.cos(c.yaw),b=(c.hl||2.2)*.62,w=(c.hw||.95)*.85,k6=Math.min(1,(Math.abs(c.dA)-.08)*3);if(!c.lsk)c.lsk=[[0,0,0,0],[0,0,0,0]];
+    for(let wi=0;wi<2;wi++){const sd=wi?1:-1,px=c.x-ys*b+yc*sd*w,pz=c.z+yc*b+ys*sd*w,L=c.lsk[wi];if(L[3]&&Math.hypot(px-L[0],pz-L[1])>.6){const k=SKID[skidHead%SKMAX]=SKID[skidHead%SKMAX]||new Float32Array(8);k[0]=L[0];k[1]=L[1];k[2]=px;k[3]=pz;k[4]=c.y;k[5]=C.t;k[6]=k6*.8;skidHead++;L[0]=px;L[1]=pz}else if(!L[3]){L[0]=px;L[1]=pz;L[3]=1}}
+    if(Math.random()<dt*14*q*k6){const s=SMOKE[smokeHead++%SMOKE.length],sd=Math.random()<.5?-1:1;s.x=c.x-ys*b*1.1+yc*sd*w;s.z=c.z+yc*b*1.1+ys*sd*w;s.y=c.y+.25;s.vx=(c.vx||0)*.25+(Math.random()-.5)*1.5;s.vz=(c.vz||0)*.25+(Math.random()-.5)*1.5;s.vy=1+Math.random();s.age=0;s.life=.7+Math.random()*.5;s.sz=.8;s.a=.32;s.fire=0;s.dark=0;s.k=0}}}
   /* spray: the wet road is thrown up behind the tyres at speed (more when sliding) */
   if(C.grounded&&C.onRoad&&C.speed>13&&GFX.wet>.2){const sp=Math.min(1,(C.speed-13)/30);spCool-=dt;
     while(spCool<=0){spCool+=.045/Math.max(.4,q*(.5+sp));for(let w=0;w<2;w++){const sd=w?1:-1,s=SMOKE[smokeHead++%SMOKE.length];s.x=C.x-sy*1.3+cy*sd*.85;s.z=C.z+cy*1.3+sy*sd*.85;s.y=C.y+.12;s.vx=C.vx*.55+cy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vz=C.vz*.55+sy*sd*(.4+Math.random()*1.2)+(Math.random()-.5);s.vy=.5+Math.random()*1.4*(.5+sp);
