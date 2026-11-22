@@ -72,7 +72,7 @@ function arrowsLoad(){let v=null;try{v=localStorage.getItem('racer.arrows')}catc
 
 /* (batch 63) DIFFICULTY: EASY / NORMAL / HARD, in the pause console (DIFF rocker), saved. It sets the story racers' skill, the map events' racers (their cars and how hard they drive),
    the medal times of time trials and the police preset. NORMAL is harder than the game was before batch 63 (EASY is about what it was). */
-const DIFF={lv:1,N:['EASY','NORMAL','HARD'],key:'racer.diff',cops:['medium','hard','brutal'],story:[.86,1,1.06],racer:[.97,1.01,1.06],car:[.98,1.04,1.12],trial:[1.12,1,.94]};
+const DIFF={lv:1,N:['EASY','NORMAL','HARD'],key:'racer.diff',cops:['medium','hard','brutal'],story:[.8,1,1.06],racer:[.97,1.01,1.06],car:[.98,1.04,1.12],trial:[1.12,1,.94]};
 function diffLoad(){if(!QS.has('fixed')){try{const v=localStorage.getItem(DIFF.key);if(v!=null)DIFF.lv=Math.max(0,Math.min(2,(+v)|0))}catch(e){}}if(QS.has('diff'))DIFF.lv=Math.max(0,Math.min(2,(+QS.get('diff'))|0));diffApply()}
 function diffSet(v){DIFF.lv=((v%3)+3)%3;try{localStorage.setItem(DIFF.key,DIFF.lv)}catch(e){}diffApply();safeToast('DIFFICULTY: '+DIFF.N[DIFF.lv],2)}
 function diffApply(){if(!QS.has('cops'))copSetDiff(DIFF.cops[DIFF.lv])}
