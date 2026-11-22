@@ -10,7 +10,7 @@ const S=await T.ev(()=>{const r=ROADS.find(q=>q.id=='ring'),i=Math.round(r.n*.3)
 ok(S.traffic==0&&S.cop==0,'1 tucked in 12 m behind a traffic car or a police car at 112 mph: no slipstream ('+S.traffic+', '+S.cop+')');
 ok(S.racer90==0&&S.racer112>.5,'1 behind a racer: none at 90 mph ('+S.racer90+'), a full tow at 112 mph ('+S.racer112+')');
 ok(S.hudEmpty,'1 no SLIPSTREAM label, bar or screen lines (only the streaks of air off the racer)');
-ok(S.nz<1.26,'2 a racer\'s nitro adds '+Math.round((S.nz-1)*100)+' % top speed (yours adds 26 %)');
+ok(Math.abs(S.nz-1.26)<1e-6,'2 (batch 84) a racer\'s nitro adds '+Math.round((S.nz-1)*100)+' % top speed, as yours does, from a tank it earns');
 /* 2 a race: you boost alongside the racers; none of them lights its nitro in answer */
 const R=await T.ev(()=>{const ev=EV.list.find(e=>e.type=='race');EV.card=null;evStart(ev);let s=0;for(;s<120*12&&EV.run;s++){IN.thr=1;IN.lane=true;C.shield=1;RACER.worldStep(1/120)}
   let answered=0,fired=0,tries=0;for(let k=0;k<6&&EV.run;k++){C.nos=1;nitroTap();tries++;const before=new Map(EV.run.racers.map(c=>[c,(c.race&&c.race.nzT)>0]));
