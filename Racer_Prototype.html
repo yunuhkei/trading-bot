@@ -3224,7 +3224,7 @@ const KO={list:[],U1:new Float32Array(64),U2:new Float32Array(64),dark:new Uint8
 function lampHit(j,nx,nz){const lid=LPOSTC[j];if(lid===undefined||C.speed<4.2)return false;const L=LPOST[lid];if(!L)return false;
   if(KO.list.length>=16){let bi=-1,bd=-1;for(let i=0;i<KO.list.length;i++){const q=KO.list[i],d=Math.hypot(LPOST[q.lid][0]-C.x,LPOST[q.lid][1]-C.z);if(d>bd){bd=d;bi=i}}lampRestore(KO.list[bi]);KO.list.splice(bi,1)}
   const dir=Math.atan2(C.vz,C.vx);KO.list.push({lid,j,dir,a:0,w:.4+C.speed*.04,t:0,top:QH.CC[j*5+4]});QH.CC[j*5+4]=-1e4;KO.dark[lid]=1;KO.n++;
-  const v0=C.speed,k=Math.max(.78,1-1.4/Math.max(v0,1));C.vx*=k;C.vz*=k;C.shake=Math.min(1,C.shake+.25);C.bob=Math.min(C.bob,-.04);impactAdd(0,v0*.3,0,0,L[0],L[1],nx,nz);if(typeof sparkAt==='function')sparkAt(L[0],L[2]+.6,L[1],C.vx*.05,C.vz*.05,10,5);if(typeof audioBang==='function')audioBang(.5);return true}
+  const v0=C.speed,k=Math.max(.78,1-1.4/Math.max(v0,1));C.vx*=k;C.vz*=k;C.shake=Math.min(1,C.shake+.25);C.bob=Math.min(C.bob,-.04);   /* (batch 91) knocking a pole down does no damage to your car (it used to count as a crash) */if(typeof sparkAt==='function')sparkAt(L[0],L[2]+.6,L[1],C.vx*.05,C.vz*.05,10,5);if(typeof audioBang==='function')audioBang(.5);return true}
 function lampRestore(q){QH.CC[q.j*5+4]=q.top;KO.dark[q.lid]=0}
 function lampTick(dt){const L=KO.list;for(let i=L.length-1;i>=0;i--){const q=L[i];q.t+=dt;if(q.a<1.48){q.w+=dt*7*Math.sin(Math.max(.15,q.a));q.a=Math.min(1.48,q.a+q.w*dt)}
     const P=LPOST[q.lid];if(q.t>25&&Math.hypot(P[0]-C.x,P[1]-C.z)>320){lampRestore(q);L.splice(i,1)}}
