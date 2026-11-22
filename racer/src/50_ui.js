@@ -3,6 +3,11 @@
 const UI={w:1,h:1,dpr:1,hud:null,ctx:null,touches:new Map(),stick:null,btn:[],showStats:false,fps:60,ms:16,mapCv:null,paused:false,keys:{},msg:'',msgT:0,tilt:0,lastTap:0,locName:'',locT:0};
 function uiInit(){
   UI.hud=$('hud');UI.ctx=UI.hud.getContext('2d');
+  /* (batch 82) no glowing words anywhere on the HUD: text is drawn without its blurred shadow (a dark one becomes a 1 px drop shadow, a coloured glow is dropped); lamps keep their glow */
+  for(const fn of['fillText','strokeText']){const f=UI.ctx[fn];UI.ctx[fn]=function(t,x,y,mw){const b=this.shadowBlur;if(!b)return mw===undefined?f.call(this,t,x,y):f.call(this,t,x,y,mw);
+    const sc=this.shadowColor,ox=this.shadowOffsetX,oy=this.shadowOffsetY,dark=/^rgba\(0,\s*0,\s*0/.test(sc)||sc=='#000000';this.shadowBlur=0;this.shadowColor='rgba(0,0,0,0)';
+    if(dark&&fn=='fillText'){const fs=this.fillStyle;this.fillStyle='rgba(0,0,0,.6)';f.call(this,t,x+1,y+1.5,...(mw===undefined?[]:[mw]));this.fillStyle=fs}
+    mw===undefined?f.call(this,t,x,y):f.call(this,t,x,y,mw);this.shadowBlur=b;this.shadowColor=sc;this.shadowOffsetX=ox;this.shadowOffsetY=oy}}
   const cv=$('gl');
   /* touch: the left half steers like a thumb-stick that appears where you touch; buttons on the right */
   const tp=(e)=>{e.preventDefault();const r=cv.getBoundingClientRect();for(const t of e.changedTouches){t.cx=t.clientX-r.left;t.cy=t.clientY-r.top}};

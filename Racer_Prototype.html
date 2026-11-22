@@ -140,9 +140,9 @@ function laneInfo(hw,style){const div=style==1||style==4,x0=div?MEDW:.2,nl=Math.
 /* (batch 53) the big HUD text treatment: slanted heavy italic, a dark outline, a light-to-colour fill and a glow, like a racing game (it was plain white text with a soft shadow) */
 function fxText(c,t,x,y,px,col,al,glow){c.save();c.textAlign=al||'center';c.font='italic 800 '+Math.round(px)+'px '+UIF;c.lineJoin='round';c.miterLimit=2;
   c.translate(x,y);c.transform(1,0,-.16,1,0,0);
-  c.shadowColor='rgba(0,0,0,.65)';c.shadowBlur=px*.14;c.shadowOffsetY=px*.05;c.lineWidth=Math.max(2,px*.14);c.strokeStyle='rgba(8,10,14,.92)';c.strokeText(t,0,0);c.shadowBlur=0;c.shadowOffsetY=0;
-  if(glow){c.shadowColor=glow;c.shadowBlur=px*.35}
-  const g=c.createLinearGradient(0,-px*.78,0,px*.12);g.addColorStop(0,'#ffffff');g.addColorStop(.55,col||'#fff');g.addColorStop(1,col||'#fff');c.fillStyle=g;c.fillText(t,0,0);c.restore()}
+  /* (batch 82) no glow and no blur: a crisp dark outline and a hard drop shadow (the coloured glow and the soft shadow read as a haze round every word) */
+  c.lineWidth=Math.max(2,px*.14);c.strokeStyle='rgba(0,0,0,.55)';c.strokeText(t,px*.03,px*.05);c.strokeStyle='rgba(8,10,14,.95)';c.strokeText(t,0,0);
+  c.fillStyle=col||'#fff';c.fillText(t,0,0);c.restore()}   /* (batch 82) a flat colour (the white-to-colour fade read as a glow too) */
 
 'use strict';
 /* ===== WebGL1 helpers + all shaders. One program per material class, no per-frame allocation. ===== */
@@ -3353,6 +3353,11 @@ function musUpdate(t,mute){if(!MUS.el)return;MUS.duck=Math.min(1,MUS.duck+.012);
 const UI={w:1,h:1,dpr:1,hud:null,ctx:null,touches:new Map(),stick:null,btn:[],showStats:false,fps:60,ms:16,mapCv:null,paused:false,keys:{},msg:'',msgT:0,tilt:0,lastTap:0,locName:'',locT:0};
 function uiInit(){
   UI.hud=$('hud');UI.ctx=UI.hud.getContext('2d');
+  /* (batch 82) no glowing words anywhere on the HUD: text is drawn without its blurred shadow (a dark one becomes a 1 px drop shadow, a coloured glow is dropped); lamps keep their glow */
+  for(const fn of['fillText','strokeText']){const f=UI.ctx[fn];UI.ctx[fn]=function(t,x,y,mw){const b=this.shadowBlur;if(!b)return mw===undefined?f.call(this,t,x,y):f.call(this,t,x,y,mw);
+    const sc=this.shadowColor,ox=this.shadowOffsetX,oy=this.shadowOffsetY,dark=/^rgba\(0,\s*0,\s*0/.test(sc)||sc=='#000000';this.shadowBlur=0;this.shadowColor='rgba(0,0,0,0)';
+    if(dark&&fn=='fillText'){const fs=this.fillStyle;this.fillStyle='rgba(0,0,0,.6)';f.call(this,t,x+1,y+1.5,...(mw===undefined?[]:[mw]));this.fillStyle=fs}
+    mw===undefined?f.call(this,t,x,y):f.call(this,t,x,y,mw);this.shadowBlur=b;this.shadowColor=sc;this.shadowOffsetX=ox;this.shadowOffsetY=oy}}
   const cv=$('gl');
   /* touch: the left half steers like a thumb-stick that appears where you touch; buttons on the right */
   const tp=(e)=>{e.preventDefault();const r=cv.getBoundingClientRect();for(const t of e.changedTouches){t.cx=t.clientX-r.left;t.cy=t.clientY-r.top}};

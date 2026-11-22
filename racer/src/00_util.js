@@ -53,6 +53,6 @@ function laneInfo(hw,style){const div=style==1||style==4,x0=div?MEDW:.2,nl=Math.
 /* (batch 53) the big HUD text treatment: slanted heavy italic, a dark outline, a light-to-colour fill and a glow, like a racing game (it was plain white text with a soft shadow) */
 function fxText(c,t,x,y,px,col,al,glow){c.save();c.textAlign=al||'center';c.font='italic 800 '+Math.round(px)+'px '+UIF;c.lineJoin='round';c.miterLimit=2;
   c.translate(x,y);c.transform(1,0,-.16,1,0,0);
-  c.shadowColor='rgba(0,0,0,.65)';c.shadowBlur=px*.14;c.shadowOffsetY=px*.05;c.lineWidth=Math.max(2,px*.14);c.strokeStyle='rgba(8,10,14,.92)';c.strokeText(t,0,0);c.shadowBlur=0;c.shadowOffsetY=0;
-  if(glow){c.shadowColor=glow;c.shadowBlur=px*.35}
-  const g=c.createLinearGradient(0,-px*.78,0,px*.12);g.addColorStop(0,'#ffffff');g.addColorStop(.55,col||'#fff');g.addColorStop(1,col||'#fff');c.fillStyle=g;c.fillText(t,0,0);c.restore()}
+  /* (batch 82) no glow and no blur: a crisp dark outline and a hard drop shadow (the coloured glow and the soft shadow read as a haze round every word) */
+  c.lineWidth=Math.max(2,px*.14);c.strokeStyle='rgba(0,0,0,.55)';c.strokeText(t,px*.03,px*.05);c.strokeStyle='rgba(8,10,14,.95)';c.strokeText(t,0,0);
+  c.fillStyle=col||'#fff';c.fillText(t,0,0);c.restore()}   /* (batch 82) a flat colour (the white-to-colour fade read as a glow too) */
