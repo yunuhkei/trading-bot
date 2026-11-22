@@ -5144,3 +5144,39 @@ def test_real_kalshi_reality_check_compares_prices_not_luck(tmp_path, monkeypatc
     a = acct(0.68)
     a["results"][0]["est"] = True                                             # unconfirmed costs don't count
     assert kr.reality_gap(a, cfg, {})[1] == 11
+
+
+def test_kalshi_morning_report(tmp_path, monkeypatch):
+    import json
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from bot import kalshi_report as kr
+
+    monkeypatch.chdir(tmp_path)
+    for name in ("PRACTICE", "BIG", "REAL", "SENT"):
+        monkeypatch.setattr(kr, name, tmp_path / getattr(kr, name).name)
+    res = lambda t, won, profit: {"ticker": t, "event": t.rsplit("-", 1)[0], "won": won, "profit": profit, "cost": 2.6}
+    (tmp_path / "kalshi_state_real.json").write_text(json.dumps({"acct": {
+        "bankroll": 20.0, "pnl": 1.39, "positions": {},
+        "results": [res("KXHIGHTHOU-26NOV21-B77.5", True, 1.45), res("KXHIGHTNOLA-26NOV21-B73.5", True, 1.41),
+                    res("KXHIGHTTTN-26NOV21-B65.5", True, 1.15), res("KXHIGHTPHX-26NOV21-B67.5", False, -2.62),
+                    res("KXHIGHTPHX-26NOV20-B60.5", True, 9.0)]}}))
+    (tmp_path / "kalshi_state_big.json").write_text(json.dumps({
+        "G1000": {"cash": 1900.0, "start": 1000.0, "positions": {"X": {"event": "KXHIGHMIA-26NOV21", "cost": 88.38}},
+                  "results": [res("KXHIGHTHOU-26NOV21-B77.5", True, 64.30)]}}))
+    (tmp_path / "kalshi_state_practice.json").write_text(json.dumps({"variants": {
+        "G": {"cash": 125.56, "positions": {}, "results": [res("KXHIGHTHOU-26NOV21-B77.5", True, 2.0)]}}}))
+    settings = {"real": {"enabled": True}, "big_accounts": {"strategies": ["G"]}}
+    told = []
+    at = lambda d, h: datetime(2026, 11, d, h, 0, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    assert not kr.morning(settings, at(22, 8), lambda t, m: told.append((t, m)))       # before 9:30: not yet
+    assert kr.morning(settings, at(22, 10), lambda t, m: told.append((t, m)))
+    assert not kr.morning(settings, at(22, 11), lambda t, m: told.append((t, m)))      # once a day
+    (title, msg), = told
+    assert title == "📊 Kalshi, Sat Nov 21: REAL +$1.39"
+    assert "💵 REAL: 3/4 won, +$1.39 → $21.39" in msg
+    assert "G1000: 1/1 won, +$64.30 → $1,988.38 (+99%)" in msg
+    assert "G ($5 bets): 1/1 won, +$2.00 → $125.56" in msg
+    assert "1 bet(s) from that day still waiting" in msg
+    assert not kr.morning({**settings, "morning_report": False}, at(23, 10), lambda t, m: told.append((t, m)))

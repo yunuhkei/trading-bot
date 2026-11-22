@@ -38,6 +38,7 @@ big_accounts:
   max_trades_per_check: 3
   report_at: "15:00"      # a short report every day at 3 pm Milwaukee time
 report_at: "15:00"        # the scoreboard: every Thursday at 3 pm Milwaukee time
+morning_report_at: "09:30" # a short ping each morning with yesterday's results (real first); morning_report: false = off
 report_days: [Thursday]
 timezone: America/Chicago
 
