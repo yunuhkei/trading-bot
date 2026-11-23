@@ -1,6 +1,6 @@
 {
  "strategy": "trend",
- "trained_at": "2026-11-22 10:16 UTC",
+ "trained_at": "2026-11-23 10:41 UTC",
  "features": [
   "mom_5",
   "mom_20",
