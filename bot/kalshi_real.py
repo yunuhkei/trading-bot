@@ -323,6 +323,14 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
             tell("🛑 REAL Kalshi stopped at its floor", f"It's about {k.money(have)} (floor {k.money(cfg['floor'])}). No new "
                  "bets; open ones still settle. Tell Claude when you've looked.")
             return f"REAL Kalshi: stopped at its floor; about {k.money(have)}."
+        short = have - (cash + at_risk(acct))            # it's set for more than Kalshi holds (a deposit on its way)
+        if short > 1.0 and cash - float(cfg["floor"]) < float(cfg["min_fill"]):
+            if not acct.get("short_told"):
+                acct["short_told"] = True
+                tell("⏳ REAL Kalshi is waiting for your deposit", f"It's set for about {k.money(have)}, but Kalshi holds "
+                     f"{k.money(cash)} cash plus {k.money(at_risk(acct))} in open bets. No new bets until the money's there.")
+            return f"REAL Kalshi: waiting for the deposit (Kalshi cash {k.money(cash)})."
+        acct["short_told"] = False
         gap = reality_gap(acct, cfg, settings)
         if gap and gap[0] > float(cfg["max_price_gap"]):
             acct.update(stopped=now, stopped_why="real bets cost more than practice")

@@ -4971,7 +4971,7 @@ def test_real_kalshi_twenty_dollar_setup_from_yaml_bets_small(tmp_path, monkeypa
     from bot import kalshi_real as kr
 
     settings = yaml.safe_load(open("kalshi.yaml"))
-    settings["real"].update(enabled=True, dry_run=False)
+    settings["real"].update(enabled=True, dry_run=False, **dict(strategy="G", bankroll=20, per_trade=3, floor=10, max_day_loss=6, min_fill=1.5))          # the Nov 20 $20 setup
     ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.63, "title": f"C{i}",
               "fair": None} for i in range(8)]
     monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: ideas)
@@ -5002,7 +5002,7 @@ def test_real_kalshi_dry_run_plans_like_the_real_one(tmp_path, monkeypatch):
     from bot import kalshi_real as kr
 
     settings = yaml.safe_load(open("kalshi.yaml"))
-    settings["real"].update(enabled=True, dry_run=True)
+    settings["real"].update(enabled=True, dry_run=True, **dict(strategy="G", bankroll=20, per_trade=3, floor=10, max_day_loss=6, min_fill=1.5))
     ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.68, "title": f"C{i}",
               "fair": None} for i in range(8)]
     monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: ideas)
@@ -5180,3 +5180,51 @@ def test_kalshi_morning_report(tmp_path, monkeypatch):
     assert "G ($5 bets): 1/1 won, +$2.00 → $125.56" in msg
     assert "1 bet(s) from that day still waiting" in msg
     assert not kr.morning({**settings, "morning_report": False}, at(23, 10), lambda t, m: told.append((t, m)))
+
+
+def test_real_kalshi_h_setup_from_yaml_buys_evenings_and_waits_for_the_deposit(tmp_path, monkeypatch):
+    import json
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import yaml
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    settings = yaml.safe_load(open("kalshi.yaml"))
+    assert settings["real"]["strategy"] == "H" and settings["real"]["bankroll"] == 120
+    strats = k.strategies(settings)
+    ev = lambda i: {"event_ticker": f"KXHIGHCHI-26NOV2{i}", "title": f"Highest temperature in City{i}?",
+                    "markets": [{"ticker": f"T{i}", "yes_ask_dollars": "0.63", "no_ask_dollars": "0.39",
+                                 "yes_ask_size_fp": "500", "yes_sub_title": "68-69"},
+                                {"ticker": f"L{i}", "yes_ask_dollars": "0.20", "no_ask_dollars": "0.82",
+                                 "yes_ask_size_fp": "50", "yes_sub_title": "66-67"}]}
+    view = {"mu": 68.5, "sigma": 2.0, "floor": None, "tomorrow": True, "late": False, "why": "test"}
+    views = [(ev(i), view) for i in range(8)]
+
+    class Acct:
+        def __init__(self, cents): self.cents, self.orders = cents, []
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": self.cents}
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            if method == "POST":
+                self.orders.append(body)
+                return {"order_id": f"o{len(self.orders)}"}
+            return {"fills": []} if path == "/portfolio/fills" else {}
+    at = lambda h: datetime(2026, 11, 23, h, 30, tzinfo=ZoneInfo("America/Chicago")).timestamp()
+    book = lambda t: {"yes": [(0.63, 500.0)]}
+    told, p = [], tmp_path / "h.json"
+    c = Acct(2566)                                        # before the deposit: $25.66 on Kalshi
+    kr.real_step(settings, views, strats, {}, at(21), lambda a, b: told.append(a), client=c, book_of=book, path=p)
+    assert not c.orders and sum("waiting for your deposit" in t for t in told) == 1
+    kr.real_step(settings, views, strats, {}, at(22), lambda a, b: told.append(a), client=c, book_of=book, path=p)
+    assert sum("waiting for your deposit" in t for t in told) == 1 and not json.loads(p.read_text())["acct"]["stopped"]
+    c = Acct(12566)                                       # the $100 landed
+    kr.real_step(settings, views, strats, {}, at(15), lambda a, b: told.append(a), client=c, book_of=book, path=p)
+    assert not c.orders                                   # 3:30 pm: H doesn't buy
+    kr.real_step(settings, views, strats, {}, at(21), lambda a, b: told.append(a), client=c, book_of=book, path=p)
+    a = json.loads(p.read_text())["acct"]
+    assert len(c.orders) == 5 and all(int(float(b["count"])) == 11 for b in c.orders)   # 5 a day, 11 at up to 65c: under $8
+    assert kr.at_risk(a) <= 60.0 + 1e-9
