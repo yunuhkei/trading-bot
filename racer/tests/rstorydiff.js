@@ -1,0 +1,16 @@
+// (batch 92) HOW HARD THE STORY RACES ARE: each story race driven by a steady route bot (SKILL = share of its car's cornering grip, default .75, with nitro), in the chapter's car, stock and fully upgraded. Intended on Normal: stock you mostly lose, upgraded you win. usage: DL=1 node racer/tests/rstorydiff.js  (RACES, UPS, KK to narrow it)
+const L=require('./rlib.js');
+const SK=+(process.env.SKILL||.75),DL=+(process.env.DL||1);
+const RACES=process.env.RACES?JSON.parse(process.env.RACES):[[1,'fennec','cc_h_warden'],[1,'deacon','cc_h_warden'],[2,'kings','cc_n_nitro'],[2,'ray','cc_n_nitro'],[3,'ridge','k3'],[3,'crane','k3'],[4,'dunes','cc_h_widow'],[4,'saint','cc_h_widow'],[5,'road','s2'],[5,'house','s2']];
+(async()=>{const T=await L.launch({q:'go=1&scale=.3&fixed=1',w:300,h:200,mobile:false,traffic:true});
+await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:300000});
+await T.ev(k=>{window.__kk=k},JSON.parse(process.env.KK||'{}'));for(const [ch,id,car] of RACES)for(const up of (process.env.UPS?JSON.parse(process.env.UPS):[0,3])){const o=await T.ev(([ch,id,car,up,SK,DL])=>{DIFF.lv=DL;STORY.on=true;if(window.__kk)Object.assign(STORY_SKK,window.__kk);STORY.ch=ch;STORY.car=car;const step=STORY_CH[ch].steps.find(s=>s.k=='ev'&&s.id==id);UPG.lv[car]=up?{eng:up,tyr:up,brk:up,nos:up}:{};
+  EV.card=null;storyStartEv(step);if(!EV.run)return{id,err:'no run'};{const ci=CAR_ROSTER.findIndex(q=>q.id==car);carHandling(CAR_ROSTER[ci])}const Rt=EV.run.ev.R,p=Rt.pts;let fi=0,stk=0,f0=0;
+  for(let s=0;s<120*600&&EV.run;s++){if(EV.run.hold){EV.run.hold=false}if(EV.run.t>=0){let bd=1e18;for(let k=Math.max(0,fi-5);k<Math.min(Rt.n,fi+60);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;fi=k}}let k=fi;while(k<Rt.n-1&&Rt.S[k]<Rt.S[fi]+Math.max(12,C.speed*.55))k++;
+      C.steer=clamp(angd(Math.atan2(p[k*3]-C.x,-(p[k*3+2]-C.z)),C.yaw)*2.2,-1,1);let vt=99;for(let d=0;d<Math.max(60,C.speed*3.5);d+=6){const a=_ra(Rt,fi,Rt.S[fi]+d),b=_ra(Rt,fi,Rt.S[fi]+d+8),c=_ra(Rt,fi,Rt.S[fi]+d+16);const h1=Math.atan2(p[b*3]-p[a*3],-(p[b*3+2]-p[a*3+2])),h2=Math.atan2(p[c*3]-p[b*3],-(p[c*3+2]-p[b*3+2])),kc=Math.abs(angd(h2,h1))/8;
+        if(kc>1e-3){const a0=HND.aBase*SK,a1=HND.aAero*SK,vc=kc>a1?Math.sqrt(a0/(kc-a1)):99;vt=Math.min(vt,Math.sqrt(vc*vc+2*HND.brake*.8*d))}}
+      IN.thr=C.speed<vt?1:0;IN.brk=C.speed>vt+2?1:0;C.shield=.3;if(C.nos>.35&&!IN.nitro&&vt>C.speed+8)nitroTap();
+      if(fi>f0+2){f0=fi;stk=0}else if(++stk>480){stk=0;const q=Math.min(Rt.n-2,fi+3),a=Math.atan2(p[q*3+3]-p[q*3],-(p[q*3+5]-p[q*3+2]));carPlace(p[q*3],p[q*3+2],a,p[q*3+1]+.5);C.vx=Math.sin(a)*10;C.vz=-Math.cos(a)*10}}else IN.thr=0;
+    if(EV.run&&EV.run.t>0)window.__snap=EV.run.racers.map(c=>c.race?c.race.name+':'+(c.race.done>=0?'done':Math.round(EV.run.ps-c.race.s)+'m'):'x').join(' ');RACER.worldStep(1/120);if(STORY.dlg)storySceneEnd()}
+  const card=EV.card||EV.pending;const r={ch,id,car,up,res:card&&card.lines&&card.lines[0]&&card.lines[0][0],snap:window.__snap,lines:card&&card.lines&&card.lines.map(l=>l[0]).join(' / ')};if(EV.run)evQuit();EV.card=null;EV.pending=null;STORY.curEv=null;return r},[ch,id,car,up,SK,DL]);console.log(JSON.stringify(o))}
+await T.close()})();

@@ -3,7 +3,7 @@
 const L=require('./rlib.js');let bad=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)bad++};const LAT=+(process.env.LAT||7.5)   /* (batch 67) 7.5 m/s² of cornering, no nitro: at 6.5 the boss won some runs on Easy by a few metres */,VMAX=+(process.env.VMAX||99);
 (async()=>{const T=await L.launch({q:'go=1&scale=.3&fixed=1&story=new'+'&diff='+(process.env.DIFFQ||'0'),w:300,h:200,mobile:false,traffic:true});
 await T.page.waitForFunction(()=>window.RACER&&window.RACER.BOOT.genMs,null,{timeout:300000});
-const out=await T.ev(([LAT,VMAX])=>{const log=[];const W=n=>{for(let i=0;i<n;i++)RACER.worldStep(1/120)};
+const out=await T.ev(([LAT,VMAX])=>{window.__storySkTest=.52;   /* (batch 92) the story's rivals are now meant to need an upgraded car; this test checks the story's FLOW with a slow bot, so it turns them down (tests/rstorydiff.js measures the real difficulty) */const log=[];const W=n=>{for(let i=0;i<n;i++)RACER.worldStep(1/120)};
   const skip=()=>{let k=0;while(STORY.dlg&&k++<50)storySceneEnd()};
   const drive=(maxS)=>{const r0=EV.run;if(!r0)return'norun';const ev=r0.ev,Rt=ev.R;let fi=0,t=0;
     while(EV.run&&t<maxS){skip();const r=EV.run;if(!r)break;if(Rt&&r.t>=0){const p=Rt.pts;let bd=1e18;for(let k=Math.max(0,fi-5);k<Math.min(Rt.n,fi+60);k++){const d=(p[k*3]-C.x)**2+(p[k*3+2]-C.z)**2;if(d<bd){bd=d;fi=k}}
