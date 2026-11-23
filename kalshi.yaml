@@ -47,13 +47,13 @@ timezone: America/Chicago
 real:
   enabled: true
   dry_run: false          # LIVE: real bets with real money (true = only says what it would buy)
-  strategy: G             # the cheaper favorites (60-65c), the same ideas as its practice accounts
-  bankroll: 20            # what you put in Kalshi for this
-  per_trade: 3            # dollars a bet, fees included; filled against the real order book, never above its limit
-  floor: 10               # the cushion: never more at risk than (money - 10); at $10 it stops for good and pings you
-  max_day_loss: 6         # down $6 in a day: no new bets until tomorrow
+  strategy: H             # G's cheaper favorites (60-65c), bought only 9 pm - midnight (Nov 23: owner's call)
+  bankroll: 120           # what you put in Kalshi for this ($20, plus $100 on Nov 23)
+  per_trade: 8            # dollars a bet, fees included; filled against the real order book, never above its limit
+  floor: 60               # the cushion: never more at risk than (money - 60); at $60 it stops for good and pings you
+  max_day_loss: 25        # down $25 in a day: no new bets until tomorrow
   max_trades_per_day: 5
-  min_fill: 1.5           # skip a bet if the book has under $1.50 at acceptable prices
+  min_fill: 3             # skip a bet if the book has under $3 at acceptable prices
   max_slip: 0.02          # pay at most 2c over the best ask
   check_after: 10         # once 10 markets match its practice account's: stop if real paid
   max_price_gap: 0.03     # 3c+ more a contract than practice did (fees included); wins and losses aren't compared
