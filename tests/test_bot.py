@@ -5192,7 +5192,8 @@ def test_real_kalshi_h_setup_from_yaml_buys_evenings_and_waits_for_the_deposit(t
     from bot import kalshi_real as kr
 
     settings = yaml.safe_load(open("kalshi.yaml"))
-    assert settings["real"]["strategy"] == "H" and settings["real"]["bankroll"] == 120
+    settings["real"]["strategy"] = "H"                    # the Nov 23 H setup (Nov 24 switched to K)
+    assert settings["real"]["bankroll"] == 120
     strats = k.strategies(settings)
     ev = lambda i: {"event_ticker": f"KXHIGHCHI-26NOV2{i}", "title": f"Highest temperature in City{i}?",
                     "markets": [{"ticker": f"T{i}", "yes_ask_dollars": "0.63", "no_ask_dollars": "0.39",
@@ -5241,3 +5242,48 @@ def test_kalshi_tight_gap_favorites():
     assert k.ideas_from_views([(mk("0.62", "0.40"), view)], rules)                 # bid 60c: a 2c gap
     assert not k.ideas_from_views([(mk("0.62", "0.42"), view)], rules)             # bid 58c: a 4c gap
     assert k.ideas_from_views([(mk("0.62", "0.42"), view)], k.strategies({})["G"]["rules"])   # G doesn't care
+
+
+def test_real_kalshi_off_switch_follows_the_strategys_recent_practice(tmp_path, monkeypatch):
+    import json
+
+    import yaml
+    from bot import kalshi as k
+    from bot import kalshi_big as kb
+    from bot import kalshi_real as kr
+
+    settings = yaml.safe_load(open("kalshi.yaml"))
+    assert settings["real"]["strategy"] == "K"
+    ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.62, "title": f"C{i}",
+              "fair": None} for i in range(3)]
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: ideas)
+    big = tmp_path / "big.json"
+    monkeypatch.setattr(kb, "STATE", big)
+    now = 2_000_000_000.0
+    res = lambda n, p, age: [{"t": now - age * 86400, "profit": p, "cost": 10.0, "count": 16, "ticker": f"X{i}"} for i in range(n)]
+
+    class Acct:
+        def __init__(self): self.orders = []
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 12000}
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            if method == "POST":
+                self.orders.append(body)
+                return {"order_id": f"o{len(self.orders)}"}
+            return {"fills": []} if path == "/portfolio/fills" else {}
+    told, p = [], tmp_path / "r.json"
+    run = lambda c, t: kr.real_step(settings, [], k.strategies(settings), {}, t, lambda a, b: told.append(a), client=c,
+                                    book_of=lambda x: {"yes": [(0.62, 500.0)]}, path=p)
+    big.write_text(json.dumps({"K1000": {"results": res(20, -2.0, 5) + res(30, 9.0, 40)}}))   # lost lately, won long ago
+    c = Acct(); out = run(c, now)
+    assert not c.orders and "paused" in out and sum("paused" in t for t in told) == 1
+    run(c, now + 600)
+    assert not c.orders and sum("paused" in t for t in told) == 1                 # one ping, not every check
+    big.write_text(json.dumps({"K1000": {"results": res(20, -2.0, 5) + res(10, 5.0, 3)}}))     # back above zero
+    run(c, now + 1200)
+    assert c.orders and any("back on" in t for t in told)
+    big.write_text(json.dumps({"K1000": {"results": res(5, -9.0, 2)}}))           # too few bets to judge: keeps going
+    c2 = Acct(); p.unlink(); run(c2, now + 99999)
+    assert c2.orders

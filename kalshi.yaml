@@ -47,7 +47,7 @@ timezone: America/Chicago
 real:
   enabled: true
   dry_run: false          # LIVE: real bets with real money (true = only says what it would buy)
-  strategy: H             # G's cheaper favorites (60-65c), bought only 9 pm - midnight (Nov 23: owner's call)
+  strategy: K             # G's favorites (60-65c) only with a tight buy/sell gap (Nov 24: owner's call; 2026's edge)
   bankroll: 120           # what you put in Kalshi for this ($20, plus $100 on Nov 23)
   per_trade: 8            # dollars a bet, fees included; filled against the real order book, never above its limit
   floor: 60               # the cushion: never more at risk than (money - 60); at $60 it stops for good and pings you
@@ -57,3 +57,5 @@ real:
   max_slip: 0.02          # pay at most 2c over the best ask
   check_after: 10         # once 10 markets match its practice account's: stop if real paid
   max_price_gap: 0.03     # 3c+ more a contract than practice did (fees included); wins and losses aren't compared
+  off_days: 30            # the off switch: if its strategy's $1,000 practice account lost money over the last 30 days
+  off_min_bets: 15        # (15+ settled bets), no new real bets until that's back above zero (the 2026 edge may fade)

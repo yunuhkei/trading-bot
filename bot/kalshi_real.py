@@ -30,7 +30,7 @@ log = logging.getLogger("kalshi_real")
 STATE = Path("kalshi_state_real.json")
 DEFAULTS = {"enabled": False, "dry_run": True, "strategy": "G", "bankroll": 100.0, "per_trade": 10.0, "floor": 70.0,
             "max_day_loss": 15.0, "max_trades_per_day": 5, "max_slip": 0.02, "min_fill": 3.0, "check_after": 10,
-            "max_price_gap": 0.03}
+            "max_price_gap": 0.03, "off_days": 30, "off_min_bets": 15}
 FINAL = ("finalized", "settled", "determined")
 CONFIRM_AFTER = 300                                      # an order is confirmed from Kalshi's fills only after 5 minutes
 DROP_AFTER = 1800                                        # ...and dropped as "nothing filled" only after 30 minutes
@@ -249,6 +249,18 @@ def reality_gap(acct: dict, cfg: dict, settings: dict) -> tuple[float, int] | No
     return sum(mine_by[t] - prac[t] for t in both) / len(both), len(both)
 
 
+def strategy_recent(cfg: dict, settings: dict, now: float) -> tuple[float, int] | None:
+    """(profit, settled bets) of the strategy's $1,000 practice account over the last `off_days` days, or None if its
+    record can't be read."""
+    try:
+        big = json.loads(kb.STATE.read_text())
+        name = kb.name(cfg["strategy"], kb.config(settings) or kb.DEFAULTS)
+        rs = [r for r in (big.get(name) or {}).get("results", []) if now - float(r.get("t", 0)) <= float(cfg["off_days"]) * 86400]
+    except Exception:
+        return None
+    return sum(r["profit"] for r in rs), len(rs)
+
+
 def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float, tell, client=None, book_of=None,
               path: Path = STATE) -> str | None:
     """One check: settle, reconcile with Kalshi, apply the stops, then place real bets within the limits. None when
@@ -331,6 +343,19 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
                      f"{k.money(cash)} cash plus {k.money(at_risk(acct))} in open bets. No new bets until the money's there.")
             return f"REAL Kalshi: waiting for the deposit (Kalshi cash {k.money(cash)})."
         acct["short_told"] = False
+        recent = strategy_recent(cfg, settings, now)     # the off switch: the strategy's own practice record, lately
+        if recent and recent[1] >= int(cfg["off_min_bets"]) and recent[0] < 0:
+            if not acct.get("off"):
+                acct["off"] = now
+                tell("⏸️ REAL Kalshi paused: its strategy is losing lately",
+                     f"{cfg['strategy']}'s $1,000 practice account is down {k.money(-recent[0])} over its last {recent[1]} "
+                     f"bets ({cfg['off_days']:.0f} days). No new real bets until it's back above zero; open bets still "
+                     "settle. The edge may be fading.")
+            return f"REAL Kalshi: paused, {cfg['strategy']} practice is down lately ({k.money(recent[0])} on {recent[1]})."
+        if acct.get("off"):
+            acct["off"] = None
+            tell("▶️ REAL Kalshi back on", f"{cfg['strategy']}'s practice account is back above zero over the last "
+                 f"{cfg['off_days']:.0f} days, so real bets start again.")
         gap = reality_gap(acct, cfg, settings)
         if gap and gap[0] > float(cfg["max_price_gap"]):
             acct.update(stopped=now, stopped_why="real bets cost more than practice")
