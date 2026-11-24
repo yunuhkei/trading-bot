@@ -5193,6 +5193,7 @@ def test_real_kalshi_h_setup_from_yaml_buys_evenings_and_waits_for_the_deposit(t
 
     settings = yaml.safe_load(open("kalshi.yaml"))
     settings["real"]["strategy"] = "H"                    # the Nov 23 H setup (Nov 24 switched to K)
+    settings["real"]["enabled"] = True                  # (real money is off in kalshi.yaml since Nov 24)
     assert settings["real"]["bankroll"] == 120
     strats = k.strategies(settings)
     ev = lambda i: {"event_ticker": f"KXHIGHCHI-26NOV2{i}", "title": f"Highest temperature in City{i}?",
@@ -5254,6 +5255,7 @@ def test_real_kalshi_off_switch_follows_the_strategys_recent_practice(tmp_path, 
 
     settings = yaml.safe_load(open("kalshi.yaml"))
     assert settings["real"]["strategy"] == "K"
+    settings["real"]["enabled"] = True                  # (real money is off in kalshi.yaml since Nov 24)
     ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.62, "title": f"C{i}",
               "fair": None} for i in range(3)]
     monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: ideas)

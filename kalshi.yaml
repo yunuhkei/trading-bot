@@ -45,7 +45,7 @@ timezone: America/Chicago
 # --- REAL MONEY (bot/kalshi_real.py): OFF until you set enabled: true AND add the KALSHI_KEY_ID / KALSHI_PRIVATE_KEY
 # secrets. Only one strategy, small bets, and hard stops; every practice account above keeps running untouched.
 real:
-  enabled: true
+  enabled: false          # Nov 24: owner turned real money off (practice accounts keep running)
   dry_run: false          # LIVE: real bets with real money (true = only says what it would buy)
   strategy: K             # G's favorites (60-65c) only with a tight buy/sell gap (Nov 24: owner's call; 2026's edge)
   bankroll: 120           # what you put in Kalshi for this ($20, plus $100 on Nov 23)
