@@ -540,6 +540,12 @@ STRATEGIES = {
     "H": {"label": "Cheaper favorites, 9 pm - midnight only", "rules": {"pick": "favorite", "when": "tomorrow",
                                                                        "min_price": 0.60, "max_price": 0.65,
                                                                        "hit_rate": 0.67, "hours": [21, 24]}},
+    # Nov 24 (scratch backtest, Jun 15 - Nov 5, about 2,100 city-days): G's favorites with the buy/sell gap at 2c or
+    # less won 77% at noon (+20% a bet on 113, up in both halves) and 69% at 9 pm (+8% on 291, both halves); with a
+    # wider gap about even. K tests G with that filter.
+    "K": {"label": "Cheaper favorites, tight buy/sell gap (2c max)", "rules": {"pick": "favorite", "when": "tomorrow",
+                                                                             "min_price": 0.60, "max_price": 0.65,
+                                                                             "hit_rate": 0.70, "max_gap": 0.02}},
     # Favorites at 55-60c: +0.8% on 750 (first half -2.5%, second +3.3%). Daily lows' favorites lost at every price
     # (60-65c: -14% on 567, both halves), so they're not traded.
     "J": {"label": "Favorites at 55-60c", "rules": {"pick": "favorite", "when": "tomorrow", "min_price": 0.55,
@@ -566,6 +572,9 @@ def favorite_idea(e: dict, rules: dict, view: dict | None = None) -> list[dict]:
     f = max(ms, key=lambda m: _f(m["yes_ask_dollars"]) + 1 - _f(m["no_ask_dollars"]))
     price, size, hit = _f(f["yes_ask_dollars"]), _f(f.get("yes_ask_size_fp")), float(rules.get("hit_rate", 0.75))
     if not (float(rules.get("min_price", 0.60)) <= price <= float(rules.get("max_price", 0.80))) or size < 1:
+        return []
+    gap = price + _f(f["no_ask_dollars"]) - 1                # the YES ask minus the YES bid (= 1 - the NO ask)
+    if rules.get("max_gap") is not None and gap > float(rules["max_gap"]) + 1e-9:
         return []
     lo, hi = float(rules.get("min_price", 0.60)), float(rules.get("max_price", 0.80))
     why = f"the market's favorite; in the backtest favorites at {lo * 100:.0f}-{hi * 100:.0f}¢ won {hit:.0%} of the time"

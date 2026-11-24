@@ -1566,7 +1566,7 @@ def test_kalshi_strategies_follow_their_own_rules_and_keep_their_own_accounts(tm
     told = []
     k.step({"mode": "practice", "practice_cash": 100}, lambda t, m: told.append(t), events=[ev])
     state = json.loads(Path("kalshi_state_practice.json").read_text())
-    assert state["positions"] and set(state["variants"]) == {"B", "C", "D", "E", "F", "G", "H", "J", "R", "M"}
+    assert state["positions"] and set(state["variants"]) == {"B", "C", "D", "E", "F", "G", "H", "J", "K", "R", "M"}
     assert state["variants"]["E"]["positions"] and all(p["side"] == "no" for p in state["variants"]["E"]["positions"].values())
     assert sum("Kalshi: bought" in t for t in told) == len(state["positions"])        # only A pings per trade
     title, msg = k.scoreboard(state, k.strategies({}))
@@ -5228,3 +5228,16 @@ def test_real_kalshi_h_setup_from_yaml_buys_evenings_and_waits_for_the_deposit(t
     a = json.loads(p.read_text())["acct"]
     assert len(c.orders) == 5 and all(int(float(b["count"])) == 11 for b in c.orders)   # 5 a day, 11 at up to 65c: under $8
     assert kr.at_risk(a) <= 60.0 + 1e-9
+
+
+def test_kalshi_tight_gap_favorites():
+    from bot import kalshi as k
+
+    rules = k.strategies({})["K"]["rules"]
+    mk = lambda ask, no_ask: {"event_ticker": "KXHIGHCHI-26NOV25", "title": "Chicago?", "markets": [
+        {"ticker": "MID", "yes_ask_dollars": ask, "no_ask_dollars": no_ask, "yes_ask_size_fp": "50", "yes_sub_title": "a"},
+        {"ticker": "LOW", "yes_ask_dollars": "0.20", "no_ask_dollars": "0.82", "yes_ask_size_fp": "50", "yes_sub_title": "b"}]}
+    view = {"mu": 68.5, "sigma": 2.0, "floor": None, "tomorrow": True, "late": False, "why": "t"}
+    assert k.ideas_from_views([(mk("0.62", "0.40"), view)], rules)                 # bid 60c: a 2c gap
+    assert not k.ideas_from_views([(mk("0.62", "0.42"), view)], rules)             # bid 58c: a 4c gap
+    assert k.ideas_from_views([(mk("0.62", "0.42"), view)], k.strategies({})["G"]["rules"])   # G doesn't care
