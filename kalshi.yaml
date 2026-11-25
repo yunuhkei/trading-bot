@@ -60,4 +60,4 @@ real:
   off_days: 30            # the off switch: if its strategy's $1,000 practice account lost money over the last 30 days
   off_min_bets: 15        # (15+ settled bets), no new real bets until that's back above zero (the 2026 edge may fade)
   adopt_manual: true      # YES contracts you buy by hand on its markets join its record (from Kalshi's fills) instead of stopping it
-  restart: 1              # after a stop: bump this number to start it again (Nov 25: after the hand-bought Chicago contracts)
+  restart: 2              # after a stop: bump this number to start it again (Nov 25: hand-bought Chicago contracts, try 2)

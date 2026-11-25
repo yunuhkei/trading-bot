@@ -94,6 +94,22 @@ def real_positions(client) -> dict[str, float] | None:
     return out
 
 
+def position_cost(client, ticker: str) -> tuple[float, float] | None:
+    """(YES contracts held, what they cost with fees) for one market, from Kalshi's own position record
+    (market_exposure_dollars + fees_paid_dollars); None if it isn't a readable YES position."""
+    try:
+        for m in client.call("GET", "/portfolio/positions", params={"ticker": ticker, "limit": 10}).get("market_positions") or []:
+            if m.get("ticker") != ticker:
+                continue
+            n, cost = _num(m, "position_fp", "position"), _num(m, "market_exposure_dollars")
+            fees = _num(m, "fees_paid_dollars") or 0.0
+            if n and n > 0 and cost and cost > 0:
+                return n, round(cost + fees, 2)
+    except Exception as e:
+        log.warning("REAL position %s: %s", ticker, e)
+    return None
+
+
 def market_fills(client, ticker: str, side: str, since: float) -> tuple[int, float] | None:
     """(contracts, cost with fees) it really bought on this market since `since`, from Kalshi's fills (it places one
     bet per market, so they're all that bet's, whatever happened to the order's reply); None if it can't tell."""
@@ -333,7 +349,13 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
         if cfg.get("adopt_manual") and (unknown or over):    # the owner's own YES buys: take them into the record
             for t in list(unknown + over):
                 got = market_fills(client, t, "yes", now - 14 * 86400)
-                if got and abs(got[0] - held_real.get(t, 0)) < 1e-9:
+                if not (got and abs(got[0] - held_real.get(t, 0)) < 1e-9):   # buys and sells mixed: Kalshi's own tally
+                    pos = position_cost(client, t)
+                    got = (int(round(pos[0])), pos[1]) if pos and abs(pos[0] - held_real.get(t, 0)) < 1e-9 else None
+                    if not got:
+                        log.warning("REAL couldn't adopt %s: Kalshi holds %s, fills say %s, position record %s", t,
+                                    held_real.get(t), got, pos)
+                if got:
                     old = acct["positions"].get(t) or {}
                     acct["positions"][t] = {"event": old.get("event") or t.rsplit("-", 1)[0], "side": "yes",
                                             "count": got[0], "price": got[1] / got[0], "cost": got[1],

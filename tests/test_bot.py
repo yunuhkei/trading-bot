@@ -5329,3 +5329,36 @@ def test_real_kalshi_restart_and_hand_bought_contracts(tmp_path, monkeypatch):
     assert any("added your own bet" in t for t in told)
     told.clear(); run({"restart": 2, "adopt_manual": True})
     assert not any("restarted" in t for t in told)                     # the same number doesn't restart again
+
+
+def test_real_kalshi_adopts_from_kalshis_position_record_when_fills_mix_buys_and_sells(tmp_path, monkeypatch):
+    import json
+
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: [])
+    p = tmp_path / "s.json"
+    p.write_text(json.dumps({"acct": {"pnl": 0.0, "positions": {"T": {"event": "E", "side": "yes", "count": 12,
+        "price": 0.645, "cost": 7.74, "opened": 0.0, "title": "Chicago", "order": "o1", "est": False}}, "results": [],
+        "started": 0.0, "stopped": 1.0, "stopped_why": "x", "day": None, "day_pnl": 0.0, "trades_today": 0,
+        "bankroll": 120.0}}))
+
+    class Acct:
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 9000}
+            if path == "/portfolio/positions":
+                return {"market_positions": [{"ticker": "T", "position_fp": "17.00", "market_exposure_dollars": "10.6000",
+                                              "fees_paid_dollars": "0.4100"}]}
+            if path == "/portfolio/fills":                # bought 12 + 10 by hand, then sold 5: the buys add to 22
+                return {"fills": [{"count_fp": "12.00", "yes_price_dollars": "0.62", "outcome_side": "yes", "book_side": "bid"},
+                                  {"count_fp": "10.00", "yes_price_dollars": "0.61", "outcome_side": "yes", "book_side": "bid"},
+                                  {"count_fp": "5.00", "yes_price_dollars": "0.70", "outcome_side": "yes", "book_side": "ask"}]}
+            return {}
+    told = []
+    kr.real_step({"real": {"enabled": True, "dry_run": False, "strategy": "K", "adopt_manual": True, "restart": 5}}, [],
+                 {"K": {"rules": {}}}, {}, 2_000_000_000.0, lambda a, b: told.append(a), client=Acct(),
+                 book_of=lambda t: {}, path=p)
+    a = json.loads(p.read_text())["acct"]
+    assert not a["stopped"] and a["positions"]["T"]["count"] == 17 and abs(a["positions"]["T"]["cost"] - 11.01) < 1e-9
