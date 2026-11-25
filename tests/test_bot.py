@@ -5287,3 +5287,45 @@ def test_real_kalshi_off_switch_follows_the_strategys_recent_practice(tmp_path, 
     big.write_text(json.dumps({"K1000": {"results": res(5, -9.0, 2)}}))           # too few bets to judge: keeps going
     c2 = Acct(); p.unlink(); run(c2, now + 99999)
     assert c2.orders
+
+
+def test_real_kalshi_restart_and_hand_bought_contracts(tmp_path, monkeypatch):
+    import json
+
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: [])
+    p = tmp_path / "s.json"
+    p.write_text(json.dumps({"acct": {"pnl": 3.09, "positions": {"KXHIGHCHI-26NOV25-B43.5": {
+        "event": "KXHIGHCHI-26NOV25", "side": "yes", "count": 12, "price": 0.645, "cost": 7.74, "opened": 0.0,
+        "title": "Chicago 43-44", "order": "o1", "est": False}}, "results": [], "started": 0.0,
+        "stopped": 1.0, "stopped_why": "Kalshi shows bets it didn't record: KXHIGHCHI-26NOV25-B43.5", "day": None,
+        "day_pnl": 0.0, "trades_today": 0, "bankroll": 120.0}}))
+
+    class Acct:
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 9000}
+            if path == "/portfolio/positions":
+                return {"market_positions": [{"ticker": "KXHIGHCHI-26NOV25-B43.5", "position_fp": "20.00"}]}
+            if path == "/portfolio/fills":
+                return {"fills": [{"count_fp": "12.00", "yes_price_dollars": "0.6200", "outcome_side": "yes",
+                                   "book_side": "bid", "fee_cost": "0.2100"},
+                                  {"count_fp": "8.00", "yes_price_dollars": "0.6000", "outcome_side": "yes",
+                                   "book_side": "bid", "fee_cost": "0.1400"}]}
+            return {}
+    told = []
+    settings = {"real": {"enabled": True, "dry_run": False, "strategy": "K"}}
+    run = lambda cfg: kr.real_step({"real": {**settings["real"], **cfg}}, [], {"K": {"rules": {}}}, {}, 2_000_000_000.0,
+                                   lambda a, b: told.append(a), client=Acct(), book_of=lambda t: {}, path=p)
+    assert "STOPPED" in run({})                                          # stays stopped without a restart
+    out = run({"restart": 1, "adopt_manual": False})
+    assert "stopped" in out and any("restarted" in t for t in told)    # restarted, but the extra 8 stop it again
+    out = run({"restart": 2, "adopt_manual": True})
+    a = json.loads(p.read_text())["acct"]
+    assert not a["stopped"] and a["positions"]["KXHIGHCHI-26NOV25-B43.5"]["count"] == 20
+    assert abs(a["positions"]["KXHIGHCHI-26NOV25-B43.5"]["cost"] - (12 * 0.62 + 0.21 + 8 * 0.60 + 0.14)) < 1e-9
+    assert any("added your own bet" in t for t in told)
+    told.clear(); run({"restart": 2, "adopt_manual": True})
+    assert not any("restarted" in t for t in told)                     # the same number doesn't restart again

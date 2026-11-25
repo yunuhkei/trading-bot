@@ -298,6 +298,12 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
         over, stuck = reconcile(acct, held_real, client, now) if held_real is not None else ([], [])   # even stopped
         settle_real(acct, cache, tell, now, held_real)
         have = money_now(acct)
+        if cfg.get("restart") is not None and cfg["restart"] != acct.get("restart_seen"):   # the owner says go again
+            acct["restart_seen"] = cfg["restart"]
+            if acct["stopped"]:
+                tell("▶️ REAL Kalshi restarted", f"It was stopped ({acct.get('stopped_why')}); you restarted it in "
+                     "kalshi.yaml. Every safety check still runs.")
+                acct.update(stopped=None, stopped_why=None)
         if acct["stopped"]:
             return f"REAL Kalshi: STOPPED ({acct['stopped_why']}); about {k.money(have)}."
         cash = real_cash(client)
@@ -324,6 +330,18 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
             tell("🛑 REAL Kalshi stopped: bets it can't confirm", f"{len(stuck)} bet(s) still can't be confirmed from "
                  "Kalshi's records after 2 hours. No new bets until Claude checks. Nothing was sold.")
             return "REAL Kalshi: stopped (unconfirmed bets)."
+        if cfg.get("adopt_manual") and (unknown or over):    # the owner's own YES buys: take them into the record
+            for t in list(unknown + over):
+                got = market_fills(client, t, "yes", now - 14 * 86400)
+                if got and abs(got[0] - held_real.get(t, 0)) < 1e-9:
+                    old = acct["positions"].get(t) or {}
+                    acct["positions"][t] = {"event": old.get("event") or t.rsplit("-", 1)[0], "side": "yes",
+                                            "count": got[0], "price": got[1] / got[0], "cost": got[1],
+                                            "opened": old.get("opened", now), "title": old.get("title") or t,
+                                            "order": old.get("order"), "est": False, "adopted": True}
+                    tell("📥 REAL Kalshi added your own bet to its record", f"{t}: {got[0]} YES on Kalshi, "
+                         f"{k.money(got[1])} with fees (from Kalshi's fills). It counts toward the cushion and the results.")
+                    (unknown if t in unknown else over).remove(t)
         if unknown or over:                              # Kalshi holds something it didn't place: stop, the owner checks
             acct.update(stopped=now, stopped_why="Kalshi shows bets it didn't record: " + ", ".join(unknown + over)[:120])
             tell("🛑 REAL Kalshi stopped: bets it didn't record", f"Kalshi shows {len(unknown) + len(over)} position(s) "

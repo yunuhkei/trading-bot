@@ -59,3 +59,5 @@ real:
   max_price_gap: 0.03     # 3c+ more a contract than practice did (fees included); wins and losses aren't compared
   off_days: 30            # the off switch: if its strategy's $1,000 practice account lost money over the last 30 days
   off_min_bets: 15        # (15+ settled bets), no new real bets until that's back above zero (the 2026 edge may fade)
+  adopt_manual: true      # YES contracts you buy by hand on its markets join its record (from Kalshi's fills) instead of stopping it
+  restart: 1              # after a stop: bump this number to start it again (Nov 25: after the hand-bought Chicago contracts)
