@@ -94,6 +94,22 @@ def real_positions(client) -> dict[str, float] | None:
     return out
 
 
+def position_cost(client, ticker: str) -> tuple[float, float] | None:
+    """(YES contracts held, what they cost with fees) for one market, from Kalshi's own position record
+    (market_exposure_dollars + fees_paid_dollars); None if it isn't a readable YES position."""
+    try:
+        for m in client.call("GET", "/portfolio/positions", params={"ticker": ticker, "limit": 10}).get("market_positions") or []:
+            if m.get("ticker") != ticker:
+                continue
+            n, cost = _num(m, "position_fp", "position"), _num(m, "market_exposure_dollars")
+            fees = _num(m, "fees_paid_dollars") or 0.0
+            if n and n > 0 and cost and cost > 0:
+                return n, round(cost + fees, 2)
+    except Exception as e:
+        log.warning("REAL position %s: %s", ticker, e)
+    return None
+
+
 def market_fills(client, ticker: str, side: str, since: float) -> tuple[int, float] | None:
     """(contracts, cost with fees) it really bought on this market since `since`, from Kalshi's fills (it places one
     bet per market, so they're all that bet's, whatever happened to the order's reply); None if it can't tell."""
@@ -287,19 +303,23 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
         return "REAL Kalshi: no API key yet (KALSHI_KEY_ID and KALSHI_PRIVATE_KEY secrets)."
     book_of = book_of or kb.fetch_book
     state = json.loads(path.read_text()) if path.exists() else {}
+    auto = str(cfg["bankroll"]).lower() == "kalshi"      # "kalshi": it uses exactly what's on the Kalshi account
     acct = state.setdefault("acct", {"pnl": 0.0, "positions": {}, "results": [], "started": now, "stopped": None,
-                                     "day": None, "day_pnl": 0.0, "trades_today": 0, "bankroll": float(cfg["bankroll"])})
+                                     "day": None, "day_pnl": 0.0, "trades_today": 0, "bankroll": 0.0 if auto else float(cfg["bankroll"]),
+                                     "rebase": auto})
     try:
         day = time.strftime("%Y-%m-%d", time.gmtime(now))
         if acct["day"] != day:                           # a new day first, so today's settled losses count today
             acct.update(day=day, day_pnl=0.0, trades_today=0, day_stop_told=False)
-        acct["bankroll"] = float(cfg["bankroll"])         # what kalshi.yaml says it may use, every check
+        if not auto:
+            acct["bankroll"] = float(cfg["bankroll"])     # what kalshi.yaml says it may use, every check
         held_real = real_positions(client)
         over, stuck = reconcile(acct, held_real, client, now) if held_real is not None else ([], [])   # even stopped
         settle_real(acct, cache, tell, now, held_real)
         have = money_now(acct)
         if cfg.get("restart") is not None and cfg["restart"] != acct.get("restart_seen"):   # the owner says go again
             acct["restart_seen"] = cfg["restart"]
+            acct["rebase"] = auto                        # a restart re-reads what's really on Kalshi
             if acct["stopped"]:
                 tell("▶️ REAL Kalshi restarted", f"It was stopped ({acct.get('stopped_why')}); you restarted it in "
                      "kalshi.yaml. Every safety check still runs.")
@@ -315,13 +335,20 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
                      "KALSHI_PRIVATE_KEY secrets. Otherwise Kalshi may be down; it keeps trying.")
             return "REAL Kalshi: couldn't read the real account; no new bets this check."
         acct["fails"] = 0
+        if auto and acct.get("rebase"):                  # its money = Kalshi's cash plus what its open bets cost
+            acct["bankroll"] = round(cash + at_risk(acct) - acct["pnl"], 2)
+            acct["rebase"] = False
+            have = money_now(acct)
+            tell("📏 REAL Kalshi set to what's on your account", f"Kalshi cash {k.money(cash)} plus "
+                 f"{k.money(at_risk(acct))} in its open bets: it works with {k.money(have)} now, up to "
+                 f"{k.money(cfg['per_trade'])} a bet, never below the {k.money(cfg['floor'])} cushion.")
         if not acct.get("connected"):                    # the first good read: the key works
             acct["connected"] = now
             tell("✅ REAL Kalshi connected", f"Your key works. Kalshi cash: {k.money(cash)}. "
                  + ("DRY RUN: it only says what it would buy." if cfg["dry_run"] else "It's live: real bets, up to "
                     f"{k.money(cfg['per_trade'])} each, never below the {k.money(cfg['floor'])} cushion.")
-                 + (f" Note: under the {k.money(cfg['bankroll'])} it's set for; it only bets what's there."
-                    if cash < cfg["bankroll"] - 0.005 else ""))
+                 + (f" Note: under the {k.money(acct['bankroll'])} it's set for; it only bets what's there."
+                    if cash < acct["bankroll"] - 0.005 else ""))
         closed = {t for t, at in (acct.get("closed") or {}).items() if now - at < 3 * 86400}
         acct["closed"] = {t: at for t, at in (acct.get("closed") or {}).items() if now - at < 3 * 86400}
         unknown = sorted(t for t in held_real if t not in acct["positions"] and t not in closed)
@@ -333,7 +360,13 @@ def real_step(settings: dict, views: list, strats: dict, cache: dict, now: float
         if cfg.get("adopt_manual") and (unknown or over):    # the owner's own YES buys: take them into the record
             for t in list(unknown + over):
                 got = market_fills(client, t, "yes", now - 14 * 86400)
-                if got and abs(got[0] - held_real.get(t, 0)) < 1e-9:
+                if not (got and abs(got[0] - held_real.get(t, 0)) < 1e-9):   # buys and sells mixed: Kalshi's own tally
+                    pos = position_cost(client, t)
+                    got = (int(round(pos[0])), pos[1]) if pos and abs(pos[0] - held_real.get(t, 0)) < 1e-9 else None
+                    if not got:
+                        log.warning("REAL couldn't adopt %s: Kalshi holds %s, fills say %s, position record %s", t,
+                                    held_real.get(t), got, pos)
+                if got:
                     old = acct["positions"].get(t) or {}
                     acct["positions"][t] = {"event": old.get("event") or t.rsplit("-", 1)[0], "side": "yes",
                                             "count": got[0], "price": got[1] / got[0], "cost": got[1],

@@ -48,11 +48,11 @@ real:
   enabled: true
   dry_run: false          # LIVE: real bets with real money (true = only says what it would buy)
   strategy: K             # G's favorites (60-65c) only with a tight buy/sell gap (Nov 24: owner's call; 2026's edge)
-  bankroll: 120           # what you put in Kalshi for this ($20, plus $100 on Nov 23)
-  per_trade: 8            # dollars a bet, fees included; filled against the real order book, never above its limit
-  floor: 60               # the cushion: never more at risk than (money - 60); at $60 it stops for good and pings you
+  bankroll: kalshi        # exactly what's on the Kalshi account (re-read at each restart); or a dollar amount
+  per_trade: 5            # dollars a bet, fees included; filled against the real order book, never above its limit
+  floor: 50               # the cushion: never more at risk than (money - 50); at $50 it stops for good and pings you
   max_day_loss: 25        # down $25 in a day: no new bets until tomorrow
-  max_trades_per_day: 5
+  max_trades_per_day: 10
   min_fill: 3             # skip a bet if the book has under $3 at acceptable prices
   max_slip: 0.02          # pay at most 2c over the best ask
   check_after: 10         # once 10 markets match its practice account's: stop if real paid
@@ -60,4 +60,4 @@ real:
   off_days: 30            # the off switch: if its strategy's $1,000 practice account lost money over the last 30 days
   off_min_bets: 15        # (15+ settled bets), no new real bets until that's back above zero (the 2026 edge may fade)
   adopt_manual: true      # YES contracts you buy by hand on its markets join its record (from Kalshi's fills) instead of stopping it
-  restart: 1              # after a stop: bump this number to start it again (Nov 25: after the hand-bought Chicago contracts)
+  restart: 3              # after a stop: bump this number to start it again (Nov 26: about 10 bets of $5, set to Kalshi's balance)

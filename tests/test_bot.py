@@ -5192,8 +5192,8 @@ def test_real_kalshi_h_setup_from_yaml_buys_evenings_and_waits_for_the_deposit(t
     from bot import kalshi_real as kr
 
     settings = yaml.safe_load(open("kalshi.yaml"))
-    settings["real"]["strategy"] = "H"                    # the Nov 23 H setup (Nov 24 switched to K)
-    assert settings["real"]["bankroll"] == 120
+    settings["real"].update(strategy="H", enabled=True, bankroll=120, per_trade=8, floor=60, max_trades_per_day=5)
+    # (the Nov 23 H setup; Nov 26 moved to bankroll: kalshi, $5 bets, a $50 cushion)
     strats = k.strategies(settings)
     ev = lambda i: {"event_ticker": f"KXHIGHCHI-26NOV2{i}", "title": f"Highest temperature in City{i}?",
                     "markets": [{"ticker": f"T{i}", "yes_ask_dollars": "0.63", "no_ask_dollars": "0.39",
@@ -5317,7 +5317,8 @@ def test_real_kalshi_restart_and_hand_bought_contracts(tmp_path, monkeypatch):
             return {}
     told = []
     settings = {"real": {"enabled": True, "dry_run": False, "strategy": "K"}}
-    run = lambda cfg: kr.real_step({"real": {**settings["real"], **cfg}}, [], {"K": {"rules": {}}}, {}, 2_000_000_000.0,
+    open_market = {"KXHIGHCHI-26NOV25-B43.5": {"status": "active", "result": ""}}    # offline: not settled
+    run = lambda cfg: kr.real_step({"real": {**settings["real"], **cfg}}, [], {"K": {"rules": {}}}, dict(open_market), 2_000_000_000.0,
                                    lambda a, b: told.append(a), client=Acct(), book_of=lambda t: {}, path=p)
     assert "STOPPED" in run({})                                          # stays stopped without a restart
     out = run({"restart": 1, "adopt_manual": False})
@@ -5329,3 +5330,72 @@ def test_real_kalshi_restart_and_hand_bought_contracts(tmp_path, monkeypatch):
     assert any("added your own bet" in t for t in told)
     told.clear(); run({"restart": 2, "adopt_manual": True})
     assert not any("restarted" in t for t in told)                     # the same number doesn't restart again
+
+
+def test_real_kalshi_adopts_from_kalshis_position_record_when_fills_mix_buys_and_sells(tmp_path, monkeypatch):
+    import json
+
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: [])
+    p = tmp_path / "s.json"
+    p.write_text(json.dumps({"acct": {"pnl": 0.0, "positions": {"T": {"event": "E", "side": "yes", "count": 12,
+        "price": 0.645, "cost": 7.74, "opened": 0.0, "title": "Chicago", "order": "o1", "est": False}}, "results": [],
+        "started": 0.0, "stopped": 1.0, "stopped_why": "x", "day": None, "day_pnl": 0.0, "trades_today": 0,
+        "bankroll": 120.0}}))
+
+    class Acct:
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 9000}
+            if path == "/portfolio/positions":
+                return {"market_positions": [{"ticker": "T", "position_fp": "17.00", "market_exposure_dollars": "10.6000",
+                                              "fees_paid_dollars": "0.4100"}]}
+            if path == "/portfolio/fills":                # bought 12 + 10 by hand, then sold 5: the buys add to 22
+                return {"fills": [{"count_fp": "12.00", "yes_price_dollars": "0.62", "outcome_side": "yes", "book_side": "bid"},
+                                  {"count_fp": "10.00", "yes_price_dollars": "0.61", "outcome_side": "yes", "book_side": "bid"},
+                                  {"count_fp": "5.00", "yes_price_dollars": "0.70", "outcome_side": "yes", "book_side": "ask"}]}
+            return {}
+    told = []
+    kr.real_step({"real": {"enabled": True, "dry_run": False, "strategy": "K", "adopt_manual": True, "restart": 5}}, [],
+                 {"K": {"rules": {}}}, {"T": {"status": "active", "result": ""}}, 2_000_000_000.0, lambda a, b: told.append(a), client=Acct(),
+                 book_of=lambda t: {}, path=p)
+    a = json.loads(p.read_text())["acct"]
+    assert not a["stopped"] and a["positions"]["T"]["count"] == 17 and abs(a["positions"]["T"]["cost"] - 11.01) < 1e-9
+
+
+def test_real_kalshi_bankroll_follows_the_kalshi_account(tmp_path, monkeypatch):
+    import json
+
+    import yaml
+    from bot import kalshi as k
+    from bot import kalshi_real as kr
+
+    settings = yaml.safe_load(open("kalshi.yaml"))
+    assert settings["real"]["bankroll"] == "kalshi" and settings["real"]["per_trade"] == 5
+    ideas = [{"kind": "weather", "event": f"E{i}", "ticker": f"T{i}", "side": "yes", "price": 0.62, "title": f"C{i}",
+              "fair": None} for i in range(14)]
+    monkeypatch.setattr(k, "ideas_from_views", lambda views, rules, now=None: ideas)
+    p = tmp_path / "s.json"
+    p.write_text(json.dumps({"acct": {"pnl": -17.98, "positions": {}, "results": [], "started": 0.0, "stopped": 1.0,
+                                      "stopped_why": "x", "day": None, "day_pnl": 0.0, "trades_today": 0,
+                                      "bankroll": 120.0, "restart_seen": 2}}))
+
+    class Acct:
+        def __init__(self): self.orders = []
+        def call(self, method, path, body=None, params=None):
+            if path == "/portfolio/balance":
+                return {"balance": 10612}                 # $106.12 on Kalshi, nothing open
+            if path == "/portfolio/positions":
+                return {"market_positions": []}
+            if method == "POST":
+                self.orders.append(body)
+                return {"order_id": f"o{len(self.orders)}"}
+            return {"fills": []} if path == "/portfolio/fills" else {}
+    told, c = [], Acct()
+    kr.real_step(settings, [], k.strategies(settings), {}, 2_000_000_000.0, lambda a, b: told.append(a), client=c,
+                 book_of=lambda t: {"yes": [(0.62, 500.0)]}, path=p)
+    a = json.loads(p.read_text())["acct"]
+    assert abs(kr.money_now(a) - 106.12) < 1e-9 and any("set to what's on your account" in t for t in told)
+    assert len(c.orders) == 10 and kr.at_risk(a) <= 106.12 - 50 + 1e-9         # 10 bets a day, inside the cushion
